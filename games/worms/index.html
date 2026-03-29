@@ -80,16 +80,17 @@ canvas { display: block; position: absolute; top: 0; left: 0; }
 <body>
 <a id="backBtn" href="../../index.html">Back to Games</a>
 <div id="turnInfo">Loading...</div>
-<div id="windBar"><span>WIND</span><span id="windArrow">></span><span id="windVal">0.0</span></div>
+<div id="windBar"><span>WIND</span><span id="windArrow">&gt;</span><span id="windVal">0.0</span></div>
 <div id="weaponPanel"></div>
 <div id="overlay">
   <div class="box">
     <h2>Worms Artillery</h2>
-    <p><b>Move:</b> <span class="key">Arrow Keys</span> or <span class="key">A/D</span> to walk. <span class="key">W</span> to jump.</p>
-    <p><b>Aim & Fire:</b> Click and drag from your worm (slingshot style). Release to fire!</p>
-    <p><b>Weapons:</b> Click weapon icons at bottom or press <span class="key">1-6</span> to switch.</p>
-    <p><b>Teleport:</b> Select teleport, then click destination on terrain.</p>
-    <p>Destroy all enemy worms! Wind and gravity affect projectiles. Terrain is destructible!</p>
+    <p><b>Move:</b> <span class="key">Arrow Left/Right</span> or <span class="key">A/D</span> to walk. <span class="key">W</span> to jump.</p>
+    <p><b>Aim:</b> <span class="key">Up/Down</span> arrows to aim. Hold <span class="key">Shift</span> for fine aim.</p>
+    <p><b>Fire:</b> Hold <span class="key">Space</span> to charge power, release to fire!</p>
+    <p><b>Weapons:</b> Click icons at bottom or press <span class="key">1-6</span>. <span class="key">Q/E</span> to cycle.</p>
+    <p><b>Touch:</b> Drag from your worm to aim &amp; set power (slingshot). Tap weapon icons to switch.</p>
+    <p>Destroy all enemy worms! Wind affects projectiles. Terrain is fully destructible!</p>
     <p class="dismiss">Tap anywhere to start</p>
   </div>
 </div>
@@ -98,1679 +99,2099 @@ canvas { display: block; position: absolute; top: 0; left: 0; }
   <button onclick="location.reload()">Play Again</button>
   <button onclick="location.href='../../index.html'">Back to Games</button>
 </div>
-<canvas id="terrain"></canvas>
-<canvas id="game"></canvas>
 <script>
-(function(){
-"use strict";
+'use strict';
 
 // ============================================================
-// CANVAS SETUP - Dual canvas: terrain (destructible) + game (rendering)
+// CONSTANTS (from artillery repo constants.js + worms-game)
 // ============================================================
-const tCanvas = document.getElementById('terrain');
-const tCtx = tCanvas.getContext('2d', { willReadFrequently: true });
-const gCanvas = document.getElementById('game');
-const ctx = gCanvas.getContext('2d');
-
-const overlayEl = document.getElementById('overlay');
-const turnInfoEl = document.getElementById('turnInfo');
-const windArrowEl = document.getElementById('windArrow');
-const windValEl = document.getElementById('windVal');
-const weaponPanelEl = document.getElementById('weaponPanel');
-const gameOverEl = document.getElementById('gameOver');
-const goTextEl = document.getElementById('goText');
-
-let W, H;
-const GRAVITY = 0.12;
-const WATER_H = 55;
-const WORM_W = 18, WORM_H = 22;
-
-function resize() {
-  W = tCanvas.width = gCanvas.width = window.innerWidth;
-  H = tCanvas.height = gCanvas.height = window.innerHeight;
-}
-resize();
+const WORLD_W = 1920;
+const WORLD_H = 720;
+const GRAVITY = 300;       // from worms-game Projectile.js
+const WIND_LIMIT = 10;     // max wind magnitude per turn
+const WIND_SCALE = 12;     // from worms-game Projectile.js
+const MIN_POWER = 150;
+const MAX_POWER = 500;
+const CHARGE_SPEED = 350;
+const TURN_DURATION = 30;
+const FIGURE_COUNT = 3;    // 3v3
+const BASE_HP = 100;
 
 // ============================================================
-// SOLID MAP - Pixel-level collision from terrain alpha channel
+// AUDIO - tiny WebAudio SFX (ported from worms-game SFX.js concept)
 // ============================================================
-let solidMap; // Uint8Array, W*H, 1=solid 0=air
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function resumeAudio() { if (audioCtx.state === 'suspended') audioCtx.resume(); }
 
-function rebuildSolidMap() {
-  const imgData = tCtx.getImageData(0, 0, W, H);
-  const d = imgData.data;
-  solidMap = new Uint8Array(W * H);
-  for (let i = 0; i < W * H; i++) {
-    solidMap[i] = d[i * 4 + 3] > 40 ? 1 : 0;
-  }
+function playTone(freq, dur, vol, type) {
+    resumeAudio();
+    const g = audioCtx.createGain();
+    const o = audioCtx.createOscillator();
+    o.type = type || 'square';
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(vol || 0.1, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + dur);
 }
 
-function isSolid(x, y) {
-  const ix = Math.round(x), iy = Math.round(y);
-  if (ix < 0 || ix >= W || iy < 0 || iy >= H) return false;
-  return solidMap[iy * W + ix] === 1;
+function playNoise(dur, vol) {
+    resumeAudio();
+    const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * dur, audioCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(vol || 0.08, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    src.connect(g); g.connect(audioCtx.destination);
+    src.start();
 }
 
-function getTerrainY(x) {
-  const ix = Math.round(Math.max(0, Math.min(W - 1, x)));
-  for (let y = 0; y < H; y++) {
-    if (solidMap[y * W + ix] === 1) return y;
-  }
-  return H - WATER_H;
-}
-
-// ============================================================
-// TERRAIN GENERATION - Layered sine waves with grass/dirt/rock
-// ============================================================
-const BIOMES = [
-  { name: 'Grasslands', sky1: '#0a1a4a', sky2: '#2a5cb0', sky3: '#87ceeb', sky4: '#c8e8f8',
-    grass: '#4a9a2a', grassDark: '#3a7a1a', dirt: '#7a5a2a', dirtDark: '#5a3a1a', rock: '#4a3a2a',
-    grassBlade: '#5ab030', waterTop: 'rgba(30,100,200,0.75)', waterBot: 'rgba(10,40,120,0.95)' },
-  { name: 'Desert', sky1: '#1a0a00', sky2: '#8a4a10', sky3: '#d4a050', sky4: '#f0d8a0',
-    grass: '#c4a040', grassDark: '#a08030', dirt: '#c49040', dirtDark: '#9a6a20', rock: '#6a4a1a',
-    grassBlade: '#d0b050', waterTop: 'rgba(40,120,180,0.7)', waterBot: 'rgba(15,50,100,0.9)' },
-  { name: 'Arctic', sky1: '#0a1a3a', sky2: '#3a6a9a', sky3: '#a0c8e0', sky4: '#e0f0f8',
-    grass: '#d8e8f0', grassDark: '#b0c8d8', dirt: '#a0b8c8', dirtDark: '#7898a8', rock: '#506878',
-    grassBlade: '#e0f0ff', waterTop: 'rgba(40,80,140,0.75)', waterBot: 'rgba(10,30,80,0.95)' },
-  { name: 'Volcanic', sky1: '#1a0000', sky2: '#4a1010', sky3: '#803020', sky4: '#b06040',
-    grass: '#3a3a3a', grassDark: '#2a2a2a', dirt: '#4a2a1a', dirtDark: '#3a1a0a', rock: '#2a1a0a',
-    grassBlade: '#5a4a3a', waterTop: 'rgba(180,60,20,0.7)', waterBot: 'rgba(100,20,5,0.95)' }
-];
-
-let biome;
-let heightMap; // stores original terrain heights for reference
-
-const TERRAIN_PRESETS = [
-  // Standard rolling hills
-  (x, off) => {
-    const bY = H * 0.52;
-    return bY + Math.sin((x + off) * 0.005) * H * 0.12
-      + Math.sin((x + off) * 0.017 + 2) * H * 0.06
-      + Math.sin((x + off) * 0.042 + 5) * H * 0.025;
-  },
-  // Valley - dip in center
-  (x, off) => {
-    const bY = H * 0.48;
-    const center = W / 2;
-    const valleyDip = Math.exp(-((x - center) * (x - center)) / (W * W * 0.04)) * H * 0.18;
-    return bY + valleyDip + Math.sin((x + off) * 0.006) * H * 0.08
-      + Math.sin((x + off) * 0.02 + 3) * H * 0.04;
-  },
-  // Fortress - two plateaus with gap
-  (x, off) => {
-    const bY = H * 0.55;
-    const plateau = (x < W * 0.35 || x > W * 0.65) ? -H * 0.1 : 0;
-    return bY + plateau + Math.sin((x + off) * 0.008) * H * 0.05
-      + Math.sin((x + off) * 0.03 + 1) * H * 0.025;
-  },
-  // Chaos - jagged terrain
-  (x, off) => {
-    const bY = H * 0.5;
-    return bY + Math.sin((x + off) * 0.004) * H * 0.1
-      + Math.sin((x + off) * 0.015 + 2) * H * 0.07
-      + Math.sin((x + off) * 0.05 + 4) * H * 0.04
-      + Math.sin((x + off) * 0.1 + 7) * H * 0.02;
-  }
-];
-
-function generateTerrain() {
-  biome = BIOMES[Math.random() * BIOMES.length | 0];
-  const preset = TERRAIN_PRESETS[Math.random() * TERRAIN_PRESETS.length | 0];
-  const off = Math.random() * 10000;
-  heightMap = new Float32Array(W);
-
-  for (let x = 0; x < W; x++) {
-    heightMap[x] = preset(x, off);
-  }
-
-  // Draw terrain onto terrain canvas
-  tCtx.clearRect(0, 0, W, H);
-
-  // Draw column by column for layered effect
-  for (let x = 0; x < W; x++) {
-    const surfY = Math.round(heightMap[x]);
-    const waterLine = H - WATER_H;
-    const colH = waterLine - surfY;
-    if (colH <= 0) continue;
-
-    // Rock base layer
-    tCtx.fillStyle = biome.rock;
-    tCtx.fillRect(x, surfY, 1, colH);
-
-    // Dirt layer (top 70%)
-    const dirtH = colH * 0.7;
-    const dGrad = tCtx.createLinearGradient(0, surfY, 0, surfY + dirtH);
-    dGrad.addColorStop(0, biome.dirt);
-    dGrad.addColorStop(1, biome.dirtDark);
-    tCtx.fillStyle = dGrad;
-    tCtx.fillRect(x, surfY, 1, dirtH);
-
-    // Grass surface layer (top 6px)
-    const grassH = Math.min(6, colH);
-    tCtx.fillStyle = biome.grass;
-    tCtx.fillRect(x, surfY, 1, grassH);
-
-    // Darker grass edge
-    tCtx.fillStyle = biome.grassDark;
-    tCtx.fillRect(x, surfY, 1, 2);
-  }
-
-  // Draw grass blades
-  tCtx.strokeStyle = biome.grassBlade;
-  tCtx.lineWidth = 1.2;
-  for (let x = 2; x < W - 2; x += 4 + (Math.random() * 3 | 0)) {
-    const sy = Math.round(heightMap[x]);
-    if (sy > H - WATER_H - 8) continue;
-    const h = 3 + Math.random() * 5;
-    const lean = (Math.random() - 0.5) * 3;
-    tCtx.beginPath();
-    tCtx.moveTo(x, sy);
-    tCtx.quadraticCurveTo(x + lean, sy - h * 0.6, x + lean * 1.2, sy - h);
-    tCtx.stroke();
-  }
-
-  rebuildSolidMap();
-}
-
-// ============================================================
-// TERRAIN DESTRUCTION - destination-out with scorched edges
-// ============================================================
-function destroyTerrain(cx, cy, radius) {
-  // Scorched/charred edges first (slightly larger than crater)
-  const edgeR = radius + 4;
-  tCtx.save();
-  tCtx.globalCompositeOperation = 'source-atop';
-  const edgeGrad = tCtx.createRadialGradient(cx, cy, radius * 0.7, cx, cy, edgeR);
-  edgeGrad.addColorStop(0, 'transparent');
-  edgeGrad.addColorStop(0.6, 'rgba(30,20,10,0.8)');
-  edgeGrad.addColorStop(0.85, 'rgba(50,30,15,0.6)');
-  edgeGrad.addColorStop(1, 'transparent');
-  tCtx.fillStyle = edgeGrad;
-  tCtx.beginPath();
-  tCtx.arc(cx, cy, edgeR, 0, Math.PI * 2);
-  tCtx.fill();
-  tCtx.restore();
-
-  // Carve crater using destination-out
-  tCtx.save();
-  tCtx.globalCompositeOperation = 'destination-out';
-  const craterGrad = tCtx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-  craterGrad.addColorStop(0, 'rgba(0,0,0,1)');
-  craterGrad.addColorStop(0.8, 'rgba(0,0,0,1)');
-  craterGrad.addColorStop(1, 'rgba(0,0,0,0)');
-  tCtx.fillStyle = craterGrad;
-  tCtx.beginPath();
-  tCtx.arc(cx, cy, radius, 0, Math.PI * 2);
-  tCtx.fill();
-  tCtx.restore();
-
-  rebuildSolidMap();
-}
-
-// ============================================================
-// WEAPONS DEFINITION
-// ============================================================
-const WEAPONS = {
-  bazooka:   { name: 'Bazooka',   ico: 'R', ammo: Infinity, radius: 35, damage: 40, windScale: 1.0,
-               desc: 'Arcing rocket' },
-  grenade:   { name: 'Grenade',   ico: 'G', ammo: Infinity, radius: 40, damage: 45, windScale: 0.7,
-               desc: 'Bounces, 3s fuse' },
-  shotgun:   { name: 'Shotgun',   ico: 'S', ammo: Infinity, radius: 14, damage: 28, windScale: 0.0,
-               desc: '2 shots, straight' },
-  dynamite:  { name: 'Dynamite',  ico: 'D', ammo: 2, radius: 60, damage: 60, windScale: 0.0,
-               desc: 'Place it, run!' },
-  airstrike: { name: 'Airstrike', ico: 'A', ammo: 1, radius: 28, damage: 30, windScale: 0.0,
-               desc: 'Click target area' },
-  teleport:  { name: 'Teleport',  ico: 'T', ammo: 2, radius: 0, damage: 0, windScale: 0.0,
-               desc: 'Click to warp' }
+const SFX = {
+    shoot() { playTone(400, 0.15, 0.12, 'sawtooth'); playNoise(0.1, 0.06); },
+    explosion(s) { playNoise(0.3 + (s || 1) * 0.15, 0.12); playTone(80, 0.25, 0.1, 'sine'); },
+    bounce() { playTone(600, 0.06, 0.05, 'triangle'); },
+    hit() { playTone(200, 0.1, 0.08, 'square'); },
+    death() { playTone(120, 0.4, 0.1, 'sawtooth'); },
+    splash() { playNoise(0.3, 0.1); playTone(300, 0.15, 0.04, 'sine'); },
+    teleport() { playTone(800, 0.2, 0.08, 'sine'); playTone(1200, 0.15, 0.06, 'sine'); },
+    shotgunBlast() { playNoise(0.15, 0.15); playTone(250, 0.1, 0.1, 'sawtooth'); },
+    turnStart() { playTone(660, 0.08, 0.06, 'triangle'); playTone(880, 0.08, 0.04, 'triangle'); },
+    victory() { playTone(523, 0.2, 0.08, 'triangle'); setTimeout(() => playTone(659, 0.2, 0.08, 'triangle'), 200); setTimeout(() => playTone(784, 0.3, 0.1, 'triangle'), 400); },
 };
 
-// Per-team ammo tracking
-let teamAmmo = [null, null];
-function initAmmo() {
-  teamAmmo = [{}, {}];
-  for (let t = 0; t < 2; t++) {
-    for (const k in WEAPONS) {
-      teamAmmo[t][k] = WEAPONS[k].ammo;
+// ============================================================
+// WEAPON DEFINITIONS (ported from worms-game WeaponSystem.js)
+// ============================================================
+const WEAPONS = {
+    bazooka:   { name: 'Bazooka',   icon: '\uD83D\uDE80', key: 'bazooka',   ammo: Infinity, damage: 50, radius: 45, desc: 'Wind-affected rocket', instant: false },
+    grenade:   { name: 'Grenade',   icon: '\uD83D\uDCA3', key: 'grenade',   ammo: 5,        damage: 65, radius: 60, desc: 'Bouncing explosive (3s fuse)', instant: false },
+    shotgun:   { name: 'Shotgun',   icon: '\uD83D\uDD2B', key: 'shotgun',   ammo: 2,        damage: 15, radius: 0,  desc: '6 pellets, no terrain damage', instant: true },
+    dynamite:  { name: 'Dynamite',  icon: '\uD83E\uDDE8', key: 'dynamite',  ammo: 1,        damage: 80, radius: 80, desc: 'Placed, 5s fuse, huge blast', instant: true },
+    airstrike: { name: 'Airstrike', icon: '\u2708\uFE0F', key: 'airstrike', ammo: 1,        damage: 40, radius: 40, desc: '5 bombs from above', instant: true },
+    teleport:  { name: 'Teleport',  icon: '\u26A1',       key: 'teleport',  ammo: 2,        damage: 0,  radius: 0,  desc: 'Click to relocate', instant: true },
+};
+const WEAPON_KEYS = Object.keys(WEAPONS);
+
+function getNextWeapon(currentKey, direction, team) {
+    let idx = WEAPON_KEYS.indexOf(currentKey);
+    const len = WEAPON_KEYS.length;
+    for (let i = 0; i < len; i++) {
+        idx = (idx + direction + len) % len;
+        const key = WEAPON_KEYS[idx];
+        if (team.getAmmo(key) > 0) return key;
     }
-  }
-}
-function getAmmo(team, wep) { return teamAmmo[team][wep]; }
-function useAmmo(team, wep) { if (teamAmmo[team][wep] !== Infinity) teamAmmo[team][wep]--; }
-
-// Build weapon panel UI
-function buildWeaponPanel() {
-  weaponPanelEl.innerHTML = '';
-  const keys = Object.keys(WEAPONS);
-  keys.forEach((k, i) => {
-    const w = WEAPONS[k];
-    const btn = document.createElement('button');
-    btn.className = 'wpnBtn' + (k === selectedWeapon ? ' sel' : '');
-    btn.dataset.weapon = k;
-    btn.innerHTML = `<span class="ico">${w.ico}</span>${w.name}<span class="ammo">${w.ammo === Infinity ? 'inf' : w.ammo}</span>`;
-    btn.addEventListener('click', (e) => { e.stopPropagation(); selectWeapon(k); });
-    btn.addEventListener('touchstart', (e) => { e.stopPropagation(); selectWeapon(k); });
-    weaponPanelEl.appendChild(btn);
-  });
-}
-
-function updateWeaponUI() {
-  const team = currentTeam;
-  document.querySelectorAll('.wpnBtn').forEach(b => {
-    const k = b.dataset.weapon;
-    b.classList.toggle('sel', k === selectedWeapon);
-    const a = getAmmo(team, k);
-    b.querySelector('.ammo').textContent = a === Infinity ? 'inf' : a;
-    b.style.opacity = a <= 0 ? '0.3' : '1';
-  });
-}
-
-function selectWeapon(k) {
-  if (getAmmo(currentTeam, k) <= 0) return;
-  selectedWeapon = k;
-  updateWeaponUI();
+    return currentKey;
 }
 
 // ============================================================
-// WORM CLASS
+// BIOMES (from worms-game Terrain.js)
 // ============================================================
-class Worm {
-  constructor(x, team, name) {
-    this.x = x;
-    this.y = getTerrainY(x) - WORM_H / 2 - 1;
-    this.team = team;
-    this.name = name;
-    this.hp = 100;
-    this.maxHp = 100;
-    this.alive = true;
-    this.vx = 0;
-    this.vy = 0;
-    this.onGround = false;
-    this.facingRight = team === 0;
-    this.blinkTimer = 80 + Math.random() * 200 | 0;
-    this.hurtTimer = 0;
-    this.expression = 'normal'; // normal, worried, happy
-  }
+const BIOMES = {
+    grasslands: { name: 'Grasslands', sky: ['#87CEEB', '#c9e8f7'], surface: ['#4a8c3f', '#3a7c2f'], dirt: ['#8B6E3C', '#7a5e2c', '#6B4E2C'], rock: ['#5a5a5a', '#4a4a4a', '#3a3a3a'], grass: true },
+    desert:     { name: 'Desert',     sky: ['#f4a460', '#ffe4b5'], surface: ['#d2a95e', '#c49a4e'], dirt: ['#c4944e', '#b4843e', '#a4742e'], rock: ['#8B7355', '#7a6345', '#6a5335'], grass: false },
+    arctic:     { name: 'Arctic',     sky: ['#b0c4de', '#dce8f4'], surface: ['#e8e8f0', '#d8d8e4'], dirt: ['#c0c0d0', '#a8a8b8', '#9090a0'], rock: ['#7888a0', '#687890', '#586880'], grass: false },
+};
+const BIOME_KEYS = Object.keys(BIOMES);
 
-  update() {
-    if (!this.alive) return;
+// ============================================================
+// TERRAIN CLASS (from worms-game Terrain.js + artillery terrain destruction)
+// ============================================================
+class Terrain {
+    constructor(worldW, worldH, biomeKey) {
+        this.W = worldW;
+        this.H = worldH;
+        this.biome = BIOMES[biomeKey || BIOME_KEYS[Math.floor(Math.random() * BIOME_KEYS.length)]];
 
-    // Gravity
-    this.vy += GRAVITY * 2.5;
-    this.x += this.vx;
-    this.y += this.vy;
-    this.vx *= 0.92;
+        // Terrain canvas (off-screen)
+        this.canvas = document.createElement('canvas');
+        this.canvas.width = worldW;
+        this.canvas.height = worldH;
+        this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
 
-    // Terrain collision - pixel level
-    this.onGround = false;
-    const footY = Math.round(this.y + WORM_H / 2);
-    const cx = Math.round(this.x);
+        this.heights = new Float32Array(worldW);
+        this._generate();
+        this._bakeSolidMap();
+    }
 
-    // Check feet
-    if (footY >= 0 && footY < H && cx >= 0 && cx < W && isSolid(cx, footY)) {
-      // Find surface
-      let surfY = footY;
-      while (surfY > 0 && isSolid(cx, surfY - 1)) surfY--;
-      this.y = surfY - WORM_H / 2;
-      if (this.vy > 0) this.vy = 0;
-      this.onGround = true;
-    } else {
-      // Check slightly ahead too
-      for (let dy = 1; dy <= 3; dy++) {
-        if (footY + dy < H && isSolid(cx, footY + dy)) {
-          this.y = footY + dy - WORM_H / 2;
-          if (this.vy > 0) this.vy = 0;
-          this.onGround = true;
-          break;
+    // Ported from worms-game Terrain.js _generate()
+    _generate() {
+        const ctx = this.ctx;
+        const W = this.W, H = this.H;
+        const biome = this.biome;
+
+        ctx.clearRect(0, 0, W, H);
+
+        // Generate heightmap with layered sine waves
+        const baseY = H * 0.48;
+        const seed = Math.random() * 100;
+
+        for (let x = 0; x < W; x++) {
+            this.heights[x] = baseY
+                + Math.sin((x + seed) * 0.006) * 90
+                + Math.sin((x + seed) * 0.018 + 1.2) * 50
+                + Math.sin((x + seed) * 0.045 + 2.7) * 25
+                + Math.sin((x + seed) * 0.1 + 0.5) * 12
+                + Math.sin((x + seed) * 0.25 + 3.1) * 6;
+
+            // Create flat plateau areas for figures to stand on
+            if (Math.sin((x + seed) * 0.015) > 0.7) {
+                const plateauY = baseY + Math.sin((x + seed) * 0.006) * 90;
+                this.heights[x] = this.heights[x] * 0.3 + plateauY * 0.7;
+            }
         }
-      }
+
+        // Smooth the heightmap
+        const smoothed = new Float32Array(W);
+        for (let x = 0; x < W; x++) {
+            let sum = 0, count = 0;
+            for (let dx = -3; dx <= 3; dx++) {
+                const sx = x + dx;
+                if (sx >= 0 && sx < W) { sum += this.heights[sx]; count++; }
+            }
+            smoothed[x] = sum / count;
+        }
+        this.heights = smoothed;
+
+        // Draw terrain column by column (ported from worms-game)
+        for (let x = 0; x < W; x++) {
+            const surfaceY = Math.floor(this.heights[x]);
+            const depth = H - surfaceY;
+
+            // Surface layer
+            const surfIdx = (x * 7) % biome.surface.length;
+            ctx.fillStyle = biome.surface[surfIdx < biome.surface.length ? surfIdx : 0];
+            const surfaceThickness = biome.grass ? 6 : 4;
+            ctx.fillRect(x, surfaceY, 1, surfaceThickness);
+
+            // Grass blades
+            if (biome.grass && x % 3 === 0) {
+                ctx.fillStyle = '#5aac4f';
+                ctx.fillRect(x, surfaceY - 1, 1, 2);
+            }
+
+            // Sub-surface edge
+            ctx.fillStyle = biome.surface[1] || biome.surface[0];
+            ctx.fillRect(x, surfaceY + surfaceThickness, 1, 3);
+
+            // Dirt layers
+            const dirtStart = surfaceY + surfaceThickness + 3;
+            const dirtDepth = Math.min(50, depth * 0.4);
+            for (let d = 0; d < biome.dirt.length; d++) {
+                const layerH = dirtDepth / biome.dirt.length;
+                ctx.fillStyle = biome.dirt[d];
+                ctx.fillRect(x, dirtStart + d * layerH, 1, layerH + 1);
+            }
+
+            // Rock layer
+            const rockStart = dirtStart + dirtDepth;
+            const rockH = H - rockStart;
+            if (rockH > 0) {
+                const rockIdx = (x * 13 + Math.floor(rockStart * 7)) % biome.rock.length;
+                ctx.fillStyle = biome.rock[rockIdx < biome.rock.length ? rockIdx : 0];
+                ctx.fillRect(x, rockStart, 1, rockH);
+            }
+
+            // Random stone details
+            if (Math.random() < 0.02 && rockH > 10) {
+                ctx.fillStyle = 'rgba(255,255,255,0.06)';
+                const stoneY = rockStart + Math.random() * (rockH - 5);
+                ctx.fillRect(x, stoneY, 2, 2);
+            }
+        }
     }
 
-    // Wall collision
-    if (this.x < 10) { this.x = 10; this.vx = 0; }
-    if (this.x > W - 10) { this.x = W - 10; this.vx = 0; }
-
-    // Water death
-    if (this.y + WORM_H / 2 > H - WATER_H + 5) {
-      this.hp = 0;
-      this.alive = false;
-      spawnSplash(this.x, H - WATER_H);
-      floatingTexts.push({ x: this.x, y: this.y - 20, text: 'DROWNED!', color: '#4af', life: 90 });
+    // Ported from worms-game: pixel-level solid map via getImageData
+    _bakeSolidMap() {
+        const data = this.ctx.getImageData(0, 0, this.W, this.H).data;
+        this.solidMap = new Uint8Array(this.W * this.H);
+        for (let i = 0; i < this.W * this.H; i++) {
+            this.solidMap[i] = data[i * 4 + 3] > 10 ? 1 : 0;
+        }
     }
 
-    // HP death
-    if (this.hp <= 0) {
-      this.hp = 0;
-      this.alive = false;
+    isSolid(x, y) {
+        const ix = Math.floor(x), iy = Math.floor(y);
+        if (ix < 0 || ix >= this.W || iy < 0 || iy >= this.H) return false;
+        return this.solidMap[iy * this.W + ix] === 1;
     }
 
-    // Blink
-    this.blinkTimer--;
-    if (this.blinkTimer <= 0) this.blinkTimer = 100 + Math.random() * 250 | 0;
-    if (this.hurtTimer > 0) this.hurtTimer--;
-  }
-
-  draw(camX, camY, zoom) {
-    if (!this.alive) return;
-    const sx = (this.x - camX) * zoom + W / 2;
-    const sy = (this.y - camY) * zoom + H / 2;
-    const s = zoom;
-
-    ctx.save();
-    ctx.translate(sx, sy);
-    ctx.scale(s, s);
-
-    const dir = this.facingRight ? 1 : -1;
-
-    // Shadow under worm
-    ctx.fillStyle = 'rgba(0,0,0,0.2)';
-    ctx.beginPath();
-    ctx.ellipse(0, WORM_H / 2 - 1, WORM_W / 2, 3, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Body segments (worm-like)
-    const segColors = this.team === 0
-      ? ['#e84040', '#d03535', '#c03030']
-      : ['#4060e8', '#3550d0', '#3045c0'];
-    const lightColors = this.team === 0
-      ? ['#ff7070', '#f06060', '#e05050']
-      : ['#7090ff', '#6080f0', '#5070e0'];
-
-    // Bottom segment
-    ctx.fillStyle = segColors[2];
-    ctx.beginPath();
-    ctx.ellipse(0, 6, WORM_W / 2 - 1, 6, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Middle segment (main body)
-    const bodyGrad = ctx.createRadialGradient(-2 * dir, -2, 3, 0, 0, WORM_W / 2 + 2);
-    bodyGrad.addColorStop(0, lightColors[0]);
-    bodyGrad.addColorStop(1, segColors[0]);
-    ctx.fillStyle = bodyGrad;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, WORM_W / 2, WORM_H / 2 - 2, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.15)';
-    ctx.beginPath();
-    ctx.ellipse(-2 * dir, -5, WORM_W / 3, 5, -0.3 * dir, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Belly
-    const bellyColor = this.team === 0 ? '#ffcccc' : '#ccdcff';
-    ctx.fillStyle = bellyColor;
-    ctx.beginPath();
-    ctx.ellipse(0, 4, WORM_W / 3, 5, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Outline
-    ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-    ctx.lineWidth = 0.8;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, WORM_W / 2, WORM_H / 2 - 2, 0, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Eyes
-    const blink = this.blinkTimer > 0 && this.blinkTimer < 5;
-    const ex1 = dir * 2, ex2 = dir * 7;
-    const ey = -5;
-
-    // Eye whites
-    ctx.fillStyle = '#fff';
-    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-    ctx.lineWidth = 0.5;
-    ctx.beginPath(); ctx.ellipse(ex1, ey, 4, blink ? 0.8 : 4, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.ellipse(ex2, ey, 3.5, blink ? 0.8 : 3.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-
-    if (!blink) {
-      // Pupils - look in facing direction
-      const pupOff = this.expression === 'worried' ? 0 : dir * 1.2;
-      const pupY = this.expression === 'worried' ? ey - 0.5 : ey + 0.5;
-      ctx.fillStyle = '#222';
-      ctx.beginPath(); ctx.arc(ex1 + pupOff, pupY, 2, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(ex2 + pupOff, pupY, 1.7, 0, Math.PI * 2); ctx.fill();
-      // Pupil shine
-      ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(ex1 + pupOff - 0.5, pupY - 1, 0.7, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(ex2 + pupOff - 0.5, pupY - 1, 0.5, 0, Math.PI * 2); ctx.fill();
+    getSurfaceY(x) {
+        const ix = Math.floor(x);
+        if (ix < 0 || ix >= this.W) return this.H;
+        for (let y = 0; y < this.H; y++) {
+            if (this.solidMap[y * this.W + ix] === 1) return y;
+        }
+        return this.H;
     }
 
-    // Mouth
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 1.2;
-    if (this.hurtTimer > 0 || this.expression === 'worried') {
-      // Worried O mouth
-      ctx.beginPath();
-      ctx.arc(dir * 4, 3, 2.5, 0, Math.PI * 2);
-      ctx.stroke();
-    } else {
-      // Happy smile
-      ctx.beginPath();
-      ctx.arc(dir * 4, 1, 3, 0.1 * Math.PI, 0.9 * Math.PI);
-      ctx.stroke();
+    // Ported from worms-game Terrain.js explode() with destination-out compositing
+    // Enhanced with artillery repo's jagged crater path concept
+    explode(cx, cy, radius) {
+        const ctx = this.ctx;
+
+        // Erase circle using destination-out (from both repos)
+        ctx.globalCompositeOperation = 'destination-out';
+
+        // Draw jagged crater path (inspired by artillery Terrain.js drawJaggedCraterPath)
+        ctx.beginPath();
+        const segments = Math.max(14, Math.round(radius * 0.9));
+        const jaggedness = 0.2;
+        const phaseA = Math.random() * Math.PI * 2;
+        const phaseB = Math.random() * Math.PI * 2;
+        for (let i = 0; i <= segments; i++) {
+            const t = i / segments;
+            const angle = t * Math.PI * 2;
+            const waveA = Math.sin(angle * 3 + phaseA) * jaggedness * 0.42;
+            const waveB = Math.sin(angle * 5 + phaseB) * jaggedness * 0.26;
+            const jitter = (Math.random() - 0.5) * jaggedness * 0.4;
+            const scale = 1 + waveA + waveB + jitter;
+            const px = cx + Math.cos(angle) * radius * scale;
+            const py = cy + Math.sin(angle) * radius * scale * 0.9;
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalCompositeOperation = 'source-over';
+
+        // Scorched edge around crater (from worms-game)
+        ctx.strokeStyle = 'rgba(40, 25, 10, 0.7)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Inner scorch
+        ctx.strokeStyle = 'rgba(80, 50, 20, 0.4)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius - 2, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Dirt shading inside crater (from artillery Terrain.js rim gradient)
+        ctx.save();
+        ctx.globalCompositeOperation = 'source-atop';
+        const rimGrad = ctx.createRadialGradient(cx, cy + radius * 0.22, radius * 0.2, cx, cy, radius * 1.16);
+        rimGrad.addColorStop(0, 'rgba(68, 49, 33, 0.44)');
+        rimGrad.addColorStop(0.52, 'rgba(84, 59, 39, 0.24)');
+        rimGrad.addColorStop(1, 'rgba(53, 38, 27, 0.0)');
+        ctx.fillStyle = rimGrad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius * 1.16, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // Update solid map in affected area
+        const margin = 4;
+        const x0 = Math.max(0, Math.floor(cx - radius - margin));
+        const x1 = Math.min(this.W - 1, Math.ceil(cx + radius + margin));
+        const y0 = Math.max(0, Math.floor(cy - radius - margin));
+        const y1 = Math.min(this.H - 1, Math.ceil(cy + radius + margin));
+
+        const patchW = x1 - x0 + 1;
+        const patch = this.ctx.getImageData(x0, y0, patchW, y1 - y0 + 1).data;
+
+        for (let py = y0; py <= y1; py++) {
+            for (let px = x0; px <= x1; px++) {
+                const localI = (py - y0) * patchW + (px - x0);
+                this.solidMap[py * this.W + px] = patch[localI * 4 + 3] > 10 ? 1 : 0;
+            }
+        }
+
+        return this.biome;
     }
 
-    ctx.restore();
-
-    // Health bar (in screen space, always same size)
-    const barW = 28, barH = 4;
-    const bx = sx - barW / 2, by = sy - (WORM_H / 2 + 10) * s;
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(bx - 1, by - 1, barW + 2, barH + 2);
-    const pct = this.hp / this.maxHp;
-    ctx.fillStyle = pct > 0.5 ? '#4f4' : pct > 0.25 ? '#ff4' : '#f44';
-    ctx.fillRect(bx, by, barW * pct, barH);
-
-    // Name
-    ctx.fillStyle = '#fff';
-    ctx.font = '9px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(this.name, sx, by - 3);
-  }
-
-  moveLeft() {
-    if (!this.onGround) return;
-    this.facingRight = false;
-    const nx = this.x - 2;
-    if (nx < 5) return;
-    // Can we walk there? Check for steep incline
-    const newY = getTerrainY(nx);
-    const curY = getTerrainY(this.x);
-    if (curY - newY < 12) {
-      this.x = nx;
-      this.y = newY - WORM_H / 2;
+    draw(destCtx) {
+        destCtx.drawImage(this.canvas, 0, 0);
     }
-  }
-
-  moveRight() {
-    if (!this.onGround) return;
-    this.facingRight = true;
-    const nx = this.x + 2;
-    if (nx > W - 5) return;
-    const newY = getTerrainY(nx);
-    const curY = getTerrainY(this.x);
-    if (curY - newY < 12) {
-      this.x = nx;
-      this.y = newY - WORM_H / 2;
-    }
-  }
-
-  jump() {
-    if (!this.onGround) return;
-    this.vy = -4.5;
-    this.vx += this.facingRight ? 2 : -2;
-    this.onGround = false;
-  }
-
-  takeDamage(dmg, fromX, fromY) {
-    if (!this.alive) return;
-    this.hp -= dmg;
-    this.hurtTimer = 60;
-    this.expression = 'worried';
-    setTimeout(() => { if (this.alive) this.expression = 'normal'; }, 2000);
-    floatingTexts.push({
-      x: this.x, y: this.y - WORM_H,
-      text: '-' + dmg,
-      color: '#fff',
-      life: 80
-    });
-    if (this.hp <= 0) {
-      this.hp = 0;
-      this.alive = false;
-      spawnExplosion(this.x, this.y, 15, true);
-      floatingTexts.push({
-        x: this.x, y: this.y - 30,
-        text: this.name + ' eliminated!',
-        color: this.team === 0 ? '#f88' : '#88f',
-        life: 120
-      });
-    }
-  }
 }
 
 // ============================================================
-// PROJECTILES
+// FIGURE CLASS (ported from worms-game Figure.js)
 // ============================================================
-let projectiles = [];
-
-class Projectile {
-  constructor(x, y, vx, vy, type, team) {
-    this.x = x; this.y = y; this.vx = vx; this.vy = vy;
-    this.type = type; this.team = team;
-    this.alive = true;
-    this.age = 0;
-    this.trail = [];
-    this.bounces = 0;
-
-    if (type === 'grenade') this.fuseTime = 180; // 3s
-    else if (type === 'dynamite') this.fuseTime = 300; // 5s
-    else this.fuseTime = 99999;
-  }
-
-  update() {
-    if (!this.alive) return;
-    this.age++;
-
-    const wDef = WEAPONS[this.type] || WEAPONS.bazooka;
-
-    // Gravity
-    this.vy += GRAVITY;
-    // Wind
-    this.vx += wind * 0.002 * wDef.windScale;
-
-    this.x += this.vx;
-    this.y += this.vy;
-
-    // Trail
-    if (this.age % 2 === 0) {
-      this.trail.push({ x: this.x, y: this.y, life: 25 });
-      if (this.trail.length > 30) this.trail.shift();
-    }
-    for (let t of this.trail) t.life--;
-    this.trail = this.trail.filter(t => t.life > 0);
-
-    // Fuse countdown
-    this.fuseTime--;
-    if (this.fuseTime <= 0) { this.explode(); return; }
-
-    // Terrain collision
-    if (isSolid(this.x, this.y)) {
-      if (this.type === 'grenade' && this.bounces < 5) {
-        // Bounce with dampening - find surface normal approximation
-        this.y -= this.vy;
-        this.x -= this.vx;
-        // Simple bounce: check if horizontal or vertical hit
-        if (isSolid(this.x + this.vx, this.y)) {
-          this.vx = -this.vx * 0.5;
-        }
-        if (isSolid(this.x, this.y + this.vy)) {
-          this.vy = -this.vy * 0.45;
-        }
-        this.vx *= 0.75;
-        this.bounces++;
-      } else if (this.type === 'dynamite') {
-        // Stick
-        this.x -= this.vx;
-        this.y -= this.vy;
-        this.vx = 0;
+class Figure {
+    constructor(x, y, team, index) {
+        this.x = x;
+        this.y = y;
+        this.team = team;
+        this.index = index;
+        this.hp = BASE_HP;
+        this.maxHp = BASE_HP;
+        this.alive = true;
         this.vy = 0;
-      } else {
-        this.explode();
-        return;
-      }
+        this.vx = 0;
+        this.isActive = false;
+        this.aimAngle = -Math.PI / 4;
+        this.facingRight = true;
+        this.damageFlash = 0;
+        this.deathTimer = 0;
+        this.walkCycle = 0;
+        this.idleBob = Math.random() * Math.PI * 2;
+        this.grounded = false;
     }
 
-    // Out of bounds
-    if (this.x < -100 || this.x > W + 100 || this.y > H + 100) {
-      this.alive = false;
-    }
-
-    // Water
-    if (this.y > H - WATER_H) {
-      spawnSplash(this.x, H - WATER_H);
-      this.alive = false;
-    }
-  }
-
-  explode() {
-    this.alive = false;
-    const wDef = WEAPONS[this.type] || WEAPONS.bazooka;
-    const radius = wDef.radius;
-    const damage = wDef.damage;
-
-    destroyTerrain(this.x, this.y, radius);
-    spawnExplosion(this.x, this.y, radius, false);
-
-    // Damage and knockback worms
-    for (let w of allWorms()) {
-      if (!w.alive) continue;
-      const dx = w.x - this.x, dy = w.y - this.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const effectR = radius + 15;
-      if (dist < effectR) {
-        const factor = Math.max(0, 1 - dist / effectR);
-        const dmg = Math.round(damage * factor);
-        if (dmg > 0) {
-          w.takeDamage(dmg, this.x, this.y);
-          // Knockback
-          const angle = Math.atan2(dy, dx);
-          const force = factor * 7;
-          w.vx += Math.cos(angle) * force;
-          w.vy += Math.sin(angle) * force - 3;
-          w.onGround = false;
+    update(dt, terrain) {
+        if (!this.alive) {
+            this.deathTimer -= dt;
+            return;
         }
-      }
+
+        this.idleBob += dt * 2;
+
+        // Gravity (from worms-game Figure.js)
+        if (!terrain.isSolid(this.x, this.y + 1)) {
+            this.vy += 500 * dt;
+            this.grounded = false;
+        } else {
+            if (this.vy > 350) {
+                const fallDamage = Math.floor((this.vy - 350) * 0.1);
+                this.takeDamage(fallDamage);
+                SFX.hit();
+            }
+            this.vy = 0;
+            this.grounded = true;
+            let safety = 0;
+            while (terrain.isSolid(this.x, this.y - 1) && safety < 20) {
+                this.y--;
+                safety++;
+            }
+        }
+
+        this.y += this.vy * dt;
+        this.x += this.vx * dt;
+        this.vx *= 0.9;
+        this.x = Math.max(10, Math.min(terrain.W - 10, this.x));
+
+        // Water death
+        if (this.y >= terrain.H - 25) {
+            SFX.splash();
+            this.takeDamage(this.hp);
+        }
+
+        if (this.damageFlash > 0) this.damageFlash -= dt;
     }
 
-    screenShake = Math.min(15, radius * 0.3);
-  }
-
-  draw(camX, camY, zoom) {
-    if (!this.alive) return;
-
-    // Trail
-    for (let t of this.trail) {
-      const tx = (t.x - camX) * zoom + W / 2;
-      const ty = (t.y - camY) * zoom + H / 2;
-      const a = t.life / 25;
-      ctx.fillStyle = this.type === 'shotgun'
-        ? `rgba(255,255,150,${a * 0.5})`
-        : `rgba(255,180,80,${a * 0.6})`;
-      ctx.beginPath();
-      ctx.arc(tx, ty, 2 * a * zoom, 0, Math.PI * 2);
-      ctx.fill();
+    takeDamage(amount) {
+        if (!this.alive || amount <= 0) return;
+        const dmg = Math.round(amount);
+        this.hp = Math.max(0, this.hp - dmg);
+        this.damageFlash = 0.4;
+        game.effects.showDamage(this.x, this.y - 30, dmg);
+        if (this.hp <= 0) this.die();
     }
 
-    const sx = (this.x - camX) * zoom + W / 2;
-    const sy = (this.y - camY) * zoom + H / 2;
-    const s = zoom;
-
-    ctx.save();
-    ctx.translate(sx, sy);
-    ctx.scale(s, s);
-
-    if (this.type === 'bazooka') {
-      const ang = Math.atan2(this.vy, this.vx);
-      ctx.rotate(ang);
-      // Rocket body
-      ctx.fillStyle = '#777';
-      ctx.fillRect(-7, -2.5, 14, 5);
-      // Nose cone
-      ctx.fillStyle = '#d44';
-      ctx.beginPath();
-      ctx.moveTo(7, -3);
-      ctx.lineTo(11, 0);
-      ctx.lineTo(7, 3);
-      ctx.closePath();
-      ctx.fill();
-      // Fins
-      ctx.fillStyle = '#555';
-      ctx.fillRect(-7, -4.5, 3, 9);
-      // Flame
-      ctx.fillStyle = `rgba(255,${150 + Math.random() * 100 | 0},0,0.8)`;
-      ctx.beginPath();
-      ctx.moveTo(-7, -2);
-      ctx.lineTo(-12 - Math.random() * 4, 0);
-      ctx.lineTo(-7, 2);
-      ctx.closePath();
-      ctx.fill();
-    } else if (this.type === 'grenade') {
-      ctx.fillStyle = '#3a7a30';
-      ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#2a5a20';
-      ctx.lineWidth = 0.8;
-      ctx.stroke();
-      // Pin
-      ctx.fillStyle = '#cc0';
-      ctx.fillRect(-1, -7, 2, 3);
-      // Flash when nearing explosion
-      if (this.fuseTime < 90 && (this.age % 12) < 6) {
-        ctx.fillStyle = 'rgba(255,50,0,0.5)';
-        ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.fill();
-      }
-    } else if (this.type === 'shotgun') {
-      ctx.fillStyle = '#ff8';
-      ctx.shadowBlur = 6;
-      ctx.shadowColor = '#ff4';
-      ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI * 2); ctx.fill();
-      ctx.shadowBlur = 0;
-    } else if (this.type === 'dynamite') {
-      // Sticks
-      ctx.fillStyle = '#c22';
-      for (let i = -1; i <= 1; i++) {
-        ctx.fillRect(-3 + i * 3, -8, 5, 14);
-      }
-      // Wrapper
-      ctx.fillStyle = '#f44';
-      ctx.fillRect(-5, -2, 13, 4);
-      // Fuse
-      ctx.strokeStyle = '#999';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(0, -8);
-      ctx.quadraticCurveTo(3, -14, 0, -16);
-      ctx.stroke();
-      // Spark on fuse
-      if (this.fuseTime < 250) {
-        ctx.fillStyle = `rgba(255,${200 + Math.random() * 55 | 0},0,${0.5 + Math.random() * 0.5})`;
-        ctx.beginPath(); ctx.arc(0, -16, 3 + Math.random() * 2, 0, Math.PI * 2); ctx.fill();
-      }
-      // Flash
-      if (this.fuseTime < 60 && (this.age % 8) < 4) {
-        ctx.fillStyle = 'rgba(255,200,0,0.5)';
-        ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI * 2); ctx.fill();
-      }
-    } else if (this.type === 'airstrike') {
-      // Bomb
-      ctx.fillStyle = '#444';
-      ctx.beginPath(); ctx.ellipse(0, 0, 4, 6, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#888';
-      ctx.fillRect(-3, -8, 6, 3);
+    die() {
+        this.alive = false;
+        this.deathTimer = 1.5;
+        SFX.death();
+        game.effects.spawnDebris(this.x, this.y - 10, 12, [this.team.colorHex]);
     }
 
-    ctx.restore();
-  }
-}
-
-// ============================================================
-// AIRSTRIKE PROJECTILES
-// ============================================================
-function fireAirstrike(targetX) {
-  const spacing = 40;
-  for (let i = -2; i <= 2; i++) {
-    setTimeout(() => {
-      const bx = targetX + i * spacing + (Math.random() - 0.5) * 15;
-      const p = new Projectile(bx, -60 - Math.random() * 40, 0, 3 + Math.random(), 'airstrike', currentTeam);
-      p.fuseTime = 99999;
-      projectiles.push(p);
-    }, i * 150 + 300);
-  }
-}
-
-// ============================================================
-// PARTICLES & EFFECTS
-// ============================================================
-let particles = [];
-let floatingTexts = [];
-
-function spawnExplosion(x, y, radius, isSmall) {
-  const count = isSmall ? 15 : 25 + radius * 0.8;
-  // Fire particles
-  for (let i = 0; i < count; i++) {
-    const ang = Math.random() * Math.PI * 2;
-    const spd = Math.random() * 5 + 1.5;
-    particles.push({
-      x, y,
-      vx: Math.cos(ang) * spd,
-      vy: Math.sin(ang) * spd - Math.random() * 2,
-      life: 25 + Math.random() * 25,
-      maxLife: 50,
-      r: Math.random() * 3.5 + 1.5,
-      color: Math.random() > 0.4
-        ? [255, Math.random() * 160 | 0, 0]
-        : [255, 200 + Math.random() * 55 | 0, 0]
-    });
-  }
-  // Debris / dirt particles
-  const debrisCount = isSmall ? 8 : 15 + radius * 0.4;
-  for (let i = 0; i < debrisCount; i++) {
-    const ang = -Math.PI * 0.8 + Math.random() * Math.PI * 0.6;
-    const spd = Math.random() * 5 + 2;
-    particles.push({
-      x, y,
-      vx: Math.cos(ang) * spd + (Math.random() - 0.5) * 2,
-      vy: Math.sin(ang) * spd - 2,
-      life: 40 + Math.random() * 50,
-      maxLife: 90,
-      r: Math.random() * 2.5 + 1,
-      color: [90 + Math.random() * 50 | 0, 60 + Math.random() * 30 | 0, 20 + Math.random() * 20 | 0],
-      gravity: true
-    });
-  }
-  // Smoke
-  for (let i = 0; i < 8; i++) {
-    particles.push({
-      x: x + (Math.random() - 0.5) * radius,
-      y: y + (Math.random() - 0.5) * radius,
-      vx: (Math.random() - 0.5) * 0.5,
-      vy: -Math.random() * 1.5 - 0.5,
-      life: 40 + Math.random() * 40,
-      maxLife: 80,
-      r: radius * 0.2 + Math.random() * 5,
-      color: [80, 80, 80],
-      isSmoke: true
-    });
-  }
-}
-
-function spawnSplash(x, y) {
-  for (let i = 0; i < 25; i++) {
-    const ang = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.7;
-    const spd = Math.random() * 5 + 2;
-    particles.push({
-      x, y,
-      vx: Math.cos(ang) * spd,
-      vy: Math.sin(ang) * spd,
-      life: 25 + Math.random() * 20,
-      maxLife: 45,
-      r: Math.random() * 3 + 1,
-      color: [100, 160 + Math.random() * 80 | 0, 255],
-      gravity: true
-    });
-  }
-}
-
-function updateParticles() {
-  for (let p of particles) {
-    if (p.gravity || p.isSmoke) {
-      p.vy += p.isSmoke ? -0.02 : 0.1;
-    }
-    p.x += p.vx;
-    p.y += p.vy;
-    p.life--;
-    if (p.isSmoke) p.r += 0.15;
-  }
-  particles = particles.filter(p => p.life > 0);
-}
-
-function drawParticles(camX, camY, zoom) {
-  for (let p of particles) {
-    const sx = (p.x - camX) * zoom + W / 2;
-    const sy = (p.y - camY) * zoom + H / 2;
-    const a = Math.max(0, p.life / p.maxLife);
-    const r = p.r * (p.isSmoke ? 1 : a) * zoom;
-    if (p.isSmoke) {
-      ctx.fillStyle = `rgba(${p.color[0]},${p.color[1]},${p.color[2]},${a * 0.3})`;
-    } else {
-      ctx.fillStyle = `rgba(${p.color[0]},${p.color[1]},${p.color[2]},${a})`;
-    }
-    ctx.beginPath();
-    ctx.arc(sx, sy, r, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-function updateFloatingTexts() {
-  for (let f of floatingTexts) {
-    f.y -= 0.7;
-    f.life--;
-  }
-  floatingTexts = floatingTexts.filter(f => f.life > 0);
-}
-
-function drawFloatingTexts(camX, camY, zoom) {
-  for (let f of floatingTexts) {
-    const sx = (f.x - camX) * zoom + W / 2;
-    const sy = (f.y - camY) * zoom + H / 2;
-    const a = Math.min(1, f.life / 30);
-    ctx.fillStyle = f.color.replace(')', `,${a})`).replace('rgb', 'rgba');
-    ctx.font = 'bold 14px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(f.text, sx, sy);
-  }
-}
-
-// ============================================================
-// CLOUDS
-// ============================================================
-let clouds = [];
-function initClouds() {
-  clouds = [];
-  for (let i = 0; i < 8; i++) {
-    clouds.push({
-      x: Math.random() * W * 1.5 - W * 0.25,
-      y: 25 + Math.random() * 130,
-      w: 70 + Math.random() * 120,
-      h: 25 + Math.random() * 35,
-      speed: 0.08 + Math.random() * 0.25,
-      opacity: 0.4 + Math.random() * 0.3
-    });
-  }
-}
-
-function drawClouds(camX, camY, zoom) {
-  for (let c of clouds) {
-    c.x += c.speed * (wind > 0 ? 1 : -1);
-    if (c.x > W + 200) c.x = -c.w - 50;
-    if (c.x < -c.w - 200) c.x = W + 50;
-
-    // Clouds are in sky space, parallax with camera
-    const px = c.x - camX * 0.2;
-    const py = c.y - camY * 0.1;
-
-    ctx.fillStyle = `rgba(255,255,255,${c.opacity})`;
-    ctx.beginPath();
-    ctx.ellipse(px, py, c.w / 2, c.h / 2, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(px - c.w * 0.25, py + 5, c.w * 0.35, c.h * 0.4, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(px + c.w * 0.25, py + 3, c.w * 0.3, c.h * 0.35, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(px + c.w * 0.1, py - c.h * 0.2, c.w * 0.25, c.h * 0.3, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-// ============================================================
-// GAME STATE
-// ============================================================
-let wind = 0;
-let currentTeam = 0;
-let currentWormIndex = [0, 0]; // per team
-let turnTimer = 0;
-const TURN_TIME = 30 * 60; // 30 sec
-let selectedWeapon = 'bazooka';
-let gameState = 'instructions';
-let playerWorms = [];
-let aiWorms = [];
-let screenShake = 0;
-let hasFired = false;
-let shotgunShotsLeft = 0;
-let aimAngle = 0, aimPower = 0;
-let isDragging = false;
-let dragStartX = 0, dragStartY = 0;
-let waitTimer = 0;
-let turnAnnounce = '';
-let announceTimer = 0;
-let announceColor = '#fff';
-let keysDown = {};
-
-// Camera
-let camX = 0, camY = 0, camTargetX = 0, camTargetY = 0;
-let camZoom = 1, camTargetZoom = 1;
-
-function allWorms() { return playerWorms.concat(aiWorms); }
-function aliveWorms(team) { return (team === 0 ? playerWorms : aiWorms).filter(w => w.alive); }
-
-function currentWorm() {
-  const list = aliveWorms(currentTeam);
-  if (list.length === 0) return null;
-  return list[currentWormIndex[currentTeam] % list.length];
-}
-
-// ============================================================
-// GAME INITIALIZATION
-// ============================================================
-function initGame() {
-  generateTerrain();
-  initClouds();
-  initAmmo();
-  buildWeaponPanel();
-
-  wind = (Math.random() - 0.5) * 8;
-
-  const names0 = ['Red', 'Ruby', 'Rose'];
-  const names1 = ['Blue', 'Sky', 'Ice'];
-  playerWorms = [];
-  aiWorms = [];
-
-  // Spread worms across terrain
-  const seg = W / 8;
-  for (let i = 0; i < 3; i++) {
-    const px = seg * (i + 1) + (Math.random() - 0.5) * seg * 0.5;
-    playerWorms.push(new Worm(Math.round(px), 0, names0[i]));
-  }
-  for (let i = 0; i < 3; i++) {
-    const px = seg * (i + 5) + (Math.random() - 0.5) * seg * 0.5;
-    aiWorms.push(new Worm(Math.round(px), 1, names1[i]));
-  }
-
-  currentTeam = 0;
-  currentWormIndex = [0, 0];
-  projectiles = [];
-  particles = [];
-  floatingTexts = [];
-
-  // Center camera on first worm
-  const w = currentWorm();
-  if (w) {
-    camX = camTargetX = w.x;
-    camY = camTargetY = w.y - 50;
-  }
-
-  startTurn();
-}
-
-function startTurn() {
-  hasFired = false;
-  shotgunShotsLeft = 0;
-  turnTimer = TURN_TIME;
-  selectedWeapon = 'bazooka';
-
-  // Shift wind
-  wind += (Math.random() - 0.5) * 3;
-  wind = Math.max(-7, Math.min(7, wind));
-  updateWindUI();
-
-  const w = currentWorm();
-  if (!w) { checkWin(); return; }
-
-  // Focus camera on active worm
-  camTargetX = w.x;
-  camTargetY = w.y - 60;
-
-  if (currentTeam === 0) {
-    gameState = 'moving';
-    announceTimer = 90;
-    turnAnnounce = `${w.name}'s Turn!`;
-    announceColor = '#ff6060';
-  } else {
-    gameState = 'ai';
-    announceTimer = 75;
-    turnAnnounce = `${w.name}'s Turn!`;
-    announceColor = '#6080ff';
-    setTimeout(aiTurn, 1200);
-  }
-
-  updateWeaponUI();
-}
-
-function nextTurn() {
-  // Advance worm index for current team, then swap team
-  currentWormIndex[currentTeam] = (currentWormIndex[currentTeam] + 1);
-  currentTeam = currentTeam === 0 ? 1 : 0;
-
-  if (aliveWorms(currentTeam).length === 0) {
-    // Other team might also be dead
-    checkWin();
-    if (gameState === 'gameover') return;
-    // Skip dead team
-    currentTeam = currentTeam === 0 ? 1 : 0;
-    if (aliveWorms(currentTeam).length === 0) { checkWin(); return; }
-  }
-
-  startTurn();
-}
-
-function checkWin() {
-  const p = aliveWorms(0).length;
-  const a = aliveWorms(1).length;
-  if (p > 0 && a > 0) return;
-  gameState = 'gameover';
-  if (p === 0 && a === 0) {
-    goTextEl.textContent = "It's a Draw!";
-    goTextEl.style.color = '#ccc';
-  } else if (a === 0) {
-    goTextEl.textContent = "Red Team Wins!";
-    goTextEl.style.color = '#ff6060';
-  } else {
-    goTextEl.textContent = "Blue Team Wins!";
-    goTextEl.style.color = '#6080ff';
-  }
-  gameOverEl.style.display = 'flex';
-}
-
-function updateWindUI() {
-  const abs = Math.abs(wind).toFixed(1);
-  windValEl.textContent = abs;
-  if (Math.abs(wind) < 0.3) {
-    windArrowEl.textContent = '-';
-    windArrowEl.style.color = '#aaa';
-  } else if (wind > 0) {
-    const arrows = wind > 4 ? '>>>' : wind > 2 ? '>>' : '>';
-    windArrowEl.textContent = arrows;
-    windArrowEl.style.color = '#5af';
-  } else {
-    const arrows = wind < -4 ? '<<<' : wind < -2 ? '<<' : '<';
-    windArrowEl.textContent = arrows;
-    windArrowEl.style.color = '#fa5';
-  }
-}
-
-// ============================================================
-// FIRING
-// ============================================================
-function fireWeapon(w, angle, power) {
-  if (selectedWeapon === 'teleport') return; // handled separately
-
-  hasFired = true;
-  useAmmo(w.team, selectedWeapon);
-
-  const speed = power * 0.14;
-  const vx = Math.cos(angle) * speed;
-  const vy = Math.sin(angle) * speed;
-  const ox = Math.cos(angle) * 18;
-  const oy = Math.sin(angle) * 18;
-
-  if (selectedWeapon === 'dynamite') {
-    const dx = w.facingRight ? 18 : -18;
-    const p = new Projectile(w.x + dx, w.y + 2, 0.5 * (w.facingRight ? 1 : -1), -1.5, 'dynamite', w.team);
-    projectiles.push(p);
-  } else if (selectedWeapon === 'shotgun') {
-    shotgunShotsLeft = 2;
-    fireShotgunShot(w, angle, power);
-    return; // Don't go to projectile state yet
-  } else if (selectedWeapon === 'airstrike') {
-    // Airstrike just needs angle for horizontal target
-    const targetX = w.x + Math.cos(angle) * power * 3;
-    fireAirstrike(targetX);
-  } else {
-    projectiles.push(new Projectile(w.x + ox, w.y + oy, vx, vy, selectedWeapon, w.team));
-  }
-
-  gameState = 'projectile';
-}
-
-function fireShotgunShot(w, angle, power) {
-  shotgunShotsLeft--;
-  const speed = power * 0.2;
-  const spread = 0.06;
-  for (let i = -1; i <= 1; i++) {
-    const a = angle + i * spread;
-    const p = new Projectile(
-      w.x + Math.cos(angle) * 15,
-      w.y + Math.sin(angle) * 15,
-      Math.cos(a) * speed,
-      Math.sin(a) * speed,
-      'shotgun', w.team
-    );
-    p.fuseTime = 30; // Short range
-    projectiles.push(p);
-  }
-  gameState = 'projectile';
-}
-
-function handleTeleportClick(worldX, worldY) {
-  const w = currentWorm();
-  if (!w) return;
-
-  // Find terrain surface at click X
-  const tY = getTerrainY(worldX);
-  if (tY >= H - WATER_H) return; // Can't teleport into water
-
-  useAmmo(w.team, 'teleport');
-  hasFired = true;
-
-  // Spawn teleport particles at origin
-  for (let i = 0; i < 20; i++) {
-    const ang = Math.random() * Math.PI * 2;
-    particles.push({
-      x: w.x, y: w.y,
-      vx: Math.cos(ang) * 2, vy: Math.sin(ang) * 2,
-      life: 30, maxLife: 30, r: 3,
-      color: [100, 200, 255]
-    });
-  }
-
-  w.x = worldX;
-  w.y = tY - WORM_H / 2;
-  w.vx = 0;
-  w.vy = 0;
-
-  // Particles at destination
-  for (let i = 0; i < 20; i++) {
-    const ang = Math.random() * Math.PI * 2;
-    particles.push({
-      x: w.x, y: w.y,
-      vx: Math.cos(ang) * 2, vy: Math.sin(ang) * 2,
-      life: 30, maxLife: 30, r: 3,
-      color: [100, 200, 255]
-    });
-  }
-
-  // End turn
-  gameState = 'waiting';
-  waitTimer = 60;
-}
-
-// ============================================================
-// AI
-// ============================================================
-function aiTurn() {
-  const w = currentWorm();
-  if (!w || !w.alive) { nextTurn(); return; }
-
-  const targets = aliveWorms(0);
-  if (targets.length === 0) { checkWin(); return; }
-
-  // Find nearest target
-  let closest = targets[0], minDist = Infinity;
-  for (let t of targets) {
-    const d = Math.hypot(t.x - w.x, t.y - w.y);
-    if (d < minDist) { minDist = d; closest = t; }
-  }
-
-  // Choose weapon based on distance
-  const dist = minDist;
-  if (dist < 60 && getAmmo(1, 'dynamite') > 0) {
-    selectedWeapon = 'dynamite';
-  } else if (dist < 150) {
-    selectedWeapon = Math.random() > 0.5 ? 'grenade' : 'shotgun';
-  } else if (dist > 400 && getAmmo(1, 'airstrike') > 0 && Math.random() > 0.5) {
-    selectedWeapon = 'airstrike';
-  } else {
-    selectedWeapon = Math.random() > 0.3 ? 'bazooka' : 'grenade';
-  }
-  updateWeaponUI();
-
-  // Aim toward target with randomness
-  const dx = closest.x - w.x + (Math.random() - 0.5) * 50;
-  const dy = closest.y - w.y - 20 + (Math.random() - 0.5) * 40;
-  let angle = Math.atan2(dy, dx);
-  // Lob higher for distance
-  angle -= 0.15 + Math.random() * 0.2;
-  let power = Math.min(85, 35 + dist * 0.25 + Math.random() * 15);
-
-  w.facingRight = dx > 0;
-
-  setTimeout(() => {
-    if (w.alive && gameState === 'ai') {
-      fireWeapon(w, angle, power);
-    }
-  }, 700);
-}
-
-// ============================================================
-// INPUT HANDLING
-// ============================================================
-overlayEl.addEventListener('click', () => {
-  overlayEl.style.display = 'none';
-  gameState = 'moving';
-});
-overlayEl.addEventListener('touchstart', () => {
-  overlayEl.style.display = 'none';
-  gameState = 'moving';
-});
-
-// Screen to world coordinates
-function screenToWorld(sx, sy) {
-  return {
-    x: (sx - W / 2) / camZoom + camX,
-    y: (sy - H / 2) / camZoom + camY
-  };
-}
-
-gCanvas.addEventListener('mousedown', (e) => onPointerDown(e.clientX, e.clientY));
-gCanvas.addEventListener('mousemove', (e) => onPointerMove(e.clientX, e.clientY));
-gCanvas.addEventListener('mouseup', () => onPointerUp());
-gCanvas.addEventListener('touchstart', (e) => { e.preventDefault(); const t = e.touches[0]; onPointerDown(t.clientX, t.clientY); });
-gCanvas.addEventListener('touchmove', (e) => { e.preventDefault(); const t = e.touches[0]; onPointerMove(t.clientX, t.clientY); });
-gCanvas.addEventListener('touchend', (e) => { e.preventDefault(); onPointerUp(); });
-
-// Zoom with scroll
-gCanvas.addEventListener('wheel', (e) => {
-  e.preventDefault();
-  camTargetZoom = Math.max(0.5, Math.min(2.0, camTargetZoom - e.deltaY * 0.001));
-}, { passive: false });
-
-function onPointerDown(px, py) {
-  if (gameState !== 'moving' || currentTeam !== 0) return;
-  if (hasFired && shotgunShotsLeft <= 0) return;
-
-  // Check if teleport weapon selected
-  if (selectedWeapon === 'teleport' && !hasFired && getAmmo(0, 'teleport') > 0) {
-    const world = screenToWorld(px, py);
-    handleTeleportClick(world.x, world.y);
-    return;
-  }
-
-  // Shotgun second shot
-  if (hasFired && shotgunShotsLeft > 0 && selectedWeapon === 'shotgun') {
-    // Aim and fire immediately from current pointer
-    const w = currentWorm();
-    if (!w) return;
-    const wx = (w.x - camX) * camZoom + W / 2;
-    const wy = (w.y - camY) * camZoom + H / 2;
-    const dx = px - wx;
-    const dy = py - wy;
-    const angle = Math.atan2(dy, dx);
-    fireShotgunShot(w, angle, 60);
-    return;
-  }
-
-  isDragging = true;
-  dragStartX = px;
-  dragStartY = py;
-  aimPower = 0;
-}
-
-function onPointerMove(px, py) {
-  if (!isDragging) return;
-  const dx = dragStartX - px;
-  const dy = dragStartY - py;
-  aimAngle = Math.atan2(dy, dx) + Math.PI;
-  aimPower = Math.min(100, Math.sqrt(dx * dx + dy * dy) * 0.7);
-  const w = currentWorm();
-  if (w) w.facingRight = Math.cos(aimAngle) > 0;
-}
-
-function onPointerUp() {
-  if (!isDragging) return;
-  isDragging = false;
-  if (aimPower > 8 && gameState === 'moving' && currentTeam === 0 && !hasFired) {
-    const w = currentWorm();
-    if (w && getAmmo(0, selectedWeapon) > 0) {
-      fireWeapon(w, aimAngle, aimPower);
-    }
-  }
-  aimPower = 0;
-}
-
-// Keyboard
-document.addEventListener('keydown', (e) => {
-  keysDown[e.key] = true;
-  // Number keys for weapon selection
-  const wepKeys = ['1', '2', '3', '4', '5', '6'];
-  const wepNames = Object.keys(WEAPONS);
-  const idx = wepKeys.indexOf(e.key);
-  if (idx >= 0 && idx < wepNames.length) {
-    selectWeapon(wepNames[idx]);
-  }
-});
-document.addEventListener('keyup', (e) => { keysDown[e.key] = false; });
-
-// ============================================================
-// DRAWING
-// ============================================================
-function drawSky() {
-  const grad = ctx.createLinearGradient(0, 0, 0, H);
-  grad.addColorStop(0, biome.sky1);
-  grad.addColorStop(0.25, biome.sky2);
-  grad.addColorStop(0.55, biome.sky3);
-  grad.addColorStop(1, biome.sky4);
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, W, H);
-}
-
-function drawTerrainOnScreen(camX, camY, zoom) {
-  // Draw the terrain canvas onto the game canvas with camera transform
-  const sx = -camX * zoom + W / 2;
-  const sy = -camY * zoom + H / 2;
-  ctx.save();
-  ctx.translate(sx, sy);
-  ctx.scale(zoom, zoom);
-  ctx.drawImage(tCanvas, 0, 0);
-  ctx.restore();
-}
-
-function drawWater(camX, camY, zoom) {
-  const wY = H - WATER_H;
-  const screenWY = (wY - camY) * zoom + H / 2;
-
-  // Water gradient
-  const wGrad = ctx.createLinearGradient(0, screenWY, 0, H);
-  wGrad.addColorStop(0, biome.waterTop);
-  wGrad.addColorStop(0.4, biome.waterBot.replace('0.95', '0.85'));
-  wGrad.addColorStop(1, biome.waterBot);
-  ctx.fillStyle = wGrad;
-  ctx.fillRect(0, screenWY, W, H - screenWY + 10);
-
-  // Waves
-  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-  ctx.lineWidth = 1.5;
-  const t = Date.now() * 0.002;
-  for (let layer = 0; layer < 3; layer++) {
-    ctx.globalAlpha = 0.3 - layer * 0.08;
-    ctx.beginPath();
-    for (let x = 0; x < W; x += 3) {
-      const y = screenWY + layer * 4 + Math.sin(x * 0.015 + t + layer * 1.5) * 2.5;
-      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-  }
-  ctx.globalAlpha = 1;
-}
-
-function drawAimIndicator(camX, camY, zoom) {
-  if (!isDragging || aimPower < 5) return;
-  const w = currentWorm();
-  if (!w) return;
-
-  const speed = aimPower * 0.14;
-  let px = w.x + Math.cos(aimAngle) * 18;
-  let py = w.y + Math.sin(aimAngle) * 18;
-  let pvx = Math.cos(aimAngle) * speed;
-  let pvy = Math.sin(aimAngle) * speed;
-  const wDef = WEAPONS[selectedWeapon] || WEAPONS.bazooka;
-
-  // Trajectory dots
-  ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  for (let i = 0; i < 50; i++) {
-    pvy += GRAVITY;
-    pvx += wind * 0.002 * wDef.windScale;
-    px += pvx;
-    py += pvy;
-
-    if (i % 3 === 0) {
-      const sx = (px - camX) * zoom + W / 2;
-      const sy = (py - camY) * zoom + H / 2;
-      const alpha = 0.6 - i * 0.01;
-      if (alpha <= 0) break;
-      ctx.globalAlpha = alpha;
-      ctx.beginPath();
-      ctx.arc(sx, sy, 2 * zoom, 0, Math.PI * 2);
-      ctx.fill();
+    applyExplosionForce(cx, cy, radius) {
+        const dx = this.x - cx;
+        const dy = this.y - cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < radius && dist > 0) {
+            const force = (1 - dist / radius) * 250;
+            this.vx += (dx / dist) * force;
+            this.vy = -(force * 1.2);
+        }
     }
 
-    if (py > H || px < 0 || px > W) break;
-  }
-  ctx.globalAlpha = 1;
+    // Drawing (ported from worms-game Figure.js _drawBody)
+    draw(ctx) {
+        if (!this.alive && this.deathTimer <= 0) return;
 
-  // Power bar next to worm
-  const wsx = (w.x - camX) * zoom + W / 2;
-  const wsy = (w.y - camY) * zoom + H / 2;
-  const barW = 40, barH = 5;
-  const bx = wsx - barW / 2, by = wsy - (WORM_H + 22) * zoom;
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  ctx.fillRect(bx - 1, by - 1, barW + 2, barH + 2);
-  const pct = aimPower / 100;
-  ctx.fillStyle = pct > 0.7 ? '#f44' : pct > 0.4 ? '#ff4' : '#4f4';
-  ctx.fillRect(bx, by, barW * pct, barH);
-}
+        const alpha = !this.alive ? Math.max(0, this.deathTimer / 1.5) : 1;
+        const flash = this.damageFlash > 0 && Math.floor(this.damageFlash * 15) % 2 === 0;
+        const dead = !this.alive;
 
-function drawActiveWormIndicator(camX, camY, zoom) {
-  const cw = currentWorm();
-  if (!cw || !cw.alive || gameState === 'gameover') return;
+        ctx.save();
+        ctx.globalAlpha = alpha;
 
-  const sx = (cw.x - camX) * zoom + W / 2;
-  const sy = (cw.y - camY) * zoom + H / 2;
+        const x = this.x, yBase = this.y;
+        const bob = dead ? 0 : Math.sin(this.idleBob) * 0.5;
+        const y = yBase + bob;
+        const color = flash ? '#ffffff' : this.team.colorHex;
+        const headColor = flash ? '#ffffff' : '#ffddbb';
 
-  // Bouncing arrow
-  const bob = Math.sin(Date.now() * 0.005) * 3;
-  const arrowY = sy - (WORM_H / 2 + 22) * zoom + bob;
-  ctx.fillStyle = currentTeam === 0 ? '#ff4040' : '#4060ff';
-  ctx.beginPath();
-  ctx.moveTo(sx, arrowY + 8);
-  ctx.lineTo(sx - 6, arrowY);
-  ctx.lineTo(sx + 6, arrowY);
-  ctx.closePath();
-  ctx.fill();
-}
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        ctx.beginPath();
+        ctx.ellipse(x, yBase + 1, 7, 2, 0, 0, Math.PI * 2);
+        ctx.fill();
 
-function drawTurnAnnouncement() {
-  if (announceTimer <= 0 || !turnAnnounce) return;
-  const a = Math.min(1, announceTimer / 25);
-  const scale = 1 + (1 - Math.min(1, announceTimer / 60)) * 0.1;
+        // Legs
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        if (dead) {
+            ctx.beginPath(); ctx.moveTo(x, y - 4); ctx.lineTo(x - 8, y + 3); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x, y - 4); ctx.lineTo(x + 8, y + 3); ctx.stroke();
+        } else {
+            const la = this.isActive ? Math.sin(this.walkCycle) * 2 : 0;
+            ctx.beginPath(); ctx.moveTo(x, y - 4); ctx.lineTo(x - 5 + la, y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x, y - 4); ctx.lineTo(x + 5 - la, y); ctx.stroke();
+            // Feet
+            ctx.lineWidth = 2;
+            ctx.globalAlpha = alpha * 0.8;
+            ctx.beginPath(); ctx.moveTo(x - 5 + la, y); ctx.lineTo(x - 3 + la, y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x + 5 - la, y); ctx.lineTo(x + 7 - la, y); ctx.stroke();
+            ctx.globalAlpha = alpha;
+        }
 
-  ctx.save();
-  ctx.translate(W / 2, H / 3);
-  ctx.scale(scale, scale);
-  ctx.globalAlpha = a;
+        // Body
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(x, y - 15); ctx.lineTo(x, y - 4); ctx.stroke();
 
-  // Shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  ctx.font = 'bold 30px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText(turnAnnounce, 2, 2);
+        // Arms
+        ctx.lineWidth = 2.5;
+        if (this.isActive && !dead) {
+            const dir = this.facingRight ? 1 : -1;
+            const armX = Math.cos(this.aimAngle) * 9 * dir;
+            const armY = Math.sin(this.aimAngle) * 9;
+            ctx.beginPath(); ctx.moveTo(x, y - 12); ctx.lineTo(x + armX, y - 12 + armY); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x, y - 12); ctx.lineTo(x - dir * 5, y - 9); ctx.stroke();
+        } else if (!dead) {
+            const ab = Math.sin(this.idleBob * 0.7);
+            ctx.beginPath(); ctx.moveTo(x - 7, y - 12 + ab); ctx.lineTo(x + 7, y - 12 - ab); ctx.stroke();
+        } else {
+            ctx.beginPath(); ctx.moveTo(x, y - 12); ctx.lineTo(x - 9, y - 6); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x, y - 12); ctx.lineTo(x + 9, y - 6); ctx.stroke();
+        }
 
-  // Main text
-  ctx.fillStyle = announceColor;
-  ctx.fillText(turnAnnounce, 0, 0);
+        // Head
+        ctx.fillStyle = headColor;
+        ctx.beginPath();
+        ctx.arc(x, y - 19, 5.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
 
-  ctx.restore();
-}
+        // Face
+        if (!dead) {
+            const ed = this.facingRight ? 1 : -1;
+            ctx.fillStyle = '#000';
+            ctx.beginPath(); ctx.arc(x + 1.5 * ed, y - 20, 1.2, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(x + 4 * ed, y - 20, 1.2, 0, Math.PI * 2); ctx.fill();
+            if (this.damageFlash > 0) {
+                ctx.beginPath(); ctx.arc(x + 2 * ed, y - 17, 1.5, 0, Math.PI * 2); ctx.fill();
+            } else {
+                ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+                ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(x + 1 * ed, y - 17); ctx.lineTo(x + 3.5 * ed, y - 17); ctx.stroke();
+            }
+        } else {
+            // X eyes
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1.2;
+            ctx.beginPath(); ctx.moveTo(x - 3, y - 21); ctx.lineTo(x - 1, y - 19); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x - 1, y - 21); ctx.lineTo(x - 3, y - 19); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x + 1, y - 21); ctx.lineTo(x + 3, y - 19); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x + 3, y - 21); ctx.lineTo(x + 1, y - 19); ctx.stroke();
+            ctx.strokeStyle = 'rgba(255,68,68,0.8)';
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(x, y - 17); ctx.lineTo(x + 2, y - 15); ctx.stroke();
+        }
 
-// ============================================================
-// CAMERA
-// ============================================================
-function updateCamera() {
-  // Smooth follow
-  camX += (camTargetX - camX) * 0.06;
-  camY += (camTargetY - camY) * 0.06;
-  camZoom += (camTargetZoom - camZoom) * 0.08;
+        // Active indicator
+        if (this.isActive && !dead) {
+            const bobY = Math.sin(Date.now() * 0.006) * 3;
+            ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            ctx.beginPath();
+            ctx.moveTo(x, y - 32 + bobY);
+            ctx.lineTo(x - 5, y - 39 + bobY);
+            ctx.lineTo(x + 5, y - 39 + bobY);
+            ctx.closePath();
+            ctx.fill();
 
-  // Follow active projectile
-  if (gameState === 'projectile' && projectiles.length > 0) {
-    const p = projectiles[projectiles.length - 1];
-    if (p.alive) {
-      camTargetX = p.x;
-      camTargetY = p.y - 30;
+            // Aim crosshair dots
+            const aimLen = 35;
+            const dir = this.facingRight ? 1 : -1;
+            const aimX = x + Math.cos(this.aimAngle) * aimLen * dir;
+            const aimY = y - 14 + Math.sin(this.aimAngle) * aimLen;
+
+            for (let i = 1; i < 6; i++) {
+                const t = i / 6;
+                const px = x + (aimX - x) * t;
+                const py = (y - 14) + (aimY - (y - 14)) * t;
+                ctx.fillStyle = `rgba(255,68,68,${0.3 + t * 0.6})`;
+                ctx.beginPath();
+                ctx.arc(px, py, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Crosshair
+            ctx.strokeStyle = 'rgba(255,68,68,0.9)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.arc(aimX, aimY, 5, 0, Math.PI * 2); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(aimX - 7, aimY); ctx.lineTo(aimX + 7, aimY); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(aimX, aimY - 7); ctx.lineTo(aimX, aimY + 7); ctx.stroke();
+        }
+
+        ctx.restore();
+
+        // Name tag & HP bar
+        if (this.alive) {
+            ctx.save();
+            ctx.font = '9px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#fff';
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 3;
+            const label = `${this.team.name} #${this.index + 1}`;
+            ctx.strokeText(label, x, y - 44);
+            ctx.fillText(label, x, y - 44);
+
+            // HP bar (ported from worms-game Figure.js)
+            const bx = x - 14, by = y - 36, bw = 28, bh = 3;
+            const pct = this.hp / this.maxHp;
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+            ctx.fillStyle = pct > 0.6 ? '#44dd44' : pct > 0.3 ? '#dddd44' : '#dd4444';
+            ctx.fillRect(bx, by, bw * pct, bh);
+            ctx.restore();
+        }
     }
-  }
-}
-
-// ============================================================
-// MAIN UPDATE
-// ============================================================
-function update() {
-  if (gameState === 'gameover' || gameState === 'instructions') return;
-
-  // Update all worms (gravity, terrain)
-  for (let w of allWorms()) w.update();
-
-  // Keyboard movement
-  if (gameState === 'moving' && currentTeam === 0 && (!hasFired || shotgunShotsLeft > 0)) {
-    const w = currentWorm();
-    if (w) {
-      if (keysDown['ArrowLeft'] || keysDown['a'] || keysDown['A']) w.moveLeft();
-      if (keysDown['ArrowRight'] || keysDown['d'] || keysDown['D']) w.moveRight();
-      if ((keysDown['ArrowUp'] || keysDown['w'] || keysDown['W']) && !hasFired) w.jump();
-
-      // Camera follows active worm during move phase
-      if (!isDragging) {
-        camTargetX = w.x;
-        camTargetY = w.y - 60;
-      }
-    }
-  }
-
-  // Update projectiles
-  for (let p of projectiles) p.update();
-  projectiles = projectiles.filter(p => p.alive);
-
-  // Particles
-  updateParticles();
-  updateFloatingTexts();
-
-  // Screen shake decay
-  if (screenShake > 0) screenShake *= 0.9;
-  if (screenShake < 0.5) screenShake = 0;
-
-  // Announce timer
-  if (announceTimer > 0) announceTimer--;
-
-  // Turn timer
-  if (gameState === 'moving' && currentTeam === 0) {
-    turnTimer--;
-    if (turnTimer <= 0) {
-      gameState = 'waiting';
-      waitTimer = 60;
-    }
-  }
-
-  // Projectile phase complete?
-  if (gameState === 'projectile' && projectiles.length === 0 && particles.length < 5) {
-    // Check for shotgun second shot
-    if (selectedWeapon === 'shotgun' && shotgunShotsLeft > 0) {
-      gameState = 'moving';
-      const w = currentWorm();
-      if (w) {
-        camTargetX = w.x;
-        camTargetY = w.y - 60;
-      }
-      return;
-    }
-    gameState = 'waiting';
-    waitTimer = 90;
-  }
-
-  // Waiting for settle, then next turn
-  if (gameState === 'waiting') {
-    waitTimer--;
-    // Make sure worms have settled
-    let allSettled = true;
-    for (let w of allWorms()) {
-      if (w.alive && !w.onGround && w.y < H - WATER_H) allSettled = false;
-    }
-    if (waitTimer <= 0 && allSettled) {
-      checkWin();
-      if (gameState !== 'gameover') nextTurn();
-    }
-  }
-
-  // Update camera
-  updateCamera();
-
-  // HUD
-  const w = currentWorm();
-  const secs = Math.max(0, Math.ceil(turnTimer / 60));
-  if (w) {
-    const teamName = currentTeam === 0 ? 'RED' : 'BLUE';
-    const timerStr = currentTeam === 0 ? ` | ${secs}s` : '';
-    turnInfoEl.textContent = `${teamName}: ${w.name} | ${WEAPONS[selectedWeapon].name}${timerStr}`;
-    turnInfoEl.style.borderColor = currentTeam === 0 ? 'rgba(255,80,80,0.5)' : 'rgba(80,100,255,0.5)';
-  }
 }
 
 // ============================================================
-// MAIN DRAW
+// TEAM CLASS (ported from worms-game Team.js)
 // ============================================================
-function draw() {
-  ctx.clearRect(0, 0, W, H);
-
-  ctx.save();
-  // Screen shake
-  if (screenShake > 0.5) {
-    ctx.translate(
-      (Math.random() - 0.5) * screenShake * 2,
-      (Math.random() - 0.5) * screenShake * 2
-    );
-  }
-
-  drawSky();
-  drawClouds(camX, camY, camZoom);
-  drawTerrainOnScreen(camX, camY, camZoom);
-  drawWater(camX, camY, camZoom);
-
-  // Draw worms
-  for (let w of allWorms()) w.draw(camX, camY, camZoom);
-
-  // Active worm indicator
-  drawActiveWormIndicator(camX, camY, camZoom);
-
-  // Projectiles
-  for (let p of projectiles) p.draw(camX, camY, camZoom);
-
-  // Particles & effects
-  drawParticles(camX, camY, camZoom);
-  drawFloatingTexts(camX, camY, camZoom);
-
-  // Aim indicator
-  drawAimIndicator(camX, camY, camZoom);
-
-  ctx.restore();
-
-  // HUD overlays (not affected by camera)
-  drawTurnAnnouncement();
-}
-
-// ============================================================
-// GAME LOOP - 60fps
-// ============================================================
-function loop() {
-  update();
-  draw();
-  requestAnimationFrame(loop);
-}
-
-// ============================================================
-// RESIZE HANDLER
-// ============================================================
-window.addEventListener('resize', () => {
-  resize();
-  // Regenerate terrain on resize
-  generateTerrain();
-  // Reposition worms on new terrain
-  for (let w of allWorms()) {
-    if (w.alive) {
-      const newX = Math.min(W - 20, Math.max(20, w.x));
-      w.x = newX;
-      w.y = getTerrainY(newX) - WORM_H / 2;
+class Team {
+    constructor(name, colorHex, isAI) {
+        this.name = name;
+        this.colorHex = colorHex;
+        this.isAI = isAI;
+        this.figures = [];
+        this.ammo = {};
+        for (const [key, w] of Object.entries(WEAPONS)) {
+            this.ammo[key] = w.ammo;
+        }
     }
-  }
-});
+
+    spawnFigures(terrain, zoneStart, zoneEnd, count) {
+        const spacing = (zoneEnd - zoneStart) / (count + 1);
+        for (let i = 0; i < count; i++) {
+            const x = Math.floor(zoneStart + spacing * (i + 1));
+            const y = terrain.getSurfaceY(x);
+            const fig = new Figure(x, y, this, i);
+            if (!this.isAI) fig.facingRight = true;
+            else fig.facingRight = false;
+            this.figures.push(fig);
+        }
+    }
+
+    get aliveFigures() { return this.figures.filter(f => f.alive); }
+    get isEliminated() { return this.aliveFigures.length === 0; }
+    getAmmo(key) { return this.ammo[key] ?? 0; }
+
+    useAmmo(key) {
+        if (this.ammo[key] !== Infinity) {
+            this.ammo[key] = Math.max(0, this.ammo[key] - 1);
+        }
+    }
+}
 
 // ============================================================
-// START
+// EFFECTS SYSTEM (ported from worms-game Effects.js)
 // ============================================================
-initGame();
-loop();
+class Effects {
+    constructor() {
+        this.shakeX = 0;
+        this.shakeY = 0;
+        this.shakeIntensity = 0;
+        this.shakeDecay = 0;
+        this.debris = [];
+        this.damageNumbers = [];
+        this.explosionFlashes = [];
+    }
 
-})();
+    update(dt) {
+        // Screen shake (from worms-game Effects.js)
+        if (this.shakeIntensity > 0.5) {
+            this.shakeX = (Math.random() - 0.5) * this.shakeIntensity;
+            this.shakeY = (Math.random() - 0.5) * this.shakeIntensity;
+            this.shakeIntensity *= (1 - this.shakeDecay * dt);
+            if (this.shakeIntensity < 0.5) { this.shakeIntensity = 0; this.shakeX = 0; this.shakeY = 0; }
+        }
+
+        // Debris particles (from worms-game Effects.js)
+        for (let i = this.debris.length - 1; i >= 0; i--) {
+            const d = this.debris[i];
+            d.vy += 400 * dt;
+            d.x += d.vx * dt;
+            d.y += d.vy * dt;
+            d.life -= dt;
+            d.rot += d.rotSpeed * dt;
+            if (d.life <= 0) this.debris.splice(i, 1);
+        }
+
+        // Damage numbers (from worms-game Effects.js)
+        for (let i = this.damageNumbers.length - 1; i >= 0; i--) {
+            const dn = this.damageNumbers[i];
+            dn.y -= 40 * dt;
+            dn.life -= dt;
+            if (dn.life <= 0) this.damageNumbers.splice(i, 1);
+        }
+
+        // Explosion flashes
+        for (let i = this.explosionFlashes.length - 1; i >= 0; i--) {
+            const f = this.explosionFlashes[i];
+            f.t += dt * 3.3;
+            if (f.t >= 1) this.explosionFlashes.splice(i, 1);
+        }
+    }
+
+    draw(ctx) {
+        // Draw debris
+        for (const d of this.debris) {
+            const alpha = Math.min(1, d.life * 2);
+            ctx.fillStyle = d.color;
+            ctx.globalAlpha = alpha;
+            ctx.fillRect(d.x - d.size / 2, d.y - d.size / 2, d.size, d.size);
+        }
+        ctx.globalAlpha = 1;
+
+        // Draw damage numbers
+        for (const dn of this.damageNumbers) {
+            const alpha = Math.min(1, dn.life * 2);
+            const scale = 1 + (1 - dn.life / dn.maxLife) * 0.3;
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.font = `bold ${Math.round(dn.size * scale)}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 3;
+            ctx.strokeText(`-${dn.amount}`, dn.x, dn.y);
+            ctx.fillStyle = dn.color;
+            ctx.fillText(`-${dn.amount}`, dn.x, dn.y);
+            ctx.restore();
+        }
+
+        // Draw explosion flashes (ported from worms-game Effects.js _flash)
+        for (const f of this.explosionFlashes) {
+            const t = f.t;
+            const cr = f.radius * (0.4 + t * 0.6);
+            const alpha = 1 - t;
+
+            ctx.globalAlpha = alpha * 0.5;
+            ctx.fillStyle = '#ff4400';
+            ctx.beginPath(); ctx.arc(f.x, f.y, cr, 0, Math.PI * 2); ctx.fill();
+
+            ctx.globalAlpha = alpha * 0.6;
+            ctx.fillStyle = '#ff8800';
+            ctx.beginPath(); ctx.arc(f.x, f.y, cr * 0.65, 0, Math.PI * 2); ctx.fill();
+
+            ctx.globalAlpha = alpha * 0.7;
+            ctx.fillStyle = '#ffeecc';
+            ctx.beginPath(); ctx.arc(f.x, f.y, cr * 0.3, 0, Math.PI * 2); ctx.fill();
+
+            if (t > 0.3) {
+                ctx.globalAlpha = (1 - t) * 0.3;
+                ctx.fillStyle = '#333';
+                ctx.beginPath(); ctx.arc(f.x, f.y, cr * 1.2, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+        ctx.globalAlpha = 1;
+    }
+
+    shake(intensity, decay) {
+        this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
+        this.shakeDecay = decay || 8;
+    }
+
+    spawnDebris(x, y, count, colors, radius) {
+        for (let i = 0; i < count; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 100 + Math.random() * 300;
+            this.debris.push({
+                x, y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed - 150,
+                size: 2 + Math.random() * 4,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                life: 0.5 + Math.random() * 1.5,
+                rot: Math.random() * Math.PI * 2,
+                rotSpeed: (Math.random() - 0.5) * 10,
+            });
+        }
+    }
+
+    showDamage(x, y, amount) {
+        if (amount <= 0) return;
+        const color = amount >= 40 ? '#ff2222' : amount >= 20 ? '#ffaa00' : '#ffff44';
+        const size = amount >= 40 ? 18 : amount >= 20 ? 15 : 12;
+        const maxLife = 1.2;
+        this.damageNumbers.push({
+            x: x + (Math.random() - 0.5) * 10,
+            y: y - 20,
+            amount: Math.round(amount), color, size, life: maxLife, maxLife
+        });
+    }
+
+    explosionEffect(x, y, radius) {
+        this.shake(radius * 0.3, 6);
+        this.spawnDebris(x, y, Math.floor(radius * 0.8), ['#8B6E3C', '#6B4E2C', '#5a5a5a', '#4a8c3f'], radius);
+        SFX.explosion(radius / 50);
+        this.explosionFlashes.push({ x, y, radius, t: 0 });
+    }
+
+    bigExplosion(x, y, radius) {
+        this.explosionEffect(x, y, radius);
+    }
+}
+
+// ============================================================
+// PROJECTILE (ported from worms-game Projectile.js)
+// ============================================================
+class Projectile {
+    constructor(x, y, angle, power, wind, config) {
+        this.x = x;
+        this.y = y;
+        this.vx = Math.cos(angle) * power;
+        this.vy = Math.sin(angle) * power;
+        this.wind = wind;
+        this.alive = true;
+        this.age = 0;
+        this.trail = [];
+        this.maxTrail = config.maxTrail ?? 15;
+        this.GRAVITY = config.gravity ?? GRAVITY;
+        this.WIND_SCALE = config.windScale ?? WIND_SCALE;
+        this.damage = config.damage ?? 50;
+        this.blastRadius = config.blastRadius ?? 45;
+        this.color = config.color ?? '#ff6600';
+        this.size = config.size ?? 4;
+        this.destroysTerrain = config.destroysTerrain !== false;
+    }
+
+    update(dt, terrain, figures) {
+        if (!this.alive) return null;
+
+        this.age += dt;
+        this.trail.push({ x: this.x, y: this.y });
+        if (this.trail.length > this.maxTrail) this.trail.shift();
+
+        this.vy += this.GRAVITY * dt;
+        this.vx += this.wind * this.WIND_SCALE * dt;
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+
+        // Out of bounds
+        if (this.x < -50 || this.x > terrain.W + 50 || this.y > terrain.H + 50) {
+            this.alive = false;
+            return 'miss';
+        }
+
+        // Terrain collision
+        if (this.y > 0 && terrain.isSolid(this.x, this.y)) {
+            return this.onHitTerrain(terrain, figures);
+        }
+
+        // Figure collision
+        for (const fig of figures) {
+            if (!fig.alive) continue;
+            const dx = this.x - fig.x;
+            const dy = this.y - (fig.y - 10);
+            if (Math.abs(dx) < 8 && Math.abs(dy) < 14) {
+                return this.onHitTerrain(terrain, figures);
+            }
+        }
+
+        return null;
+    }
+
+    onHitTerrain(terrain, figures) {
+        if (this.destroysTerrain && this.blastRadius > 0) {
+            terrain.explode(this.x, this.y, this.blastRadius);
+        }
+        this._damageNearby(figures);
+        game.effects.explosionEffect(this.x, this.y, this.blastRadius);
+        this.alive = false;
+        return 'hit';
+    }
+
+    _damageNearby(figures) {
+        for (const fig of figures) {
+            if (!fig.alive) continue;
+            const dx = fig.x - this.x;
+            const dy = (fig.y - 10) - this.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < this.blastRadius) {
+                const dmg = this.damage * (1 - dist / this.blastRadius);
+                fig.takeDamage(dmg);
+                fig.applyExplosionForce(this.x, this.y, this.blastRadius);
+            }
+        }
+    }
+
+    draw(ctx) {
+        // Trail
+        for (let i = 0; i < this.trail.length; i++) {
+            const t = i / this.trail.length;
+            const size = this.size * t * 0.6;
+            ctx.globalAlpha = t * 0.5;
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(this.trail[i].x, this.trail[i].y, Math.max(0.5, size), 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+
+        // Body
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Hot core
+        ctx.fillStyle = '#ffcc00';
+        ctx.globalAlpha = 0.8;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+    }
+}
+
+// ============================================================
+// GRENADE PROJECTILE (from worms-game weapons/Grenade.js)
+// ============================================================
+class GrenadeProjectile extends Projectile {
+    constructor(x, y, angle, power, wind) {
+        super(x, y, angle, power, wind, {
+            damage: 65, blastRadius: 60, color: '#44aa44', size: 5,
+            maxTrail: 10, gravity: 350
+        });
+        this.fuseTimer = 3.0;
+        this.bounces = 0;
+        this.maxBounces = 3;
+        this.BOUNCE_DAMPEN = 0.5;
+    }
+
+    update(dt, terrain, figures) {
+        if (!this.alive) return null;
+
+        this.fuseTimer -= dt;
+        this.age += dt;
+
+        if (this.fuseTimer <= 0) {
+            return this.onHitTerrain(terrain, figures);
+        }
+
+        this.trail.push({ x: this.x, y: this.y });
+        if (this.trail.length > this.maxTrail) this.trail.shift();
+
+        this.vy += this.GRAVITY * dt;
+        this.vx += this.wind * this.WIND_SCALE * dt;
+
+        const newX = this.x + this.vx * dt;
+        const newY = this.y + this.vy * dt;
+
+        if (newX < -50 || newX > terrain.W + 50 || newY > terrain.H + 50) {
+            this.alive = false;
+            return 'miss';
+        }
+
+        // Bounce logic (from worms-game Grenade.js)
+        if (newY > 0 && terrain.isSolid(newX, newY)) {
+            this.bounces++;
+            if (this.bounces >= this.maxBounces) {
+                this.x = newX; this.y = newY;
+                return this.onHitTerrain(terrain, figures);
+            }
+            if (terrain.isSolid(newX, this.y)) this.vx = -this.vx * this.BOUNCE_DAMPEN;
+            if (terrain.isSolid(this.x, newY)) this.vy = -this.vy * this.BOUNCE_DAMPEN;
+            this.vx *= 0.9;
+            SFX.bounce();
+        } else {
+            this.x = newX;
+            this.y = newY;
+        }
+        return null;
+    }
+
+    draw(ctx) {
+        // Trail
+        for (let i = 0; i < this.trail.length; i++) {
+            const alpha = i / this.trail.length * 0.3;
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = '#44aa44';
+            ctx.beginPath();
+            ctx.arc(this.trail[i].x, this.trail[i].y, 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+
+        // Body
+        ctx.fillStyle = '#336633';
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#44aa44';
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.size * 0.7, 0, Math.PI * 2); ctx.fill();
+
+        // Fuse timer
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.fillStyle = '#ff4444';
+        const txt = Math.ceil(this.fuseTimer).toString();
+        ctx.strokeText(txt, this.x, this.y - 12);
+        ctx.fillText(txt, this.x, this.y - 12);
+    }
+}
+
+// ============================================================
+// SHOTGUN BLAST (from worms-game weapons/Shotgun.js)
+// ============================================================
+class ShotgunBlast {
+    constructor(figure) {
+        this.alive = true;
+        this.figure = figure;
+        this.age = 0;
+        this.blastRadius = 0;
+
+        const dir = figure.facingRight ? 1 : -1;
+        const baseAngle = figure.aimAngle * dir;
+
+        this.pellets = [];
+        for (let i = 0; i < 6; i++) {
+            const spread = (Math.random() - 0.5) * 0.5;
+            const angle = baseAngle + spread;
+            const speed = 600 + Math.random() * 100;
+            this.pellets.push({
+                x: figure.x + Math.cos(baseAngle) * 10,
+                y: figure.y - 14 + Math.sin(baseAngle) * 10,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                alive: true, dist: 0,
+            });
+        }
+        this.damagePerPellet = 15;
+        this.maxRange = 250;
+    }
+
+    update(dt, terrain, figures) {
+        if (!this.alive) return null;
+        this.age += dt;
+        let anyAlive = false;
+
+        for (const p of this.pellets) {
+            if (!p.alive) continue;
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+            p.dist += Math.sqrt((p.vx * dt) ** 2 + (p.vy * dt) ** 2);
+
+            if (p.dist > this.maxRange) { p.alive = false; continue; }
+            if (terrain.isSolid(p.x, p.y)) { p.alive = false; continue; }
+
+            for (const fig of figures) {
+                if (!fig.alive || fig === this.figure) continue;
+                const dx = p.x - fig.x;
+                const dy = p.y - (fig.y - 10);
+                if (Math.abs(dx) < 8 && Math.abs(dy) < 14) {
+                    fig.takeDamage(this.damagePerPellet);
+                    fig.x += (dx > 0 ? 1 : -1) * 5;
+                    fig.vy = -50;
+                    p.alive = false;
+                    break;
+                }
+            }
+            if (p.alive) anyAlive = true;
+        }
+
+        if (!anyAlive) { this.alive = false; return 'hit'; }
+        return null;
+    }
+
+    draw(ctx) {
+        for (const p of this.pellets) {
+            if (!p.alive) continue;
+            ctx.fillStyle = 'rgba(255,221,68,0.8)';
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+}
+
+// ============================================================
+// DYNAMITE (from worms-game weapons/Dynamite.js)
+// ============================================================
+class DynamiteItem {
+    constructor(x, y, terrain, figures) {
+        this.x = x; this.y = y;
+        this.terrain = terrain;
+        this.figures = figures;
+        this.alive = true;
+        this.fuseTimer = 5.0;
+        this.damage = 80;
+        this.blastRadius = 80;
+    }
+
+    update(dt) {
+        if (!this.alive) return null;
+        this.fuseTimer -= dt;
+
+        // Gravity
+        if (!this.terrain.isSolid(this.x, this.y + 1)) {
+            this.y += 100 * dt;
+        }
+
+        if (this.fuseTimer <= 0) return this.explode();
+        return null;
+    }
+
+    explode() {
+        this.terrain.explode(this.x, this.y, this.blastRadius);
+        for (const fig of this.figures) {
+            if (!fig.alive) continue;
+            const dx = fig.x - this.x;
+            const dy = (fig.y - 10) - this.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < this.blastRadius) {
+                const dmg = this.damage * (1 - dist / this.blastRadius);
+                fig.takeDamage(dmg);
+                fig.applyExplosionForce(this.x, this.y, this.blastRadius);
+            }
+        }
+        game.effects.bigExplosion(this.x, this.y, this.blastRadius);
+        this.alive = false;
+        return 'hit';
+    }
+
+    draw(ctx) {
+        // Dynamite stick
+        ctx.fillStyle = '#cc2222';
+        ctx.fillRect(this.x - 3, this.y - 10, 6, 12);
+        // Fuse spark
+        if ((Date.now() % 200) / 200 < 0.5) {
+            ctx.fillStyle = '#ffff00';
+            ctx.beginPath(); ctx.arc(this.x, this.y - 12, 2, 0, Math.PI * 2); ctx.fill();
+        }
+        // Label
+        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        ctx.fillRect(this.x - 2, this.y - 7, 4, 2);
+        // Timer
+        ctx.font = 'bold 12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
+        ctx.fillStyle = '#ff2222';
+        const t = Math.ceil(this.fuseTimer).toString();
+        ctx.strokeText(t, this.x, this.y - 18);
+        ctx.fillText(t, this.x, this.y - 18);
+    }
+}
+
+// ============================================================
+// AIRSTRIKE (from worms-game weapons/Airstrike.js)
+// ============================================================
+class AirstrikeBomb extends Projectile {
+    constructor(x, y) {
+        super(x, y, Math.PI / 2, 0, 0, {
+            damage: 40, blastRadius: 40, color: '#444444', size: 4,
+            maxTrail: 8, gravity: 400, windScale: 0
+        });
+    }
+}
+
+class AirstrikeController {
+    constructor(targetX, terrain, figures) {
+        this.alive = true;
+        this.bombs = [];
+        this.terrain = terrain;
+        this.figures = figures;
+        this.bombsToSpawn = 5;
+        this.spawnTimer = 0;
+        this.spawnInterval = 0.15;
+        this.targetX = targetX;
+        this.bombIndex = 0;
+        this.blastRadius = 40;
+
+        this.planeX = targetX > terrain.W / 2 ? -50 : terrain.W + 50;
+        this.planeY = 30;
+        this.planeDir = targetX > terrain.W / 2 ? 1 : -1;
+    }
+
+    update(dt, terrain, figures) {
+        if (!this.alive) return null;
+
+        this.planeX += this.planeDir * 300 * dt;
+        this.spawnTimer -= dt;
+
+        if (this.bombIndex < this.bombsToSpawn && this.spawnTimer <= 0) {
+            if (Math.abs(this.planeX - this.targetX) < 60) {
+                const offsetX = (this.bombIndex - 2) * 25;
+                const bomb = new AirstrikeBomb(this.targetX + offsetX, this.planeY);
+                this.bombs.push(bomb);
+                this.bombIndex++;
+                this.spawnTimer = this.spawnInterval;
+            }
+        }
+
+        let activeBombs = 0;
+        for (const bomb of this.bombs) {
+            if (!bomb.alive) continue;
+            const result = bomb.update(dt, this.terrain, this.figures);
+            if (result) continue;
+            activeBombs++;
+        }
+
+        if (this.bombIndex >= this.bombsToSpawn && activeBombs === 0) {
+            this.alive = false;
+            return 'hit';
+        }
+        if ((this.planeX > this.terrain.W + 100 || this.planeX < -100) && activeBombs === 0 && this.bombIndex > 0) {
+            this.alive = false;
+            return 'hit';
+        }
+        return null;
+    }
+
+    draw(ctx) {
+        // Draw plane
+        const x = this.planeX, y = this.planeY, d = this.planeDir;
+        ctx.fillStyle = '#888';
+        ctx.fillRect(x - 15 * d, y - 3, 30, 6);
+        ctx.beginPath();
+        ctx.moveTo(x - 5 * d, y - 3); ctx.lineTo(x + 5 * d, y - 3); ctx.lineTo(x, y - 12);
+        ctx.closePath(); ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(x - 15 * d, y - 3); ctx.lineTo(x - 15 * d, y - 10); ctx.lineTo(x - 10 * d, y - 3);
+        ctx.closePath(); ctx.fill();
+
+        // Draw bombs
+        for (const bomb of this.bombs) {
+            if (bomb.alive) bomb.draw(ctx);
+        }
+    }
+}
+
+// ============================================================
+// TELEPORT ACTION (from worms-game weapons/Teleport.js)
+// ============================================================
+class TeleportAction {
+    constructor(figure, terrain) {
+        this.figure = figure;
+        this.terrain = terrain;
+        this.alive = true;
+        this.phase = 'targeting';
+        this.targetX = 0;
+        this.targetY = 0;
+        this.blastRadius = 0;
+        this.animTimer = 0;
+    }
+
+    handleClick(worldX, worldY) {
+        if (this.phase !== 'targeting') return;
+        this.targetX = worldX;
+        this.targetY = worldY;
+
+        // Don't teleport into solid terrain
+        if (this.terrain.isSolid(this.targetX, this.targetY)) {
+            let surfY = this.targetY;
+            while (surfY > 0 && this.terrain.isSolid(this.targetX, surfY)) surfY--;
+            this.targetY = surfY;
+        }
+
+        this.phase = 'animating';
+        this.animTimer = 0;
+        SFX.teleport();
+    }
+
+    update(dt) {
+        if (!this.alive) return null;
+
+        if (this.phase === 'animating') {
+            this.animTimer += dt;
+            if (this.animTimer > 0.25 && this.figure.x !== this.targetX) {
+                this.figure.x = this.targetX;
+                this.figure.y = this.targetY;
+                this.figure.vy = 0;
+            }
+            if (this.animTimer > 0.5) {
+                this.alive = false;
+                return 'hit';
+            }
+        }
+        return null;
+    }
+
+    draw(ctx) {
+        if (this.phase === 'animating') {
+            const t = this.animTimer / 0.5;
+            // Sparkle effect (from worms-game Teleport.js)
+            for (let i = 0; i < 5; i++) {
+                const angle = (i / 5) * Math.PI * 2 + t * 10;
+                const r = 15 * t;
+                ctx.fillStyle = `rgba(68,170,255,${1 - t})`;
+                ctx.beginPath();
+                ctx.arc(
+                    this.figure.x + Math.cos(angle) * r,
+                    this.figure.y - 10 + Math.sin(angle) * r,
+                    2, 0, Math.PI * 2
+                );
+                ctx.fill();
+            }
+        }
+    }
+}
+
+// ============================================================
+// TURN MANAGER (ported from worms-game TurnManager.js)
+// ============================================================
+class TurnManager {
+    constructor(teams, turnDuration) {
+        this.teams = teams;
+        this.turnDuration = turnDuration;
+        this.teamIndex = 0;
+        this.figureIndices = new Map();
+        this.timer = turnDuration;
+        this.phase = 'aiming'; // aiming | firing | projectile | settling | game-over
+        this.settleCooldown = 0;
+        this.currentWind = 0;
+
+        for (const team of teams) this.figureIndices.set(team, 0);
+        this._newWind();
+        this._activateFigure();
+    }
+
+    get activeTeam() { return this.teams[this.teamIndex]; }
+
+    get activeFigure() {
+        const team = this.activeTeam;
+        if (!team) return null;
+        const figures = team.aliveFigures;
+        if (figures.length === 0) return null;
+        const idx = this.figureIndices.get(team) % figures.length;
+        return figures[idx];
+    }
+
+    update(dt) {
+        if (this.phase === 'aiming') {
+            this.timer -= dt;
+            if (this.timer <= 0) this.endTurn();
+        }
+
+        if (this.phase === 'settling') {
+            this.settleCooldown -= dt;
+            if (this.settleCooldown <= 0) this._advanceTurn();
+        }
+    }
+
+    onFired() { this.phase = 'projectile'; }
+
+    onProjectileLanded() {
+        this.phase = 'settling';
+        this.settleCooldown = 1.5;
+    }
+
+    endTurn() {
+        if (this.phase === 'projectile') return;
+        this.phase = 'settling';
+        this.settleCooldown = 0.5;
+    }
+
+    _advanceTurn() {
+        if (this.activeFigure) this.activeFigure.isActive = false;
+
+        this.teams = this.teams.filter(t => !t.isEliminated);
+
+        if (this.teams.length <= 1) {
+            this.phase = 'game-over';
+            return;
+        }
+
+        this.teamIndex = (this.teamIndex + 1) % this.teams.length;
+        const team = this.activeTeam;
+        const currentIdx = this.figureIndices.get(team) || 0;
+        this.figureIndices.set(team, currentIdx + 1);
+
+        this.timer = this.turnDuration;
+        this.phase = 'aiming';
+        this._newWind();
+        this._activateFigure();
+        SFX.turnStart();
+    }
+
+    _newWind() {
+        this.currentWind = Math.round((Math.random() * WIND_LIMIT * 2 - WIND_LIMIT) * 10) / 10;
+    }
+
+    _activateFigure() {
+        const figure = this.activeFigure;
+        if (figure) figure.isActive = true;
+    }
+}
+
+// ============================================================
+// MAIN GAME OBJECT
+// ============================================================
+const game = {
+    terrainCanvas: null,
+    gameCanvas: null,
+    terrainCtx: null,
+    gameCtx: null,
+    terrain: null,
+    teams: [],
+    allFigures: [],
+    turnManager: null,
+    effects: new Effects(),
+    activeProjectile: null,
+    currentWeaponKey: 'bazooka',
+    charging: false,
+    chargePower: 0,
+    chargeDirection: 1,
+    gameOver: false,
+    camera: { x: 0, y: 0, zoom: 1 },
+    lastTime: 0,
+    keys: {},
+    slingshot: null, // {startX, startY, active}
+    teleportMode: false,
+    started: false,
+
+    init() {
+        // Create dual canvas system
+        this.terrainCanvas = document.createElement('canvas');
+        this.terrainCanvas.width = WORLD_W;
+        this.terrainCanvas.height = WORLD_H;
+        this.terrainCanvas.style.zIndex = '1';
+        document.body.appendChild(this.terrainCanvas);
+        this.terrainCtx = this.terrainCanvas.getContext('2d');
+
+        this.gameCanvas = document.createElement('canvas');
+        this.gameCanvas.width = window.innerWidth;
+        this.gameCanvas.height = window.innerHeight;
+        this.gameCanvas.style.zIndex = '2';
+        document.body.appendChild(this.gameCanvas);
+        this.gameCtx = this.gameCanvas.getContext('2d');
+
+        // Resize handler
+        window.addEventListener('resize', () => this._resize());
+        this._resize();
+
+        // Terrain
+        this.terrain = new Terrain(WORLD_W, WORLD_H);
+
+        // Teams (Red player vs Blue AI) - ported from worms-game Team.js
+        const redTeam = new Team('Red', '#e84040', false);
+        const blueTeam = new Team('Blue', '#4080e8', true);
+        const zoneW = WORLD_W / 2;
+        redTeam.spawnFigures(this.terrain, 60, zoneW - 60, FIGURE_COUNT);
+        blueTeam.spawnFigures(this.terrain, zoneW + 60, WORLD_W - 60, FIGURE_COUNT);
+        this.teams = [redTeam, blueTeam];
+        this.allFigures = this.teams.flatMap(t => t.figures);
+
+        // Turn manager
+        this.turnManager = new TurnManager(this.teams, TURN_DURATION);
+        this._updateHUD();
+
+        // Build weapon panel
+        this._buildWeaponPanel();
+
+        // Input
+        this._setupInput();
+
+        // Overlay dismiss
+        const overlay = document.getElementById('overlay');
+        overlay.addEventListener('click', () => {
+            overlay.style.display = 'none';
+            this.started = true;
+            resumeAudio();
+        });
+        overlay.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            overlay.style.display = 'none';
+            this.started = true;
+            resumeAudio();
+        });
+
+        // Camera focus
+        const fig = this.turnManager.activeFigure;
+        if (fig) {
+            this.camera.x = fig.x - window.innerWidth / (2 * this.camera.zoom);
+            this.camera.y = fig.y - window.innerHeight / (2 * this.camera.zoom) - 30;
+        }
+
+        // Start loop
+        this.lastTime = performance.now();
+        requestAnimationFrame((t) => this._loop(t));
+    },
+
+    _resize() {
+        this.gameCanvas.width = window.innerWidth;
+        this.gameCanvas.height = window.innerHeight;
+        const idealZoom = Math.max(1, (window.innerHeight / WORLD_H) * 1.4);
+        this.camera.zoom = idealZoom;
+    },
+
+    _buildWeaponPanel() {
+        const panel = document.getElementById('weaponPanel');
+        panel.innerHTML = '';
+        WEAPON_KEYS.forEach((key, i) => {
+            const w = WEAPONS[key];
+            const btn = document.createElement('button');
+            btn.className = 'wpnBtn' + (key === this.currentWeaponKey ? ' sel' : '');
+            btn.id = 'wpn_' + key;
+            const team = this.turnManager.activeTeam;
+            const ammoVal = team ? team.getAmmo(key) : w.ammo;
+            const ammoStr = ammoVal === Infinity ? 'INF' : ammoVal;
+            btn.innerHTML = `<span class="ico">${w.icon}</span><span>${w.name}</span><span class="ammo">${ammoStr}</span>`;
+            btn.title = w.desc;
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this._selectWeapon(key);
+            });
+            panel.appendChild(btn);
+        });
+    },
+
+    _selectWeapon(key) {
+        const team = this.turnManager.activeTeam;
+        if (!team || team.getAmmo(key) <= 0) return;
+        this.currentWeaponKey = key;
+        this.teleportMode = (key === 'teleport');
+        document.querySelectorAll('.wpnBtn').forEach(b => b.classList.remove('sel'));
+        const btn = document.getElementById('wpn_' + key);
+        if (btn) btn.classList.add('sel');
+    },
+
+    _updateWeaponPanel() {
+        const team = this.turnManager.activeTeam;
+        if (!team) return;
+        WEAPON_KEYS.forEach(key => {
+            const btn = document.getElementById('wpn_' + key);
+            if (!btn) return;
+            const w = WEAPONS[key];
+            const ammoVal = team.getAmmo(key);
+            const ammoStr = ammoVal === Infinity ? 'INF' : ammoVal;
+            btn.querySelector('.ammo').textContent = ammoStr;
+            btn.classList.toggle('sel', key === this.currentWeaponKey);
+            btn.style.opacity = ammoVal > 0 ? '1' : '0.35';
+        });
+    },
+
+    _setupInput() {
+        // Keyboard
+        window.addEventListener('keydown', (e) => {
+            this.keys[e.code] = true;
+            // Number keys for weapons
+            if (e.code >= 'Digit1' && e.code <= 'Digit6') {
+                const idx = parseInt(e.code.replace('Digit', '')) - 1;
+                if (idx < WEAPON_KEYS.length) this._selectWeapon(WEAPON_KEYS[idx]);
+            }
+        });
+        window.addEventListener('keyup', (e) => {
+            this.keys[e.code] = false;
+        });
+
+        // Touch/mouse slingshot aiming
+        const canvas = this.gameCanvas;
+
+        const getWorldPos = (clientX, clientY) => {
+            const z = this.camera.zoom;
+            return {
+                x: clientX / z + this.camera.x,
+                y: clientY / z + this.camera.y
+            };
+        };
+
+        // Pointer down
+        canvas.addEventListener('pointerdown', (e) => {
+            if (!this.started || this.gameOver) return;
+            resumeAudio();
+            const world = getWorldPos(e.clientX, e.clientY);
+
+            // Teleport mode: click destination
+            if (this.activeProjectile && this.activeProjectile instanceof TeleportAction) {
+                this.activeProjectile.handleClick(world.x, world.y);
+                return;
+            }
+
+            // Only allow when aiming
+            if (this.turnManager.phase !== 'aiming') return;
+            const fig = this.turnManager.activeFigure;
+            if (!fig || this.turnManager.activeTeam.isAI) return;
+
+            // Start slingshot
+            this.slingshot = { startX: e.clientX, startY: e.clientY, active: true };
+        });
+
+        canvas.addEventListener('pointermove', (e) => {
+            if (!this.slingshot || !this.slingshot.active) return;
+            // Update power/angle from drag
+            const dx = this.slingshot.startX - e.clientX;
+            const dy = this.slingshot.startY - e.clientY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > 5) {
+                const fig = this.turnManager.activeFigure;
+                if (!fig) return;
+                // Calculate angle from drag direction
+                const angle = Math.atan2(dy, dx);
+                fig.aimAngle = -angle; // invert for slingshot feel
+                fig.facingRight = dx > 0;
+                // Power from distance
+                this.chargePower = Math.min(MAX_POWER, MIN_POWER + (dist / 150) * (MAX_POWER - MIN_POWER));
+                this.charging = true;
+            }
+        });
+
+        canvas.addEventListener('pointerup', (e) => {
+            if (!this.slingshot || !this.slingshot.active) return;
+            this.slingshot.active = false;
+            this.slingshot = null;
+
+            if (this.charging && this.turnManager.phase === 'aiming') {
+                const fig = this.turnManager.activeFigure;
+                if (fig && !this.turnManager.activeTeam.isAI) {
+                    const weapon = WEAPONS[this.currentWeaponKey];
+                    if (weapon.instant) {
+                        this._fireWeapon(fig, 0);
+                    } else {
+                        this._fireWeapon(fig, this.chargePower);
+                    }
+                }
+            }
+            this.charging = false;
+            this.chargePower = 0;
+        });
+    },
+
+    _handleKeyboardInput(dt) {
+        const fig = this.turnManager.activeFigure;
+        if (!fig || !fig.alive || this.turnManager.activeTeam.isAI) return;
+
+        const fineAim = this.keys['ShiftLeft'] || this.keys['ShiftRight'];
+        const aimSpeed = fineAim ? 0.8 : 2.5;
+
+        // Aim
+        if (this.keys['ArrowUp']) fig.aimAngle = Math.max(-Math.PI / 2, fig.aimAngle - aimSpeed * dt);
+        if (this.keys['ArrowDown']) fig.aimAngle = Math.min(Math.PI / 2, fig.aimAngle + aimSpeed * dt);
+
+        // Movement (blocked while charging)
+        if (!this.charging) {
+            const moveSpeed = 70;
+            if (this.keys['ArrowLeft'] || this.keys['KeyA']) {
+                fig.facingRight = false;
+                fig.walkCycle += dt * 8;
+                const newX = fig.x - moveSpeed * dt;
+                if (!this.terrain.isSolid(newX, fig.y - 5) && newX > 5) {
+                    fig.x = newX;
+                    if (this.terrain.isSolid(newX, fig.y)) {
+                        let steps = 0;
+                        while (this.terrain.isSolid(newX, fig.y - 1) && steps < 6) { fig.y--; steps++; }
+                        if (steps >= 6) fig.x += moveSpeed * dt;
+                    }
+                }
+            }
+            if (this.keys['ArrowRight'] || this.keys['KeyD']) {
+                fig.facingRight = true;
+                fig.walkCycle += dt * 8;
+                const newX = fig.x + moveSpeed * dt;
+                if (!this.terrain.isSolid(newX, fig.y - 5) && newX < WORLD_W - 5) {
+                    fig.x = newX;
+                    if (this.terrain.isSolid(newX, fig.y)) {
+                        let steps = 0;
+                        while (this.terrain.isSolid(newX, fig.y - 1) && steps < 6) { fig.y--; steps++; }
+                        if (steps >= 6) fig.x -= moveSpeed * dt;
+                    }
+                }
+            }
+            // Jump
+            if (this.keys['KeyW'] && fig.grounded) {
+                fig.vy = -200;
+                fig.grounded = false;
+            }
+
+            // Weapon switch Q/E
+            if (this.keys['KeyQ']) {
+                this._selectWeapon(getNextWeapon(this.currentWeaponKey, -1, this.turnManager.activeTeam));
+                this.keys['KeyQ'] = false;
+            }
+            if (this.keys['KeyE']) {
+                this._selectWeapon(getNextWeapon(this.currentWeaponKey, 1, this.turnManager.activeTeam));
+                this.keys['KeyE'] = false;
+            }
+        }
+
+        const weapon = WEAPONS[this.currentWeaponKey];
+        const usesPower = !weapon.instant;
+
+        if (usesPower) {
+            // Hold space to charge, release to fire
+            if (this.keys['Space'] || this.keys['Enter']) {
+                if (!this.charging) {
+                    this.charging = true;
+                    this.chargePower = MIN_POWER;
+                    this.chargeDirection = 1;
+                }
+                this.chargePower += CHARGE_SPEED * dt * this.chargeDirection;
+                if (this.chargePower >= MAX_POWER) { this.chargePower = MAX_POWER; this.chargeDirection = -1; }
+                if (this.chargePower <= MIN_POWER) { this.chargePower = MIN_POWER; this.chargeDirection = 1; }
+            } else if (this.charging) {
+                this._fireWeapon(fig, this.chargePower);
+                this.charging = false;
+                this.chargePower = 0;
+            }
+        } else {
+            if (this.keys['Space']) {
+                this.keys['Space'] = false;
+                this._fireWeapon(fig, 0);
+            }
+        }
+    },
+
+    _fireWeapon(figure, power) {
+        const team = this.turnManager.activeTeam;
+        const weaponKey = this.currentWeaponKey;
+        if (!team || team.getAmmo(weaponKey) <= 0) return;
+
+        team.useAmmo(weaponKey);
+        this.turnManager.onFired();
+
+        const dir = figure.facingRight ? 1 : -1;
+        const angle = figure.aimAngle * dir;
+        const wind = this.turnManager.currentWind;
+
+        switch (weaponKey) {
+            case 'bazooka': {
+                SFX.shoot();
+                this.effects.shake(3, 12);
+                const sx = figure.x + Math.cos(angle) * 15;
+                const sy = figure.y - 14 + Math.sin(angle) * 15;
+                this.activeProjectile = new Projectile(sx, sy, angle, power, wind, {
+                    damage: 50, blastRadius: 45, color: '#ff6600', size: 4, maxTrail: 15
+                });
+                break;
+            }
+            case 'grenade': {
+                SFX.shoot();
+                const sx = figure.x + Math.cos(angle) * 12;
+                const sy = figure.y - 14 + Math.sin(angle) * 12;
+                this.activeProjectile = new GrenadeProjectile(sx, sy, angle, power, wind);
+                break;
+            }
+            case 'shotgun': {
+                SFX.shotgunBlast();
+                this.effects.shake(8, 10);
+                this.activeProjectile = new ShotgunBlast(figure);
+                break;
+            }
+            case 'dynamite': {
+                this.activeProjectile = new DynamiteItem(figure.x, figure.y - 2, this.terrain, this.allFigures);
+                break;
+            }
+            case 'airstrike': {
+                SFX.shoot();
+                const targetX = figure.x + Math.cos(angle) * 200;
+                this.activeProjectile = new AirstrikeController(targetX, this.terrain, this.allFigures);
+                break;
+            }
+            case 'teleport': {
+                this.activeProjectile = new TeleportAction(figure, this.terrain);
+                break;
+            }
+        }
+        this._updateWeaponPanel();
+    },
+
+    // ============================================================
+    // AI LOGIC (simple but functional)
+    // ============================================================
+    _runAI(dt) {
+        const team = this.turnManager.activeTeam;
+        const fig = this.turnManager.activeFigure;
+        if (!team || !fig || !team.isAI || this.turnManager.phase !== 'aiming') return;
+
+        // AI delay
+        if (!this._aiTimer) this._aiTimer = 1.5;
+        this._aiTimer -= dt;
+        if (this._aiTimer > 0) return;
+        this._aiTimer = null;
+
+        // Find nearest enemy
+        let bestTarget = null, bestDist = Infinity;
+        for (const f of this.allFigures) {
+            if (!f.alive || f.team === team) continue;
+            const d = Math.abs(f.x - fig.x);
+            if (d < bestDist) { bestDist = d; bestTarget = f; }
+        }
+        if (!bestTarget) { this.turnManager.endTurn(); return; }
+
+        // Aim at target
+        fig.facingRight = bestTarget.x > fig.x;
+        const dx = bestTarget.x - fig.x;
+        const dy = (bestTarget.y - 10) - (fig.y - 14);
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        // Choose weapon
+        if (dist < 60 && team.getAmmo('dynamite') > 0) {
+            this.currentWeaponKey = 'dynamite';
+        } else if (dist < 150 && team.getAmmo('shotgun') > 0) {
+            this.currentWeaponKey = 'shotgun';
+        } else if (team.getAmmo('grenade') > 0 && Math.random() < 0.3) {
+            this.currentWeaponKey = 'grenade';
+        } else {
+            this.currentWeaponKey = 'bazooka';
+        }
+
+        // Calculate firing angle (simple ballistic approximation)
+        const power = MIN_POWER + Math.random() * (MAX_POWER - MIN_POWER) * 0.6 + 50;
+        // Rough angle calculation
+        let aimAngle = Math.atan2(dy, Math.abs(dx));
+        // Adjust for distance - lob higher for farther targets
+        aimAngle -= (dist / WORLD_W) * 0.5;
+        // Add some inaccuracy
+        aimAngle += (Math.random() - 0.5) * 0.15;
+        fig.aimAngle = aimAngle;
+
+        this._fireWeapon(fig, power);
+    },
+
+    // ============================================================
+    // CAMERA (smooth follow)
+    // ============================================================
+    _updateCamera(dt) {
+        let targetX, targetY;
+
+        if (this.activeProjectile && this.activeProjectile.alive &&
+            !(this.activeProjectile instanceof TeleportAction) &&
+            !(this.activeProjectile instanceof DynamiteItem)) {
+            if (this.activeProjectile.x !== undefined) {
+                targetX = this.activeProjectile.x;
+                targetY = this.activeProjectile.y;
+            } else if (this.activeProjectile.planeX !== undefined) {
+                targetX = this.activeProjectile.planeX;
+                targetY = this.activeProjectile.planeY;
+            }
+        }
+
+        if (!targetX) {
+            const fig = this.turnManager.activeFigure;
+            if (fig) { targetX = fig.x; targetY = fig.y - 30; }
+            else { targetX = WORLD_W / 2; targetY = WORLD_H / 2; }
+        }
+
+        const z = this.camera.zoom;
+        const vw = window.innerWidth / z;
+        const vh = window.innerHeight / z;
+        const destX = targetX - vw / 2;
+        const destY = targetY - vh / 2;
+
+        // Smooth interpolation
+        const speed = 3;
+        this.camera.x += (destX - this.camera.x) * speed * dt;
+        this.camera.y += (destY - this.camera.y) * speed * dt;
+
+        // Clamp
+        this.camera.x = Math.max(0, Math.min(WORLD_W - vw, this.camera.x));
+        this.camera.y = Math.max(0, Math.min(WORLD_H - vh, this.camera.y));
+    },
+
+    // ============================================================
+    // HUD UPDATE
+    // ============================================================
+    _updateHUD() {
+        const tm = this.turnManager;
+        const fig = tm.activeFigure;
+        const team = tm.activeTeam;
+
+        const turnInfo = document.getElementById('turnInfo');
+        if (team && fig) {
+            const timeLeft = Math.max(0, Math.ceil(tm.timer));
+            turnInfo.innerHTML = `<span style="color:${team.colorHex}">${team.name}</span> #${fig.index + 1} &mdash; ${timeLeft}s`;
+        }
+
+        const windVal = document.getElementById('windVal');
+        const windArrow = document.getElementById('windArrow');
+        windVal.textContent = Math.abs(tm.currentWind).toFixed(1);
+        if (tm.currentWind > 0.5) {
+            windArrow.textContent = '\u27A1';
+            windArrow.style.transform = '';
+        } else if (tm.currentWind < -0.5) {
+            windArrow.textContent = '\u2B05';
+            windArrow.style.transform = '';
+        } else {
+            windArrow.textContent = '\u2022';
+        }
+    },
+
+    // ============================================================
+    // SKY DRAWING
+    // ============================================================
+    _drawSky(ctx) {
+        const biome = this.terrain.biome;
+        const grad = ctx.createLinearGradient(0, 0, 0, WORLD_H);
+        grad.addColorStop(0, biome.sky[0]);
+        grad.addColorStop(1, biome.sky[1]);
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+
+        // Clouds
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        for (let i = 0; i < 8; i++) {
+            // Deterministic cloud positions based on seed
+            const cx = ((i * 237 + 47) % WORLD_W);
+            const cy = 15 + ((i * 113 + 23) % 80);
+            const w = 50 + ((i * 71) % 120);
+            const h = 12 + ((i * 37) % 20);
+            ctx.beginPath();
+            ctx.ellipse(cx, cy, w, h, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(cx + w * 0.3, cy - 4, w * 0.5, h * 0.7, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    },
+
+    // ============================================================
+    // WATER DRAWING
+    // ============================================================
+    _drawWater(ctx, time) {
+        const waterTop = WORLD_H - 30;
+        const t = time * 0.001;
+
+        ctx.fillStyle = 'rgba(10,48,96,0.9)';
+        ctx.fillRect(0, waterTop + 8, WORLD_W, WORLD_H - waterTop);
+        ctx.fillStyle = 'rgba(30,100,200,0.7)';
+        ctx.fillRect(0, waterTop + 3, WORLD_W, 10);
+
+        ctx.fillStyle = 'rgba(48,144,224,0.6)';
+        for (let x = 0; x < WORLD_W; x += 2) {
+            const waveY = waterTop + Math.sin(x * 0.025 + t * 2) * 4 + Math.sin(x * 0.06 + t * 3) * 2;
+            ctx.fillRect(x, waveY, 2, 8);
+        }
+
+        ctx.fillStyle = 'rgba(136,204,255,0.25)';
+        for (let x = 0; x < WORLD_W; x += 4) {
+            const waveY = waterTop + Math.sin(x * 0.025 + t * 2) * 4;
+            ctx.fillRect(x, waveY, 3, 1);
+        }
+    },
+
+    // ============================================================
+    // TRAJECTORY PREVIEW (from worms-game GameScene.js)
+    // ============================================================
+    _drawTrajectoryPreview(ctx, figure) {
+        if (this.turnManager.activeTeam.isAI) return;
+
+        const dir = figure.facingRight ? 1 : -1;
+        const angle = figure.aimAngle * dir;
+        const power = this.charging ? this.chargePower : (MIN_POWER + MAX_POWER) * 0.4;
+        const alpha = this.charging ? 0.7 : 0.25;
+
+        let px = figure.x + Math.cos(angle) * 15;
+        let py = figure.y - 14 + Math.sin(angle) * 15;
+        let vx = Math.cos(angle) * power;
+        let vy = Math.sin(angle) * power;
+
+        const gravity = this.currentWeaponKey === 'grenade' ? 350 : GRAVITY;
+        const simDt = 0.025;
+        const maxDots = 40;
+
+        for (let i = 0; i < maxDots; i++) {
+            vy += gravity * simDt;
+            vx += this.turnManager.currentWind * WIND_SCALE * simDt;
+            px += vx * simDt;
+            py += vy * simDt;
+
+            if (px < 0 || px > WORLD_W || py > WORLD_H) break;
+            if (py > 0 && this.terrain.isSolid(px, py)) {
+                // Impact marker
+                ctx.strokeStyle = `rgba(255,68,68,${alpha * 0.8})`;
+                ctx.lineWidth = 1.5;
+                ctx.beginPath(); ctx.arc(px, py, 6, 0, Math.PI * 2); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(px - 4, py - 4); ctx.lineTo(px + 4, py + 4); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(px + 4, py - 4); ctx.lineTo(px - 4, py + 4); ctx.stroke();
+                break;
+            }
+
+            if (i % 2 === 0) {
+                const fade = (1 - i / maxDots) * alpha;
+                const size = 2 - (i / maxDots) * 1.2;
+                ctx.fillStyle = this.charging ? `rgba(255,102,68,${fade})` : `rgba(255,255,255,${fade})`;
+                ctx.beginPath();
+                ctx.arc(px, py, Math.max(0.5, size), 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+    },
+
+    // ============================================================
+    // POWER BAR (from worms-game GameScene.js)
+    // ============================================================
+    _drawPowerBar(ctx, figure) {
+        if (!this.charging) return;
+
+        const pct = (this.chargePower - MIN_POWER) / (MAX_POWER - MIN_POWER);
+        const barX = figure.x - 22;
+        const barY = figure.y + 10;
+        const barW = 44;
+        const barH = 6;
+
+        ctx.fillStyle = 'rgba(0,0,0,0.75)';
+        ctx.beginPath();
+        ctx.roundRect(barX - 2, barY - 2, barW + 4, barH + 4, 3);
+        ctx.fill();
+
+        let color;
+        if (pct < 0.35) color = '#44dd44';
+        else if (pct < 0.65) color = '#dddd44';
+        else color = '#ff4444';
+
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.95;
+        ctx.beginPath();
+        ctx.roundRect(barX, barY, barW * pct, barH, 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        // Tick marks
+        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+        ctx.lineWidth = 1;
+        for (let t = 0.25; t < 1; t += 0.25) {
+            const tx = barX + barW * t;
+            ctx.beginPath(); ctx.moveTo(tx, barY); ctx.lineTo(tx, barY + barH); ctx.stroke();
+        }
+
+        // Border
+        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(barX - 2, barY - 2, barW + 4, barH + 4, 3);
+        ctx.stroke();
+    },
+
+    // ============================================================
+    // MAIN GAME LOOP
+    // ============================================================
+    _loop(timestamp) {
+        const rawDt = Math.min(0.05, (timestamp - this.lastTime) / 1000);
+        this.lastTime = timestamp;
+
+        if (this.started && !this.gameOver) {
+            const dt = rawDt;
+
+            // Update effects
+            this.effects.update(dt);
+
+            // Update turn manager
+            this.turnManager.update(dt);
+
+            // Update all figures
+            for (const fig of this.allFigures) {
+                fig.update(dt, this.terrain);
+            }
+
+            // Update active projectile
+            if (this.activeProjectile) {
+                let result;
+                if (this.activeProjectile instanceof AirstrikeController) {
+                    result = this.activeProjectile.update(dt, this.terrain, this.allFigures);
+                } else if (this.activeProjectile instanceof DynamiteItem) {
+                    result = this.activeProjectile.update(dt);
+                } else if (this.activeProjectile instanceof TeleportAction) {
+                    result = this.activeProjectile.update(dt);
+                } else if (this.activeProjectile instanceof ShotgunBlast) {
+                    result = this.activeProjectile.update(dt, this.terrain, this.allFigures);
+                } else {
+                    result = this.activeProjectile.update(dt, this.terrain, this.allFigures);
+                }
+
+                if (result) {
+                    this.activeProjectile = null;
+                    this.turnManager.onProjectileLanded();
+                }
+            }
+
+            // AI logic
+            if (this.turnManager.activeTeam && this.turnManager.activeTeam.isAI) {
+                this._runAI(dt);
+            }
+
+            // Input
+            if (this.turnManager.phase === 'aiming' && this.turnManager.activeTeam && !this.turnManager.activeTeam.isAI) {
+                this._handleKeyboardInput(dt);
+            }
+
+            // Camera
+            this._updateCamera(dt);
+
+            // Check game over
+            if (this.turnManager.phase === 'game-over') {
+                this.gameOver = true;
+                const winner = this.turnManager.teams[0];
+                const goEl = document.getElementById('gameOver');
+                const goText = document.getElementById('goText');
+                goText.textContent = winner ? `${winner.name} Team Wins!` : 'Draw!';
+                goText.style.color = winner ? winner.colorHex : '#fff';
+                goEl.style.display = 'flex';
+                SFX.victory();
+            }
+        }
+
+        // ============ RENDER ============
+        const ctx = this.gameCtx;
+        const z = this.camera.zoom;
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+
+        ctx.clearRect(0, 0, w, h);
+        ctx.save();
+
+        // Apply camera transform with screen shake
+        const shakeX = this.effects.shakeX || 0;
+        const shakeY = this.effects.shakeY || 0;
+        ctx.setTransform(z, 0, 0, z, -this.camera.x * z + shakeX, -this.camera.y * z + shakeY);
+
+        // Sky
+        this._drawSky(ctx);
+
+        // Terrain
+        this.terrain.draw(ctx);
+
+        // Water
+        this._drawWater(ctx, timestamp);
+
+        // Trajectory preview
+        if (this.turnManager.phase === 'aiming' && !WEAPONS[this.currentWeaponKey].instant) {
+            const fig = this.turnManager.activeFigure;
+            if (fig) {
+                this._drawTrajectoryPreview(ctx, fig);
+                this._drawPowerBar(ctx, fig);
+            }
+        }
+
+        // Draw figures
+        for (const fig of this.allFigures) {
+            fig.draw(ctx);
+        }
+
+        // Draw active projectile
+        if (this.activeProjectile) {
+            if (this.activeProjectile.draw) this.activeProjectile.draw(ctx);
+        }
+
+        // Draw effects (debris, damage numbers, flashes)
+        this.effects.draw(ctx);
+
+        ctx.restore();
+
+        // Update HUD
+        if (this.started) this._updateHUD();
+        this._updateWeaponPanel();
+
+        requestAnimationFrame((t) => this._loop(t));
+    }
+};
+
+// Start
+game.init();
 </script>
 </body>
 </html>
