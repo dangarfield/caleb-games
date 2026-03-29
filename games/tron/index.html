@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>TRON Lightcycles</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #000;
+    overflow: hidden;
+    font-family: 'Courier New', monospace;
+    touch-action: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    width: 100vw;
+  }
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+  }
+  #backBtn {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 100;
+    background: transparent;
+    border: 1px solid rgba(0,255,255,0.4);
+    color: #0ff;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    padding: 6px 14px;
+    cursor: pointer;
+    text-decoration: none;
+    text-shadow: 0 0 8px #0ff;
+    transition: all 0.2s;
+  }
+  #backBtn:hover {
+    background: rgba(0,255,255,0.15);
+    border-color: #0ff;
+    box-shadow: 0 0 12px rgba(0,255,255,0.3);
+  }
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&#9664; BACK TO GAMES</a>
+<canvas id="gc"></canvas>
+<script>
+(function() {
+  "use strict";
+
+  // --- Constants ---
+  const GRID_SIZE = 10;
+  const COUNTDOWN_SECS = 3;
+  const ROUNDS_TO_WIN = 3;
+  const BASE_SPEED = 8; // cells per second
+  const SPEED_INCREMENT = 0.6;
+  const AI_LOOKAHEAD = 15;
+
+  // Colors
+  const PLAYER_COLOR = '#00ffff';
+  const PLAYER_GLOW = 'rgba(0,255,255,';
+  const AI_COLOR = '#ff6600';
+  const AI_GLOW = 'rgba(255,102,0,';
+  const GRID_COLOR = 'rgba(0,255,255,0.07)';
+  const GRID_BORDER = 'rgba(0,255,255,0.25)';
+  const BG_COLOR = '#0a0a12';
+
+  // --- Canvas Setup ---
+  const canvas = document.getElementById('gc');
+  const ctx = canvas.getContext('2d');
+  let W, H, cols, rows;
+
+  function resize() {
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W;
+    canvas.height = H;
+    cols = Math.floor(W / GRID_SIZE);
+    rows = Math.floor(H / GRID_SIZE);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // --- Game State ---
+  let grid; // 2D: 0=empty, 1=player, 2=ai
+  let player, ai;
+  let playerScore = 0, aiScore = 0;
+  let roundNum = 0;
+  let gameSpeed;
+  let state = 'instructions'; // instructions, countdown, playing, crash, gameover
+  let countdownTimer = 0;
+  let countdownText = '';
+  let crashParticles = [];
+  let crashWho = ''; // 'player','ai','both'
+  let crashTimer = 0;
+  let moveAccum = 0;
+  let lastTime = 0;
+  let showInstructions = true;
+  let difficultyLevel = 1; // increases each round
+
+  // Directions: 0=up,1=right,2=down,3=left
+  const DX = [0, 1, 0, -1];
+  const DY = [-1, 0, 1, 0];
+
+  function initGrid() {
+    grid = [];
+    for (let x = 0; x < cols; x++) {
+      grid[x] = [];
+      for (let y = 0; y < rows; y++) {
+        grid[x][y] = 0;
+      }
+    }
+  }
+
+  function initRound() {
+    initGrid();
+    const startY = Math.floor(rows / 2);
+    const margin = Math.floor(cols * 0.15);
+    player = {
+      x: margin,
+      y: startY,
+      dir: 1, // moving right
+      nextDir: 1,
+      alive: true,
+      trail: []
+    };
+    ai = {
+      x: cols - margin - 1,
+      y: startY,
+      dir: 3, // moving left
+      nextDir: 3,
+      alive: true,
+      trail: []
+    };
+    grid[player.x][player.y] = 1;
+    grid[ai.x][ai.y] = 2;
+    player.trail.push({x: player.x, y: player.y});
+    ai.trail.push({x: ai.x, y: ai.y});
+    gameSpeed = BASE_SPEED + roundNum * SPEED_INCREMENT;
+    difficultyLevel = Math.min(1 + roundNum * 0.15, 2.0);
+    moveAccum = 0;
+    crashParticles = [];
+    crashWho = '';
+    crashTimer = 0;
+    countdownTimer = COUNTDOWN_SECS + 1; // extra 1 for "GO!"
+    state = 'countdown';
+    lastTime = performance.now();
+  }
+
+  function isBlocked(x, y) {
+    if (x < 0 || x >= cols || y < 0 || y >= rows) return true;
+    return grid[x][y] !== 0;
+  }
+
+  function opposite(d) { return (d + 2) % 4; }
+
+  // --- AI ---
+  function aiThink() {
+    const cx = ai.x, cy = ai.y;
+    const curDir = ai.dir;
+
+    // Possible turns: straight, left, right
+    const candidates = [
+      curDir,
+      (curDir + 3) % 4, // left turn
+      (curDir + 1) % 4  // right turn
+    ];
+
+    let bestDir = curDir;
+    let bestScore = -Infinity;
+
+    for (const d of candidates) {
+      if (d === opposite(curDir)) continue;
+      const nx = cx + DX[d];
+      const ny = cy + DY[d];
+      if (isBlocked(nx, ny)) continue;
+
+      let score = 0;
+
+      // Flood fill to count open space (limited)
+      const open = floodCount(nx, ny, Math.floor(AI_LOOKAHEAD * difficultyLevel));
+      score += open * 3;
+
+      // Look ahead for how many steps we can go straight
+      let straight = 0;
+      let sx = nx, sy = ny;
+      for (let i = 0; i < AI_LOOKAHEAD; i++) {
+        sx += DX[d];
+        sy += DY[d];
+        if (isBlocked(sx, sy)) break;
+        straight++;
+      }
+      score += straight * 1.5;
+
+      // Prefer moving toward center slightly
+      const centerX = cols / 2, centerY = rows / 2;
+      const distNow = Math.abs(cx - centerX) + Math.abs(cy - centerY);
+      const distNew = Math.abs(nx - centerX) + Math.abs(ny - centerY);
+      if (distNew < distNow) score += 2 * difficultyLevel;
+
+      // Avoid getting close to walls
+      if (nx <= 1 || nx >= cols - 2 || ny <= 1 || ny >= rows - 2) {
+        score -= 5 * difficultyLevel;
+      }
+
+      // Try to cut off player (aggressive at higher difficulty)
+      if (difficultyLevel > 1.2) {
+        const pdx = player.x - nx;
+        const pdy = player.y - ny;
+        const dist = Math.abs(pdx) + Math.abs(pdy);
+        if (dist < cols * 0.4) {
+          score += (cols * 0.4 - dist) * 0.5 * (difficultyLevel - 1);
+        }
+      }
+
+      // Randomness (less at higher difficulty)
+      score += Math.random() * (3 / difficultyLevel);
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestDir = d;
+      }
+    }
+
+    ai.nextDir = bestDir;
+  }
+
+  function floodCount(sx, sy, limit) {
+    const visited = new Set();
+    const queue = [{x: sx, y: sy}];
+    visited.add(sx + ',' + sy);
+    let count = 0;
+    while (queue.length > 0 && count < limit) {
+      const {x, y} = queue.shift();
+      count++;
+      for (let d = 0; d < 4; d++) {
+        const nx = x + DX[d];
+        const ny = y + DY[d];
+        const key = nx + ',' + ny;
+        if (!isBlocked(nx, ny) && !visited.has(key)) {
+          visited.add(key);
+          queue.push({x: nx, y: ny});
+        }
+      }
+    }
+    return count;
+  }
+
+  // --- Crash Particles ---
+  function spawnCrashParticles(x, y, color) {
+    for (let i = 0; i < 40; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 1 + Math.random() * 4;
+      crashParticles.push({
+        x: x * GRID_SIZE + GRID_SIZE / 2,
+        y: y * GRID_SIZE + GRID_SIZE / 2,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 1,
+        decay: 0.01 + Math.random() * 0.025,
+        color: color,
+        size: 2 + Math.random() * 4
+      });
+    }
+  }
+
+  // --- Input ---
+  let touchStartX = 0, touchStartY = 0;
+  const SWIPE_THRESHOLD = 20;
+
+  function setPlayerDir(d) {
+    if (state === 'playing' && d !== opposite(player.dir)) {
+      player.nextDir = d;
+    }
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if (state === 'instructions') { startGame(); return; }
+    if (state === 'gameover') { resetGame(); return; }
+    switch (e.key) {
+      case 'ArrowUp': case 'w': case 'W': setPlayerDir(0); e.preventDefault(); break;
+      case 'ArrowRight': case 'd': case 'D': setPlayerDir(1); e.preventDefault(); break;
+      case 'ArrowDown': case 's': case 'S': setPlayerDir(2); e.preventDefault(); break;
+      case 'ArrowLeft': case 'a': case 'A': setPlayerDir(3); e.preventDefault(); break;
+    }
+  });
+
+  canvas.addEventListener('touchstart', function(e) {
+    if (state === 'instructions') { startGame(); e.preventDefault(); return; }
+    if (state === 'gameover') { resetGame(); e.preventDefault(); return; }
+    const t = e.touches[0];
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+    e.preventDefault();
+  }, {passive: false});
+
+  canvas.addEventListener('touchmove', function(e) { e.preventDefault(); }, {passive: false});
+
+  canvas.addEventListener('touchend', function(e) {
+    if (state !== 'playing') return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartX;
+    const dy = t.clientY - touchStartY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist > SWIPE_THRESHOLD) {
+      // Swipe
+      if (Math.abs(dx) > Math.abs(dy)) {
+        setPlayerDir(dx > 0 ? 1 : 3);
+      } else {
+        setPlayerDir(dy > 0 ? 2 : 0);
+      }
+    } else {
+      // Tap quadrant
+      const cx = W / 2, cy = H / 2;
+      const tx = t.clientX, ty = t.clientY;
+      const relX = tx - cx, relY = ty - cy;
+      if (Math.abs(relX) > Math.abs(relY)) {
+        setPlayerDir(relX > 0 ? 1 : 3);
+      } else {
+        setPlayerDir(relY > 0 ? 2 : 0);
+      }
+    }
+    e.preventDefault();
+  }, {passive: false});
+
+  // Prevent context menu on long press
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+  // --- Game Flow ---
+  function startGame() {
+    showInstructions = false;
+    playerScore = 0;
+    aiScore = 0;
+    roundNum = 0;
+    initRound();
+  }
+
+  function resetGame() {
+    playerScore = 0;
+    aiScore = 0;
+    roundNum = 0;
+    initRound();
+  }
+
+  function moveCycle(c, id) {
+    c.dir = c.nextDir;
+    const nx = c.x + DX[c.dir];
+    const ny = c.y + DY[c.dir];
+    if (isBlocked(nx, ny)) {
+      c.alive = false;
+      spawnCrashParticles(c.x, c.y, id === 1 ? PLAYER_COLOR : AI_COLOR);
+      return;
+    }
+    c.x = nx;
+    c.y = ny;
+    grid[nx][ny] = id;
+    c.trail.push({x: nx, y: ny});
+  }
+
+  function update(dt) {
+    if (state === 'countdown') {
+      countdownTimer -= dt;
+      if (countdownTimer > 1) {
+        countdownText = Math.ceil(countdownTimer - 1).toString();
+      } else if (countdownTimer > 0) {
+        countdownText = 'GO!';
+      } else {
+        state = 'playing';
+      }
+      return;
+    }
+
+    if (state === 'playing') {
+      moveAccum += dt * gameSpeed;
+      while (moveAccum >= 1) {
+        moveAccum -= 1;
+
+        // AI thinks before moving
+        aiThink();
+
+        // Move both simultaneously
+        moveCycle(player, 1);
+        moveCycle(ai, 2);
+
+        // Check head-on collision (both land on same cell)
+        if (player.alive && ai.alive && player.x === ai.x && player.y === ai.y) {
+          player.alive = false;
+          ai.alive = false;
+          spawnCrashParticles(player.x, player.y, PLAYER_COLOR);
+          spawnCrashParticles(ai.x, ai.y, AI_COLOR);
+        }
+
+        if (!player.alive || !ai.alive) {
+          if (!player.alive && !ai.alive) crashWho = 'both';
+          else if (!player.alive) crashWho = 'player';
+          else crashWho = 'ai';
+
+          if (crashWho === 'ai' || crashWho === 'both') {
+            if (crashWho === 'ai') playerScore++;
+          }
+          if (crashWho === 'player' || crashWho === 'both') {
+            if (crashWho === 'player') aiScore++;
+          }
+          // Tie: no points
+
+          state = 'crash';
+          crashTimer = 2.5;
+          moveAccum = 0;
+          return;
+        }
+      }
+    }
+
+    if (state === 'crash') {
+      crashTimer -= dt;
+      // Update particles
+      for (let p of crashParticles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vx *= 0.97;
+        p.vy *= 0.97;
+        p.life -= p.decay;
+      }
+      crashParticles = crashParticles.filter(p => p.life > 0);
+
+      if (crashTimer <= 0) {
+        if (playerScore >= ROUNDS_TO_WIN || aiScore >= ROUNDS_TO_WIN) {
+          state = 'gameover';
+        } else {
+          roundNum++;
+          initRound();
+        }
+      }
+    }
+  }
+
+  // --- Drawing ---
+  function drawGrid() {
+    ctx.strokeStyle = GRID_COLOR;
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    for (let x = 0; x <= W; x += GRID_SIZE) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, H);
+    }
+    for (let y = 0; y <= H; y += GRID_SIZE) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(W, y);
+    }
+    ctx.stroke();
+
+    // Border
+    ctx.strokeStyle = GRID_BORDER;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#0ff';
+    ctx.shadowBlur = 10;
+    ctx.strokeRect(1, 1, cols * GRID_SIZE - 2, rows * GRID_SIZE - 2);
+    ctx.shadowBlur = 0;
+  }
+
+  function drawTrail(trail, color, glowFunc) {
+    if (trail.length < 2) return;
+
+    // Main trail line
+    ctx.strokeStyle = color;
+    ctx.lineWidth = GRID_SIZE - 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 12;
+
+    ctx.beginPath();
+    ctx.moveTo(trail[0].x * GRID_SIZE + GRID_SIZE / 2, trail[0].y * GRID_SIZE + GRID_SIZE / 2);
+    for (let i = 1; i < trail.length; i++) {
+      ctx.lineTo(trail[i].x * GRID_SIZE + GRID_SIZE / 2, trail[i].y * GRID_SIZE + GRID_SIZE / 2);
+    }
+    ctx.stroke();
+
+    // Inner bright core
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 6;
+    ctx.beginPath();
+    ctx.moveTo(trail[0].x * GRID_SIZE + GRID_SIZE / 2, trail[0].y * GRID_SIZE + GRID_SIZE / 2);
+    for (let i = 1; i < trail.length; i++) {
+      ctx.lineTo(trail[i].x * GRID_SIZE + GRID_SIZE / 2, trail[i].y * GRID_SIZE + GRID_SIZE / 2);
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  function drawCycleHead(c, color) {
+    if (!c.alive) return;
+    const cx = c.x * GRID_SIZE + GRID_SIZE / 2;
+    const cy = c.y * GRID_SIZE + GRID_SIZE / 2;
+    const r = GRID_SIZE * 0.7;
+
+    // Outer glow
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 20;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Bright core
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.45, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  function drawParticles() {
+    for (const p of crashParticles) {
+      ctx.globalAlpha = p.life;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+    }
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+  }
+
+  function drawScore() {
+    const size = Math.min(36, W * 0.05);
+    ctx.font = `bold ${size}px 'Courier New', monospace`;
+    ctx.textAlign = 'center';
+
+    // Player score
+    ctx.shadowColor = PLAYER_COLOR;
+    ctx.shadowBlur = 15;
+    ctx.fillStyle = PLAYER_COLOR;
+    ctx.fillText(playerScore, W * 0.3, size + 20);
+
+    // Dash
+    ctx.shadowColor = '#fff';
+    ctx.shadowBlur = 5;
+    ctx.fillStyle = '#556';
+    ctx.fillText('-', W * 0.5, size + 20);
+
+    // AI score
+    ctx.shadowColor = AI_COLOR;
+    ctx.shadowBlur = 15;
+    ctx.fillStyle = AI_COLOR;
+    ctx.fillText(aiScore, W * 0.7, size + 20);
+
+    // Labels
+    const smallSize = Math.min(14, W * 0.02);
+    ctx.font = `${smallSize}px 'Courier New', monospace`;
+    ctx.shadowBlur = 8;
+
+    ctx.shadowColor = PLAYER_COLOR;
+    ctx.fillStyle = PLAYER_COLOR;
+    ctx.fillText('PLAYER', W * 0.3, size + 20 + smallSize + 6);
+
+    ctx.shadowColor = AI_COLOR;
+    ctx.fillStyle = AI_COLOR;
+    ctx.fillText('CPU', W * 0.7, size + 20 + smallSize + 6);
+
+    // Round
+    ctx.shadowColor = '#fff';
+    ctx.shadowBlur = 5;
+    ctx.fillStyle = '#889';
+    ctx.font = `${smallSize}px 'Courier New', monospace`;
+    ctx.fillText(`ROUND ${roundNum + 1}  |  FIRST TO ${ROUNDS_TO_WIN}`, W * 0.5, size + 20 + smallSize + 6);
+
+    ctx.shadowBlur = 0;
+  }
+
+  function drawCountdown() {
+    const size = Math.min(120, W * 0.2);
+    ctx.font = `bold ${size}px 'Courier New', monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = countdownText === 'GO!' ? '#0f0' : '#0ff';
+    ctx.shadowBlur = 30;
+    ctx.fillStyle = countdownText === 'GO!' ? '#0f0' : '#0ff';
+    ctx.fillText(countdownText, W / 2, H / 2);
+    ctx.shadowBlur = 0;
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  function drawCrashMessage() {
+    const size = Math.min(48, W * 0.07);
+    ctx.font = `bold ${size}px 'Courier New', monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    let msg, color;
+    if (crashWho === 'player') {
+      msg = 'DEREZZED';
+      color = AI_COLOR;
+    } else if (crashWho === 'ai') {
+      msg = 'ENEMY DEREZZED';
+      color = PLAYER_COLOR;
+    } else {
+      msg = 'DOUBLE DEREZ';
+      color = '#ff00ff';
+    }
+
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 25;
+    ctx.fillStyle = color;
+    ctx.fillText(msg, W / 2, H / 2);
+    ctx.shadowBlur = 0;
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  function drawGameOver() {
+    // Dim overlay
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.fillRect(0, 0, W, H);
+
+    const winner = playerScore >= ROUNDS_TO_WIN;
+    const color = winner ? PLAYER_COLOR : AI_COLOR;
+    const msg = winner ? 'YOU WIN' : 'GAME OVER';
+
+    const size = Math.min(72, W * 0.1);
+    ctx.font = `bold ${size}px 'Courier New', monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 30;
+    ctx.fillStyle = color;
+    ctx.fillText(msg, W / 2, H / 2 - size * 0.6);
+
+    // Sub text
+    const subSize = Math.min(24, W * 0.035);
+    ctx.font = `${subSize}px 'Courier New', monospace`;
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = '#aab';
+    ctx.shadowColor = '#aab';
+    ctx.fillText(`${playerScore} - ${aiScore}`, W / 2, H / 2 + subSize);
+
+    ctx.fillStyle = '#667';
+    ctx.shadowColor = '#667';
+    ctx.shadowBlur = 5;
+    ctx.fillText('TAP OR PRESS ANY KEY TO PLAY AGAIN', W / 2, H / 2 + subSize * 3);
+    ctx.shadowBlur = 0;
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  function drawInstructions() {
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    ctx.fillRect(0, 0, W, H);
+
+    const titleSize = Math.min(64, W * 0.09);
+    ctx.font = `bold ${titleSize}px 'Courier New', monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = PLAYER_COLOR;
+    ctx.shadowBlur = 30;
+    ctx.fillStyle = PLAYER_COLOR;
+    ctx.fillText('TRON', W / 2, H * 0.2);
+
+    const subTitle = Math.min(28, W * 0.04);
+    ctx.font = `${subTitle}px 'Courier New', monospace`;
+    ctx.shadowBlur = 15;
+    ctx.fillStyle = '#aab';
+    ctx.shadowColor = '#aab';
+    ctx.fillText('LIGHTCYCLES', W / 2, H * 0.2 + titleSize * 0.7);
+
+    const textSize = Math.min(18, W * 0.028);
+    ctx.font = `${textSize}px 'Courier New', monospace`;
+    ctx.shadowBlur = 5;
+    const lines = [
+      '',
+      'You control a lightcycle that',
+      'leaves a trail of light behind it.',
+      '',
+      'Avoid crashing into walls, your',
+      'own trail, or your opponent\'s trail!',
+      '',
+      'CONTROLS:',
+      'Swipe or tap screen quadrants',
+      'Arrow keys / WASD on keyboard',
+      '',
+      'First to 3 round wins takes the match.',
+      'Speed increases each round!'
+    ];
+
+    let y = H * 0.38;
+    for (const line of lines) {
+      if (line.startsWith('CONTROLS')) {
+        ctx.fillStyle = AI_COLOR;
+        ctx.shadowColor = AI_COLOR;
+      } else {
+        ctx.fillStyle = '#99a';
+        ctx.shadowColor = '#99a';
+      }
+      ctx.fillText(line, W / 2, y);
+      y += textSize * 1.6;
+    }
+
+    const promptSize = Math.min(22, W * 0.035);
+    ctx.font = `bold ${promptSize}px 'Courier New', monospace`;
+    ctx.fillStyle = PLAYER_COLOR;
+    ctx.shadowColor = PLAYER_COLOR;
+    ctx.shadowBlur = 15;
+    const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.004);
+    ctx.globalAlpha = 0.4 + pulse * 0.6;
+    ctx.fillText('TAP OR PRESS ANY KEY TO START', W / 2, H * 0.88);
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  function draw() {
+    // Background
+    ctx.fillStyle = BG_COLOR;
+    ctx.fillRect(0, 0, W, H);
+
+    drawGrid();
+
+    if (state === 'instructions') {
+      drawInstructions();
+      return;
+    }
+
+    // Trails
+    drawTrail(player.trail, PLAYER_COLOR, PLAYER_GLOW);
+    drawTrail(ai.trail, AI_COLOR, AI_GLOW);
+
+    // Cycle heads
+    drawCycleHead(player, PLAYER_COLOR);
+    drawCycleHead(ai, AI_COLOR);
+
+    // Particles
+    drawParticles();
+
+    // Score
+    drawScore();
+
+    // Overlays
+    if (state === 'countdown') drawCountdown();
+    if (state === 'crash') drawCrashMessage();
+    if (state === 'gameover') drawGameOver();
+  }
+
+  // --- Main Loop ---
+  function loop(now) {
+    const dt = Math.min((now - lastTime) / 1000, 0.1);
+    lastTime = now;
+
+    if (state !== 'instructions') {
+      update(dt);
+    }
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  lastTime = performance.now();
+  requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
