@@ -2,1417 +2,1506 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-<title>Paperboy</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Paperboy 3D</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-
 body {
     font-family: 'Courier New', monospace;
-    background: linear-gradient(135deg, #2c3e50 0%, #1a1a2e 100%);
+    background: #000;
     color: white;
-    height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    overflow: hidden;
     touch-action: manipulation;
-    -webkit-touch-callout: none;
     -webkit-user-select: none;
     user-select: none;
-    overflow: hidden;
 }
-
+canvas { display: block; }
 #backBtn {
-    position: fixed;
-    top: 10px;
-    left: 10px;
-    z-index: 200;
-    background: rgba(0,0,0,.6);
-    color: #fff;
-    border: 2px solid #fff;
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-size: 16px;
-    cursor: pointer;
-    text-decoration: none;
-    font-family: inherit;
+    position: fixed; top: 10px; left: 10px; z-index: 200;
+    background: rgba(0,0,0,.6); color: #fff; border: 2px solid #fff;
+    padding: 8px 16px; border-radius: 8px; font-size: 16px;
+    cursor: pointer; text-decoration: none; font-family: inherit;
 }
 #backBtn:hover { background: rgba(255,255,255,.2); }
-
-#gameContainer {
-    text-align: center;
-    position: relative;
+#hud {
+    position: fixed; top: 10px; right: 10px; z-index: 100;
+    background: rgba(0,0,0,.7); padding: 10px 18px; border-radius: 8px;
+    font-size: 16px; line-height: 1.8; border: 2px solid rgba(255,255,255,.3);
+    pointer-events: none;
 }
-
-.screen {
-    background: rgba(0, 0, 0, 0.85);
-    border-radius: 10px;
-    padding: 30px;
-    margin: 20px;
-    border: 3px solid #fff;
-    box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
-    max-width: 800px;
+#hud .label { color: #aaa; }
+#hud .value { color: #ffeb3b; font-weight: bold; }
+#hud .lives { color: #ff5252; }
+#progressBar {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    width: 300px; max-width: 80vw; height: 14px; z-index: 100;
+    background: rgba(0,0,0,.6); border-radius: 7px; border: 2px solid rgba(255,255,255,.3);
+    pointer-events: none;
 }
-
-h1 {
-    font-size: 2.8em;
-    margin: 0 0 20px 0;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-    color: #ffeb3b;
+#progressFill {
+    height: 100%; width: 0%; background: linear-gradient(90deg, #4CAF50, #8BC34A);
+    border-radius: 5px; transition: width 0.3s;
 }
-
-p { font-size: 1.1em; margin: 10px 0; line-height: 1.5; }
-
-button {
-    background: #4CAF50;
-    color: white;
-    border: none;
-    padding: 15px 30px;
-    font-size: 1.2em;
-    border-radius: 5px;
-    cursor: pointer;
-    margin: 20px 10px;
-    transition: background 0.3s, transform 0.1s;
-    font-family: 'Courier New', monospace;
+#progressLabel {
+    position: fixed; bottom: 36px; left: 50%; transform: translateX(-50%);
+    font-size: 12px; color: #aaa; z-index: 100; pointer-events: none;
 }
-button:hover { background: #45a049; transform: scale(1.05); }
-
-.controls-info {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 5px;
-    padding: 15px;
-    margin: 20px 0;
-    text-align: left;
+.overlay {
+    position: fixed; inset: 0; z-index: 300;
+    display: flex; justify-content: center; align-items: center;
+    background: rgba(0,0,0,.85);
 }
-
-#gameScreen {
-    padding: 0;
-    background: transparent;
-    border: none;
-    box-shadow: none;
+.overlay-box {
+    background: rgba(0,0,0,.95); border: 3px solid #fff;
+    border-radius: 12px; padding: 30px 40px; max-width: 600px;
+    text-align: center; box-shadow: 0 0 30px rgba(255,255,255,.2);
 }
-
-#ui {
-    background: rgba(0, 0, 0, 0.8);
-    padding: 10px;
-    border-radius: 5px;
-    margin-bottom: 10px;
-    display: flex;
-    justify-content: space-around;
-    width: 800px;
-    box-sizing: border-box;
+.overlay-box h1 { font-size: 2.5em; color: #ffeb3b; margin-bottom: 15px; }
+.overlay-box h2 { font-size: 1.8em; color: #fff; margin-bottom: 10px; }
+.overlay-box p { font-size: 1em; margin: 8px 0; line-height: 1.5; color: #ccc; }
+.overlay-box .controls-info { text-align: left; margin: 15px auto; max-width: 350px; }
+.overlay-box .controls-info div { margin: 4px 0; }
+.overlay-box .key { color: #ffeb3b; font-weight: bold; }
+.overlay-box button {
+    background: #4CAF50; color: #fff; border: none; padding: 14px 40px;
+    font-size: 1.2em; border-radius: 8px; cursor: pointer; margin-top: 20px;
+    font-family: inherit; font-weight: bold;
 }
-
-#ui div { font-size: 1.2em; font-weight: bold; }
-
-#gameCanvas {
-    border: 3px solid #fff;
-    border-radius: 5px;
-    background: #87CEEB;
-    display: block;
-    margin: 0 auto;
+.overlay-box button:hover { background: #66BB6A; }
+.summary-line { font-size: 1.1em; margin: 6px 0; }
+.summary-good { color: #4CAF50; }
+.summary-bad { color: #ff5252; }
+.summary-total { color: #ffeb3b; font-size: 1.3em; font-weight: bold; margin-top: 10px; }
+#throwIndicator {
+    position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
+    font-size: 14px; color: #fff; z-index: 100; pointer-events: none;
+    opacity: 0; transition: opacity 0.3s;
 }
-
-#finalScore { font-size: 1.5em; color: #ffeb3b; margin: 20px 0; }
-
-/* Instructions overlay */
-#instructionsOverlay {
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.85);
-    z-index: 300;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    cursor: pointer;
+.touch-zone {
+    position: fixed; top: 0; bottom: 0; width: 50%; z-index: 50; opacity: 0;
 }
-#instructionsOverlay .inner {
-    background: rgba(20,20,40,0.95);
-    border: 3px solid #ffeb3b;
-    border-radius: 12px;
-    padding: 30px 40px;
-    max-width: 500px;
-    text-align: center;
-}
-#instructionsOverlay h2 { color: #ffeb3b; font-size: 2em; margin-bottom: 15px; }
-#instructionsOverlay p { font-size: 1em; margin: 8px 0; }
-#instructionsOverlay .dismiss { color: #aaa; font-size: 0.9em; margin-top: 20px; }
-
-/* Mobile responsive design */
-@media (max-width: 850px) {
-    body {
-        padding: 0;
-        height: 100vh;
-        overflow: hidden;
-        flex-direction: column;
-        justify-content: flex-start;
-    }
-
-    #gameContainer {
-        width: 100vw;
-        height: 100vh;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-    }
-
-    #gameCanvas {
-        width: 95vw;
-        height: auto;
-        max-height: 70vh;
-        border: 2px solid #fff;
-        touch-action: none;
-    }
-
-    #gameScreen {
-        width: 100vw;
-        height: 100vh;
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-start;
-        align-items: center;
-        padding: 0;
-        margin: 0;
-    }
-
-    #ui {
-        width: 95vw;
-        display: flex;
-        justify-content: space-around;
-        align-items: center;
-        background: rgba(0, 0, 0, 0.8);
-        padding: 8px;
-        margin: 5px 0;
-        border-radius: 5px;
-        flex-wrap: wrap;
-        gap: 10px;
-    }
-
-    #ui div { font-size: 0.9em; white-space: nowrap; }
-
-    .screen {
-        width: 95vw;
-        max-width: 95vw;
-        padding: 20px;
-        margin: 10px;
-    }
-
-    h1 { font-size: 1.5em; margin: 10px 0; }
-    p { font-size: 0.8em; margin: 8px 0; line-height: 1.4; }
-
-    button { padding: 15px 30px; font-size: 1.1em; margin: 15px 5px; }
-    .controls-info { font-size: 0.8em; }
-}
-
-@media (max-width: 480px) {
-    h1 { font-size: 1.5em; }
-    p { font-size: 0.9em; }
-    .controls-info { font-size: 0.9em; }
-    #ui div { font-size: 1em; }
-}
+#touchLeft { left: 0; }
+#touchRight { right: 0; }
 </style>
 </head>
 <body>
-
 <a id="backBtn" href="../../index.html">Back to Games</a>
 
-<!-- Instructions overlay (shown once on first load) -->
-<div id="instructionsOverlay">
-    <div class="inner">
-        <h2>Paperboy</h2>
-        <p>Deliver newspapers to houses along your route!</p>
-        <p><strong>Desktop:</strong><br>Arrow Keys / WASD to move<br>Spacebar to throw newspaper</p>
-        <p><strong>Mobile / Tablet:</strong><br>Swipe to move<br>Tap to throw newspaper</p>
-        <p>Avoid cars and dogs. Deliver to mailboxes marked with "!" indicators.</p>
-        <p>Reach the finish line to complete your route!</p>
-        <p class="dismiss">Tap anywhere to dismiss</p>
-    </div>
+<div id="hud" style="display:none;">
+    <div><span class="label">Score: </span><span class="value" id="scoreVal">0</span></div>
+    <div><span class="label">Papers: </span><span class="value" id="papersVal">10</span></div>
+    <div><span class="label">Lives: </span><span class="lives" id="livesVal">&#9829;&#9829;&#9829;</span></div>
+    <div><span class="label">Street: </span><span class="value" id="streetVal">1</span></div>
 </div>
 
-<div id="gameContainer">
-    <div id="startScreen" class="screen">
-        <h1>Paperboy</h1>
-        <p>Hop on your bike and deliver newspapers along the neighborhood route! Dodge obstacles, hit mailboxes, and complete your delivery run!</p>
+<div id="progressLabel" style="display:none;">Street Progress</div>
+<div id="progressBar" style="display:none;"><div id="progressFill"></div></div>
+<div id="throwIndicator">Newspaper thrown!</div>
+
+<div id="touchLeft" class="touch-zone"></div>
+<div id="touchRight" class="touch-zone"></div>
+
+<!-- START SCREEN -->
+<div id="startScreen" class="overlay">
+    <div class="overlay-box">
+        <h1>PAPERBOY 3D</h1>
+        <p>Deliver newspapers to subscriber houses (BLUE mailboxes) while dodging obstacles!</p>
         <div class="controls-info">
-            <p><strong>Controls:</strong></p>
-            <p><strong>Desktop:</strong> Arrow Keys or WASD - Move | Spacebar - Throw Newspaper</p>
-            <p><strong>Mobile:</strong> Swipe to move | Tap to throw newspaper</p>
+            <div><span class="key">Arrow / WASD</span> - Steer left/right</div>
+            <div><span class="key">Q</span> - Throw paper LEFT</div>
+            <div><span class="key">E</span> - Throw paper RIGHT</div>
+            <div><span class="key">Space</span> - Throw paper (auto-aim nearest)</div>
+            <div><span class="key">Touch</span> - Tap left/right side to throw</div>
         </div>
-        <button id="startButton">Start Game</button>
-    </div>
-
-    <div id="gameScreen" class="screen" style="display: none;">
-        <div id="ui">
-            <div id="score">Score: 0</div>
-            <div id="packages">Newspapers: 10</div>
-            <div id="lives">Lives: 3</div>
-        </div>
-        <canvas id="gameCanvas" width="800" height="600"></canvas>
-    </div>
-
-    <div id="gameOverScreen" class="screen" style="display: none;">
-        <h1>Game Over</h1>
-        <div id="finalScore">Final Score: 0</div>
-        <button id="restartButton">Play Again</button>
+        <p style="color:#ffeb3b;">Blue mailboxes = subscribers. Deliver to them!</p>
+        <button id="startBtn">START GAME</button>
     </div>
 </div>
 
+<!-- SUMMARY SCREEN -->
+<div id="summaryScreen" class="overlay" style="display:none;">
+    <div class="overlay-box">
+        <h2 id="summaryTitle">Street Complete!</h2>
+        <div id="summaryContent"></div>
+        <button id="summaryBtn">Continue</button>
+    </div>
+</div>
+
+<!-- GAME OVER SCREEN -->
+<div id="gameOverScreen" class="overlay" style="display:none;">
+    <div class="overlay-box">
+        <h1 style="color:#ff5252;">GAME OVER</h1>
+        <p>Final Score: <span id="finalScore" style="color:#ffeb3b;font-size:1.4em;"></span></p>
+        <p>Streets Completed: <span id="finalStreets" style="color:#4CAF50;"></span></p>
+        <button id="restartBtn">Play Again</button>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-// ============================================================
-// Instructions overlay - show once, dismiss on tap/click/key
-// ============================================================
 (function() {
-    var overlay = document.getElementById('instructionsOverlay');
-    var shown = false;
-    try { shown = localStorage.getItem('paperboy_instructions_seen') === '1'; } catch(e) {}
-    if (shown) {
-        overlay.style.display = 'none';
-    } else {
-        function dismiss() {
-            overlay.style.display = 'none';
-            try { localStorage.setItem('paperboy_instructions_seen', '1'); } catch(e) {}
-            overlay.removeEventListener('click', dismiss);
-            document.removeEventListener('keydown', dismiss);
-        }
-        overlay.addEventListener('click', dismiss);
-        document.addEventListener('keydown', dismiss);
-    }
-})();
+'use strict';
 
-// ============================================================
-// Game state and configuration
-// ============================================================
-const GAME_STATES = {
-    START: 'start',
-    PLAYING: 'playing',
-    GAME_OVER: 'gameOver'
+// ====== GAME STATE ======
+const G = {
+    score: 0, lives: 3, papers: 15, street: 1,
+    speed: 12, playerX: 0, playerZ: 0,
+    streetLength: 300, progress: 0,
+    invulnerable: 0, invulnTimer: 0,
+    gameRunning: false, paused: false,
+    houses: [], mailboxes: [], obstacles: [], newspapers: [],
+    trees: [], fences: [], lamps: [], decorations: [],
+    deliveries: { hit: 0, missed: 0, total: 0 },
+    keys: {}, throwCooldown: 0,
+    steerInput: 0
 };
 
-const CONFIG = {
-    CANVAS_WIDTH: 800,
-    CANVAS_HEIGHT: 600,
-    PLAYER_SPEED: 4,
-    WORLD_SPEED: 2,
-    PACKAGE_SPEED: 8,
-    OBSTACLE_SPEED: 3
-};
+// ====== THREE.JS SETUP ======
+let scene, camera, renderer, clock;
+let playerGroup, bikeGroup, riderGroup;
+let streetGroup, worldGroup;
+let pedalAngle = 0;
+let flashTimer = 0;
 
-// ============================================================
-// Game class
-// ============================================================
-class Game {
-    constructor() {
-        this.canvas = document.getElementById('gameCanvas');
-        this.ctx = this.canvas.getContext('2d');
-        this.state = GAME_STATES.START;
+function initThree() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87CEEB);
+    scene.fog = new THREE.Fog(0x87CEEB, 80, 200);
 
-        this.setupCanvas();
+    camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 500);
 
-        this.score = 0;
-        this.lives = 3;
-        this.packages = 10;
-        this.worldOffset = 0;
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.insertBefore(renderer.domElement, document.body.firstChild);
 
-        this.keys = {};
-        this.player = new Player(100, 300);
-        this.houses = [];
-        this.mailboxes = [];
-        this.obstacles = [];
-        this.thrownPackages = [];
-        this.particles = [];
-        this.invulnerabilityTimer = 0;
-        this.finishLine = null;
+    // Lighting
+    const ambient = new THREE.AmbientLight(0x6688aa, 0.5);
+    scene.add(ambient);
 
-        this.setupEventListeners();
-        this.generateHouses();
-        this.gameLoop();
-    }
+    const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+    sun.position.set(30, 50, 20);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width = 2048;
+    sun.shadow.mapSize.height = 2048;
+    sun.shadow.camera.near = 0.5;
+    sun.shadow.camera.far = 200;
+    sun.shadow.camera.left = -60;
+    sun.shadow.camera.right = 60;
+    sun.shadow.camera.top = 60;
+    sun.shadow.camera.bottom = -60;
+    scene.add(sun);
+    // Sun follows player
+    G.sun = sun;
 
-    setupCanvas() {
-        this.canvas.width = CONFIG.CANVAS_WIDTH;
-        this.canvas.height = CONFIG.CANVAS_HEIGHT;
+    const hemi = new THREE.HemisphereLight(0x88bbff, 0x445522, 0.3);
+    scene.add(hemi);
 
-        const isMobile = window.innerWidth <= 850;
-        if (isMobile) {
-            const containerWidth = Math.min(window.innerWidth * 0.95, 800);
-            const containerHeight = (containerWidth * CONFIG.CANVAS_HEIGHT) / CONFIG.CANVAS_WIDTH;
-            this.canvas.style.width = containerWidth + 'px';
-            this.canvas.style.height = containerHeight + 'px';
-        }
+    clock = new THREE.Clock();
 
-        this.ctx.imageSmoothingEnabled = false;
-    }
+    window.addEventListener('resize', onResize);
+}
 
-    setupEventListeners() {
-        document.addEventListener('keydown', (e) => {
-            this.keys[e.code] = true;
-            if (e.code === 'Space') {
-                e.preventDefault();
-                this.throwPackage();
-            }
-        });
+function onResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
 
-        document.addEventListener('keyup', (e) => {
-            this.keys[e.code] = false;
-        });
+// ====== MATERIALS (reusable) ======
+const MAT = {};
+function initMaterials() {
+    MAT.road = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.9 });
+    MAT.sidewalk = new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 0.8 });
+    MAT.grass = new THREE.MeshStandardMaterial({ color: 0x4a8c3f, roughness: 1.0 });
+    MAT.white = new THREE.MeshStandardMaterial({ color: 0xffffff });
+    MAT.laneLine = new THREE.MeshStandardMaterial({ color: 0xeeeeee });
+    MAT.trunk = new THREE.MeshStandardMaterial({ color: 0x6b4226, roughness: 0.9 });
+    MAT.leaves = new THREE.MeshStandardMaterial({ color: 0x2d7a2d, roughness: 0.8 });
+    MAT.leavesLight = new THREE.MeshStandardMaterial({ color: 0x3d9a3d, roughness: 0.8 });
+    MAT.fence = new THREE.MeshStandardMaterial({ color: 0xdec89a, roughness: 0.7 });
+    MAT.mailboxBlue = new THREE.MeshStandardMaterial({ color: 0x2255cc });
+    MAT.mailboxGrey = new THREE.MeshStandardMaterial({ color: 0x777777 });
+    MAT.mailboxFlag = new THREE.MeshStandardMaterial({ color: 0xdd2222 });
+    MAT.mailboxPost = new THREE.MeshStandardMaterial({ color: 0x554433 });
+    MAT.newspaper = new THREE.MeshStandardMaterial({ color: 0xeeeecc });
+    MAT.lampPole = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.5 });
+    MAT.lampLight = new THREE.MeshStandardMaterial({ color: 0xffffcc, emissive: 0xffffaa, emissiveIntensity: 0.5 });
+    MAT.carRed = new THREE.MeshStandardMaterial({ color: 0xcc2222, metalness: 0.3 });
+    MAT.carBlue = new THREE.MeshStandardMaterial({ color: 0x2244cc, metalness: 0.3 });
+    MAT.carGreen = new THREE.MeshStandardMaterial({ color: 0x228822, metalness: 0.3 });
+    MAT.windshield = new THREE.MeshStandardMaterial({ color: 0x88bbee, transparent: true, opacity: 0.6, metalness: 0.5 });
+    MAT.tire = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 });
+    MAT.dog = new THREE.MeshStandardMaterial({ color: 0x8B5E3C, roughness: 0.8 });
+    MAT.trashcan = new THREE.MeshStandardMaterial({ color: 0x666666, metalness: 0.4, roughness: 0.5 });
+    MAT.skin = new THREE.MeshStandardMaterial({ color: 0xffcc99 });
+    MAT.shirt = new THREE.MeshStandardMaterial({ color: 0x3366cc });
+    MAT.pants = new THREE.MeshStandardMaterial({ color: 0x334455 });
+    MAT.shoes = new THREE.MeshStandardMaterial({ color: 0x222222 });
+    MAT.bikeFrame = new THREE.MeshStandardMaterial({ color: 0xcc3333, metalness: 0.4 });
+    MAT.bikeWheel = new THREE.MeshStandardMaterial({ color: 0x222222 });
+    MAT.bag = new THREE.MeshStandardMaterial({ color: 0x886633 });
+    MAT.puddle = new THREE.MeshStandardMaterial({ color: 0x4488cc, transparent: true, opacity: 0.4 });
+    MAT.chimney = new THREE.MeshStandardMaterial({ color: 0x884433, roughness: 0.9 });
+    MAT.door = new THREE.MeshStandardMaterial({ color: 0x663322 });
+    MAT.windowFrame = new THREE.MeshStandardMaterial({ color: 0xdddddd });
+    MAT.windowGlass = new THREE.MeshStandardMaterial({ color: 0x88bbee, transparent: true, opacity: 0.5 });
 
-        this.setupTouchControls();
+    // House color palettes
+    MAT.houseColors = [
+        0xcc9966, 0xddccaa, 0xaa8866, 0xeeddcc, 0xbb9977,
+        0xccbbaa, 0x998877, 0xddbb99, 0xc4a882, 0xbfaa8f
+    ];
+    MAT.roofColors = [
+        0x884433, 0x553322, 0x664422, 0x993333, 0x555555,
+        0x443322, 0x775533, 0x663344, 0x554444, 0x665544
+    ];
+}
 
-        window.addEventListener('resize', () => {
-            setTimeout(() => this.setupCanvas(), 100);
-        });
+// ====== BUILD PLAYER ======
+function createPlayer() {
+    playerGroup = new THREE.Group();
 
-        document.getElementById('startButton').addEventListener('click', () => {
-            this.startGame();
-        });
+    // Bike
+    bikeGroup = new THREE.Group();
 
-        document.getElementById('restartButton').addEventListener('click', () => {
-            this.resetGame();
-            this.startGame();
-        });
-    }
+    // Frame - main tube
+    const frameTube = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.06, 0.06, 1.4, 6),
+        MAT.bikeFrame
+    );
+    frameTube.rotation.z = Math.PI / 6;
+    frameTube.position.set(0, 0.55, 0);
+    bikeGroup.add(frameTube);
 
-    setupTouchControls() {
-        let touchStartX = 0;
-        let touchStartY = 0;
-        let touchStartTime = 0;
-        let isTouching = false;
-        let hasMoved = false;
+    // Frame - seat tube
+    const seatTube = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.06, 0.06, 0.7, 6),
+        MAT.bikeFrame
+    );
+    seatTube.position.set(-0.15, 0.7, 0);
+    bikeGroup.add(seatTube);
 
-        this.canvas.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            isTouching = true;
-            hasMoved = false;
-            const touch = e.touches[0];
-            const rect = this.canvas.getBoundingClientRect();
-            touchStartX = touch.clientX - rect.left;
-            touchStartY = touch.clientY - rect.top;
-            touchStartTime = Date.now();
-        });
+    // Frame - down tube
+    const downTube = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.06, 0.06, 1.0, 6),
+        MAT.bikeFrame
+    );
+    downTube.rotation.z = -Math.PI / 5;
+    downTube.position.set(0.25, 0.5, 0);
+    bikeGroup.add(downTube);
 
-        this.canvas.addEventListener('touchmove', (e) => {
-            e.preventDefault();
-            if (!isTouching) return;
+    // Seat
+    const seat = new THREE.Mesh(
+        new THREE.BoxGeometry(0.25, 0.06, 0.18),
+        MAT.bikeFrame
+    );
+    seat.position.set(-0.15, 1.05, 0);
+    bikeGroup.add(seat);
 
-            const touch = e.touches[0];
-            const rect = this.canvas.getBoundingClientRect();
-            const currentX = touch.clientX - rect.left;
-            const currentY = touch.clientY - rect.top;
-            const deltaX = currentX - touchStartX;
-            const deltaY = currentY - touchStartY;
+    // Handlebars
+    const handlebar = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.03, 0.03, 0.5, 6),
+        MAT.bikeFrame
+    );
+    handlebar.rotation.x = Math.PI / 2;
+    handlebar.position.set(0.5, 0.95, 0);
+    bikeGroup.add(handlebar);
 
-            if (Math.abs(deltaX) > 15 || Math.abs(deltaY) > 15) {
-                hasMoved = true;
-            }
+    // Wheels
+    const wheelGeo = new THREE.TorusGeometry(0.35, 0.05, 8, 16);
+    const frontWheel = new THREE.Mesh(wheelGeo, MAT.bikeWheel);
+    frontWheel.position.set(0.55, 0.35, 0);
+    frontWheel.name = 'frontWheel';
+    bikeGroup.add(frontWheel);
 
-            this.keys['ArrowLeft'] = false;
-            this.keys['ArrowRight'] = false;
-            this.keys['ArrowUp'] = false;
-            this.keys['ArrowDown'] = false;
+    const rearWheel = new THREE.Mesh(wheelGeo, MAT.bikeWheel);
+    rearWheel.position.set(-0.55, 0.35, 0);
+    rearWheel.name = 'rearWheel';
+    bikeGroup.add(rearWheel);
 
-            if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 15) {
-                if (deltaX > 15) this.keys['ArrowRight'] = true;
-                if (deltaX < -15) this.keys['ArrowLeft'] = true;
-            } else if (Math.abs(deltaY) > 15) {
-                if (deltaY > 15) this.keys['ArrowDown'] = true;
-                if (deltaY < -15) this.keys['ArrowUp'] = true;
-            }
-        });
-
-        this.canvas.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            const touchEndTime = Date.now();
-            const touchDuration = touchEndTime - touchStartTime;
-
-            this.keys['ArrowLeft'] = false;
-            this.keys['ArrowRight'] = false;
-            this.keys['ArrowUp'] = false;
-            this.keys['ArrowDown'] = false;
-
-            if (!hasMoved && touchDuration < 300) {
-                this.throwPackage();
-            }
-
-            isTouching = false;
-        });
-
-        this.canvas.addEventListener('touchcancel', (e) => {
-            e.preventDefault();
-            isTouching = false;
-            this.keys['ArrowLeft'] = false;
-            this.keys['ArrowRight'] = false;
-            this.keys['ArrowUp'] = false;
-            this.keys['ArrowDown'] = false;
-        });
-    }
-
-    startGame() {
-        this.state = GAME_STATES.PLAYING;
-        document.getElementById('startScreen').style.display = 'none';
-        document.getElementById('gameScreen').style.display = 'block';
-        document.getElementById('gameOverScreen').style.display = 'none';
-        this.canvas.focus();
-    }
-
-    resetGame() {
-        this.score = 0;
-        this.lives = 3;
-        this.packages = 10;
-        this.worldOffset = 0;
-        this.player = new Player(100, 300);
-        this.houses = [];
-        this.mailboxes = [];
-        this.obstacles = [];
-        this.thrownPackages = [];
-        this.particles = [];
-        this.invulnerabilityTimer = 0;
-        this.finishLine = null;
-        this.generateHouses();
-    }
-
-    generateHouses() {
-        for (let i = 0; i < 20; i++) {
-            const x = 200 + i * 150;
-            const side = Math.random() < 0.5 ? 'top' : 'bottom';
-            const needsDelivery = Math.random() < 0.7;
-            this.houses.push(new House(x, side, needsDelivery));
-
-            if (needsDelivery) {
-                this.mailboxes.push(new Mailbox(x + 70, side));
-            }
-        }
-
-        for (let i = 0; i < 15; i++) {
-            const x = 300 + i * 200 + Math.random() * 100;
-            const type = Math.random() < 0.5 ? 'car' : 'dog';
-            this.obstacles.push(new Obstacle(x, type));
-        }
-
-        const lastHouseX = this.houses[this.houses.length - 1].x;
-        this.finishLine = new FinishLine(lastHouseX + 150);
-    }
-
-    throwPackage() {
-        if (this.state === GAME_STATES.PLAYING && this.packages > 0) {
-            this.packages--;
-            const pkg = new Package(
-                this.player.x + 20,
-                this.player.y + 10,
-                this.player.facing
+    // Spokes (simple cross)
+    for (let w = 0; w < 2; w++) {
+        const wx = w === 0 ? 0.55 : -0.55;
+        for (let s = 0; s < 4; s++) {
+            const spoke = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.01, 0.01, 0.6, 4),
+                MAT.bikeFrame
             );
-            this.thrownPackages.push(pkg);
-            this.updateUI();
+            spoke.rotation.z = (s * Math.PI) / 4;
+            spoke.position.set(wx, 0.35, 0);
+            bikeGroup.add(spoke);
         }
     }
 
-    update() {
-        if (this.state !== GAME_STATES.PLAYING) return;
+    playerGroup.add(bikeGroup);
 
-        this.handleInput();
-        this.updateWorld();
-        this.updatePackages();
-        this.updateObstacles();
-        this.updateParticles();
-        this.checkCollisions();
-        this.checkDeliveries();
+    // Rider
+    riderGroup = new THREE.Group();
+    riderGroup.position.set(-0.15, 1.05, 0);
 
-        if (this.invulnerabilityTimer > 0) {
-            this.invulnerabilityTimer--;
-        }
+    // Torso
+    const torso = new THREE.Mesh(
+        new THREE.BoxGeometry(0.35, 0.5, 0.25),
+        MAT.shirt
+    );
+    torso.position.y = 0.4;
+    torso.castShadow = true;
+    riderGroup.add(torso);
 
-        if (this.lives <= 0) {
-            this.gameOver();
-        }
+    // Head
+    const head = new THREE.Mesh(
+        new THREE.SphereGeometry(0.15, 8, 8),
+        MAT.skin
+    );
+    head.position.y = 0.8;
+    head.castShadow = true;
+    riderGroup.add(head);
 
-        if (this.finishLine && this.player.x + this.worldOffset >= this.finishLine.x) {
-            this.routeComplete();
+    // Newspaper bag
+    const bag = new THREE.Mesh(
+        new THREE.BoxGeometry(0.3, 0.25, 0.2),
+        MAT.bag
+    );
+    bag.position.set(-0.05, 0.35, -0.2);
+    riderGroup.add(bag);
+
+    // Arms
+    for (let side = -1; side <= 1; side += 2) {
+        const arm = new THREE.Mesh(
+            new THREE.BoxGeometry(0.1, 0.4, 0.1),
+            MAT.shirt
+        );
+        arm.position.set(0.3, 0.45, side * 0.18);
+        arm.rotation.z = -0.5;
+        riderGroup.add(arm);
+    }
+
+    // Legs (will animate pedaling)
+    const leftLeg = new THREE.Group();
+    leftLeg.name = 'leftLeg';
+    const leftThigh = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.35, 0.12), MAT.pants);
+    leftThigh.position.y = -0.17;
+    leftLeg.add(leftThigh);
+    const leftShin = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.3, 0.1), MAT.pants);
+    leftShin.position.y = -0.42;
+    leftLeg.add(leftShin);
+    const leftShoe = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.06, 0.18), MAT.shoes);
+    leftShoe.position.set(0.03, -0.58, 0);
+    leftLeg.add(leftShoe);
+    leftLeg.position.set(0, 0.05, 0.12);
+    riderGroup.add(leftLeg);
+
+    const rightLeg = new THREE.Group();
+    rightLeg.name = 'rightLeg';
+    const rightThigh = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.35, 0.12), MAT.pants);
+    rightThigh.position.y = -0.17;
+    rightLeg.add(rightThigh);
+    const rightShin = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.3, 0.1), MAT.pants);
+    rightShin.position.y = -0.42;
+    rightLeg.add(rightShin);
+    const rightShoe = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.06, 0.18), MAT.shoes);
+    rightShoe.position.set(0.03, -0.58, 0);
+    rightLeg.add(rightShoe);
+    rightLeg.position.set(0, 0.05, -0.12);
+    riderGroup.add(rightLeg);
+
+    playerGroup.add(riderGroup);
+
+    // Orient player to face down the street (positive X direction for diagonal)
+    playerGroup.castShadow = true;
+    playerGroup.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+
+    scene.add(playerGroup);
+}
+
+// ====== BUILD STREET ======
+function buildStreet() {
+    // Clean up old
+    if (worldGroup) scene.remove(worldGroup);
+    worldGroup = new THREE.Group();
+
+    G.houses = [];
+    G.mailboxes = [];
+    G.obstacles = [];
+    G.trees = [];
+    G.fences = [];
+    G.lamps = [];
+    G.newspapers = [];
+    G.deliveries = { hit: 0, missed: 0, total: 0 };
+
+    const len = G.streetLength;
+    // Street runs along X axis; we'll rotate the camera to give diagonal view
+
+    // Road
+    const road = new THREE.Mesh(
+        new THREE.BoxGeometry(len, 0.1, 10),
+        MAT.road
+    );
+    road.position.set(len / 2, -0.05, 0);
+    road.receiveShadow = true;
+    worldGroup.add(road);
+
+    // Lane markings (dashed center line)
+    for (let x = 5; x < len; x += 4) {
+        const dash = new THREE.Mesh(
+            new THREE.BoxGeometry(2, 0.02, 0.15),
+            MAT.laneLine
+        );
+        dash.position.set(x, 0.01, 0);
+        worldGroup.add(dash);
+    }
+
+    // Sidewalks
+    for (let side = -1; side <= 1; side += 2) {
+        const sidewalk = new THREE.Mesh(
+            new THREE.BoxGeometry(len, 0.2, 3),
+            MAT.sidewalk
+        );
+        sidewalk.position.set(len / 2, 0.0, side * 6.5);
+        sidewalk.receiveShadow = true;
+        worldGroup.add(sidewalk);
+    }
+
+    // Grass
+    for (let side = -1; side <= 1; side += 2) {
+        const grass = new THREE.Mesh(
+            new THREE.BoxGeometry(len + 40, 0.05, 30),
+            MAT.grass
+        );
+        grass.position.set(len / 2, -0.05, side * 23);
+        grass.receiveShadow = true;
+        worldGroup.add(grass);
+    }
+
+    // Generate houses on both sides
+    const houseSpacing = 14;
+    const numHouses = Math.floor(len / houseSpacing);
+
+    for (let side = -1; side <= 1; side += 2) {
+        for (let i = 0; i < numHouses; i++) {
+            const hx = 10 + i * houseSpacing + (Math.random() - 0.5) * 2;
+            const hz = side * 14;
+            const isSubscriber = Math.random() < 0.5;
+
+            createHouse(hx, hz, side, isSubscriber, i);
         }
     }
 
-    handleInput() {
-        if (this.keys['ArrowLeft'] || this.keys['KeyA']) {
-            this.player.moveLeft();
-        }
-        if (this.keys['ArrowRight'] || this.keys['KeyD']) {
-            this.player.moveRight();
-        }
-        if (this.keys['ArrowUp'] || this.keys['KeyW']) {
-            this.player.moveUp();
-        }
-        if (this.keys['ArrowDown'] || this.keys['KeyS']) {
-            this.player.moveDown();
+    // Street lamps
+    for (let i = 0; i < numHouses; i++) {
+        if (i % 2 === 0) {
+            for (let side = -1; side <= 1; side += 2) {
+                createLamp(10 + i * houseSpacing + 7, side * 8.5);
+            }
         }
     }
 
-    updateWorld() {
-        this.worldOffset += CONFIG.WORLD_SPEED;
+    // Spawn obstacles
+    spawnObstacles();
+
+    scene.add(worldGroup);
+}
+
+function createHouse(x, z, side, isSubscriber, index) {
+    const houseGroup = new THREE.Group();
+
+    const w = 4 + Math.random() * 2;
+    const h = 3 + Math.random() * 1.5;
+    const d = 5 + Math.random() * 2;
+
+    const houseColorIdx = Math.floor(Math.random() * MAT.houseColors.length);
+    const roofColorIdx = Math.floor(Math.random() * MAT.roofColors.length);
+    const houseMat = new THREE.MeshStandardMaterial({ color: MAT.houseColors[houseColorIdx], roughness: 0.8 });
+    const roofMat = new THREE.MeshStandardMaterial({ color: MAT.roofColors[roofColorIdx], roughness: 0.7 });
+
+    // Main body
+    const body = new THREE.Mesh(
+        new THREE.BoxGeometry(w, h, d),
+        houseMat
+    );
+    body.position.y = h / 2;
+    body.castShadow = true;
+    body.receiveShadow = true;
+    houseGroup.add(body);
+
+    // Roof (triangular prism)
+    const roofHeight = 1.5 + Math.random() * 0.5;
+    const roofShape = new THREE.Shape();
+    roofShape.moveTo(-d / 2 - 0.3, 0);
+    roofShape.lineTo(0, roofHeight);
+    roofShape.lineTo(d / 2 + 0.3, 0);
+    roofShape.lineTo(-d / 2 - 0.3, 0);
+    const roofGeo = new THREE.ExtrudeGeometry(roofShape, {
+        depth: w + 0.4,
+        bevelEnabled: false
+    });
+    const roof = new THREE.Mesh(roofGeo, roofMat);
+    roof.rotation.y = Math.PI / 2;
+    roof.position.set(-w / 2 - 0.2, h, 0);
+    roof.castShadow = true;
+    houseGroup.add(roof);
+
+    // Door (facing the street)
+    const doorMat = new THREE.MeshStandardMaterial({
+        color: [0x663322, 0x442211, 0x554433, 0x883322][Math.floor(Math.random() * 4)]
+    });
+    const door = new THREE.Mesh(
+        new THREE.BoxGeometry(0.7, 1.5, 0.05),
+        doorMat
+    );
+    door.position.set(0, 0.75, -side * d / 2 - 0.03);
+    houseGroup.add(door);
+
+    // Windows
+    for (let wx = -1; wx <= 1; wx += 2) {
+        // Lower window
+        const winFrame = new THREE.Mesh(
+            new THREE.BoxGeometry(0.85, 0.85, 0.05),
+            MAT.windowFrame
+        );
+        winFrame.position.set(wx * 1.2, 1.5, -side * d / 2 - 0.03);
+        houseGroup.add(winFrame);
+        const winGlass = new THREE.Mesh(
+            new THREE.BoxGeometry(0.7, 0.7, 0.06),
+            MAT.windowGlass
+        );
+        winGlass.position.set(wx * 1.2, 1.5, -side * d / 2 - 0.04);
+        houseGroup.add(winGlass);
+
+        // Upper window (in gable area)
+        if (Math.random() > 0.4) {
+            const winFrame2 = new THREE.Mesh(
+                new THREE.BoxGeometry(0.6, 0.6, 0.05),
+                MAT.windowFrame
+            );
+            winFrame2.position.set(wx * 0.6, h + 0.5, -side * d / 2 - 0.03);
+            houseGroup.add(winFrame2);
+        }
     }
 
-    updatePackages() {
-        this.thrownPackages = this.thrownPackages.filter(pkg => {
-            pkg.update();
-            return pkg.x < CONFIG.CANVAS_WIDTH + 50;
-        });
+    // Chimney
+    if (Math.random() > 0.3) {
+        const chimney = new THREE.Mesh(
+            new THREE.BoxGeometry(0.5, 1.5, 0.5),
+            MAT.chimney
+        );
+        chimney.position.set(0.8, h + roofHeight * 0.5, 0.5);
+        chimney.castShadow = true;
+        houseGroup.add(chimney);
     }
 
-    updateObstacles() {
-        this.obstacles.forEach(obstacle => {
-            obstacle.update(this.worldOffset);
-        });
+    houseGroup.position.set(x, 0, z);
+    worldGroup.add(houseGroup);
+    G.houses.push({ group: houseGroup, x, z, side, isSubscriber, delivered: false });
+
+    // Mailbox
+    createMailbox(x, side * 8.2, isSubscriber, G.houses.length - 1);
+
+    // Front fence
+    if (Math.random() > 0.3) {
+        createFence(x, side * 9.5, w + 2, side);
     }
 
-    updateParticles() {
-        this.particles = this.particles.filter(particle => {
-            particle.update();
-            return particle.life > 0;
-        });
+    // Front trees
+    if (Math.random() > 0.4) {
+        createTree(x + (Math.random() - 0.5) * 4, side * 11);
+    }
+    if (Math.random() > 0.6) {
+        createTree(x + (Math.random() - 0.5) * 6, side * 16);
+    }
+}
+
+function createMailbox(x, z, isSubscriber, houseIdx) {
+    const mbGroup = new THREE.Group();
+
+    // Post
+    const post = new THREE.Mesh(
+        new THREE.BoxGeometry(0.1, 1.0, 0.1),
+        MAT.mailboxPost
+    );
+    post.position.y = 0.5;
+    mbGroup.add(post);
+
+    // Box
+    const box = new THREE.Mesh(
+        new THREE.BoxGeometry(0.35, 0.25, 0.25),
+        isSubscriber ? MAT.mailboxBlue : MAT.mailboxGrey
+    );
+    box.position.y = 1.05;
+    box.castShadow = true;
+    mbGroup.add(box);
+
+    // Flag (for subscribers)
+    if (isSubscriber) {
+        const flag = new THREE.Mesh(
+            new THREE.BoxGeometry(0.04, 0.2, 0.04),
+            MAT.mailboxFlag
+        );
+        flag.position.set(0.18, 1.15, 0);
+        mbGroup.add(flag);
+        const flagTop = new THREE.Mesh(
+            new THREE.BoxGeometry(0.12, 0.04, 0.04),
+            MAT.mailboxFlag
+        );
+        flagTop.position.set(0.22, 1.25, 0);
+        mbGroup.add(flagTop);
+
+        G.deliveries.total++;
     }
 
-    checkCollisions() {
-        if (this.invulnerabilityTimer <= 0) {
-            this.obstacles.forEach(obstacle => {
-                const obstacleScreenX = obstacle.x - this.worldOffset;
-                if (obstacleScreenX > -obstacle.width && obstacleScreenX < CONFIG.CANVAS_WIDTH + obstacle.width) {
-                    if (this.player.collidesWith({
-                        x: obstacleScreenX,
-                        y: obstacle.y,
-                        width: obstacle.width,
-                        height: obstacle.height
-                    })) {
-                        this.lives--;
-                        this.addParticles(this.player.x, this.player.y, '#ff0000');
-                        this.invulnerabilityTimer = 120;
-                        this.updateUI();
-                    }
+    mbGroup.position.set(x, 0, z);
+    worldGroup.add(mbGroup);
+    G.mailboxes.push({ group: mbGroup, x, z, isSubscriber, houseIdx, delivered: false });
+}
+
+function createTree(x, z) {
+    const treeGroup = new THREE.Group();
+    const trunkH = 1.5 + Math.random() * 1.5;
+    const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.15, 0.2, trunkH, 6),
+        MAT.trunk
+    );
+    trunk.position.y = trunkH / 2;
+    trunk.castShadow = true;
+    treeGroup.add(trunk);
+
+    const canopyType = Math.random() > 0.5;
+    const canopyMat = Math.random() > 0.5 ? MAT.leaves : MAT.leavesLight;
+    if (canopyType) {
+        // Sphere canopy
+        const canopy = new THREE.Mesh(
+            new THREE.SphereGeometry(1.2 + Math.random() * 0.5, 8, 6),
+            canopyMat
+        );
+        canopy.position.y = trunkH + 0.8;
+        canopy.castShadow = true;
+        treeGroup.add(canopy);
+    } else {
+        // Cone canopy (like evergreen)
+        const canopy = new THREE.Mesh(
+            new THREE.ConeGeometry(1.0 + Math.random() * 0.4, 2.5 + Math.random(), 6),
+            canopyMat
+        );
+        canopy.position.y = trunkH + 1.2;
+        canopy.castShadow = true;
+        treeGroup.add(canopy);
+    }
+
+    treeGroup.position.set(x, 0, z);
+    worldGroup.add(treeGroup);
+    G.trees.push(treeGroup);
+}
+
+function createFence(x, z, width, side) {
+    const fenceGroup = new THREE.Group();
+    const numPosts = Math.floor(width / 0.6);
+    for (let i = 0; i < numPosts; i++) {
+        const post = new THREE.Mesh(
+            new THREE.BoxGeometry(0.08, 0.7, 0.08),
+            MAT.fence
+        );
+        post.position.set((i - numPosts / 2) * 0.6, 0.35, 0);
+        fenceGroup.add(post);
+    }
+    // Rails
+    for (let ry = 0; ry < 2; ry++) {
+        const rail = new THREE.Mesh(
+            new THREE.BoxGeometry(width, 0.05, 0.05),
+            MAT.fence
+        );
+        rail.position.y = 0.2 + ry * 0.3;
+        fenceGroup.add(rail);
+    }
+    fenceGroup.position.set(x, 0, z);
+    worldGroup.add(fenceGroup);
+    G.fences.push(fenceGroup);
+}
+
+function createLamp(x, z) {
+    const lampGroup = new THREE.Group();
+    const pole = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.06, 0.08, 4, 6),
+        MAT.lampPole
+    );
+    pole.position.y = 2;
+    pole.castShadow = true;
+    lampGroup.add(pole);
+
+    // Arm
+    const arm = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.03, 0.03, 1, 6),
+        MAT.lampPole
+    );
+    arm.rotation.z = Math.PI / 2;
+    arm.position.set(0.4, 3.9, 0);
+    lampGroup.add(arm);
+
+    const light = new THREE.Mesh(
+        new THREE.SphereGeometry(0.15, 8, 6),
+        MAT.lampLight
+    );
+    light.position.set(0.8, 3.8, 0);
+    lampGroup.add(light);
+
+    lampGroup.position.set(x, 0, z);
+    worldGroup.add(lampGroup);
+    G.lamps.push(lampGroup);
+}
+
+// ====== OBSTACLES ======
+function spawnObstacles() {
+    const len = G.streetLength;
+    const numCars = 4 + G.street * 2;
+    const numDogs = 2 + G.street;
+    const numTrashcans = 3 + G.street;
+    const numPedestrians = 3 + G.street;
+    const numPuddles = 2 + G.street;
+
+    // Cars
+    for (let i = 0; i < numCars; i++) {
+        const carX = 30 + Math.random() * (len - 60);
+        const carZ = (Math.random() > 0.5 ? 1 : -1) * (1.5 + Math.random() * 2);
+        const carDir = carZ > 0 ? -1 : 1;
+        createCar(carX, carZ, carDir);
+    }
+
+    // Dogs
+    for (let i = 0; i < numDogs; i++) {
+        const dx = 30 + Math.random() * (len - 60);
+        const dz = (Math.random() > 0.5 ? 1 : -1) * (5 + Math.random() * 3);
+        createDog(dx, dz);
+    }
+
+    // Trash cans
+    for (let i = 0; i < numTrashcans; i++) {
+        const tx = 20 + Math.random() * (len - 40);
+        const tz = (Math.random() > 0.5 ? 1 : -1) * (4.5 + Math.random() * 1.5);
+        createTrashcan(tx, tz);
+    }
+
+    // Pedestrians
+    for (let i = 0; i < numPedestrians; i++) {
+        const px = 30 + Math.random() * (len - 60);
+        const pz = (Math.random() > 0.5 ? 1 : -1) * (5.5 + Math.random() * 2);
+        createPedestrian(px, pz);
+    }
+
+    // Puddles
+    for (let i = 0; i < numPuddles; i++) {
+        const px = 30 + Math.random() * (len - 60);
+        const pz = (Math.random() - 0.5) * 6;
+        createPuddle(px, pz);
+    }
+}
+
+function createCar(x, z, dir) {
+    const carGroup = new THREE.Group();
+    const carMats = [MAT.carRed, MAT.carBlue, MAT.carGreen];
+    const bodyMat = carMats[Math.floor(Math.random() * carMats.length)];
+
+    // Body
+    const body = new THREE.Mesh(
+        new THREE.BoxGeometry(3, 0.8, 1.5),
+        bodyMat
+    );
+    body.position.y = 0.6;
+    body.castShadow = true;
+    carGroup.add(body);
+
+    // Cabin
+    const cabin = new THREE.Mesh(
+        new THREE.BoxGeometry(1.5, 0.6, 1.3),
+        bodyMat
+    );
+    cabin.position.set(-0.2, 1.2, 0);
+    cabin.castShadow = true;
+    carGroup.add(cabin);
+
+    // Windshield
+    const ws = new THREE.Mesh(
+        new THREE.BoxGeometry(0.05, 0.5, 1.2),
+        MAT.windshield
+    );
+    ws.position.set(0.5, 1.2, 0);
+    carGroup.add(ws);
+
+    // Wheels
+    for (let wx = -1; wx <= 1; wx += 2) {
+        for (let wz = -1; wz <= 1; wz += 2) {
+            const wheel = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.25, 0.25, 0.12, 8),
+                MAT.tire
+            );
+            wheel.rotation.x = Math.PI / 2;
+            wheel.position.set(wx * 1.0, 0.25, wz * 0.8);
+            carGroup.add(wheel);
+        }
+    }
+
+    carGroup.position.set(x, 0, z);
+    if (dir < 0) carGroup.rotation.y = Math.PI;
+    worldGroup.add(carGroup);
+
+    const speed = 4 + Math.random() * 6;
+    G.obstacles.push({
+        group: carGroup, type: 'car', x, z, origX: x,
+        dir, speed, radius: 2.0, active: true
+    });
+}
+
+function createDog(x, z) {
+    const dogGroup = new THREE.Group();
+
+    // Body
+    const body = new THREE.Mesh(
+        new THREE.BoxGeometry(0.7, 0.35, 0.3),
+        MAT.dog
+    );
+    body.position.y = 0.45;
+    body.castShadow = true;
+    dogGroup.add(body);
+
+    // Head
+    const head = new THREE.Mesh(
+        new THREE.SphereGeometry(0.15, 6, 6),
+        MAT.dog
+    );
+    head.position.set(0.4, 0.55, 0);
+    dogGroup.add(head);
+
+    // Snout
+    const snout = new THREE.Mesh(
+        new THREE.BoxGeometry(0.15, 0.08, 0.1),
+        new THREE.MeshStandardMaterial({ color: 0x704030 })
+    );
+    snout.position.set(0.52, 0.52, 0);
+    dogGroup.add(snout);
+
+    // Legs
+    for (let lx = -1; lx <= 1; lx += 2) {
+        for (let lz = -1; lz <= 1; lz += 2) {
+            const leg = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.04, 0.04, 0.3, 6),
+                MAT.dog
+            );
+            leg.position.set(lx * 0.25, 0.15, lz * 0.12);
+            leg.name = 'dogLeg';
+            dogGroup.add(leg);
+        }
+    }
+
+    // Tail
+    const tail = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.02, 0.03, 0.25, 4),
+        MAT.dog
+    );
+    tail.rotation.z = 0.8;
+    tail.position.set(-0.4, 0.6, 0);
+    dogGroup.add(tail);
+
+    dogGroup.position.set(x, 0, z);
+    worldGroup.add(dogGroup);
+
+    const towardStreet = z > 0 ? -1 : 1;
+    G.obstacles.push({
+        group: dogGroup, type: 'dog', x, z, origX: x, origZ: z,
+        dir: Math.random() > 0.5 ? 1 : -1,
+        zDir: towardStreet,
+        speed: 2 + Math.random() * 3,
+        radius: 0.6, active: true, chaseTimer: 0, animTime: 0
+    });
+}
+
+function createTrashcan(x, z) {
+    const tcGroup = new THREE.Group();
+    const can = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.25, 0.3, 0.8, 8),
+        MAT.trashcan
+    );
+    can.position.y = 0.4;
+    can.castShadow = true;
+    tcGroup.add(can);
+
+    // Lid
+    const lid = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.3, 0.3, 0.05, 8),
+        MAT.trashcan
+    );
+    lid.position.y = 0.82;
+    tcGroup.add(lid);
+
+    tcGroup.position.set(x, 0, z);
+    worldGroup.add(tcGroup);
+    G.obstacles.push({
+        group: tcGroup, type: 'trashcan', x, z,
+        radius: 0.4, active: true, stationary: true
+    });
+}
+
+function createPedestrian(x, z) {
+    const pedGroup = new THREE.Group();
+    const shirtColor = new THREE.MeshStandardMaterial({
+        color: [0xcc3333, 0x3333cc, 0x33cc33, 0xcccc33, 0xcc33cc][Math.floor(Math.random() * 5)]
+    });
+
+    // Body
+    const torso = new THREE.Mesh(
+        new THREE.BoxGeometry(0.3, 0.5, 0.25),
+        shirtColor
+    );
+    torso.position.y = 1.1;
+    torso.castShadow = true;
+    pedGroup.add(torso);
+
+    // Head
+    const head = new THREE.Mesh(
+        new THREE.SphereGeometry(0.14, 8, 6),
+        MAT.skin
+    );
+    head.position.y = 1.55;
+    pedGroup.add(head);
+
+    // Legs
+    for (let lz = -1; lz <= 1; lz += 2) {
+        const leg = new THREE.Mesh(
+            new THREE.BoxGeometry(0.12, 0.5, 0.12),
+            MAT.pants
+        );
+        leg.position.set(0, 0.55, lz * 0.08);
+        leg.name = 'pedLeg';
+        pedGroup.add(leg);
+    }
+
+    pedGroup.position.set(x, 0, z);
+    worldGroup.add(pedGroup);
+
+    G.obstacles.push({
+        group: pedGroup, type: 'pedestrian', x, z, origX: x,
+        dir: Math.random() > 0.5 ? 1 : -1,
+        speed: 1 + Math.random() * 2,
+        radius: 0.5, active: true, animTime: Math.random() * 6
+    });
+}
+
+function createPuddle(x, z) {
+    const puddle = new THREE.Mesh(
+        new THREE.CircleGeometry(1 + Math.random() * 0.5, 12),
+        MAT.puddle
+    );
+    puddle.rotation.x = -Math.PI / 2;
+    puddle.position.set(x, 0.02, z);
+    worldGroup.add(puddle);
+    G.obstacles.push({
+        group: puddle, type: 'puddle', x, z,
+        radius: 1.0, active: true, stationary: true, slowEffect: true
+    });
+}
+
+// ====== NEWSPAPER THROWING ======
+function throwNewspaper(direction) {
+    if (G.papers <= 0 || G.throwCooldown > 0 || !G.gameRunning) return;
+
+    G.throwCooldown = 0.3;
+    G.papers--;
+    updateHUD();
+
+    const np = new THREE.Group();
+    // Rolled newspaper
+    const roll = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.08, 0.08, 0.35, 8),
+        MAT.newspaper
+    );
+    roll.rotation.x = Math.PI / 2;
+    np.add(roll);
+
+    // Rubber band
+    const band = new THREE.Mesh(
+        new THREE.TorusGeometry(0.09, 0.015, 4, 8),
+        new THREE.MeshStandardMaterial({ color: 0xcc8833 })
+    );
+    np.add(band);
+
+    // Shadow
+    const shadow = new THREE.Mesh(
+        new THREE.CircleGeometry(0.15, 8),
+        new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3 })
+    );
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.name = 'paperShadow';
+    np.add(shadow);
+
+    const startPos = playerGroup.position.clone();
+    startPos.y += 1.5;
+    np.position.copy(startPos);
+    scene.add(np);
+
+    const throwSpeed = 15;
+    G.newspapers.push({
+        group: np,
+        vx: throwSpeed * 0.3,
+        vy: 5,
+        vz: direction * throwSpeed * 0.7,
+        x: startPos.x,
+        y: startPos.y,
+        z: startPos.z,
+        alive: true,
+        spinSpeed: 8 + Math.random() * 4
+    });
+
+    // Show indicator
+    const ind = document.getElementById('throwIndicator');
+    ind.textContent = direction < 0 ? 'Threw LEFT!' : 'Threw RIGHT!';
+    ind.style.opacity = '1';
+    setTimeout(() => ind.style.opacity = '0', 600);
+}
+
+// ====== GAME LOOP ======
+function updateGame(dt) {
+    if (!G.gameRunning) return;
+
+    dt = Math.min(dt, 0.05); // clamp
+
+    G.throwCooldown = Math.max(0, G.throwCooldown - dt);
+
+    // Player movement
+    const moveSpeed = 8;
+    let steer = 0;
+    if (G.keys['ArrowLeft'] || G.keys['KeyA'] || G.keys['a']) steer -= 1;
+    if (G.keys['ArrowRight'] || G.keys['KeyD'] || G.keys['d']) steer += 1;
+    steer += G.steerInput;
+
+    G.playerX += steer * moveSpeed * dt;
+    G.playerX = Math.max(-4.5, Math.min(4.5, G.playerX));
+
+    // Forward movement
+    const fwdSpeed = G.speed + G.street * 0.5;
+    G.playerZ += fwdSpeed * dt; // playerZ tracks progress along street (mapped to X in world)
+
+    G.progress = G.playerZ / G.streetLength;
+
+    // Position the player in world
+    playerGroup.position.set(G.playerZ, 0, G.playerX);
+    playerGroup.rotation.y = 0;
+    // Slight lean when steering
+    playerGroup.rotation.z = -steer * 0.1;
+
+    // Animate pedaling
+    pedalAngle += fwdSpeed * dt * 2;
+    const leftLeg = riderGroup.getObjectByName('leftLeg');
+    const rightLeg = riderGroup.getObjectByName('rightLeg');
+    if (leftLeg) leftLeg.rotation.x = Math.sin(pedalAngle) * 0.5;
+    if (rightLeg) rightLeg.rotation.x = Math.sin(pedalAngle + Math.PI) * 0.5;
+
+    // Spin bike wheels
+    bikeGroup.children.forEach(c => {
+        if (c.name === 'frontWheel' || c.name === 'rearWheel') {
+            c.rotation.y += fwdSpeed * dt * 3;
+        }
+    });
+
+    // Invulnerability flash
+    if (G.invulnerable > 0) {
+        G.invulnerable -= dt;
+        flashTimer += dt;
+        playerGroup.visible = Math.floor(flashTimer * 10) % 2 === 0;
+        if (G.invulnerable <= 0) {
+            playerGroup.visible = true;
+            G.invulnerable = 0;
+        }
+    }
+
+    // Camera follow
+    const camOffset = new THREE.Vector3(-18, 22, 18);
+    const targetCam = new THREE.Vector3(
+        G.playerZ + camOffset.x,
+        camOffset.y,
+        G.playerX + camOffset.z
+    );
+    camera.position.lerp(targetCam, 3 * dt);
+    const lookTarget = new THREE.Vector3(G.playerZ + 5, 0, G.playerX);
+    camera.lookAt(lookTarget);
+
+    // Sun follows player
+    G.sun.position.set(G.playerZ + 30, 50, G.playerX + 20);
+    G.sun.target.position.set(G.playerZ, 0, G.playerX);
+    G.sun.target.updateMatrixWorld();
+
+    // Update obstacles
+    updateObstacles(dt);
+
+    // Update newspapers
+    updateNewspapers(dt);
+
+    // Check collisions
+    checkCollisions();
+
+    // Update HUD
+    document.getElementById('progressFill').style.width = (G.progress * 100) + '%';
+
+    // Check street end
+    if (G.progress >= 1.0) {
+        endStreet();
+    }
+}
+
+function updateObstacles(dt) {
+    G.obstacles.forEach(obs => {
+        if (!obs.active) return;
+
+        if (obs.type === 'car') {
+            obs.x += obs.dir * obs.speed * dt;
+            obs.group.position.x = obs.x;
+            // Wrap cars
+            if (obs.x > G.streetLength + 20) obs.x = -20;
+            if (obs.x < -20) obs.x = G.streetLength + 20;
+        }
+
+        if (obs.type === 'dog') {
+            obs.animTime += dt;
+            // Dogs move erratically and sometimes chase toward player
+            const distToPlayer = G.playerZ - obs.x;
+            if (Math.abs(distToPlayer) < 20) {
+                // Chase!
+                obs.x += Math.sign(distToPlayer) * obs.speed * 0.7 * dt;
+                const zDist = G.playerX - obs.z;
+                obs.z += Math.sign(zDist) * obs.speed * 0.5 * dt;
+            } else {
+                obs.x += obs.dir * obs.speed * 0.3 * dt;
+                obs.z += Math.sin(obs.animTime * 2) * dt * 0.5;
+            }
+            obs.group.position.set(obs.x, 0, obs.z);
+            // Animate legs
+            obs.group.children.forEach(c => {
+                if (c.name === 'dogLeg') {
+                    c.rotation.x = Math.sin(obs.animTime * 8) * 0.3;
                 }
             });
         }
-    }
 
-    checkDeliveries() {
-        this.thrownPackages.forEach((pkg, pkgIndex) => {
-            this.mailboxes.forEach((mailbox) => {
-                const mailboxScreenX = mailbox.x - this.worldOffset;
-                if (mailboxScreenX > -mailbox.width && mailboxScreenX < CONFIG.CANVAS_WIDTH + mailbox.width) {
-                    if (pkg.collidesWith({
-                        x: mailboxScreenX,
-                        y: mailbox.y,
-                        width: mailbox.width,
-                        height: mailbox.height
-                    }) && !mailbox.hasNewspaper) {
-                        this.score += 100;
-                        mailbox.hasNewspaper = true;
-                        this.thrownPackages.splice(pkgIndex, 1);
-                        this.addParticles(mailboxScreenX + mailbox.width/2, mailbox.y, '#00ff00');
-                        this.updateUI();
-
-                        this.houses.forEach(house => {
-                            if (Math.abs(house.x - (mailbox.x - 70)) < 10) {
-                                house.needsDelivery = false;
-                                house.delivered = true;
-                            }
-                        });
-                    }
+        if (obs.type === 'pedestrian') {
+            obs.animTime += dt;
+            obs.x += obs.dir * obs.speed * dt;
+            obs.group.position.x = obs.x;
+            // Turn around
+            if (Math.abs(obs.x - obs.origX) > 15) obs.dir *= -1;
+            obs.group.rotation.y = obs.dir > 0 ? 0 : Math.PI;
+            // Animate legs
+            obs.group.children.forEach(c => {
+                if (c.name === 'pedLeg') {
+                    c.rotation.x = Math.sin(obs.animTime * 5) * 0.3;
                 }
             });
-        });
-    }
-
-    addParticles(x, y, color) {
-        for (let i = 0; i < 10; i++) {
-            this.particles.push(new Particle(x, y, color));
         }
-    }
-
-    updateUI() {
-        document.getElementById('score').textContent = 'Score: ' + this.score;
-        document.getElementById('packages').textContent = 'Newspapers: ' + this.packages;
-        document.getElementById('lives').textContent = 'Lives: ' + this.lives;
-    }
-
-    gameOver() {
-        this.state = GAME_STATES.GAME_OVER;
-        document.getElementById('gameScreen').style.display = 'none';
-        document.getElementById('gameOverScreen').style.display = 'block';
-        document.getElementById('finalScore').textContent = 'Final Score: ' + this.score;
-    }
-
-    routeComplete() {
-        this.state = GAME_STATES.GAME_OVER;
-        document.getElementById('gameScreen').style.display = 'none';
-        document.getElementById('gameOverScreen').style.display = 'block';
-
-        const successfulDeliveries = this.houses.filter(house => house.delivered).length;
-        const deliveryBonus = successfulDeliveries * 50;
-        const finalScore = this.score + deliveryBonus;
-
-        document.getElementById('finalScore').innerHTML =
-            'Route Complete!<br/>' +
-            'Base Score: ' + this.score + '<br/>' +
-            'Delivery Bonus: ' + deliveryBonus + ' (' + successfulDeliveries + ' deliveries)<br/>' +
-            '<strong>Final Score: ' + finalScore + '</strong>';
-    }
-
-    render() {
-        this.ctx.clearRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
-
-        if (this.state === GAME_STATES.PLAYING) {
-            this.renderBackground();
-            this.renderHouses();
-            this.renderMailboxes();
-            this.renderFinishLine();
-            this.renderObstacles();
-            this.renderPlayer();
-            this.renderPackages();
-            this.renderParticles();
-        }
-    }
-
-    renderBackground() {
-        // Sky
-        this.ctx.fillStyle = '#87CEEB';
-        this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
-
-        // Grass areas
-        this.ctx.fillStyle = '#4CAF50';
-        this.ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT/2 - 80);
-        this.ctx.fillRect(0, CONFIG.CANVAS_HEIGHT/2 + 80, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT/2 - 80);
-
-        // Sidewalks
-        this.ctx.fillStyle = '#999';
-        this.ctx.fillRect(0, CONFIG.CANVAS_HEIGHT/2 - 80, CONFIG.CANVAS_WIDTH, 30);
-        this.ctx.fillRect(0, CONFIG.CANVAS_HEIGHT/2 + 50, CONFIG.CANVAS_WIDTH, 30);
-
-        // Sidewalk cracks
-        this.ctx.fillStyle = '#777';
-        for (let x = -(this.worldOffset % 60); x < CONFIG.CANVAS_WIDTH; x += 60) {
-            this.ctx.fillRect(x, CONFIG.CANVAS_HEIGHT/2 - 80, 2, 30);
-            this.ctx.fillRect(x, CONFIG.CANVAS_HEIGHT/2 + 50, 2, 30);
-        }
-
-        // Road
-        this.ctx.fillStyle = '#333';
-        this.ctx.fillRect(0, CONFIG.CANVAS_HEIGHT/2 - 50, CONFIG.CANVAS_WIDTH, 100);
-
-        // Road center line
-        this.ctx.fillStyle = '#ffeb3b';
-        this.ctx.fillRect(0, CONFIG.CANVAS_HEIGHT/2 - 2, CONFIG.CANVAS_WIDTH, 4);
-
-        // Road lane dashes
-        this.ctx.fillStyle = '#fff';
-        for (let x = -(this.worldOffset % 40); x < CONFIG.CANVAS_WIDTH; x += 40) {
-            this.ctx.fillRect(x, CONFIG.CANVAS_HEIGHT/2 - 2, 20, 2);
-        }
-    }
-
-    renderHouses() {
-        this.houses.forEach(house => { house.render(this.ctx, this.worldOffset); });
-    }
-
-    renderMailboxes() {
-        this.mailboxes.forEach(mailbox => { mailbox.render(this.ctx, this.worldOffset); });
-    }
-
-    renderFinishLine() {
-        if (this.finishLine) { this.finishLine.render(this.ctx, this.worldOffset); }
-    }
-
-    renderObstacles() {
-        this.obstacles.forEach(obstacle => { obstacle.render(this.ctx, this.worldOffset); });
-    }
-
-    renderPlayer() {
-        this.player.render(this.ctx, this.invulnerabilityTimer > 0);
-    }
-
-    renderPackages() {
-        this.thrownPackages.forEach(pkg => { pkg.render(this.ctx); });
-    }
-
-    renderParticles() {
-        this.particles.forEach(particle => { particle.render(this.ctx); });
-    }
-
-    gameLoop() {
-        this.update();
-        this.render();
-        requestAnimationFrame(() => this.gameLoop());
-    }
+    });
 }
 
-// ============================================================
-// Player class - Paperboy on a bicycle
-// ============================================================
-class Player {
-    constructor(x, y) {
-        this.x = x;
-        this.y = y;
-        this.width = 30;
-        this.height = 40;
-        this.facing = 1; // 1 right, -1 left
-        this.pedalAngle = 0;
-    }
+function updateNewspapers(dt) {
+    const gravity = -15;
+    G.newspapers.forEach(np => {
+        if (!np.alive) return;
 
-    moveLeft() {
-        this.x = Math.max(10, this.x - CONFIG.PLAYER_SPEED);
-        this.facing = -1;
-    }
+        np.vx += 0; // no air resistance
+        np.vy += gravity * dt;
+        np.x += np.vx * dt;
+        np.y += np.vy * dt;
+        np.z += np.vz * dt;
 
-    moveRight() {
-        this.x = Math.min(CONFIG.CANVAS_WIDTH - this.width - 10, this.x + CONFIG.PLAYER_SPEED);
-        this.facing = 1;
-    }
+        np.group.position.set(np.x, np.y, np.z);
+        np.group.rotation.x += np.spinSpeed * dt;
+        np.group.rotation.z += np.spinSpeed * 0.7 * dt;
 
-    moveUp() {
-        this.y = Math.max(10, this.y - CONFIG.PLAYER_SPEED);
-    }
-
-    moveDown() {
-        this.y = Math.min(CONFIG.CANVAS_HEIGHT - this.height - 10, this.y + CONFIG.PLAYER_SPEED);
-    }
-
-    collidesWith(other) {
-        return this.x < other.x + other.width &&
-               this.x + this.width > other.x &&
-               this.y < other.y + other.height &&
-               this.y + this.height > other.y;
-    }
-
-    render(ctx, invulnerable) {
-        if (invulnerable === undefined) invulnerable = false;
-        const centerX = this.x + this.width / 2;
-
-        // Animate pedaling
-        this.pedalAngle += 0.15;
-
-        // Flash when invulnerable
-        if (invulnerable && Math.floor(Date.now() / 100) % 2 === 0) {
-            ctx.globalAlpha = 0.5;
+        // Update shadow position
+        const shadow = np.group.getObjectByName('paperShadow');
+        if (shadow) {
+            shadow.position.set(0, -np.y + 0.1, 0);
+            shadow.scale.setScalar(1 + np.y * 0.1);
         }
 
-        // --- Bicycle ---
-        const bikeY = this.y + this.height - 12;
+        // Hit ground
+        if (np.y <= 0.1) {
+            np.y = 0.1;
+            np.alive = false;
 
-        // Wheels
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(centerX - 10, bikeY + 6, 7, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(centerX + 10, bikeY + 6, 7, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Wheel spokes
-        ctx.lineWidth = 1;
-        for (let i = 0; i < 4; i++) {
-            const angle = this.pedalAngle + (i * Math.PI / 2);
-            // Back wheel
-            ctx.beginPath();
-            ctx.moveTo(centerX - 10, bikeY + 6);
-            ctx.lineTo(centerX - 10 + Math.cos(angle) * 6, bikeY + 6 + Math.sin(angle) * 6);
-            ctx.stroke();
-            // Front wheel
-            ctx.beginPath();
-            ctx.moveTo(centerX + 10, bikeY + 6);
-            ctx.lineTo(centerX + 10 + Math.cos(angle) * 6, bikeY + 6 + Math.sin(angle) * 6);
-            ctx.stroke();
-        }
-
-        // Bike frame
-        ctx.strokeStyle = '#D32F2F';
-        ctx.lineWidth = 2;
-        // Main frame triangle
-        ctx.beginPath();
-        ctx.moveTo(centerX - 10, bikeY + 6); // back wheel
-        ctx.lineTo(centerX, bikeY - 4);       // seat post top
-        ctx.lineTo(centerX + 10, bikeY + 6);  // front wheel
-        ctx.stroke();
-        // Top bar
-        ctx.beginPath();
-        ctx.moveTo(centerX - 5, bikeY);
-        ctx.lineTo(centerX + 8, bikeY - 2);
-        ctx.stroke();
-        // Seat
-        ctx.fillStyle = '#5D4037';
-        ctx.fillRect(centerX - 4, bikeY - 6, 8, 3);
-        // Handlebars
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(centerX + 8, bikeY - 2);
-        ctx.lineTo(centerX + 12, bikeY - 6);
-        ctx.stroke();
-
-        // Pedals (animated)
-        ctx.fillStyle = '#666';
-        const pedalX1 = centerX + Math.cos(this.pedalAngle) * 5;
-        const pedalY1 = bikeY + 2 + Math.sin(this.pedalAngle) * 5;
-        const pedalX2 = centerX + Math.cos(this.pedalAngle + Math.PI) * 5;
-        const pedalY2 = bikeY + 2 + Math.sin(this.pedalAngle + Math.PI) * 5;
-        ctx.fillRect(pedalX1 - 2, pedalY1 - 1, 4, 2);
-        ctx.fillRect(pedalX2 - 2, pedalY2 - 1, 4, 2);
-
-        // --- Rider (Paperboy) ---
-        // Legs (connect to pedals)
-        ctx.strokeStyle = '#1565C0';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(centerX - 2, bikeY - 8);
-        ctx.lineTo(pedalX1, pedalY1);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(centerX + 2, bikeY - 8);
-        ctx.lineTo(pedalX2, pedalY2);
-        ctx.stroke();
-
-        // Body (torso)
-        ctx.fillStyle = '#E53935';
-        ctx.fillRect(centerX - 6, this.y + 8, 12, 16);
-
-        // Arms
-        ctx.strokeStyle = '#FFCCBC';
-        ctx.lineWidth = 3;
-        // Arm to handlebars
-        ctx.beginPath();
-        ctx.moveTo(centerX + 4, this.y + 12);
-        ctx.lineTo(centerX + 12, bikeY - 6);
-        ctx.stroke();
-        // Arm holding newspaper bag (back)
-        ctx.beginPath();
-        ctx.moveTo(centerX - 4, this.y + 12);
-        ctx.lineTo(centerX - 10, this.y + 18);
-        ctx.stroke();
-
-        // Newspaper bag
-        ctx.fillStyle = '#8D6E63';
-        ctx.fillRect(centerX - 14, this.y + 14, 8, 10);
-        ctx.fillStyle = '#5D4037';
-        ctx.fillRect(centerX - 14, this.y + 14, 8, 2);
-        // Papers sticking out
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(centerX - 13, this.y + 12, 3, 4);
-        ctx.fillRect(centerX - 9, this.y + 11, 3, 5);
-
-        // Head
-        ctx.fillStyle = '#FFCCBC';
-        ctx.beginPath();
-        ctx.arc(centerX, this.y + 5, 7, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Baseball cap
-        ctx.fillStyle = '#1565C0';
-        ctx.beginPath();
-        ctx.arc(centerX, this.y + 3, 7, Math.PI, 0);
-        ctx.fill();
-        // Cap brim
-        if (this.facing === 1) {
-            ctx.fillRect(centerX, this.y + 1, 10, 3);
-        } else {
-            ctx.fillRect(centerX - 10, this.y + 1, 10, 3);
-        }
-
-        // Eyes
-        ctx.fillStyle = '#000';
-        if (this.facing === 1) {
-            ctx.beginPath();
-            ctx.arc(centerX + 2, this.y + 5, 1.5, 0, Math.PI * 2);
-            ctx.fill();
-        } else {
-            ctx.beginPath();
-            ctx.arc(centerX - 2, this.y + 5, 1.5, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        // Smile
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(centerX, this.y + 7, 3, 0.1, Math.PI - 0.1);
-        ctx.stroke();
-
-        // Reset alpha
-        ctx.globalAlpha = 1;
-    }
-}
-
-// ============================================================
-// House class
-// ============================================================
-class House {
-    constructor(x, side, needsDelivery) {
-        if (needsDelivery === undefined) needsDelivery = false;
-        this.x = x;
-        this.side = side;
-        this.y = side === 'top' ? 80 : 420;
-        this.width = 60;
-        this.height = 80;
-        this.needsDelivery = needsDelivery;
-        this.delivered = false;
-
-        this.style = Math.floor(Math.random() * 4);
-        this.roofColor = ['#F44336', '#E91E63', '#9C27B0', '#673AB7'][Math.floor(Math.random() * 4)];
-        this.bodyColor = ['#795548', '#607D8B', '#8BC34A', '#FF9800'][Math.floor(Math.random() * 4)];
-        this.doorColor = ['#4CAF50', '#2196F3', '#FF5722', '#9E9E9E'][Math.floor(Math.random() * 4)];
-        this.hasChimney = Math.random() < 0.6;
-        this.hasGarage = Math.random() < 0.4;
-        this.windowLights = Math.random() < 0.7;
-        this.treeType = Math.floor(Math.random() * 3);
-    }
-
-    render(ctx, worldOffset) {
-        const renderX = this.x - worldOffset;
-
-        if (renderX > -this.width && renderX < CONFIG.CANVAS_WIDTH + this.width) {
-            // Tree
-            if (this.treeType > 0) {
-                const treeX = renderX + (this.side === 'top' ? -20 : this.width + 10);
-                const treeY = this.y + (this.side === 'top' ? 60 : -40);
-
-                if (this.treeType === 1) {
-                    ctx.fillStyle = '#8D6E63';
-                    ctx.fillRect(treeX + 8, treeY, 4, 20);
-                    ctx.fillStyle = '#4CAF50';
-                    ctx.beginPath();
-                    ctx.arc(treeX + 10, treeY - 5, 12, 0, Math.PI * 2);
-                    ctx.fill();
-                } else {
-                    ctx.fillStyle = '#8D6E63';
-                    ctx.fillRect(treeX + 8, treeY, 4, 20);
-                    ctx.fillStyle = '#2E7D32';
-                    ctx.beginPath();
-                    ctx.moveTo(treeX + 10, treeY - 15);
-                    ctx.lineTo(treeX + 4, treeY + 5);
-                    ctx.lineTo(treeX + 16, treeY + 5);
-                    ctx.closePath();
-                    ctx.fill();
+            // Check mailbox delivery
+            let delivered = false;
+            G.mailboxes.forEach(mb => {
+                if (mb.delivered) return;
+                const dist = Math.sqrt(
+                    (np.x - mb.x) ** 2 + (np.z - mb.z) ** 2
+                );
+                if (dist < 2.5 && mb.isSubscriber) {
+                    mb.delivered = true;
+                    G.deliveries.hit++;
+                    G.score += 100;
+                    delivered = true;
+                    showDeliveryFeedback(np.x, np.z, true);
+                    // Mark the corresponding house as delivered
+                    if (G.houses[mb.houseIdx]) {
+                        G.houses[mb.houseIdx].delivered = true;
+                    }
+                } else if (dist < 2.5 && !mb.isSubscriber) {
+                    G.score -= 25;
+                    showDeliveryFeedback(np.x, np.z, false);
                 }
-            }
+            });
 
-            // Garage
-            if (this.hasGarage) {
-                const garageX = renderX + this.width + 5;
-                ctx.fillStyle = '#9E9E9E';
-                ctx.fillRect(garageX, this.y + 20, 35, 60);
-                ctx.fillStyle = '#616161';
-                ctx.fillRect(garageX + 5, this.y + 35, 25, 45);
-                ctx.strokeStyle = '#424242';
-                ctx.lineWidth = 1;
-                for (let i = 0; i < 4; i++) {
-                    ctx.beginPath();
-                    ctx.moveTo(garageX + 5, this.y + 45 + i * 10);
-                    ctx.lineTo(garageX + 30, this.y + 45 + i * 10);
-                    ctx.stroke();
-                }
-            }
-
-            // Foundation
-            ctx.fillStyle = '#424242';
-            ctx.fillRect(renderX - 2, this.y + this.height - 5, this.width + 4, 8);
-
-            // House body
-            ctx.fillStyle = this.bodyColor;
-            ctx.fillRect(renderX, this.y, this.width, this.height);
-
-            // Siding lines
-            ctx.strokeStyle = this.bodyColor === '#795548' ? '#5D4037' : '#424242';
-            ctx.lineWidth = 1;
-            for (let i = 0; i < 8; i++) {
-                ctx.beginPath();
-                ctx.moveTo(renderX, this.y + i * 10);
-                ctx.lineTo(renderX + this.width, this.y + i * 10);
-                ctx.stroke();
-            }
-
-            // Roof
-            ctx.fillStyle = this.roofColor;
-            ctx.beginPath();
-            ctx.moveTo(renderX - 5, this.y);
-            ctx.lineTo(renderX + this.width/2, this.y - 20);
-            ctx.lineTo(renderX + this.width + 5, this.y);
-            ctx.closePath();
-            ctx.fill();
-
-            // Roof shingles
-            ctx.strokeStyle = this.roofColor === '#F44336' ? '#D32F2F' : '#424242';
-            ctx.lineWidth = 1;
-            for (let i = 0; i < 3; i++) {
-                ctx.beginPath();
-                ctx.moveTo(renderX - 3 + i * 6, this.y - 15 + i * 5);
-                ctx.lineTo(renderX + this.width + 3 - i * 6, this.y - 15 + i * 5);
-                ctx.stroke();
-            }
-
-            // Chimney
-            if (this.hasChimney) {
-                ctx.fillStyle = '#795548';
-                ctx.fillRect(renderX + 15, this.y - 25, 8, 20);
-                ctx.fillStyle = '#424242';
-                ctx.fillRect(renderX + 14, this.y - 27, 10, 3);
-            }
-
-            // Windows
-            const windowColor = this.windowLights ? '#FFEB3B' : '#2196F3';
-            ctx.fillStyle = windowColor;
-            ctx.fillRect(renderX + 8, this.y + 15, 15, 15);
-            ctx.fillRect(renderX + 8, this.y + 35, 15, 15);
-            ctx.fillRect(renderX + 37, this.y + 15, 15, 15);
-            ctx.fillRect(renderX + 37, this.y + 35, 15, 15);
-
-            // Window frames
-            ctx.strokeStyle = '#424242';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(renderX + 8, this.y + 15, 15, 15);
-            ctx.strokeRect(renderX + 8, this.y + 35, 15, 15);
-            ctx.strokeRect(renderX + 37, this.y + 15, 15, 15);
-            ctx.strokeRect(renderX + 37, this.y + 35, 15, 15);
-
-            // Window crosses
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(renderX + 15.5, this.y + 15); ctx.lineTo(renderX + 15.5, this.y + 30);
-            ctx.moveTo(renderX + 8, this.y + 22.5); ctx.lineTo(renderX + 23, this.y + 22.5);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(renderX + 15.5, this.y + 35); ctx.lineTo(renderX + 15.5, this.y + 50);
-            ctx.moveTo(renderX + 8, this.y + 42.5); ctx.lineTo(renderX + 23, this.y + 42.5);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(renderX + 44.5, this.y + 15); ctx.lineTo(renderX + 44.5, this.y + 30);
-            ctx.moveTo(renderX + 37, this.y + 22.5); ctx.lineTo(renderX + 52, this.y + 22.5);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(renderX + 44.5, this.y + 35); ctx.lineTo(renderX + 44.5, this.y + 50);
-            ctx.moveTo(renderX + 37, this.y + 42.5); ctx.lineTo(renderX + 52, this.y + 42.5);
-            ctx.stroke();
-
-            // Door
-            ctx.fillStyle = this.doorColor;
-            ctx.fillRect(renderX + this.width/2 - 8, this.y + 40, 16, 40);
-            ctx.strokeStyle = '#424242';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(renderX + this.width/2 - 8, this.y + 40, 16, 40);
-
-            // Door handle
-            ctx.fillStyle = '#FFD700';
-            ctx.beginPath();
-            ctx.arc(renderX + this.width/2 + 4, this.y + 60, 2, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Door panels
-            ctx.strokeStyle = '#424242';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(renderX + this.width/2 - 6, this.y + 42, 12, 15);
-            ctx.strokeRect(renderX + this.width/2 - 6, this.y + 60, 12, 18);
-
-            // Porch light
-            if (this.windowLights) {
-                ctx.fillStyle = '#FFEB3B';
-                ctx.beginPath();
-                ctx.arc(renderX + this.width/2 - 12, this.y + 35, 3, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.strokeStyle = '#424242';
-                ctx.lineWidth = 1;
-                ctx.stroke();
-            }
-
-            // Delivery indicator
-            if (this.needsDelivery) {
-                ctx.fillStyle = '#ffeb3b';
-                ctx.fillRect(renderX + this.width/2 - 5, this.y - 30, 10, 10);
-                ctx.fillStyle = '#000';
-                ctx.font = '12px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText('!', renderX + this.width/2, this.y - 22);
-            } else if (this.delivered) {
-                ctx.fillStyle = '#4CAF50';
-                ctx.fillRect(renderX + this.width/2 - 5, this.y - 30, 10, 10);
-                ctx.fillStyle = '#fff';
-                ctx.font = '12px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText('\u2713', renderX + this.width/2, this.y - 22);
-            }
+            // Remove after short delay
+            setTimeout(() => {
+                scene.remove(np.group);
+            }, 2000);
         }
-    }
+
+        // Remove if too far
+        if (np.y < -5 || Math.abs(np.z) > 40 || np.x > G.streetLength + 20 || np.x < -20) {
+            np.alive = false;
+            scene.remove(np.group);
+        }
+    });
 }
 
-// ============================================================
-// Obstacle class
-// ============================================================
-class Obstacle {
-    constructor(x, type) {
-        this.x = x;
-        this.type = type;
-        this.width = type === 'car' ? 60 : 25;
-        this.height = type === 'car' ? 30 : 20;
+function showDeliveryFeedback(x, z, success) {
+    // 3D text feedback - floating indicator
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = success ? '#4CAF50' : '#ff5252';
+    ctx.font = 'bold 36px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(success ? '+100' : '-25', 64, 42);
 
-        if (type === 'car') {
-            const lanes = [
-                CONFIG.CANVAS_HEIGHT/2 - 35,
-                CONFIG.CANVAS_HEIGHT/2 - 15,
-                CONFIG.CANVAS_HEIGHT/2 + 5
-            ];
-            this.y = lanes[Math.floor(Math.random() * lanes.length)];
-            this.speed = 0;
-            this.direction = 1;
-        } else {
-            this.startSide = Math.random() < 0.5 ? 'top' : 'bottom';
-            this.y = this.startSide === 'top' ? CONFIG.CANVAS_HEIGHT/2 - 65 : CONFIG.CANVAS_HEIGHT/2 + 65;
-            this.targetY = this.startSide === 'top' ? CONFIG.CANVAS_HEIGHT/2 + 65 : CONFIG.CANVAS_HEIGHT/2 - 65;
-            this.speed = 1 + Math.random() * 2;
-            this.direction = this.startSide === 'top' ? 1 : -1;
-            this.crossingStreet = false;
-            this.waitTime = Math.random() * 180;
+    const texture = new THREE.CanvasTexture(canvas);
+    const sprite = new THREE.Sprite(
+        new THREE.SpriteMaterial({ map: texture, transparent: true })
+    );
+    sprite.position.set(x, 3, z);
+    sprite.scale.set(2, 1, 1);
+    scene.add(sprite);
+
+    let t = 0;
+    const anim = setInterval(() => {
+        t += 0.02;
+        sprite.position.y += 0.05;
+        sprite.material.opacity = 1 - t;
+        if (t >= 1) {
+            clearInterval(anim);
+            scene.remove(sprite);
+            texture.dispose();
         }
-    }
+    }, 20);
+}
 
-    update(worldOffset) {
-        if (this.type === 'dog') {
-            if (this.waitTime > 0) {
-                this.waitTime--;
+function checkCollisions() {
+    if (G.invulnerable > 0) return;
+
+    const px = G.playerZ;
+    const pz = G.playerX;
+
+    G.obstacles.forEach(obs => {
+        if (!obs.active) return;
+
+        const dx = px - obs.group.position.x;
+        const dz = pz - obs.group.position.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+
+        if (dist < obs.radius + 0.6) {
+            if (obs.slowEffect) {
+                // Puddle just slows
                 return;
             }
+            hitPlayer();
+        }
+    });
+}
 
-            if (!this.crossingStreet) {
-                this.crossingStreet = true;
-            }
+function hitPlayer() {
+    G.lives--;
+    G.invulnerable = 2.0;
+    flashTimer = 0;
+    updateHUD();
 
-            if (this.crossingStreet) {
-                const distanceToTarget = Math.abs(this.y - this.targetY);
-                if (distanceToTarget > 2) {
-                    this.y += this.direction * this.speed;
-                } else {
-                    this.crossingStreet = false;
-                    this.x += (Math.random() < 0.5 ? 1 : -1) * this.speed;
+    if (G.lives <= 0) {
+        gameOver();
+    }
+}
+
+// ====== STREET END ======
+function endStreet() {
+    G.gameRunning = false;
+
+    // Count missed subscribers
+    const missed = G.deliveries.total - G.deliveries.hit;
+    G.deliveries.missed = missed;
+    G.score -= missed * 50;
+
+    // Show summary
+    const summaryEl = document.getElementById('summaryContent');
+    summaryEl.innerHTML = `
+        <div class="summary-line summary-good">Deliveries: ${G.deliveries.hit} / ${G.deliveries.total} (+${G.deliveries.hit * 100})</div>
+        <div class="summary-line summary-bad">Missed subscribers: ${missed} (-${missed * 50})</div>
+        <div class="summary-line summary-total">Score: ${G.score}</div>
+        <div class="summary-line">Papers remaining: ${G.papers}</div>
+    `;
+
+    document.getElementById('summaryTitle').textContent = `Street ${G.street} Complete!`;
+    document.getElementById('summaryScreen').style.display = 'flex';
+}
+
+function nextStreet() {
+    document.getElementById('summaryScreen').style.display = 'none';
+    G.street++;
+    G.playerZ = 0;
+    G.playerX = 0;
+    G.progress = 0;
+    G.papers = Math.min(G.papers + 10, 25);
+    G.streetLength = 300 + G.street * 30;
+    G.invulnerable = 0;
+    updateHUD();
+    buildStreet();
+    G.gameRunning = true;
+}
+
+function gameOver() {
+    G.gameRunning = false;
+    document.getElementById('finalScore').textContent = G.score;
+    document.getElementById('finalStreets').textContent = G.street - 1;
+    document.getElementById('gameOverScreen').style.display = 'flex';
+}
+
+function restartGame() {
+    document.getElementById('gameOverScreen').style.display = 'none';
+    G.score = 0;
+    G.lives = 3;
+    G.papers = 15;
+    G.street = 1;
+    G.playerZ = 0;
+    G.playerX = 0;
+    G.progress = 0;
+    G.speed = 12;
+    G.streetLength = 300;
+    G.invulnerable = 0;
+    updateHUD();
+    buildStreet();
+    G.gameRunning = true;
+}
+
+// ====== HUD ======
+function updateHUD() {
+    document.getElementById('scoreVal').textContent = G.score;
+    document.getElementById('papersVal').textContent = G.papers;
+    const hearts = [];
+    for (let i = 0; i < G.lives; i++) hearts.push('\u2665');
+    document.getElementById('livesVal').textContent = hearts.join('');
+    document.getElementById('streetVal').textContent = G.street;
+}
+
+// ====== INPUT ======
+function setupInput() {
+    document.addEventListener('keydown', e => {
+        G.keys[e.key] = true;
+        G.keys[e.code] = true;
+
+        if ((e.key === 'q' || e.key === 'Q') && G.gameRunning) {
+            throwNewspaper(-1);
+        }
+        if ((e.key === 'e' || e.key === 'E') && G.gameRunning) {
+            throwNewspaper(1);
+        }
+        if (e.key === ' ' && G.gameRunning) {
+            e.preventDefault();
+            // Auto-aim: throw toward nearest subscriber mailbox
+            let bestDir = 1;
+            let bestDist = Infinity;
+            G.mailboxes.forEach(mb => {
+                if (!mb.isSubscriber || mb.delivered) return;
+                const dist = Math.abs(mb.x - G.playerZ);
+                if (dist < bestDist && dist < 30) {
+                    bestDist = dist;
+                    bestDir = mb.z > G.playerX ? 1 : -1;
                 }
-            }
+            });
+            throwNewspaper(bestDir);
         }
-    }
+    });
 
-    render(ctx, worldOffset) {
-        const renderX = this.x - worldOffset;
+    document.addEventListener('keyup', e => {
+        G.keys[e.key] = false;
+        G.keys[e.code] = false;
+    });
 
-        if (renderX > -this.width && renderX < CONFIG.CANVAS_WIDTH + this.width) {
-            if (this.type === 'car') {
-                // Car body
-                ctx.fillStyle = '#FF5722';
-                ctx.fillRect(renderX, this.y, this.width, this.height);
+    // Touch controls
+    let touchSteerActive = false;
+    let touchStartX = 0;
 
-                // Wheels
-                ctx.fillStyle = '#000';
-                ctx.fillRect(renderX + 10, this.y + 25, 8, 8);
-                ctx.fillRect(renderX + this.width - 18, this.y + 25, 8, 8);
+    document.getElementById('touchLeft').addEventListener('touchstart', e => {
+        e.preventDefault();
+        throwNewspaper(-1);
+    }, { passive: false });
 
-                // Windows
-                ctx.fillStyle = '#87CEEB';
-                ctx.fillRect(renderX + 5, this.y + 5, this.width - 10, 15);
-            } else {
-                // Dog body
-                ctx.fillStyle = '#8D6E63';
-                ctx.fillRect(renderX, this.y, this.width, this.height);
+    document.getElementById('touchRight').addEventListener('touchstart', e => {
+        e.preventDefault();
+        throwNewspaper(1);
+    }, { passive: false });
 
-                // Head
-                ctx.fillRect(renderX + 20, this.y - 10, 15, 15);
+    // Swipe to steer
+    document.addEventListener('touchstart', e => {
+        touchStartX = e.touches[0].clientX;
+        touchSteerActive = true;
+    });
 
-                // Tail
-                ctx.fillRect(renderX - 8, this.y + 5, 10, 3);
+    document.addEventListener('touchmove', e => {
+        if (!touchSteerActive) return;
+        const dx = e.touches[0].clientX - touchStartX;
+        G.steerInput = Math.max(-1, Math.min(1, dx / 50));
+    });
 
-                // Legs
-                ctx.fillRect(renderX + 5, this.y + 15, 4, 8);
-                ctx.fillRect(renderX + 15, this.y + 15, 4, 8);
-            }
-        }
-    }
+    document.addEventListener('touchend', () => {
+        touchSteerActive = false;
+        G.steerInput = 0;
+    });
 }
 
-// ============================================================
-// Package (Newspaper) class
-// ============================================================
-class Package {
-    constructor(x, y, direction) {
-        this.x = x;
-        this.y = y;
-        this.width = 12;
-        this.height = 12;
-        this.velocityX = CONFIG.PACKAGE_SPEED * direction;
-        this.velocityY = -2;
-        this.gravity = 0.3;
-    }
-
-    update() {
-        this.x += this.velocityX;
-        this.y += this.velocityY;
-        this.velocityY += this.gravity;
-    }
-
-    collidesWith(other) {
-        return this.x < other.x + other.width &&
-               this.x + this.width > other.x &&
-               this.y < other.y + other.height &&
-               this.y + this.height > other.y;
-    }
-
-    render(ctx) {
-        // Newspaper
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(this.x, this.y, this.width, this.height);
-
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(this.x, this.y, this.width, this.height);
-
-        // Text lines on newspaper
-        ctx.fillStyle = '#000';
-        ctx.fillRect(this.x + 1, this.y + 1, this.width - 2, 2);
-        ctx.fillRect(this.x + 1, this.y + 4, this.width - 3, 1);
-        ctx.fillRect(this.x + 1, this.y + 6, this.width - 4, 1);
-        ctx.fillRect(this.x + 1, this.y + 8, this.width - 2, 1);
-    }
+// ====== MAIN RENDER LOOP ======
+function animate() {
+    requestAnimationFrame(animate);
+    const dt = clock.getDelta();
+    updateGame(dt);
+    renderer.render(scene, camera);
 }
 
-// ============================================================
-// Particle class
-// ============================================================
-class Particle {
-    constructor(x, y, color) {
-        this.x = x;
-        this.y = y;
-        this.velocityX = (Math.random() - 0.5) * 6;
-        this.velocityY = (Math.random() - 0.5) * 6;
-        this.life = 30;
-        this.color = color;
-    }
+// ====== INIT & START ======
+function init() {
+    initThree();
+    initMaterials();
+    createPlayer();
+    setupInput();
 
-    update() {
-        this.x += this.velocityX;
-        this.y += this.velocityY;
-        this.life--;
-    }
+    document.getElementById('startBtn').addEventListener('click', () => {
+        document.getElementById('startScreen').style.display = 'none';
+        document.getElementById('hud').style.display = 'block';
+        document.getElementById('progressBar').style.display = 'block';
+        document.getElementById('progressLabel').style.display = 'block';
+        buildStreet();
+        updateHUD();
+        G.gameRunning = true;
+    });
 
-    render(ctx) {
-        const alpha = this.life / 30;
-        ctx.globalAlpha = alpha;
-        ctx.fillStyle = this.color;
-        ctx.fillRect(this.x, this.y, 3, 3);
-        ctx.globalAlpha = 1;
-    }
+    document.getElementById('summaryBtn').addEventListener('click', nextStreet);
+    document.getElementById('restartBtn').addEventListener('click', restartGame);
+
+    // Set initial camera
+    camera.position.set(-18, 22, 18);
+    camera.lookAt(0, 0, 0);
+
+    animate();
 }
 
-// ============================================================
-// Mailbox class
-// ============================================================
-class Mailbox {
-    constructor(x, side) {
-        this.x = x;
-        this.side = side;
-        this.y = side === 'top' ? CONFIG.CANVAS_HEIGHT/2 - 75 : CONFIG.CANVAS_HEIGHT/2 + 55;
-        this.width = 20;
-        this.height = 30;
-        this.hasNewspaper = false;
-    }
+init();
 
-    render(ctx, worldOffset) {
-        const renderX = this.x - worldOffset;
-
-        if (renderX > -this.width && renderX < CONFIG.CANVAS_WIDTH + this.width) {
-            // Post
-            ctx.fillStyle = '#8D6E63';
-            ctx.fillRect(renderX + this.width/2 - 2, this.y + 15, 4, 15);
-
-            // Body
-            ctx.fillStyle = this.hasNewspaper ? '#4CAF50' : '#2196F3';
-            ctx.fillRect(renderX, this.y, this.width, 15);
-
-            // Door
-            ctx.fillStyle = '#1976D2';
-            ctx.fillRect(renderX + 2, this.y + 2, this.width - 4, 11);
-
-            // Flag
-            if (this.hasNewspaper) {
-                ctx.fillStyle = '#F44336';
-                ctx.fillRect(renderX + this.width, this.y + 2, 6, 4);
-            }
-
-            // Handle
-            ctx.fillStyle = '#FFD700';
-            ctx.fillRect(renderX + this.width - 3, this.y + 6, 2, 2);
-
-            // Newspaper sticking out
-            if (this.hasNewspaper) {
-                ctx.fillStyle = '#fff';
-                ctx.fillRect(renderX + 2, this.y - 2, 8, 4);
-                ctx.strokeStyle = '#000';
-                ctx.lineWidth = 1;
-                ctx.strokeRect(renderX + 2, this.y - 2, 8, 4);
-            }
-        }
-    }
-}
-
-// ============================================================
-// FinishLine class
-// ============================================================
-class FinishLine {
-    constructor(x) {
-        this.x = x;
-        this.width = 20;
-        this.height = CONFIG.CANVAS_HEIGHT;
-        this.animationOffset = 0;
-    }
-
-    render(ctx, worldOffset) {
-        const renderX = this.x - worldOffset;
-
-        if (renderX > -this.width && renderX < CONFIG.CANVAS_WIDTH + this.width) {
-            this.animationOffset += 2;
-            if (this.animationOffset > 40) this.animationOffset = 0;
-
-            // Checkered pattern
-            const squareSize = 20;
-            for (let y = 0; y < CONFIG.CANVAS_HEIGHT; y += squareSize) {
-                for (let x = 0; x < this.width; x += squareSize) {
-                    const squareX = Math.floor((x + this.animationOffset) / squareSize);
-                    const squareY = Math.floor(y / squareSize);
-                    const isBlack = (squareX + squareY) % 2 === 0;
-
-                    ctx.fillStyle = isBlack ? '#000' : '#fff';
-                    ctx.fillRect(renderX + x, y, Math.min(squareSize, this.width - x), Math.min(squareSize, CONFIG.CANVAS_HEIGHT - y));
-                }
-            }
-
-            // FINISH text
-            ctx.fillStyle = '#FFD700';
-            ctx.font = 'bold 16px Arial';
-            ctx.textAlign = 'center';
-            ctx.save();
-            ctx.translate(renderX + this.width/2, CONFIG.CANVAS_HEIGHT/2);
-            ctx.rotate(-Math.PI/2);
-            ctx.fillText('FINISH', 0, 0);
-            ctx.restore();
-
-            // Flag poles
-            ctx.fillStyle = '#8D6E63';
-            ctx.fillRect(renderX - 5, 0, 5, CONFIG.CANVAS_HEIGHT);
-            ctx.fillRect(renderX + this.width, 0, 5, CONFIG.CANVAS_HEIGHT);
-
-            // Banner
-            ctx.fillStyle = '#F44336';
-            ctx.fillRect(renderX - 10, 20, this.width + 20, 30);
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 14px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('FINISH LINE', renderX + this.width/2, 40);
-        }
-    }
-}
-
-// ============================================================
-// Initialize
-// ============================================================
-window.addEventListener('load', () => {
-    new Game();
-});
+})();
 </script>
 </body>
 </html>
