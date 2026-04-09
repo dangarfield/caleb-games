@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Whack-a-Mole - Caleb's Arcade</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      overflow: hidden;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 500px;
+      margin-bottom: 0.5rem;
+    }
+
+    .back-btn {
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+      border: none;
+      border-radius: 0.75rem;
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .back-btn:active { transform: scale(0.95); }
+
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: #fff;
+      text-shadow: 0 0 20px rgba(255, 200, 50, 0.5);
+    }
+
+    .hud {
+      display: flex;
+      gap: 1rem;
+      width: 100%;
+      max-width: 500px;
+      margin-bottom: 0.5rem;
+    }
+
+    .hud-box {
+      background: rgba(255,255,255,0.12);
+      border-radius: 0.5rem;
+      padding: 0.3rem 0.75rem;
+      text-align: center;
+      flex: 1;
+    }
+
+    .hud-label {
+      font-size: 0.65rem;
+      color: rgba(255,255,255,0.6);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .hud-value {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    #gameCanvas {
+      border-radius: 1rem;
+      cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="%23654321" stroke="%23432100" stroke-width="2"/><rect x="14" y="2" width="4" height="12" rx="2" fill="%23876543"/></svg>') 16 16, pointer;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+
+    .overlay.hidden { display: none; }
+
+    .overlay-box {
+      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      border: 2px solid rgba(255,255,255,0.2);
+      border-radius: 1.5rem;
+      padding: 2rem;
+      text-align: center;
+      color: #fff;
+      max-width: 360px;
+      width: 90%;
+    }
+
+    .overlay-box h2 {
+      font-size: 1.8rem;
+      margin-bottom: 1rem;
+      text-shadow: 0 0 15px rgba(255, 200, 50, 0.5);
+    }
+
+    .overlay-box p {
+      font-size: 1rem;
+      line-height: 1.6;
+      margin-bottom: 0.5rem;
+      color: rgba(255,255,255,0.85);
+    }
+
+    .overlay-box .final-score {
+      font-size: 2.5rem;
+      font-weight: 800;
+      color: #ffd700;
+      margin: 0.5rem 0;
+    }
+
+    .play-btn {
+      background: linear-gradient(135deg, #e94560, #c23152);
+      color: #fff;
+      border: none;
+      border-radius: 1rem;
+      padding: 0.85rem 2.5rem;
+      font-size: 1.2rem;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 1rem;
+      box-shadow: 0 4px 15px rgba(233, 69, 96, 0.4);
+    }
+
+    .play-btn:active { transform: scale(0.95); }
+  </style>
+</head>
+<body>
+  <div class="top-bar">
+    <a href="../../index.html" class="back-btn">&#8592; Back</a>
+    <h1>Whack-a-Mole</h1>
+  </div>
+
+  <div class="hud">
+    <div class="hud-box">
+      <div class="hud-label">Score</div>
+      <div class="hud-value" id="scoreDisplay">0</div>
+    </div>
+    <div class="hud-box">
+      <div class="hud-label">Time</div>
+      <div class="hud-value" id="timeDisplay">60</div>
+    </div>
+    <div class="hud-box">
+      <div class="hud-label">Best</div>
+      <div class="hud-value" id="bestDisplay">0</div>
+    </div>
+  </div>
+
+  <canvas id="gameCanvas"></canvas>
+
+  <div class="overlay" id="startOverlay">
+    <div class="overlay-box">
+      <h2>Whack-a-Mole</h2>
+      <p>Tap the moles to whack them!</p>
+      <p>Brown moles = <strong>+10 pts</strong></p>
+      <p style="color: #ffd700;">Golden moles = <strong>+25 pts</strong></p>
+      <p style="color: #ff4444;">Red bombs = <strong>-15 pts</strong> (avoid!)</p>
+      <button class="play-btn" id="startBtn">Play!</button>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="endOverlay">
+    <div class="overlay-box">
+      <h2>Time's Up!</h2>
+      <div class="final-score" id="finalScore">0</div>
+      <p id="endMessage"></p>
+      <button class="play-btn" id="restartBtn">Play Again</button>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreDisplay = document.getElementById('scoreDisplay');
+    const timeDisplay = document.getElementById('timeDisplay');
+    const bestDisplay = document.getElementById('bestDisplay');
+    const startOverlay = document.getElementById('startOverlay');
+    const endOverlay = document.getElementById('endOverlay');
+    const finalScoreEl = document.getElementById('finalScore');
+    const endMessage = document.getElementById('endMessage');
+
+    const COLS = 4;
+    const ROWS = 3;
+    const ROUND_TIME = 60;
+
+    let holes = [];
+    let score = 0;
+    let timeLeft = ROUND_TIME;
+    let bestScore = parseInt(localStorage.getItem('whackamole_best') || '0');
+    let gameRunning = false;
+    let gameTimer = null;
+    let spawnTimer = null;
+    let animFrame = null;
+    let effects = [];
+
+    bestDisplay.textContent = bestScore;
+
+    function resize() {
+      const maxW = Math.min(window.innerWidth - 32, 500);
+      const maxH = window.innerHeight - 200;
+      const aspect = COLS / ROWS;
+      let w = maxW;
+      let h = w / aspect;
+      if (h > maxH) { h = maxH; w = h * aspect; }
+      canvas.width = w * devicePixelRatio;
+      canvas.height = h * devicePixelRatio;
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+      ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+      initHoles(w, h);
+    }
+
+    function initHoles(w, h) {
+      holes = [];
+      const cellW = w / COLS;
+      const cellH = h / ROWS;
+      const holeR = Math.min(cellW, cellH) * 0.32;
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          holes.push({
+            x: cellW * (c + 0.5),
+            y: cellH * (r + 0.5) + holeR * 0.3,
+            r: holeR,
+            mole: null,
+            timer: 0
+          });
+        }
+      }
+    }
+
+    const MOLE_TYPES = {
+      regular: { color: '#8B4513', eyeColor: '#fff', noseColor: '#654321', points: 10 },
+      golden:  { color: '#FFD700', eyeColor: '#fff', noseColor: '#DAA520', points: 25 },
+      bomb:    { color: '#333',    eyeColor: '#ff0',  noseColor: '#ff0000', points: -15 }
+    };
+
+    function spawnMole() {
+      if (!gameRunning) return;
+      const empty = holes.filter(h => !h.mole);
+      if (empty.length === 0) return;
+      const hole = empty[Math.floor(Math.random() * empty.length)];
+
+      const rand = Math.random();
+      let type;
+      if (rand < 0.12) type = 'golden';
+      else if (rand < 0.28) type = 'bomb';
+      else type = 'regular';
+
+      const showTime = Math.max(600, 1800 - score * 8);
+      hole.mole = { type, phase: 'rising', progress: 0, showTime, elapsed: 0 };
+    }
+
+    function scheduleSpawn() {
+      if (!gameRunning) return;
+      const delay = Math.max(300, 1000 - score * 5);
+      spawnTimer = setTimeout(() => {
+        spawnMole();
+        scheduleSpawn();
+      }, delay + Math.random() * 400);
+    }
+
+    function addEffect(x, y, type) {
+      if (type === 'hit') {
+        for (let i = 0; i < 6; i++) {
+          const angle = (Math.PI * 2 / 6) * i + Math.random() * 0.5;
+          const speed = 2 + Math.random() * 3;
+          effects.push({
+            type: 'star', x, y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 2,
+            life: 1, decay: 0.02 + Math.random() * 0.02,
+            size: 4 + Math.random() * 4,
+            color: '#ffd700'
+          });
+        }
+        effects.push({ type: 'text', x, y: y - 20, text: '+10', life: 1, decay: 0.025, color: '#fff' });
+      } else if (type === 'golden') {
+        for (let i = 0; i < 10; i++) {
+          const angle = (Math.PI * 2 / 10) * i;
+          const speed = 3 + Math.random() * 3;
+          effects.push({
+            type: 'star', x, y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 2,
+            life: 1, decay: 0.015,
+            size: 5 + Math.random() * 5,
+            color: '#ffd700'
+          });
+        }
+        effects.push({ type: 'text', x, y: y - 20, text: '+25', life: 1, decay: 0.02, color: '#ffd700' });
+      } else if (type === 'bomb') {
+        effects.push({ type: 'ring', x, y, life: 1, decay: 0.03, size: 10, color: '#ff4444' });
+        effects.push({ type: 'text', x, y: y - 20, text: '-15', life: 1, decay: 0.025, color: '#ff4444' });
+      }
+    }
+
+    function handleTap(px, py) {
+      if (!gameRunning) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = px - rect.left;
+      const y = py - rect.top;
+
+      for (const hole of holes) {
+        if (!hole.mole || hole.mole.phase === 'sinking') continue;
+        // Mole is drawn above the hole — check both the hole area and the mole body
+        const riseH = hole.r * 1.4;
+        const moleY = hole.y - riseH * hole.mole.progress;
+        const bodyR = hole.r * 0.7;
+        const distToMole = Math.hypot(x - hole.x, y - moleY);
+        const distToHole = Math.hypot(x - hole.x, y - hole.y);
+        // Hit if tap is near the mole body OR near the hole, with generous radius
+        if (distToMole < bodyR * 1.5 || distToHole < hole.r * 1.5) {
+          const mole = hole.mole;
+          const typeInfo = MOLE_TYPES[mole.type];
+          score = Math.max(0, score + typeInfo.points);
+          scoreDisplay.textContent = score;
+          addEffect(hole.x, hole.y, mole.type === 'golden' ? 'golden' : mole.type === 'bomb' ? 'bomb' : 'hit');
+          mole.phase = 'sinking';
+          mole.progress = 1;
+          break;
+        }
+      }
+    }
+
+    canvas.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      handleTap(e.clientX, e.clientY);
+    });
+
+    function drawHole(hole) {
+      const { x, y, r } = hole;
+
+      // Shadow under hole
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.beginPath();
+      ctx.ellipse(x, y + r * 0.15, r * 1.1, r * 0.45, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Hole
+      ctx.fillStyle = '#1a0a00';
+      ctx.beginPath();
+      ctx.ellipse(x, y, r, r * 0.4, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Hole rim
+      ctx.strokeStyle = '#3a2a10';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(x, y, r, r * 0.4, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Grass tufts on rim (always visible)
+      ctx.fillStyle = '#2a6e2a';
+      for (let i = 0; i < 5; i++) {
+        const angle = Math.PI + (Math.PI / 6) * (i - 2);
+        const gx = x + Math.cos(angle) * r * 0.9;
+        const gy = y + Math.sin(angle) * r * 0.35;
+        ctx.beginPath();
+        ctx.moveTo(gx - 3, gy);
+        ctx.quadraticCurveTo(gx, gy - 8 - Math.sin(Date.now() / 500 + i) * 2, gx + 3, gy);
+        ctx.fill();
+      }
+
+      if (hole.mole) {
+        const mole = hole.mole;
+        const typeInfo = MOLE_TYPES[mole.type];
+        const riseH = r * 1.4;
+        let moleY;
+
+        if (mole.phase === 'rising') {
+          moleY = y - riseH * mole.progress;
+        } else if (mole.phase === 'showing') {
+          moleY = y - riseH;
+        } else {
+          moleY = y - riseH * mole.progress;
+        }
+
+        // Clip to hole region
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x - r * 1.2, 0, r * 2.4, y + r * 0.2);
+        ctx.clip();
+
+        // Mole body
+        const bodyR = r * 0.7;
+        ctx.fillStyle = typeInfo.color;
+        ctx.beginPath();
+        ctx.arc(x, moleY, bodyR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Mole body shading
+        const grad = ctx.createRadialGradient(x - bodyR * 0.3, moleY - bodyR * 0.3, 0, x, moleY, bodyR);
+        grad.addColorStop(0, 'rgba(255,255,255,0.2)');
+        grad.addColorStop(1, 'rgba(0,0,0,0.3)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(x, moleY, bodyR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Eyes
+        const eyeOff = bodyR * 0.28;
+        const eyeR = bodyR * 0.18;
+        ctx.fillStyle = typeInfo.eyeColor;
+        ctx.beginPath();
+        ctx.arc(x - eyeOff, moleY - bodyR * 0.15, eyeR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x + eyeOff, moleY - bodyR * 0.15, eyeR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Pupils
+        const pupR = eyeR * 0.5;
+        ctx.fillStyle = mole.type === 'bomb' ? '#f00' : '#222';
+        ctx.beginPath();
+        ctx.arc(x - eyeOff, moleY - bodyR * 0.12, pupR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x + eyeOff, moleY - bodyR * 0.12, pupR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Nose
+        ctx.fillStyle = typeInfo.noseColor;
+        ctx.beginPath();
+        ctx.arc(x, moleY + bodyR * 0.1, bodyR * 0.12, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Mouth
+        ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(x, moleY + bodyR * 0.15, bodyR * 0.2, 0.1 * Math.PI, 0.9 * Math.PI);
+        ctx.stroke();
+
+        // Cheeks
+        if (mole.type !== 'bomb') {
+          ctx.fillStyle = 'rgba(255,150,150,0.3)';
+          ctx.beginPath();
+          ctx.ellipse(x - bodyR * 0.5, moleY + bodyR * 0.05, bodyR * 0.15, bodyR * 0.1, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.ellipse(x + bodyR * 0.5, moleY + bodyR * 0.05, bodyR * 0.15, bodyR * 0.1, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Bomb fuse
+        if (mole.type === 'bomb') {
+          ctx.strokeStyle = '#888';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(x, moleY - bodyR);
+          ctx.quadraticCurveTo(x + bodyR * 0.5, moleY - bodyR * 1.3, x + bodyR * 0.3, moleY - bodyR * 1.5);
+          ctx.stroke();
+          // Spark
+          const sparkT = Date.now() / 100;
+          ctx.fillStyle = `hsl(${(sparkT * 30) % 60}, 100%, 60%)`;
+          ctx.beginPath();
+          ctx.arc(x + bodyR * 0.3, moleY - bodyR * 1.5, 3 + Math.sin(sparkT) * 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Golden sparkle
+        if (mole.type === 'golden') {
+          const t = Date.now() / 200;
+          for (let i = 0; i < 3; i++) {
+            const angle = t + (Math.PI * 2 / 3) * i;
+            const sx = x + Math.cos(angle) * bodyR * 0.8;
+            const sy = moleY + Math.sin(angle) * bodyR * 0.6;
+            const sparkSize = 2 + Math.sin(t * 2 + i) * 1.5;
+            ctx.fillStyle = 'rgba(255,255,200,0.8)';
+            drawStar(sx, sy, sparkSize);
+          }
+        }
+
+        ctx.restore();
+
+        // Redraw hole rim on top to cover mole base
+        ctx.fillStyle = '#1a0a00';
+        ctx.beginPath();
+        ctx.ellipse(x, y, r, r * 0.4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#3a2a10';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(x, y, r, r * 0.4, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+      }
+    }
+
+    function drawStar(x, y, size) {
+      const spikes = 4;
+      const outerR = size;
+      const innerR = size * 0.4;
+      ctx.beginPath();
+      for (let i = 0; i < spikes * 2; i++) {
+        const angle = (Math.PI / spikes) * i - Math.PI / 2;
+        const r = i % 2 === 0 ? outerR : innerR;
+        const sx = x + Math.cos(angle) * r;
+        const sy = y + Math.sin(angle) * r;
+        if (i === 0) ctx.moveTo(sx, sy);
+        else ctx.lineTo(sx, sy);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function drawEffects() {
+      for (let i = effects.length - 1; i >= 0; i--) {
+        const e = effects[i];
+        e.life -= e.decay;
+        if (e.life <= 0) { effects.splice(i, 1); continue; }
+
+        ctx.globalAlpha = e.life;
+
+        if (e.type === 'star') {
+          e.x += e.vx;
+          e.y += e.vy;
+          e.vy += 0.1;
+          ctx.fillStyle = e.color;
+          drawStar(e.x, e.y, e.size * e.life);
+        } else if (e.type === 'text') {
+          e.y -= 1;
+          ctx.fillStyle = e.color;
+          ctx.font = `bold ${18 + (1 - e.life) * 8}px system-ui`;
+          ctx.textAlign = 'center';
+          ctx.fillText(e.text, e.x, e.y);
+        } else if (e.type === 'ring') {
+          e.size += 3;
+          ctx.strokeStyle = e.color;
+          ctx.lineWidth = 3 * e.life;
+          ctx.beginPath();
+          ctx.arc(e.x, e.y, e.size, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    function drawBackground() {
+      const w = canvas.width / devicePixelRatio;
+      const h = canvas.height / devicePixelRatio;
+
+      // Ground gradient
+      const bg = ctx.createLinearGradient(0, 0, 0, h);
+      bg.addColorStop(0, '#2d5a1e');
+      bg.addColorStop(0.3, '#3a7a28');
+      bg.addColorStop(1, '#2a5a1a');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, w, h);
+
+      // Subtle grass texture
+      ctx.fillStyle = 'rgba(0,0,0,0.05)';
+      for (let i = 0; i < 40; i++) {
+        const gx = (i * 37 + 13) % w;
+        const gy = (i * 53 + 7) % h;
+        ctx.beginPath();
+        ctx.ellipse(gx, gy, 15, 4, (i * 0.7) % Math.PI, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function update(dt) {
+      for (const hole of holes) {
+        if (!hole.mole) continue;
+        const mole = hole.mole;
+        const speed = 0.06;
+
+        if (mole.phase === 'rising') {
+          mole.progress = Math.min(1, mole.progress + speed);
+          if (mole.progress >= 1) mole.phase = 'showing';
+        } else if (mole.phase === 'showing') {
+          mole.elapsed += dt;
+          if (mole.elapsed >= mole.showTime) {
+            mole.phase = 'sinking';
+          }
+        } else if (mole.phase === 'sinking') {
+          mole.progress = Math.max(0, mole.progress - speed * 1.5);
+          if (mole.progress <= 0) hole.mole = null;
+        }
+      }
+    }
+
+    let lastTime = 0;
+    function gameLoop(timestamp) {
+      const dt = lastTime ? timestamp - lastTime : 16;
+      lastTime = timestamp;
+
+      const w = canvas.width / devicePixelRatio;
+      const h = canvas.height / devicePixelRatio;
+
+      drawBackground();
+
+      // Draw holes back to front
+      for (const hole of holes) {
+        drawHole(hole);
+      }
+
+      drawEffects();
+      update(dt);
+
+      if (gameRunning || effects.length > 0) {
+        animFrame = requestAnimationFrame(gameLoop);
+      }
+    }
+
+    function startGame() {
+      score = 0;
+      timeLeft = ROUND_TIME;
+      scoreDisplay.textContent = '0';
+      timeDisplay.textContent = ROUND_TIME;
+      effects = [];
+      for (const hole of holes) hole.mole = null;
+
+      startOverlay.classList.add('hidden');
+      endOverlay.classList.add('hidden');
+      gameRunning = true;
+      lastTime = 0;
+
+      gameTimer = setInterval(() => {
+        timeLeft--;
+        timeDisplay.textContent = timeLeft;
+        if (timeLeft <= 0) endGame();
+      }, 1000);
+
+      scheduleSpawn();
+      // Spawn a couple immediately
+      spawnMole();
+      setTimeout(() => spawnMole(), 300);
+
+      animFrame = requestAnimationFrame(gameLoop);
+    }
+
+    function endGame() {
+      gameRunning = false;
+      clearInterval(gameTimer);
+      clearTimeout(spawnTimer);
+
+      if (score > bestScore) {
+        bestScore = score;
+        localStorage.setItem('whackamole_best', bestScore);
+        bestDisplay.textContent = bestScore;
+      }
+
+      finalScoreEl.textContent = score;
+      if (score >= 300) endMessage.textContent = 'Amazing! You are a mole-whacking master!';
+      else if (score >= 150) endMessage.textContent = 'Great job! Keep practicing!';
+      else endMessage.textContent = 'Nice try! You can do better!';
+
+      endOverlay.classList.remove('hidden');
+    }
+
+    document.getElementById('startBtn').addEventListener('click', startGame);
+    document.getElementById('restartBtn').addEventListener('click', startGame);
+
+    window.addEventListener('resize', resize);
+    resize();
+
+    // Draw initial state
+    drawBackground();
+    for (const hole of holes) drawHole(hole);
+  </script>
+</body>
+</html>

@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Battleship - Caleb's Arcade</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{min-height:100vh;background:linear-gradient(135deg,#0a0e1a 0%,#0d1b2a 50%,#1b263b 100%);font-family:'Segoe UI',system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;overflow-x:hidden;touch-action:manipulation;user-select:none;-webkit-user-select:none;color:#fff}
+.top-bar{display:flex;align-items:center;justify-content:space-between;width:100%;max-width:960px;padding:0.4rem 0.8rem}
+.back-btn{background:rgba(255,255,255,0.12);color:#fff;border:none;border-radius:0.6rem;padding:0.35rem 0.7rem;font-size:0.85rem;cursor:pointer;text-decoration:none}
+h1{font-size:1.3rem;text-shadow:0 0 20px rgba(100,180,255,0.6);letter-spacing:0.05em}
+#scoreInfo{font-size:0.75rem;color:#ffd700}
+.status{font-size:0.85rem;color:#7eb8da;min-height:1.2em;text-align:center;padding:0.2rem;letter-spacing:0.02em}
+.game-area{display:flex;flex-direction:column;align-items:center;width:100%;max-width:960px;padding:0 0.3rem}
+canvas{display:block;max-width:100%}
+.controls{display:flex;flex-wrap:wrap;justify-content:center;gap:0.4rem;padding:0.4rem}
+.btn{color:#fff;border:none;border-radius:0.7rem;padding:0.5rem 1.2rem;font-size:0.9rem;font-weight:700;cursor:pointer;transition:transform 0.1s;letter-spacing:0.02em}
+.btn:active{transform:scale(0.95)}
+.btn-fire{background:linear-gradient(135deg,#e94560,#c23152);box-shadow:0 4px 15px rgba(233,69,96,0.4)}
+.btn-rotate{background:linear-gradient(135deg,#3498db,#2980b9);box-shadow:0 4px 12px rgba(52,152,219,0.3)}
+.btn-auto{background:linear-gradient(135deg,#9b59b6,#8e44ad);box-shadow:0 4px 12px rgba(155,89,182,0.3)}
+.btn-ok{background:linear-gradient(135deg,#2ecc71,#27ae60);box-shadow:0 4px 12px rgba(46,204,113,0.3)}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:10;backdrop-filter:blur(6px)}
+.overlay.hidden{display:none}
+.overlay-box{background:linear-gradient(135deg,#0d1b2a,#1b263b);border:2px solid rgba(100,180,255,0.2);border-radius:1.2rem;padding:1.8rem;max-width:400px;width:90%;text-align:center}
+.overlay-box h2{font-size:1.5rem;margin-bottom:0.8rem;text-shadow:0 0 20px rgba(100,180,255,0.5)}
+.overlay-box p{font-size:0.9rem;line-height:1.5;margin-bottom:0.4rem;color:#9bb}
+.btn-row{display:flex;flex-wrap:wrap;justify-content:center;gap:0.5rem;margin-top:1rem}
+#firingCanvas{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:5;display:none;background:#000}
+</style>
+</head>
+<body>
+<div class="top-bar">
+  <a href="../../index.html" class="back-btn">Back</a>
+  <h1>BATTLESHIP</h1>
+  <div id="scoreInfo"></div>
+</div>
+<div class="status" id="status"></div>
+<div class="game-area">
+  <canvas id="boardCanvas"></canvas>
+  <div class="controls" id="controls"></div>
+</div>
+<canvas id="firingCanvas"></canvas>
+
+<div class="overlay" id="modeOverlay">
+  <div class="overlay-box">
+    <h2>BATTLESHIP</h2>
+    <p>Place your fleet on the 15x15 ocean grid.</p>
+    <p>Fire salvos of <strong>10 shots</strong> each turn and watch them rain down!</p>
+    <div class="btn-row">
+      <button class="btn btn-fire" onclick="G.start('ai')">vs Computer</button>
+      <button class="btn btn-rotate" onclick="G.start('local')">2 Player Local</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="handoffOverlay">
+  <div class="overlay-box">
+    <h2 id="handoffTitle"></h2>
+    <p id="handoffMsg"></p>
+    <button class="btn btn-ok" id="handoffBtn">I'm Ready</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="winOverlay">
+  <div class="overlay-box">
+    <h2 id="winTitle"></h2>
+    <p id="winMsg"></p>
+    <button class="btn btn-fire" onclick="location.reload()">Play Again</button>
+  </div>
+</div>
+
+<script>
+const G = (function(){
+"use strict";
+
+const SZ = 15;
+const SHIPS = [
+  {name:'Carrier',len:5},{name:'Battleship',len:4},{name:'Cruiser',len:3},
+  {name:'Submarine',len:3},{name:'Destroyer',len:2},{name:'Patrol',len:2}
+];
+const TOTAL_HP = SHIPS.reduce((s,sh)=>s+sh.len,0);
+const SALVO = 10;
+
+const bc = document.getElementById('boardCanvas');
+const bx = bc.getContext('2d');
+const fc = document.getElementById('firingCanvas');
+const fx = fc.getContext('2d');
+const statusEl = document.getElementById('status');
+const ctrlEl = document.getElementById('controls');
+const scoreEl = document.getElementById('scoreInfo');
+
+let mode, phase, curP, P, plIdx, plHoriz, salvo, hover, cell;
+let gOx, gOy, rOx;
+
+function mkPlayer(){
+  return {
+    g: Array.from({length:SZ},()=>Array(SZ).fill(0)),
+    s: Array.from({length:SZ},()=>Array(SZ).fill(0)),
+    ships:[], hits:0
+  };
+}
+
+function resize(){
+  const maxW = Math.min(960, window.innerWidth-8);
+  cell = Math.floor((maxW - 12) / (SZ*2+1));
+  cell = Math.min(cell, 32); cell = Math.max(cell, 14);
+  const tw = cell*SZ*2 + cell;
+  const th = cell*SZ + cell + 16;
+  bc.width = tw; bc.height = th;
+  bc.style.width = tw+'px'; bc.style.height = th+'px';
+  gOx = 0; rOx = cell*SZ + cell; gOy = cell;
+  fc.width = window.innerWidth; fc.height = window.innerHeight;
+  draw();
+}
+
+// ── Drawing ──
+function draw(){
+  bx.clearRect(0,0,bc.width,bc.height);
+  if(!P) return;
+  const me = P[curP], en = P[1-curP];
+
+  bx.fillStyle='rgba(100,180,255,0.5)';
+  bx.font=`bold ${Math.max(9,cell*.32)}px sans-serif`;
+  bx.textAlign='center';
+  bx.fillText('YOUR FLEET', gOx+cell*SZ/2, gOy-4);
+  if(phase!=='place') bx.fillText('ENEMY WATERS', rOx+cell*SZ/2, gOy-4);
+
+  drawGrid(gOx, me.g, true, en.s);
+  if(phase==='select'||phase==='firing') drawGrid(rOx, null, false, me.s);
+  else if(phase!=='place') drawGrid(rOx, null, false, me.s);
+
+  if(phase==='place' && hover) drawPlacePreview();
+  if(phase==='select'){
+    drawSalvo();
+    if(hover) drawHover();
+  }
+}
+
+function drawGrid(ox, shipG, showShip, shotG){
+  for(let r=0;r<SZ;r++) for(let c=0;c<SZ;c++){
+    const x=ox+c*cell, y=gOy+r*cell;
+    // water
+    bx.fillStyle = (r+c)%2===0 ? 'rgba(12,40,70,0.8)' : 'rgba(16,50,85,0.8)';
+    bx.fillRect(x,y,cell,cell);
+    bx.strokeStyle='rgba(60,120,180,0.12)';
+    bx.lineWidth=0.5;
+    bx.strokeRect(x,y,cell,cell);
+
+    if(showShip && shipG && shipG[r][c]===1){
+      bx.fillStyle='rgba(80,160,220,0.3)';
+      bx.fillRect(x+1,y+1,cell-2,cell-2);
+      bx.strokeStyle='rgba(80,180,255,0.5)';
+      bx.lineWidth=1;
+      bx.strokeRect(x+1,y+1,cell-2,cell-2);
+    }
+
+    if(shotG && shotG[r][c]===2){
+      bx.fillStyle='rgba(255,40,20,0.25)';
+      bx.fillRect(x,y,cell,cell);
+      const cx=x+cell/2,cy=y+cell/2,s=cell*.28;
+      bx.strokeStyle='#ff3020'; bx.lineWidth=2;
+      bx.beginPath();
+      bx.moveTo(cx-s,cy-s);bx.lineTo(cx+s,cy+s);
+      bx.moveTo(cx+s,cy-s);bx.lineTo(cx-s,cy+s);
+      bx.stroke();
+    } else if(shotG && shotG[r][c]===1){
+      bx.fillStyle='rgba(180,210,240,0.2)';
+      bx.beginPath(); bx.arc(x+cell/2,y+cell/2,cell*.18,0,Math.PI*2); bx.fill();
+    }
+  }
+}
+
+function drawPlacePreview(){
+  const ship=SHIPS[plIdx]; if(!ship) return;
+  const cells=shipCells(hover.r,hover.c,ship.len,plHoriz);
+  const ok=canPlace(P[curP].g,cells);
+  for(const {r,c} of cells){
+    if(r<0||r>=SZ||c<0||c>=SZ) continue;
+    bx.fillStyle=ok?'rgba(46,204,113,0.4)':'rgba(231,76,60,0.4)';
+    bx.fillRect(gOx+c*cell+1,gOy+r*cell+1,cell-2,cell-2);
+  }
+}
+
+function drawSalvo(){
+  for(const t of salvo){
+    const x=rOx+t.c*cell, y=gOy+t.r*cell;
+    const cx=x+cell/2, cy=y+cell/2, s=cell*.3;
+    bx.strokeStyle='#ffd700'; bx.lineWidth=1.5;
+    bx.strokeRect(x+1,y+1,cell-2,cell-2);
+    bx.beginPath(); bx.arc(cx,cy,s,0,Math.PI*2); bx.stroke();
+    bx.beginPath();
+    bx.moveTo(cx-s-2,cy);bx.lineTo(cx+s+2,cy);
+    bx.moveTo(cx,cy-s-2);bx.lineTo(cx,cy+s+2);
+    bx.stroke();
+  }
+}
+
+function drawHover(){
+  if(!hover || hover.side!=='R') return;
+  const {r,c}=hover; if(r<0||r>=SZ||c<0||c>=SZ) return;
+  if(P[curP].s[r][c]>0) return;
+  bx.fillStyle='rgba(255,215,0,0.12)';
+  bx.fillRect(rOx+c*cell,gOy+r*cell,cell,cell);
+}
+
+// ── Ship logic ──
+function shipCells(r,c,len,h){
+  const out=[]; for(let i=0;i<len;i++) out.push(h?{r,c:c+i}:{r:r+i,c}); return out;
+}
+function canPlace(g,cells){
+  for(const {r,c} of cells){ if(r<0||r>=SZ||c<0||c>=SZ||g[r][c]!==0) return false; }
+  return true;
+}
+function place(p,cells){
+  for(const {r,c} of cells) p.g[r][c]=1;
+  p.ships.push(cells.map(c=>({...c})));
+}
+function autoPlace(p){
+  for(const ship of SHIPS){
+    for(let a=0;a<500;a++){
+      const h=Math.random()<.5, r=Math.floor(Math.random()*SZ), c=Math.floor(Math.random()*SZ);
+      const cells=shipCells(r,c,ship.len,h);
+      if(canPlace(p.g,cells)){place(p,cells);break;}
+    }
+  }
+}
+
+// ── AI ──
+function aiPick(ai){
+  const targets=[];
+  const hunt=[];
+  for(let r=0;r<SZ;r++) for(let c=0;c<SZ;c++){
+    if(ai.s[r][c]===2){
+      for(const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]){
+        const nr=r+dr,nc=c+dc;
+        if(nr>=0&&nr<SZ&&nc>=0&&nc<SZ&&ai.s[nr][nc]===0 && !hunt.some(t=>t.r===nr&&t.c===nc))
+          hunt.push({r:nr,c:nc});
+      }
+    }
+  }
+  hunt.sort(()=>Math.random()-.5);
+  for(const t of hunt){ if(targets.length>=SALVO) break; targets.push(t); }
+  if(targets.length<SALVO){
+    const av=[];
+    for(let r=0;r<SZ;r++) for(let c=0;c<SZ;c++){
+      if(ai.s[r][c]===0 && !targets.some(t=>t.r===r&&t.c===c)) av.push({r,c});
+    }
+    av.sort(()=>Math.random()-.5);
+    while(targets.length<SALVO && av.length) targets.push(av.pop());
+  }
+  return targets;
+}
+
+function resolve(attacker,defGrid,targets){
+  const res=[];
+  for(const t of targets){
+    const hit = defGrid[t.r][t.c]===1;
+    attacker.s[t.r][t.c] = hit?2:1;
+    if(hit) attacker.hits++;
+    res.push({r:t.r,c:t.c,hit});
+  }
+  return res;
+}
+
+// ── FIRING VIEW ──
+function firingView(results, isPlayer, defenderShips, cb){
+  fc.style.display='block';
+  fc.width=window.innerWidth; fc.height=window.innerHeight;
+  const W=fc.width, H=fc.height;
+  const horizon = H*0.42;
+
+  // Pre-compute target positions on ocean (perspective mapped)
+  const shots = results.map((r,i)=>{
+    // Map grid cell to ocean surface position
+    const nx = (r.c+0.5)/SZ; // 0..1
+    const nz = (r.r+0.5)/SZ; // 0..1 (0=near horizon, 1=near camera)
+    // Perspective projection
+    const depth = 0.2 + nz*0.8; // depth factor
+    const px = W*0.1 + nx*W*0.8;
+    // Y: horizon to bottom
+    const py = horizon + depth * (H*0.52);
+    // Scale splash/explosion by depth
+    const scale = 0.5 + depth*0.8;
+
+    return {
+      ...r, idx:i,
+      targetX: px, targetY: py, scale,
+      // Cannon start
+      cannonX: W*0.3 + Math.random()*W*0.4,
+      cannonY: H + 30,
+      // Flight
+      t: 0,
+      delay: i * 18 + Math.random()*8,
+      phase: 'wait', // wait, fly, impact, smoke, done
+      impactT: 0,
+      smokeT: 0,
+      // Smoke/fire particles
+      particles: [],
+      splashDrops: [],
+    };
+  });
+
+  let frame=0, waveOff=0;
+  let shakeX=0, shakeY=0, shakeDecay=0;
+
+  // Persistent marks for already-resolved shots
+  const marks = [];
+
+  function drawFrame(){
+    frame++;
+    waveOff += 0.015;
+    if(shakeDecay>0){ shakeDecay*=0.9; shakeX=(Math.random()-.5)*shakeDecay; shakeY=(Math.random()-.5)*shakeDecay; }
+    else { shakeX=0; shakeY=0; }
+
+    fx.save();
+    fx.translate(shakeX, shakeY);
+    fx.clearRect(-10,-10,W+20,H+20);
+
+    // ── Sky ──
+    const skyG = fx.createLinearGradient(0,0,0,horizon);
+    skyG.addColorStop(0,'#050a18');
+    skyG.addColorStop(0.4,'#0c1a30');
+    skyG.addColorStop(0.8,'#1a3050');
+    skyG.addColorStop(1,'#2a4a6a');
+    fx.fillStyle=skyG;
+    fx.fillRect(0,0,W,horizon+10);
+
+    // Stars
+    fx.fillStyle='rgba(255,255,255,0.4)';
+    for(let i=0;i<40;i++){
+      const sx=(i*137.5+50)%W, sy=(i*83.3+20)%(horizon*0.7);
+      const sz=0.5+((i*7)%3)*0.5;
+      fx.beginPath(); fx.arc(sx,sy,sz,0,Math.PI*2); fx.fill();
+    }
+
+    // Moon
+    fx.fillStyle='rgba(200,220,240,0.15)';
+    fx.beginPath(); fx.arc(W*0.8, horizon*0.25, 30, 0, Math.PI*2); fx.fill();
+    fx.fillStyle='rgba(220,235,250,0.08)';
+    fx.beginPath(); fx.arc(W*0.8, horizon*0.25, 50, 0, Math.PI*2); fx.fill();
+
+    // ── Ocean ──
+    const oceanG = fx.createLinearGradient(0,horizon,0,H);
+    oceanG.addColorStop(0,'#1a3a5a');
+    oceanG.addColorStop(0.3,'#122a42');
+    oceanG.addColorStop(0.7,'#0a1a2a');
+    oceanG.addColorStop(1,'#060f18');
+    fx.fillStyle=oceanG;
+    fx.fillRect(0,horizon,W,H-horizon);
+
+    // Horizon glow
+    fx.fillStyle='rgba(40,80,120,0.3)';
+    fx.fillRect(0,horizon-2,W,6);
+
+    // Ocean waves
+    for(let wy=horizon+8; wy<H; wy+=14){
+      const depthF = (wy-horizon)/(H-horizon);
+      const alpha = 0.04 + depthF*0.06;
+      fx.strokeStyle=`rgba(80,160,220,${alpha})`;
+      fx.lineWidth=1;
+      fx.beginPath();
+      for(let wx=0;wx<W;wx+=3){
+        const amp = 2 + depthF*3;
+        const freq = 0.015 - depthF*0.005;
+        const y = wy + Math.sin(wx*freq + waveOff + wy*0.05)*amp;
+        wx===0 ? fx.moveTo(wx,y) : fx.lineTo(wx,y);
+      }
+      fx.stroke();
+    }
+
+    // ── Faint grid on ocean surface ──
+    fx.strokeStyle='rgba(60,120,180,0.06)';
+    fx.lineWidth=0.5;
+    for(let i=0;i<=SZ;i++){
+      const nx=i/SZ;
+      const x=W*0.1+nx*W*0.8;
+      fx.beginPath();
+      fx.moveTo(x, horizon+2);
+      fx.lineTo(x, H);
+      fx.stroke();
+    }
+    for(let i=0;i<=SZ;i++){
+      const nz=i/SZ;
+      const depth=0.2+nz*0.8;
+      const y=horizon+depth*(H*0.52);
+      fx.beginPath();
+      fx.moveTo(W*0.1,y);
+      fx.lineTo(W*0.9,y);
+      fx.stroke();
+    }
+
+    // ── Target fleet scattered on the ocean ──
+    if(defenderShips && defenderShips.length){
+      for(let si=0;si<defenderShips.length;si++){
+        const ship = defenderShips[si];
+        if(!ship.length) continue;
+        // Spread ships across ocean at different depths using deterministic positions
+        const seed = si*137.5+42;
+        const nx = 0.12 + ((seed*1.3)%0.76); // spread horizontally
+        const depthBand = 0.15 + (si/defenderShips.length)*0.65; // spread from near horizon to mid-ocean
+        const depth = 0.2 + depthBand*0.8;
+        const sx = W*nx;
+        const sy = horizon + depth*(H*0.52);
+        const sc = 1.6 + depth*2.8; // scale by depth
+        const shipLen = ship.length;
+        const hullLen = shipLen*28*sc;
+        const hullH = 12*sc;
+        const alpha = 0.35 + depth*0.3;
+
+        // Hull
+        fx.fillStyle=`rgba(35,50,70,${alpha})`;
+        fx.beginPath();
+        fx.moveTo(sx-hullLen/2-6*sc, sy);
+        fx.lineTo(sx-hullLen/2, sy-hullH);
+        fx.lineTo(sx+hullLen/2, sy-hullH);
+        fx.lineTo(sx+hullLen/2+6*sc, sy);
+        fx.closePath();
+        fx.fill();
+        fx.strokeStyle=`rgba(70,110,150,${alpha*0.6})`;
+        fx.lineWidth=1;
+        fx.stroke();
+
+        // Deck line
+        fx.fillStyle=`rgba(45,65,85,${alpha*0.8})`;
+        fx.fillRect(sx-hullLen/2+2*sc, sy-hullH-2*sc, hullLen-4*sc, 3*sc);
+
+        // Superstructure
+        const ssW = hullLen*0.25, ssH = 8*sc;
+        fx.fillStyle=`rgba(40,58,78,${alpha*0.9})`;
+        fx.fillRect(sx-ssW/2, sy-hullH-2*sc-ssH, ssW, ssH);
+
+        // Bridge on top
+        const brW = ssW*0.6, brH = 5*sc;
+        fx.fillStyle=`rgba(50,70,95,${alpha*0.8})`;
+        fx.fillRect(sx-brW/2, sy-hullH-2*sc-ssH-brH, brW, brH);
+
+        // Mast
+        fx.strokeStyle=`rgba(80,110,140,${alpha*0.5})`;
+        fx.lineWidth=1.5*sc;
+        fx.beginPath();
+        fx.moveTo(sx, sy-hullH-2*sc-ssH-brH);
+        fx.lineTo(sx, sy-hullH-2*sc-ssH-brH-12*sc);
+        fx.stroke();
+
+        // Gun turrets for bigger ships
+        if(shipLen>=3){
+          for(const tOff of [-0.3, 0.3]){
+            const tx = sx + hullLen*tOff;
+            fx.fillStyle=`rgba(50,70,90,${alpha*0.7})`;
+            fx.beginPath(); fx.arc(tx, sy-hullH-1*sc, 3*sc, 0, Math.PI*2); fx.fill();
+            fx.strokeStyle=`rgba(70,100,130,${alpha*0.5})`;
+            fx.lineWidth=2*sc;
+            fx.beginPath();
+            fx.moveTo(tx, sy-hullH-1*sc);
+            fx.lineTo(tx+(tOff>0?1:-1)*6*sc, sy-hullH-5*sc);
+            fx.stroke();
+          }
+        }
+
+        // Wake behind ship (gentle V)
+        fx.strokeStyle=`rgba(120,180,220,${alpha*0.15})`;
+        fx.lineWidth=1;
+        for(let w=0;w<2;w++){
+          fx.beginPath();
+          const wSign = w===0?1:-1;
+          fx.moveTo(sx+hullLen/2+6*sc, sy);
+          fx.quadraticCurveTo(sx+hullLen/2+20*sc, sy+wSign*3*sc, sx+hullLen/2+40*sc, sy+wSign*8*sc);
+          fx.stroke();
+        }
+      }
+    }
+
+    // ── Battleship silhouette at bottom ──
+    drawBattleship(W, H, horizon);
+
+    // ── Cannon flash for recent launches ──
+    for(const s of shots){
+      if(s.phase==='fly' && s.t<0.05){
+        const flashAlpha = (0.05-s.t)/0.05;
+        fx.fillStyle=`rgba(255,200,50,${flashAlpha*0.6})`;
+        fx.beginPath();
+        fx.arc(s.cannonX, H-20, 30+flashAlpha*20, 0, Math.PI*2);
+        fx.fill();
+        // Muzzle flash
+        fx.fillStyle=`rgba(255,255,200,${flashAlpha*0.8})`;
+        fx.beginPath();
+        fx.arc(s.cannonX, H-40, 15+flashAlpha*10, 0, Math.PI*2);
+        fx.fill();
+      }
+    }
+
+    // ── Persistent marks from completed shots ──
+    for(const m of marks){
+      if(m.hit){
+        fx.fillStyle='rgba(255,60,20,0.15)';
+        fx.beginPath(); fx.arc(m.x,m.y,12*m.scale,0,Math.PI*2); fx.fill();
+        // Small fire flicker
+        const ff = Math.sin(frame*0.2+m.x)*2;
+        fx.fillStyle=`rgba(255,${100+Math.floor(Math.random()*60)},0,0.3)`;
+        fx.beginPath(); fx.arc(m.x+ff, m.y-6*m.scale, 4*m.scale, 0, Math.PI*2); fx.fill();
+      } else {
+        fx.fillStyle='rgba(150,200,240,0.1)';
+        fx.beginPath(); fx.arc(m.x,m.y,8*m.scale,0,Math.PI*2); fx.fill();
+      }
+    }
+
+    // ── Update & draw shots ──
+    let allDone = true;
+    for(const s of shots){
+      if(s.phase==='wait'){
+        s.delay--;
+        if(s.delay<=0) { s.phase='fly'; shakeDecay=Math.max(shakeDecay,3); }
+        allDone=false;
+      } else if(s.phase==='fly'){
+        s.t += 0.012;
+        if(s.t>=1){ s.phase='impact'; s.impactT=0; shakeDecay=s.hit?12:5; }
+        allDone=false;
+
+        // Arc trajectory
+        const px = s.cannonX + (s.targetX-s.cannonX)*s.t;
+        const arcPeak = -H*0.35 * s.scale;
+        const baseY = s.cannonY + (s.targetY-s.cannonY)*s.t;
+        const arc = arcPeak * Math.sin(s.t*Math.PI);
+        const py = baseY + arc;
+
+        // Glow
+        fx.shadowColor='#ffd700';
+        fx.shadowBlur=15;
+        fx.fillStyle='#ffeebb';
+        fx.beginPath(); fx.arc(px,py,7,0,Math.PI*2); fx.fill();
+        fx.shadowBlur=0;
+
+        // Trail
+        for(let ti=1;ti<=6;ti++){
+          const tt = Math.max(0, s.t - ti*0.012);
+          const tpx = s.cannonX + (s.targetX-s.cannonX)*tt;
+          const tby = s.cannonY + (s.targetY-s.cannonY)*tt;
+          const tarc = arcPeak * Math.sin(tt*Math.PI);
+          const tpy = tby + tarc;
+          const ta = (1 - ti/7)*0.5;
+          fx.fillStyle=`rgba(255,200,100,${ta})`;
+          fx.beginPath(); fx.arc(tpx,tpy,Math.max(0.5, 5-ti*0.6),0,Math.PI*2); fx.fill();
+        }
+      } else if(s.phase==='impact'){
+        s.impactT += 0.02;
+        if(s.impactT>=1){ s.phase = s.hit ? 'smoke' : 'done'; s.smokeT=0; marks.push({x:s.targetX,y:s.targetY,hit:s.hit,scale:s.scale}); }
+        allDone=false;
+        const t=s.impactT, ix=s.targetX, iy=s.targetY, sc=s.scale;
+
+        if(s.hit){
+          // EXPLOSION
+          // Flash
+          if(t<0.15){
+            const fa=(0.15-t)/0.15;
+            fx.fillStyle=`rgba(255,255,220,${fa*0.9})`;
+            fx.beginPath(); fx.arc(ix,iy,40*sc*fa+20*sc,0,Math.PI*2); fx.fill();
+          }
+          // Fireball
+          const fbR = (20 + t*35)*sc;
+          const fbG = fx.createRadialGradient(ix,iy-t*10*sc,0, ix,iy-t*10*sc, fbR);
+          fbG.addColorStop(0,`rgba(255,200,50,${(1-t)*0.9})`);
+          fbG.addColorStop(0.4,`rgba(255,100,20,${(1-t)*0.7})`);
+          fbG.addColorStop(0.8,`rgba(200,40,10,${(1-t)*0.4})`);
+          fbG.addColorStop(1,`rgba(80,20,5,0)`);
+          fx.fillStyle=fbG;
+          fx.beginPath(); fx.arc(ix,iy-t*10*sc,fbR,0,Math.PI*2); fx.fill();
+
+          // Spark shower
+          for(let i=0;i<12;i++){
+            const a=(Math.PI*2/12)*i + t*4;
+            const d = fbR*(0.8+t*0.8);
+            const sx=ix+Math.cos(a)*d, sy=iy-t*15*sc+Math.sin(a)*d*0.6;
+            const sa=(1-t)*0.8;
+            fx.fillStyle=`rgba(255,${180+Math.floor(Math.random()*75)},${Math.floor(Math.random()*80)},${sa})`;
+            fx.beginPath(); fx.arc(sx,sy,2*sc*(1-t*0.5),0,Math.PI*2); fx.fill();
+          }
+
+          // Debris chunks
+          for(let i=0;i<6;i++){
+            const a=(Math.PI*2/6)*i+1;
+            const d=t*50*sc;
+            const dy=t*t*30*sc; // gravity
+            fx.fillStyle=`rgba(80,60,40,${(1-t)*0.7})`;
+            fx.fillRect(ix+Math.cos(a)*d-2*sc, iy+Math.sin(a)*d*0.5+dy-2*sc, 4*sc, 4*sc);
+          }
+
+          // Water column
+          const colH = t*60*sc*(1-t*0.5);
+          fx.fillStyle=`rgba(150,200,240,${(1-t)*0.3})`;
+          fx.fillRect(ix-8*sc, iy-colH, 16*sc, colH);
+
+        } else {
+          // WATER SPLASH
+          // Central splash column
+          const splH = (1-t)*40*sc;
+          const splW = 6*sc + t*10*sc;
+          fx.fillStyle=`rgba(180,220,255,${(1-t)*0.6})`;
+          fx.beginPath();
+          fx.moveTo(ix-splW/2, iy);
+          fx.quadraticCurveTo(ix-splW/4, iy-splH, ix, iy-splH-5*sc);
+          fx.quadraticCurveTo(ix+splW/4, iy-splH, ix+splW/2, iy);
+          fx.fill();
+
+          // Droplets
+          for(let i=0;i<10;i++){
+            const a=(Math.PI*2/10)*i + t*1.5;
+            const d = (15+t*30)*sc;
+            const dy = t*t*40*sc; // gravity pulls them down
+            const dAlpha = (1-t)*0.5;
+            const dx=ix+Math.cos(a)*d, ddy=iy-t*25*sc+Math.sin(a)*d*0.4+dy;
+            fx.fillStyle=`rgba(160,210,250,${dAlpha})`;
+            const dropR = Math.max(0.5, (2+Math.random()*2)*sc*(1-t));
+            fx.beginPath(); fx.arc(dx,ddy,dropR,0,Math.PI*2); fx.fill();
+          }
+
+          // Ripple rings
+          for(let ring=0;ring<3;ring++){
+            const rt = Math.max(0, t - ring*0.15);
+            if(rt<=0) continue;
+            const rr = rt*40*sc*(1+ring*0.5);
+            fx.strokeStyle=`rgba(120,180,230,${(1-rt)*0.3})`;
+            fx.lineWidth=1.5*(1-rt);
+            fx.beginPath();
+            fx.ellipse(ix, iy+4*sc, rr, rr*0.3, 0, 0, Math.PI*2);
+            fx.stroke();
+          }
+        }
+      } else if(s.phase==='smoke'){
+        s.smokeT += 0.015;
+        if(s.smokeT>=1) s.phase='done';
+        allDone=false;
+        // Rising smoke
+        const t=s.smokeT, ix=s.targetX, iy=s.targetY, sc=s.scale;
+        for(let i=0;i<3;i++){
+          const st=t+i*0.15;
+          const sy = iy - st*50*sc;
+          const sr = (10+st*15)*sc;
+          const sa = (1-t)*0.25;
+          fx.fillStyle=`rgba(60,60,70,${sa})`;
+          fx.beginPath(); fx.arc(ix+(i-1)*8*sc+Math.sin(st*3)*5, sy, sr, 0, Math.PI*2); fx.fill();
+        }
+        // Lingering fire
+        if(t<0.5){
+          fx.fillStyle=`rgba(255,100,20,${(0.5-t)*0.4})`;
+          fx.beginPath(); fx.arc(ix+Math.sin(frame*0.3)*3, iy-5*sc, Math.max(0.1,6*sc*(0.5-t)), 0, Math.PI*2); fx.fill();
+        }
+      }
+    }
+
+    // ── Label ──
+    fx.fillStyle='rgba(255,255,255,0.7)';
+    fx.font='bold 16px sans-serif';
+    fx.textAlign='center';
+    fx.fillText(isPlayer?'YOUR SALVO':'INCOMING FIRE', W/2, 28);
+
+    // ── Shot counter ──
+    const done = shots.filter(s=>s.phase==='done').length;
+    const hitsSoFar = shots.filter(s=>s.phase==='done'&&s.hit).length;
+    if(done>0){
+      fx.fillStyle='rgba(255,255,255,0.5)';
+      fx.font='13px sans-serif';
+      fx.fillText(`${done}/${shots.length} resolved  |  ${hitsSoFar} hits`, W/2, 50);
+    }
+
+    fx.restore();
+
+    if(!shots.every(s=>s.phase==='done')){
+      requestAnimationFrame(drawFrame);
+    } else {
+      // Summary
+      const hitC=shots.filter(s=>s.hit).length;
+      fx.fillStyle='rgba(0,0,0,0.4)';
+      fx.fillRect(0,H*0.7,W,H*0.12);
+      fx.fillStyle='#fff';
+      fx.font='bold 26px sans-serif';
+      fx.textAlign='center';
+      fx.shadowColor='rgba(0,0,0,0.8)'; fx.shadowBlur=10;
+      fx.fillText(`${hitC} HIT${hitC!==1?'S':''} \u2022 ${shots.length-hitC} MISS`, W/2, H*0.76+4);
+      fx.font='14px sans-serif';
+      fx.fillStyle='rgba(200,220,255,0.7)';
+      fx.fillText('Tap to continue', W/2, H*0.76+28);
+      fx.shadowBlur=0;
+
+      setTimeout(()=>{
+        function onTap(e){e.preventDefault();fc.removeEventListener('click',onTap);fc.removeEventListener('touchend',onTap);fc.style.display='none';cb();}
+        fc.addEventListener('click',onTap);
+        fc.addEventListener('touchend',onTap);
+      },400);
+    }
+  }
+
+  requestAnimationFrame(drawFrame);
+}
+
+function drawBattleship(W,H,horizon){
+  const shipY = H*0.88;
+  const shipW = W*0.5;
+  const shipX = W*0.25;
+
+  // Hull
+  fx.fillStyle='#1a2030';
+  fx.beginPath();
+  fx.moveTo(shipX, shipY);
+  fx.lineTo(shipX+shipW, shipY);
+  fx.lineTo(shipX+shipW-20, shipY+25);
+  fx.lineTo(shipX+20, shipY+25);
+  fx.closePath();
+  fx.fill();
+
+  // Deck
+  fx.fillStyle='#2a3040';
+  fx.fillRect(shipX+15, shipY-8, shipW-30, 10);
+
+  // Superstructure
+  fx.fillStyle='#222838';
+  fx.fillRect(shipX+shipW*0.35, shipY-30, shipW*0.3, 24);
+  fx.fillStyle='#283040';
+  fx.fillRect(shipX+shipW*0.4, shipY-45, shipW*0.2, 18);
+
+  // Mast
+  fx.strokeStyle='#3a4050';
+  fx.lineWidth=2;
+  fx.beginPath();
+  fx.moveTo(shipX+shipW*0.5, shipY-45);
+  fx.lineTo(shipX+shipW*0.5, shipY-70);
+  fx.stroke();
+
+  // Turrets (cannon positions)
+  for(const tx of [0.2, 0.35, 0.65, 0.8]){
+    const cx = shipX + shipW*tx;
+    fx.fillStyle='#2a3545';
+    fx.beginPath();
+    fx.arc(cx, shipY-5, 8, 0, Math.PI*2);
+    fx.fill();
+    // Barrel
+    fx.strokeStyle='#3a4a5a';
+    fx.lineWidth=3;
+    fx.beginPath();
+    fx.moveTo(cx, shipY-5);
+    fx.lineTo(cx, shipY-22);
+    fx.stroke();
+  }
+
+  // Railing detail
+  fx.strokeStyle='rgba(100,130,160,0.3)';
+  fx.lineWidth=1;
+  fx.beginPath();
+  fx.moveTo(shipX+10, shipY-1);
+  fx.lineTo(shipX+shipW-10, shipY-1);
+  fx.stroke();
+}
+
+// ── Game flow ──
+function start(m){
+  mode=m;
+  document.getElementById('modeOverlay').classList.add('hidden');
+  P=[mkPlayer(),mkPlayer()];
+  curP=0;
+  if(mode==='ai') autoPlace(P[1]);
+  beginPlace();
+}
+
+function beginPlace(){
+  phase='place'; plIdx=0; plHoriz=true;
+  updateUI(); resize();
+}
+
+function updateUI(){
+  if(phase==='place'){
+    const sh=SHIPS[plIdx];
+    const who=mode==='local'?`P${curP+1}: `:'';
+    statusEl.textContent=`${who}Place ${sh.name} (${sh.len}) \u2014 tap your grid`;
+  } else if(phase==='select'){
+    const who=mode==='local'?`P${curP+1}: `:'';
+    statusEl.textContent=`${who}Pick targets: ${salvo.length}/${SALVO}`;
+  }
+  scoreEl.textContent = P&&phase!=='place' ? `Hits: ${P[curP].hits}/${TOTAL_HP}` : '';
+  buildControls();
+}
+
+function buildControls(){
+  ctrlEl.innerHTML='';
+  if(phase==='place'){
+    const r=document.createElement('button');
+    r.className='btn btn-rotate';
+    r.textContent=plHoriz?'Horizontal \u21BB':'Vertical \u21BB';
+    r.onclick=()=>{plHoriz=!plHoriz;r.textContent=plHoriz?'Horizontal \u21BB':'Vertical \u21BB';draw();};
+    ctrlEl.appendChild(r);
+    const a=document.createElement('button');
+    a.className='btn btn-auto';
+    a.textContent='Auto Place All';
+    a.onclick=()=>{P[curP].g=Array.from({length:SZ},()=>Array(SZ).fill(0));P[curP].ships=[];autoPlace(P[curP]);plIdx=SHIPS.length;finishPlace();};
+    ctrlEl.appendChild(a);
+  } else if(phase==='select'){
+    const f=document.createElement('button');
+    f.className='btn btn-fire';
+    f.textContent=`FIRE SALVO (${salvo.length}/${SALVO})`;
+    f.disabled=salvo.length===0;
+    f.style.opacity=salvo.length===0?'0.4':'1';
+    f.onclick=fireSalvo;
+    ctrlEl.appendChild(f);
+  }
+}
+
+function finishPlace(){
+  if(mode==='local'&&curP===0){
+    curP=1;
+    handoff('Player 2','Place your ships!',()=>beginPlace());
+  } else {
+    curP=0;
+    if(mode==='local') handoff('Player 1','Time to fire!',()=>beginSelect());
+    else beginSelect();
+  }
+}
+
+function beginSelect(){
+  phase='select'; salvo=[]; updateUI(); draw();
+}
+
+function fireSalvo(){
+  if(!salvo.length) return;
+  phase='firing'; ctrlEl.innerHTML='';
+  const att=P[curP], def=P[1-curP];
+  const res=resolve(att,def.g,salvo);
+
+  firingView(res,true,def.ships,()=>{
+    draw();
+    if(att.hits>=TOTAL_HP){showWin(curP);return;}
+    if(mode==='ai') aiTurn();
+    else { curP=1-curP; handoff(`Player ${curP+1}`,'Your turn to fire!',()=>beginSelect()); }
+  });
+}
+
+function aiTurn(){
+  const ai=P[1], human=P[0];
+  const tgts=aiPick(ai);
+  const res=resolve(ai,human.g,tgts);
+  statusEl.textContent='Enemy firing...';
+
+  firingView(res,false,human.ships,()=>{
+    curP=0; draw();
+    if(ai.hits>=TOTAL_HP){showWin(1);return;}
+    beginSelect();
+  });
+}
+
+function handoff(title,msg,cb){
+  phase='handoff';
+  const o=document.getElementById('handoffOverlay');
+  document.getElementById('handoffTitle').textContent=title;
+  document.getElementById('handoffMsg').textContent=msg;
+  o.classList.remove('hidden');
+  const b=document.getElementById('handoffBtn');
+  const h=()=>{b.removeEventListener('click',h);o.classList.add('hidden');cb();};
+  b.addEventListener('click',h);
+}
+
+function showWin(pi){
+  phase='gameover';
+  const o=document.getElementById('winOverlay');
+  document.getElementById('winTitle').textContent = mode==='ai'?(pi===0?'VICTORY!':'DEFEAT'):`Player ${pi+1} Wins!`;
+  document.getElementById('winMsg').textContent = mode==='ai'?(pi===0?`Fleet destroyed! Enemy hit ${P[1].hits}/${TOTAL_HP} of yours.`:`You hit ${P[0].hits}/${TOTAL_HP}. Better luck next time.`):'All enemy ships sunk!';
+  o.classList.remove('hidden');
+}
+
+// ── Input ──
+function cellAt(e){
+  const rect=bc.getBoundingClientRect();
+  const sx=bc.width/rect.width, sy=bc.height/rect.height;
+  const cx=((e.clientX||(e.touches||e.changedTouches)[0].clientX)-rect.left)*sx;
+  const cy=((e.clientY||(e.touches||e.changedTouches)[0].clientY)-rect.top)*sy;
+  const r=Math.floor((cy-gOy)/cell), c1=Math.floor((cx-gOx)/cell), c2=Math.floor((cx-rOx)/cell);
+  if(r>=0&&r<SZ){
+    if(c1>=0&&c1<SZ&&cx>=gOx&&cx<gOx+SZ*cell) return {r,c:c1,side:'L'};
+    if(c2>=0&&c2<SZ&&cx>=rOx&&cx<rOx+SZ*cell) return {r,c:c2,side:'R'};
+  }
+  return null;
+}
+
+bc.addEventListener('click',e=>{
+  const c=cellAt(e); if(!c) return;
+  if(phase==='place'&&c.side==='L'){
+    const sh=SHIPS[plIdx];
+    const cells=shipCells(c.r,c.c,sh.len,plHoriz);
+    if(canPlace(P[curP].g,cells)){
+      place(P[curP],cells);
+      plIdx++;
+      if(plIdx>=SHIPS.length) finishPlace();
+      else { updateUI(); draw(); }
+    }
+  } else if(phase==='select'&&c.side==='R'){
+    if(P[curP].s[c.r][c.c]>0) return;
+    const idx=salvo.findIndex(t=>t.r===c.r&&t.c===c.c);
+    if(idx>=0) salvo.splice(idx,1);
+    else if(salvo.length<SALVO) salvo.push({r:c.r,c:c.c});
+    updateUI(); draw();
+  }
+});
+
+bc.addEventListener('mousemove',e=>{
+  const c=cellAt(e);
+  hover=c?{r:c.r,c:c.c,side:c.side}:null;
+  if(phase==='place') draw();
+  else if(phase==='select') draw();
+});
+bc.addEventListener('mouseleave',()=>{hover=null;draw();});
+
+bc.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  const t=e.touches[0];
+  const c=cellAt(t);
+  hover=c?{r:c.r,c:c.c,side:c.side}:null;
+  if(phase==='place') draw();
+},{passive:false});
+
+bc.addEventListener('touchend',e=>{
+  e.preventDefault();
+  if(e.changedTouches.length){
+    const t=e.changedTouches[0];
+    bc.dispatchEvent(new MouseEvent('click',{clientX:t.clientX,clientY:t.clientY}));
+  }
+  hover=null;
+},{passive:false});
+
+window.addEventListener('resize',resize);
+resize();
+
+return {start};
+})();
+</script>
+</body>
+</html>

@@ -146,14 +146,121 @@ canvas { display: block; }
 const G = {
     score: 0, lives: 3, papers: 15, street: 1,
     speed: 12, playerX: 0, playerZ: 0,
-    streetLength: 300, progress: 0,
+    streetLength: 400, progress: 0,
     invulnerable: 0, invulnTimer: 0,
     gameRunning: false, paused: false,
     houses: [], mailboxes: [], obstacles: [], newspapers: [],
-    trees: [], fences: [], lamps: [], decorations: [],
+    trees: [], fences: [], lamps: [], decorations: [], targets: [],
     deliveries: { hit: 0, missed: 0, total: 0 },
     keys: {}, throwCooldown: 0,
     steerInput: 0
+};
+
+// ====== PANORAMA-ACCURATE LEVEL DATA ======
+// House types: A=YellowSubscriber, B=BlueRoofSubscriber, C=GrayNonSubscriber, D=LargeYellow, E=StainedGlass
+const LEVEL_DATA = {
+    totalLength: 400,
+    houseSection: 0.67,  // 0.0 - 0.67 = houses (0-268 world X)
+    trainingSection: 0.33, // 0.67 - 1.0 = training course (268-400 world X)
+    // Near side of street (side = -1)
+    nearHouses: [
+        { pos: 0.015, type: 'A', sub: true },
+        { pos: 0.11,  type: 'A', sub: true },
+        { pos: 0.22,  type: 'D', sub: true },
+        { pos: 0.32,  type: 'A', sub: true },
+        { pos: 0.37,  type: 'A', sub: true },
+        { pos: 0.52,  type: 'A', sub: true },
+        { pos: 0.57,  type: 'C', sub: false },
+        { pos: 0.60,  type: 'A', sub: true },
+        { pos: 0.66,  type: 'A', sub: true },
+        { pos: 0.74,  type: 'C', sub: false },
+        { pos: 0.82,  type: 'D', sub: true },
+        { pos: 0.90,  type: 'A', sub: true },
+        { pos: 0.96,  type: 'C', sub: false }
+    ],
+    // Far side of street (side = 1)
+    farHouses: [
+        { pos: 0.015, type: 'A', sub: true },
+        { pos: 0.07,  type: 'B', sub: true },
+        { pos: 0.15,  type: 'C', sub: false },
+        { pos: 0.20,  type: 'E', sub: true },
+        { pos: 0.25,  type: 'C', sub: false },
+        { pos: 0.32,  type: 'A', sub: true },
+        { pos: 0.37,  type: 'A', sub: true },
+        { pos: 0.44,  type: 'C', sub: false },
+        { pos: 0.50,  type: 'A', sub: true },
+        { pos: 0.55,  type: 'B', sub: true },
+        { pos: 0.63,  type: 'C', sub: false },
+        { pos: 0.68,  type: 'C', sub: false },
+        { pos: 0.74,  type: 'A', sub: true },
+        { pos: 0.82,  type: 'D', sub: true },
+        { pos: 0.90,  type: 'A', sub: true },
+        { pos: 0.96,  type: 'C', sub: false }
+    ],
+    // Obstacles along the house section
+    obstacles: [
+        // Pedestrians
+        { pos: 0.03, lane: 0.6, type: 'pedestrian' },
+        { pos: 0.12, lane: -0.5, type: 'pedestrian' },
+        { pos: 0.25, lane: 0.7, type: 'pedestrian' },
+        { pos: 0.38, lane: -0.6, type: 'pedestrian' },
+        { pos: 0.48, lane: 0.5, type: 'pedestrian' },
+        { pos: 0.58, lane: -0.7, type: 'pedestrian' },
+        // Cars
+        { pos: 0.05, lane: 0.3, type: 'car', color: 'blue' },
+        { pos: 0.10, lane: -0.3, type: 'car', color: 'blue' },
+        { pos: 0.18, lane: 0.2, type: 'car', color: 'red' },
+        { pos: 0.28, lane: -0.2, type: 'car', color: 'blue' },
+        { pos: 0.35, lane: 0.3, type: 'car', color: 'blue' },
+        { pos: 0.42, lane: -0.3, type: 'car', color: 'red' },
+        { pos: 0.50, lane: 0.2, type: 'car', color: 'blue' },
+        { pos: 0.60, lane: -0.2, type: 'car', color: 'blue' },
+        // Dogs
+        { pos: 0.08, lane: 0.8, type: 'dog' },
+        { pos: 0.30, lane: -0.8, type: 'dog' },
+        { pos: 0.55, lane: 0.7, type: 'dog' },
+        // Trash cans
+        { pos: 0.07, lane: 0.9, type: 'trashcan' },
+        { pos: 0.20, lane: -0.9, type: 'trashcan' },
+        { pos: 0.40, lane: 0.85, type: 'trashcan' },
+        { pos: 0.53, lane: -0.85, type: 'trashcan' },
+        { pos: 0.62, lane: 0.9, type: 'trashcan' },
+        // Brick walls on sidewalks
+        { pos: 0.06, lane: 0.95, type: 'brickwall' },
+        { pos: 0.14, lane: -0.95, type: 'brickwall' },
+        { pos: 0.23, lane: 0.95, type: 'brickwall' },
+        { pos: 0.33, lane: -0.95, type: 'brickwall' },
+        { pos: 0.45, lane: 0.95, type: 'brickwall' },
+        { pos: 0.56, lane: -0.95, type: 'brickwall' },
+        { pos: 0.64, lane: 0.95, type: 'brickwall' },
+        // Rolling tires
+        { pos: 0.15, lane: 0.0, type: 'tire' },
+        { pos: 0.35, lane: 0.0, type: 'tire' },
+        { pos: 0.55, lane: 0.0, type: 'tire' },
+        // Puddles
+        { pos: 0.09, lane: 0.1, type: 'puddle' },
+        { pos: 0.27, lane: -0.2, type: 'puddle' },
+        { pos: 0.46, lane: 0.15, type: 'puddle' }
+    ],
+    // Training course obstacles (pos relative to training section: 0.67-1.0)
+    trainingObstacles: [
+        { pos: 0.70, lane: 0.0, type: 'waterHazard' },
+        { pos: 0.73, lane: 0.5, type: 'target' },
+        { pos: 0.73, lane: -0.5, type: 'target' },
+        { pos: 0.76, lane: 0.0, type: 'ramp' },
+        { pos: 0.79, lane: 0.6, type: 'redWall' },
+        { pos: 0.79, lane: -0.6, type: 'redWall' },
+        { pos: 0.82, lane: 0.0, type: 'waterHazard' },
+        { pos: 0.85, lane: 0.5, type: 'target' },
+        { pos: 0.85, lane: -0.5, type: 'target' },
+        { pos: 0.88, lane: 0.0, type: 'ramp' },
+        { pos: 0.91, lane: 0.0, type: 'waterHazard' },
+        { pos: 0.93, lane: 0.6, type: 'target' },
+        { pos: 0.93, lane: -0.6, type: 'target' },
+        { pos: 0.95, lane: 0.0, type: 'ramp' },
+        { pos: 0.97, lane: 0.5, type: 'redWall' },
+        { pos: 0.97, lane: -0.5, type: 'redWall' }
+    ]
 };
 
 // ====== THREE.JS SETUP ======
@@ -249,7 +356,7 @@ function initMaterials() {
     MAT.windowFrame = new THREE.MeshStandardMaterial({ color: 0xdddddd });
     MAT.windowGlass = new THREE.MeshStandardMaterial({ color: 0x88bbee, transparent: true, opacity: 0.5 });
 
-    // House color palettes
+    // House color palettes (kept for fallback)
     MAT.houseColors = [
         0xcc9966, 0xddccaa, 0xaa8866, 0xeeddcc, 0xbb9977,
         0xccbbaa, 0x998877, 0xddbb99, 0xc4a882, 0xbfaa8f
@@ -258,6 +365,41 @@ function initMaterials() {
         0x884433, 0x553322, 0x664422, 0x993333, 0x555555,
         0x443322, 0x775533, 0x663344, 0x554444, 0x665544
     ];
+
+    // Type-specific house materials
+    MAT.yellowWall = new THREE.MeshStandardMaterial({ color: 0xDDAA33, roughness: 0.8 });
+    MAT.brownRoof = new THREE.MeshStandardMaterial({ color: 0x884433, roughness: 0.7 });
+    MAT.whiteWall = new THREE.MeshStandardMaterial({ color: 0xCCCCCC, roughness: 0.8 });
+    MAT.blueRoof = new THREE.MeshStandardMaterial({ color: 0x2244AA, roughness: 0.7 });
+    MAT.grayWall = new THREE.MeshStandardMaterial({ color: 0x777777, roughness: 0.8 });
+    MAT.darkGrayRoof = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.7 });
+    MAT.grayBrownWall = new THREE.MeshStandardMaterial({ color: 0x888866, roughness: 0.8 });
+    MAT.darkBrownRoof = new THREE.MeshStandardMaterial({ color: 0x554433, roughness: 0.7 });
+    MAT.redDoor = new THREE.MeshStandardMaterial({ color: 0xCC2222 });
+    MAT.blueWindow = new THREE.MeshStandardMaterial({ color: 0x3366CC, transparent: true, opacity: 0.7 });
+    MAT.picketFence = new THREE.MeshStandardMaterial({ color: 0xFFFFFF, roughness: 0.7 });
+    MAT.gravestone = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.9 });
+    MAT.deadBush = new THREE.MeshStandardMaterial({ color: 0x664422, roughness: 0.9 });
+    MAT.stopSign = new THREE.MeshStandardMaterial({ color: 0xCC0000 });
+    MAT.stopPole = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.3 });
+    MAT.satellite = new THREE.MeshStandardMaterial({ color: 0xAAAAAA, metalness: 0.5 });
+    MAT.flowerRed = new THREE.MeshStandardMaterial({ color: 0xDD3333 });
+    MAT.flowerPink = new THREE.MeshStandardMaterial({ color: 0xEE66AA });
+    MAT.flowerBush = new THREE.MeshStandardMaterial({ color: 0x33AA33 });
+    MAT.brickWall = new THREE.MeshStandardMaterial({ color: 0xAA4422, roughness: 0.9 });
+    MAT.brickMortar = new THREE.MeshStandardMaterial({ color: 0xCCBBAA, roughness: 0.9 });
+    MAT.tireMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 });
+    MAT.targetWhite = new THREE.MeshStandardMaterial({ color: 0xFFFFFF });
+    MAT.targetRed = new THREE.MeshStandardMaterial({ color: 0xDD2222 });
+    MAT.rampWood = new THREE.MeshStandardMaterial({ color: 0xCCAA44, roughness: 0.8 });
+    MAT.dirtGround = new THREE.MeshStandardMaterial({ color: 0x9B7653, roughness: 1.0 });
+    MAT.waterHazard = new THREE.MeshStandardMaterial({ color: 0x2266CC, transparent: true, opacity: 0.5 });
+    MAT.redWallBarrier = new THREE.MeshStandardMaterial({ color: 0xCC2222, roughness: 0.8 });
+    // Stained glass colors
+    MAT.glassRed = new THREE.MeshStandardMaterial({ color: 0xDD2222, transparent: true, opacity: 0.6 });
+    MAT.glassBlue = new THREE.MeshStandardMaterial({ color: 0x2244DD, transparent: true, opacity: 0.6 });
+    MAT.glassGreen = new THREE.MeshStandardMaterial({ color: 0x22BB22, transparent: true, opacity: 0.6 });
+    MAT.glassYellow = new THREE.MeshStandardMaterial({ color: 0xDDCC22, transparent: true, opacity: 0.6 });
 }
 
 // ====== BUILD PLAYER ======
@@ -417,8 +559,616 @@ function createPlayer() {
     scene.add(playerGroup);
 }
 
+// ====== TYPE-SPECIFIC HOUSE BUILDERS ======
+
+// Helper: add a basic triangular roof to a house group
+function addRoof(houseGroup, w, h, d, roofMat) {
+    const roofHeight = 1.5 + Math.random() * 0.3;
+    const roofShape = new THREE.Shape();
+    roofShape.moveTo(-d / 2 - 0.3, 0);
+    roofShape.lineTo(0, roofHeight);
+    roofShape.lineTo(d / 2 + 0.3, 0);
+    roofShape.lineTo(-d / 2 - 0.3, 0);
+    const roofGeo = new THREE.ExtrudeGeometry(roofShape, { depth: w + 0.4, bevelEnabled: false });
+    const roof = new THREE.Mesh(roofGeo, roofMat);
+    roof.rotation.y = Math.PI / 2;
+    roof.position.set(-w / 2 - 0.2, h, 0);
+    roof.castShadow = true;
+    houseGroup.add(roof);
+    return roofHeight;
+}
+
+// Helper: add blue cross-shaped window on side wall
+function addCrossWindow(houseGroup, side, d, yPos) {
+    // Vertical bar
+    const vBar = new THREE.Mesh(
+        new THREE.BoxGeometry(0.15, 0.8, 0.06),
+        MAT.blueWindow
+    );
+    vBar.position.set(0, yPos, -side * d / 2 - 0.04);
+    houseGroup.add(vBar);
+    // Horizontal bar
+    const hBar = new THREE.Mesh(
+        new THREE.BoxGeometry(0.8, 0.15, 0.06),
+        MAT.blueWindow
+    );
+    hBar.position.set(0, yPos, -side * d / 2 - 0.04);
+    houseGroup.add(hBar);
+    // Frame
+    const frame = new THREE.Mesh(
+        new THREE.BoxGeometry(0.9, 0.9, 0.04),
+        MAT.windowFrame
+    );
+    frame.position.set(0, yPos, -side * d / 2 - 0.03);
+    houseGroup.add(frame);
+}
+
+// Helper: add flower garden in front of house
+function addFlowerGarden(houseGroup, side, d, w) {
+    const gardenZ = -side * (d / 2 + 1.2);
+    for (let i = 0; i < 5; i++) {
+        // Bush
+        const bush = new THREE.Mesh(
+            new THREE.SphereGeometry(0.25, 6, 5),
+            MAT.flowerBush
+        );
+        bush.position.set((i - 2) * 0.7, 0.2, gardenZ);
+        houseGroup.add(bush);
+        // Flower on top
+        const flowerMat = i % 2 === 0 ? MAT.flowerRed : MAT.flowerPink;
+        const flower = new THREE.Mesh(
+            new THREE.SphereGeometry(0.1, 5, 5),
+            flowerMat
+        );
+        flower.position.set((i - 2) * 0.7, 0.45, gardenZ);
+        houseGroup.add(flower);
+    }
+}
+
+// Helper: add picket fence in front of house
+function addPicketFence(houseGroup, side, d, w) {
+    const fenceZ = -side * (d / 2 + 2.0);
+    const numPickets = Math.floor(w / 0.4) + 2;
+    for (let i = 0; i < numPickets; i++) {
+        const picket = new THREE.Mesh(
+            new THREE.BoxGeometry(0.06, 0.6, 0.06),
+            MAT.picketFence
+        );
+        picket.position.set((i - numPickets / 2) * 0.4, 0.3, fenceZ);
+        houseGroup.add(picket);
+    }
+    // Rails
+    for (let ry = 0; ry < 2; ry++) {
+        const rail = new THREE.Mesh(
+            new THREE.BoxGeometry(w + 0.5, 0.04, 0.04),
+            MAT.picketFence
+        );
+        rail.position.set(0, 0.15 + ry * 0.25, fenceZ);
+        houseGroup.add(rail);
+    }
+}
+
+// Helper: register house and create mailbox
+function registerHouse(houseGroup, x, z, side, isSubscriber) {
+    houseGroup.position.set(x, 0, z);
+    houseGroup.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+    worldGroup.add(houseGroup);
+    G.houses.push({ group: houseGroup, x, z, side, isSubscriber, delivered: false });
+    createMailbox(x, side * 8.2, isSubscriber, G.houses.length - 1);
+}
+
+// Type A: Yellow Subscriber House
+function createYellowHouse(x, z, side, isSubscriber, index) {
+    const houseGroup = new THREE.Group();
+    const w = 5, h = 4, d = 5.5;
+
+    // Main body - yellow walls
+    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), MAT.yellowWall);
+    body.position.y = h / 2;
+    houseGroup.add(body);
+
+    // Brown tiled roof
+    addRoof(houseGroup, w, h, d, MAT.brownRoof);
+
+    // Red front door
+    const door = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.5, 0.05), MAT.redDoor);
+    door.position.set(0, 0.75, -side * d / 2 - 0.03);
+    houseGroup.add(door);
+
+    // Blue cross window on side wall
+    addCrossWindow(houseGroup, side, d, 2.2);
+
+    // Side windows (facing street)
+    for (let wx = -1; wx <= 1; wx += 2) {
+        const winFrame = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.85, 0.05), MAT.windowFrame);
+        winFrame.position.set(wx * 1.5, 1.8, -side * d / 2 - 0.03);
+        houseGroup.add(winFrame);
+        const winGlass = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.06), MAT.blueWindow);
+        winGlass.position.set(wx * 1.5, 1.8, -side * d / 2 - 0.04);
+        houseGroup.add(winGlass);
+    }
+
+    // Flower garden
+    addFlowerGarden(houseGroup, side, d, w);
+
+    // Picket fence
+    addPicketFence(houseGroup, side, d, w);
+
+    // Chimney
+    const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.5, 0.5), MAT.chimney);
+    chimney.position.set(1.0, h + 0.7, 0.5);
+    houseGroup.add(chimney);
+
+    registerHouse(houseGroup, x, z, side, isSubscriber);
+}
+
+// Type B: Blue Roof Subscriber House
+function createBlueRoofHouse(x, z, side, isSubscriber, index) {
+    const houseGroup = new THREE.Group();
+    const w = 6, h = 4.5, d = 6;
+
+    // White/light gray walls
+    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), MAT.whiteWall);
+    body.position.y = h / 2;
+    houseGroup.add(body);
+
+    // Dark blue roof
+    addRoof(houseGroup, w, h, d, MAT.blueRoof);
+
+    // Door
+    const door = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.6, 0.05), MAT.door);
+    door.position.set(0, 0.8, -side * d / 2 - 0.03);
+    houseGroup.add(door);
+
+    // Blue cross windows on both sides of door
+    for (let wx = -1; wx <= 1; wx += 2) {
+        const cy = 2.0;
+        const cx = wx * 1.8;
+        // Vertical bar
+        const vBar = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.9, 0.06), MAT.blueWindow);
+        vBar.position.set(cx, cy, -side * d / 2 - 0.04);
+        houseGroup.add(vBar);
+        // Horizontal bar
+        const hBar = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.12, 0.06), MAT.blueWindow);
+        hBar.position.set(cx, cy, -side * d / 2 - 0.04);
+        houseGroup.add(hBar);
+        // Frame
+        const frame = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.0, 0.04), MAT.windowFrame);
+        frame.position.set(cx, cy, -side * d / 2 - 0.03);
+        houseGroup.add(frame);
+    }
+
+    // Upper window
+    const upperFrame = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.05), MAT.windowFrame);
+    upperFrame.position.set(0, h + 0.4, -side * d / 2 - 0.03);
+    houseGroup.add(upperFrame);
+    const upperGlass = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.55, 0.06), MAT.blueWindow);
+    upperGlass.position.set(0, h + 0.4, -side * d / 2 - 0.04);
+    houseGroup.add(upperGlass);
+
+    // Clean lawn - a few small hedges
+    for (let i = -2; i <= 2; i++) {
+        const hedge = new THREE.Mesh(
+            new THREE.BoxGeometry(0.8, 0.4, 0.5),
+            MAT.flowerBush
+        );
+        hedge.position.set(i * 1.2, 0.2, -side * (d / 2 + 1.5));
+        houseGroup.add(hedge);
+    }
+
+    registerHouse(houseGroup, x, z, side, isSubscriber);
+}
+
+// Type C: Gray Non-Subscriber House
+function createGrayHouse(x, z, side, isSubscriber, index) {
+    const houseGroup = new THREE.Group();
+    const w = 5, h = 3.5, d = 5;
+
+    // Gray walls
+    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), MAT.grayWall);
+    body.position.y = h / 2;
+    houseGroup.add(body);
+
+    // Dark gray/black checkered roof
+    addRoof(houseGroup, w, h, d, MAT.darkGrayRoof);
+
+    // Red door
+    const door = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.4, 0.05), MAT.redDoor);
+    door.position.set(0, 0.7, -side * d / 2 - 0.03);
+    houseGroup.add(door);
+
+    // Regular windows (slightly broken look - offset glass)
+    for (let wx = -1; wx <= 1; wx += 2) {
+        const winFrame = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.05), MAT.windowFrame);
+        winFrame.position.set(wx * 1.3, 1.6, -side * d / 2 - 0.03);
+        houseGroup.add(winFrame);
+        const winGlass = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.65, 0.06), MAT.windowGlass);
+        winGlass.position.set(wx * 1.3 + 0.02, 1.62, -side * d / 2 - 0.04);
+        houseGroup.add(winGlass);
+    }
+
+    // Gravestones in yard
+    const yardZ = -side * (d / 2 + 1.8);
+    for (let i = 0; i < 3; i++) {
+        const stone = new THREE.Mesh(
+            new THREE.BoxGeometry(0.3, 0.5, 0.08),
+            MAT.gravestone
+        );
+        stone.position.set((i - 1) * 1.2, 0.25, yardZ);
+        houseGroup.add(stone);
+        // Rounded top
+        const top = new THREE.Mesh(
+            new THREE.SphereGeometry(0.15, 6, 4, 0, Math.PI * 2, 0, Math.PI / 2),
+            MAT.gravestone
+        );
+        top.position.set((i - 1) * 1.2, 0.5, yardZ);
+        houseGroup.add(top);
+    }
+
+    // Dead bushes (brown)
+    for (let i = 0; i < 2; i++) {
+        const deadBush = new THREE.Mesh(
+            new THREE.SphereGeometry(0.2, 5, 4),
+            MAT.deadBush
+        );
+        deadBush.position.set((i * 2 - 1) * 1.5, 0.15, yardZ + side * 0.5);
+        houseGroup.add(deadBush);
+    }
+
+    // Stop sign nearby
+    const signX = w / 2 + 1.5;
+    const signZ = -side * (d / 2 + 0.5);
+    // Pole
+    const pole = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.04, 0.04, 2.5, 6),
+        MAT.stopPole
+    );
+    pole.position.set(signX, 1.25, signZ);
+    houseGroup.add(pole);
+    // Octagonal sign (approximated as a flat box)
+    const sign = new THREE.Mesh(
+        new THREE.BoxGeometry(0.6, 0.6, 0.04),
+        MAT.stopSign
+    );
+    sign.position.set(signX, 2.5, signZ);
+    houseGroup.add(sign);
+    // STOP text (white stripe)
+    const stopText = new THREE.Mesh(
+        new THREE.BoxGeometry(0.4, 0.1, 0.05),
+        MAT.white
+    );
+    stopText.position.set(signX, 2.5, signZ - 0.01);
+    houseGroup.add(stopText);
+
+    registerHouse(houseGroup, x, z, side, isSubscriber);
+}
+
+// Type D: Large Yellow Subscriber House
+function createLargeYellowHouse(x, z, side, isSubscriber, index) {
+    const houseGroup = new THREE.Group();
+    const w = 7.5, h = 5.2, d = 6.5;
+
+    // Yellow walls (same as Type A but bigger)
+    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), MAT.yellowWall);
+    body.position.y = h / 2;
+    houseGroup.add(body);
+
+    // Brown tiled roof
+    const roofHeight = addRoof(houseGroup, w, h, d, MAT.brownRoof);
+
+    // Red door (bigger)
+    const door = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.8, 0.05), MAT.redDoor);
+    door.position.set(0, 0.9, -side * d / 2 - 0.03);
+    houseGroup.add(door);
+
+    // Large blue cross window
+    addCrossWindow(houseGroup, side, d, 2.8);
+
+    // Multiple windows
+    for (let wx = -1; wx <= 1; wx += 2) {
+        for (let wy = 0; wy < 2; wy++) {
+            const winFrame = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.9, 0.05), MAT.windowFrame);
+            winFrame.position.set(wx * 2.2, 1.8 + wy * 1.8, -side * d / 2 - 0.03);
+            houseGroup.add(winFrame);
+            const winGlass = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.75, 0.06), MAT.blueWindow);
+            winGlass.position.set(wx * 2.2, 1.8 + wy * 1.8, -side * d / 2 - 0.04);
+            houseGroup.add(winGlass);
+        }
+    }
+
+    // Satellite dish on roof
+    const dishGroup = new THREE.Group();
+    // Dish pole
+    const dishPole = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.04, 0.04, 1.0, 6),
+        MAT.stopPole
+    );
+    dishPole.position.y = 0.5;
+    dishGroup.add(dishPole);
+    // Dish (half sphere)
+    const dish = new THREE.Mesh(
+        new THREE.SphereGeometry(0.4, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2),
+        MAT.satellite
+    );
+    dish.rotation.x = Math.PI * 0.7;
+    dish.position.set(0, 1.0, 0.2);
+    dishGroup.add(dish);
+    // Dish arm
+    const dishArm = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.02, 0.02, 0.5, 4),
+        MAT.stopPole
+    );
+    dishArm.rotation.x = -0.3;
+    dishArm.position.set(0, 1.1, 0.0);
+    dishGroup.add(dishArm);
+    dishGroup.position.set(-1.5, h + roofHeight * 0.3, 1.0);
+    houseGroup.add(dishGroup);
+
+    // Bigger flower garden
+    addFlowerGarden(houseGroup, side, d, w);
+
+    // Extra bushes
+    for (let i = -3; i <= 3; i++) {
+        const bush = new THREE.Mesh(
+            new THREE.SphereGeometry(0.3, 6, 5),
+            MAT.flowerBush
+        );
+        bush.position.set(i * 0.9, 0.25, -side * (d / 2 + 2.2));
+        houseGroup.add(bush);
+    }
+
+    // Picket fence
+    addPicketFence(houseGroup, side, d, w);
+
+    // Chimney
+    const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.8, 0.6), MAT.chimney);
+    chimney.position.set(1.5, h + 0.8, 0.8);
+    houseGroup.add(chimney);
+
+    registerHouse(houseGroup, x, z, side, isSubscriber);
+}
+
+// Type E: Stained Glass House
+function createStainedGlassHouse(x, z, side, isSubscriber, index) {
+    const houseGroup = new THREE.Group();
+    const w = 5, h = 4, d = 5.5;
+
+    // Gray-brown walls
+    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), MAT.grayBrownWall);
+    body.position.y = h / 2;
+    houseGroup.add(body);
+
+    // Dark brown roof
+    addRoof(houseGroup, w, h, d, MAT.darkBrownRoof);
+
+    // Door
+    const door = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.5, 0.05), MAT.door);
+    door.position.set(0, 0.75, -side * d / 2 - 0.03);
+    houseGroup.add(door);
+
+    // Stained glass windows - multiple colors
+    const glassMats = [MAT.glassRed, MAT.glassBlue, MAT.glassGreen, MAT.glassYellow];
+    const windowPositions = [
+        { x: -1.5, y: 2.0 },
+        { x: -0.5, y: 2.0 },
+        { x: 0.8, y: 2.0 },
+        { x: 1.5, y: 2.0 },
+        { x: -1.0, y: 3.0 },
+        { x: 0.5, y: 3.0 },
+        { x: 0, y: h + 0.3 }  // gable window
+    ];
+    windowPositions.forEach((wp, i) => {
+        const frame = new THREE.Mesh(
+            new THREE.BoxGeometry(0.55, 0.7, 0.05),
+            MAT.windowFrame
+        );
+        frame.position.set(wp.x, wp.y, -side * d / 2 - 0.03);
+        houseGroup.add(frame);
+        const glass = new THREE.Mesh(
+            new THREE.BoxGeometry(0.4, 0.55, 0.06),
+            glassMats[i % glassMats.length]
+        );
+        glass.position.set(wp.x, wp.y, -side * d / 2 - 0.04);
+        houseGroup.add(glass);
+    });
+
+    // Side wall also has colored windows
+    for (let sx = -1; sx <= 1; sx += 2) {
+        for (let i = 0; i < 2; i++) {
+            const glass = new THREE.Mesh(
+                new THREE.BoxGeometry(0.06, 0.6, 0.45),
+                glassMats[(i + (sx > 0 ? 2 : 0)) % glassMats.length]
+            );
+            glass.position.set(sx * w / 2 + sx * 0.03, 2.0 + i * 1.2, (i - 0.5) * 1.5);
+            houseGroup.add(glass);
+        }
+    }
+
+    // Small garden
+    for (let i = 0; i < 3; i++) {
+        const bush = new THREE.Mesh(
+            new THREE.SphereGeometry(0.22, 5, 5),
+            MAT.flowerBush
+        );
+        bush.position.set((i - 1) * 1.0, 0.18, -side * (d / 2 + 1.2));
+        houseGroup.add(bush);
+    }
+
+    registerHouse(houseGroup, x, z, side, isSubscriber);
+}
+
+// ====== NEW OBSTACLE CREATORS ======
+
+// Brick wall obstacle on sidewalk
+function createBrickWall(x, z) {
+    const wallGroup = new THREE.Group();
+    // Main brick body
+    const bricks = new THREE.Mesh(
+        new THREE.BoxGeometry(1.5, 0.8, 0.3),
+        MAT.brickWall
+    );
+    bricks.position.y = 0.4;
+    bricks.castShadow = true;
+    wallGroup.add(bricks);
+    // Mortar lines (horizontal)
+    for (let i = 0; i < 3; i++) {
+        const line = new THREE.Mesh(
+            new THREE.BoxGeometry(1.52, 0.02, 0.32),
+            MAT.brickMortar
+        );
+        line.position.y = 0.2 + i * 0.2;
+        wallGroup.add(line);
+    }
+    // Mortar lines (vertical, staggered)
+    for (let row = 0; row < 4; row++) {
+        const offset = row % 2 === 0 ? 0 : 0.25;
+        for (let col = -2; col <= 2; col++) {
+            const vLine = new THREE.Mesh(
+                new THREE.BoxGeometry(0.02, 0.18, 0.32),
+                MAT.brickMortar
+            );
+            vLine.position.set(col * 0.35 + offset, 0.1 + row * 0.2, 0);
+            wallGroup.add(vLine);
+        }
+    }
+
+    wallGroup.position.set(x, 0, z);
+    worldGroup.add(wallGroup);
+    G.obstacles.push({
+        group: wallGroup, type: 'brickwall', x, z,
+        radius: 0.8, active: true, stationary: true
+    });
+}
+
+// Rolling tire obstacle
+function createTire(x, z, dir) {
+    const tireGroup = new THREE.Group();
+    const tire = new THREE.Mesh(
+        new THREE.TorusGeometry(0.35, 0.1, 8, 16),
+        MAT.tireMat
+    );
+    tire.rotation.x = Math.PI / 2;
+    tire.position.y = 0.35;
+    tireGroup.add(tire);
+
+    tireGroup.position.set(x, 0, z);
+    worldGroup.add(tireGroup);
+
+    const tireDir = dir || (Math.random() > 0.5 ? 1 : -1);
+    G.obstacles.push({
+        group: tireGroup, type: 'tire', x, z, origX: x, origZ: z,
+        dir: tireDir,
+        speed: 3 + Math.random() * 4,
+        radius: 0.5, active: true, animTime: 0,
+        zSpeed: (Math.random() - 0.5) * 4
+    });
+}
+
+// Target bullseye for training course
+function createTarget(x, z) {
+    const targetGroup = new THREE.Group();
+
+    // Vertical post
+    const post = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.06, 0.06, 2.5, 6),
+        MAT.mailboxPost
+    );
+    post.position.y = 1.25;
+    targetGroup.add(post);
+
+    // Concentric circles (flat discs, vertical)
+    const rings = [
+        { radius: 0.6, mat: MAT.targetWhite },
+        { radius: 0.45, mat: MAT.targetRed },
+        { radius: 0.3, mat: MAT.targetWhite },
+        { radius: 0.15, mat: MAT.targetRed }
+    ];
+    rings.forEach((ring, i) => {
+        const disc = new THREE.Mesh(
+            new THREE.CircleGeometry(ring.radius, 16),
+            ring.mat
+        );
+        disc.position.set(0, 2.2, 0.01 * i);
+        targetGroup.add(disc);
+        // Back face
+        const discBack = new THREE.Mesh(
+            new THREE.CircleGeometry(ring.radius, 16),
+            ring.mat
+        );
+        discBack.rotation.y = Math.PI;
+        discBack.position.set(0, 2.2, -0.01 * i);
+        targetGroup.add(discBack);
+    });
+
+    targetGroup.position.set(x, 0, z);
+    worldGroup.add(targetGroup);
+
+    // Targets are special: they can be hit by newspapers for bonus points
+    G.obstacles.push({
+        group: targetGroup, type: 'target', x, z,
+        radius: 0.8, active: true, stationary: true, isTarget: true
+    });
+}
+
+// Water hazard for training course
+function createWaterHazard(x, z) {
+    const water = new THREE.Mesh(
+        new THREE.BoxGeometry(3, 0.05, 6),
+        MAT.waterHazard
+    );
+    water.position.set(x, 0.03, z);
+    water.receiveShadow = true;
+    worldGroup.add(water);
+    G.obstacles.push({
+        group: water, type: 'waterHazard', x, z,
+        radius: 2.0, active: true, stationary: true, slowEffect: true
+    });
+}
+
+// Ramp for training course
+function createRamp(x, z) {
+    const rampGroup = new THREE.Group();
+    // Triangular ramp shape
+    const rampShape = new THREE.Shape();
+    rampShape.moveTo(-1.5, 0);
+    rampShape.lineTo(1.5, 0);
+    rampShape.lineTo(0, 1.2);
+    rampShape.lineTo(-1.5, 0);
+    const rampGeo = new THREE.ExtrudeGeometry(rampShape, { depth: 2.5, bevelEnabled: false });
+    const ramp = new THREE.Mesh(rampGeo, MAT.rampWood);
+    ramp.position.set(0, 0, -1.25);
+    ramp.castShadow = true;
+    rampGroup.add(ramp);
+
+    rampGroup.position.set(x, 0, z);
+    worldGroup.add(rampGroup);
+    G.obstacles.push({
+        group: rampGroup, type: 'ramp', x, z,
+        radius: 1.5, active: true, stationary: true
+    });
+}
+
+// Red wall barrier for training course
+function createRedWallBarrier(x, z) {
+    const wall = new THREE.Mesh(
+        new THREE.BoxGeometry(0.4, 2.0, 2.0),
+        MAT.redWallBarrier
+    );
+    wall.position.set(x, 1.0, z);
+    wall.castShadow = true;
+    worldGroup.add(wall);
+    G.obstacles.push({
+        group: wall, type: 'redWall', x, z,
+        radius: 1.0, active: true, stationary: true
+    });
+}
+
 // ====== BUILD STREET ======
 function buildStreet() {
+    buildStreetFromData(LEVEL_DATA);
+}
+
+function buildStreetFromData(data) {
     // Clean up old
     if (worldGroup) scene.remove(worldGroup);
     worldGroup = new THREE.Group();
@@ -430,22 +1180,25 @@ function buildStreet() {
     G.fences = [];
     G.lamps = [];
     G.newspapers = [];
+    G.targets = [];
     G.deliveries = { hit: 0, missed: 0, total: 0 };
 
+    G.streetLength = data.totalLength || 400;
     const len = G.streetLength;
-    // Street runs along X axis; we'll rotate the camera to give diagonal view
+    const houseSectionEnd = len * data.houseSection; // 268
+    const trainingStart = houseSectionEnd;
 
-    // Road
+    // ---- HOUSE SECTION: Road ----
     const road = new THREE.Mesh(
-        new THREE.BoxGeometry(len, 0.1, 10),
+        new THREE.BoxGeometry(houseSectionEnd, 0.1, 10),
         MAT.road
     );
-    road.position.set(len / 2, -0.05, 0);
+    road.position.set(houseSectionEnd / 2, -0.05, 0);
     road.receiveShadow = true;
     worldGroup.add(road);
 
-    // Lane markings (dashed center line)
-    for (let x = 5; x < len; x += 4) {
+    // Lane markings (house section only)
+    for (let x = 5; x < houseSectionEnd; x += 4) {
         const dash = new THREE.Mesh(
             new THREE.BoxGeometry(2, 0.02, 0.15),
             MAT.laneLine
@@ -454,163 +1207,164 @@ function buildStreet() {
         worldGroup.add(dash);
     }
 
-    // Sidewalks
+    // Sidewalks (house section)
     for (let side = -1; side <= 1; side += 2) {
         const sidewalk = new THREE.Mesh(
-            new THREE.BoxGeometry(len, 0.2, 3),
+            new THREE.BoxGeometry(houseSectionEnd, 0.2, 3),
             MAT.sidewalk
         );
-        sidewalk.position.set(len / 2, 0.0, side * 6.5);
+        sidewalk.position.set(houseSectionEnd / 2, 0.0, side * 6.5);
         sidewalk.receiveShadow = true;
         worldGroup.add(sidewalk);
     }
 
-    // Grass
+    // Grass (house section)
     for (let side = -1; side <= 1; side += 2) {
         const grass = new THREE.Mesh(
-            new THREE.BoxGeometry(len + 40, 0.05, 30),
+            new THREE.BoxGeometry(houseSectionEnd + 20, 0.05, 30),
             MAT.grass
         );
-        grass.position.set(len / 2, -0.05, side * 23);
+        grass.position.set(houseSectionEnd / 2, -0.05, side * 23);
         grass.receiveShadow = true;
         worldGroup.add(grass);
     }
 
-    // Generate houses on both sides
-    const houseSpacing = 14;
-    const numHouses = Math.floor(len / houseSpacing);
+    // ---- TRAINING COURSE SECTION ----
+    const courseLen = len - trainingStart;
 
+    // Dirt ground for training course
+    const dirt = new THREE.Mesh(
+        new THREE.BoxGeometry(courseLen + 5, 0.1, 16),
+        MAT.dirtGround
+    );
+    dirt.position.set(trainingStart + courseLen / 2, -0.04, 0);
+    dirt.receiveShadow = true;
+    worldGroup.add(dirt);
+
+    // Dirt road (slightly different shade, narrower)
+    const dirtRoad = new THREE.Mesh(
+        new THREE.BoxGeometry(courseLen + 5, 0.11, 10),
+        new THREE.MeshStandardMaterial({ color: 0x8B6914, roughness: 1.0 })
+    );
+    dirtRoad.position.set(trainingStart + courseLen / 2, -0.03, 0);
+    dirtRoad.receiveShadow = true;
+    worldGroup.add(dirtRoad);
+
+    // Grass borders for training course
     for (let side = -1; side <= 1; side += 2) {
-        for (let i = 0; i < numHouses; i++) {
-            const hx = 10 + i * houseSpacing + (Math.random() - 0.5) * 2;
-            const hz = side * 14;
-            const isSubscriber = Math.random() < 0.5;
-
-            createHouse(hx, hz, side, isSubscriber, i);
-        }
+        const tGrass = new THREE.Mesh(
+            new THREE.BoxGeometry(courseLen + 20, 0.05, 20),
+            MAT.grass
+        );
+        tGrass.position.set(trainingStart + courseLen / 2, -0.06, side * 18);
+        tGrass.receiveShadow = true;
+        worldGroup.add(tGrass);
     }
 
-    // Street lamps
-    for (let i = 0; i < numHouses; i++) {
-        if (i % 2 === 0) {
-            for (let side = -1; side <= 1; side += 2) {
-                createLamp(10 + i * houseSpacing + 7, side * 8.5);
+    // ---- PLACE HOUSES ----
+    // The house positions are normalized 0.0-1.0 across the ENTIRE street
+    // but houses only exist in the 0.0-0.67 range effectively
+    // We scale positions to the house section
+
+    let houseIdx = 0;
+
+    // Near side houses (side = -1)
+    data.nearHouses.forEach(h => {
+        const worldX = h.pos * len;  // pos is already relative to full street
+        const worldZ = -1 * 14;
+        const builder = getHouseBuilder(h.type);
+        builder(worldX, worldZ, -1, h.sub, houseIdx++);
+    });
+
+    // Far side houses (side = 1)
+    data.farHouses.forEach(h => {
+        const worldX = h.pos * len;
+        const worldZ = 1 * 14;
+        const builder = getHouseBuilder(h.type);
+        builder(worldX, worldZ, 1, h.sub, houseIdx++);
+    });
+
+    // ---- PLACE STREET LAMPS ----
+    const lampSpacing = 20;
+    const numLamps = Math.floor(houseSectionEnd / lampSpacing);
+    for (let i = 0; i < numLamps; i++) {
+        for (let side = -1; side <= 1; side += 2) {
+            if (i % 2 === (side > 0 ? 0 : 1)) {
+                createLamp(8 + i * lampSpacing, side * 8.5);
             }
         }
     }
 
-    // Spawn obstacles
-    spawnObstacles();
+    // ---- PLACE OBSTACLES (house section) ----
+    data.obstacles.forEach(obs => {
+        const ox = obs.pos * len;
+        const oz = obs.lane * 5;
+        switch (obs.type) {
+            case 'car':
+                createCar(ox, oz, oz > 0 ? -1 : 1);
+                break;
+            case 'dog':
+                createDog(ox, oz);
+                break;
+            case 'trashcan':
+                createTrashcan(ox, oz);
+                break;
+            case 'pedestrian':
+                createPedestrian(ox, oz);
+                break;
+            case 'puddle':
+                createPuddle(ox, oz);
+                break;
+            case 'brickwall':
+                createBrickWall(ox, oz);
+                break;
+            case 'tire':
+                createTire(ox, oz);
+                break;
+        }
+    });
+
+    // ---- PLACE TRAINING COURSE OBSTACLES ----
+    data.trainingObstacles.forEach(obs => {
+        const ox = obs.pos * len;
+        const oz = obs.lane * 5;
+        switch (obs.type) {
+            case 'waterHazard':
+                createWaterHazard(ox, oz);
+                break;
+            case 'target':
+                createTarget(ox, oz);
+                break;
+            case 'ramp':
+                createRamp(ox, oz);
+                break;
+            case 'redWall':
+                createRedWallBarrier(ox, oz);
+                break;
+        }
+    });
+
+    // ---- PLACE TREES along the street ----
+    for (let x = 10; x < houseSectionEnd; x += 18 + Math.random() * 10) {
+        for (let side = -1; side <= 1; side += 2) {
+            if (Math.random() > 0.4) {
+                createTree(x + (Math.random() - 0.5) * 5, side * 11);
+            }
+        }
+    }
 
     scene.add(worldGroup);
 }
 
-function createHouse(x, z, side, isSubscriber, index) {
-    const houseGroup = new THREE.Group();
-
-    const w = 4 + Math.random() * 2;
-    const h = 3 + Math.random() * 1.5;
-    const d = 5 + Math.random() * 2;
-
-    const houseColorIdx = Math.floor(Math.random() * MAT.houseColors.length);
-    const roofColorIdx = Math.floor(Math.random() * MAT.roofColors.length);
-    const houseMat = new THREE.MeshStandardMaterial({ color: MAT.houseColors[houseColorIdx], roughness: 0.8 });
-    const roofMat = new THREE.MeshStandardMaterial({ color: MAT.roofColors[roofColorIdx], roughness: 0.7 });
-
-    // Main body
-    const body = new THREE.Mesh(
-        new THREE.BoxGeometry(w, h, d),
-        houseMat
-    );
-    body.position.y = h / 2;
-    body.castShadow = true;
-    body.receiveShadow = true;
-    houseGroup.add(body);
-
-    // Roof (triangular prism)
-    const roofHeight = 1.5 + Math.random() * 0.5;
-    const roofShape = new THREE.Shape();
-    roofShape.moveTo(-d / 2 - 0.3, 0);
-    roofShape.lineTo(0, roofHeight);
-    roofShape.lineTo(d / 2 + 0.3, 0);
-    roofShape.lineTo(-d / 2 - 0.3, 0);
-    const roofGeo = new THREE.ExtrudeGeometry(roofShape, {
-        depth: w + 0.4,
-        bevelEnabled: false
-    });
-    const roof = new THREE.Mesh(roofGeo, roofMat);
-    roof.rotation.y = Math.PI / 2;
-    roof.position.set(-w / 2 - 0.2, h, 0);
-    roof.castShadow = true;
-    houseGroup.add(roof);
-
-    // Door (facing the street)
-    const doorMat = new THREE.MeshStandardMaterial({
-        color: [0x663322, 0x442211, 0x554433, 0x883322][Math.floor(Math.random() * 4)]
-    });
-    const door = new THREE.Mesh(
-        new THREE.BoxGeometry(0.7, 1.5, 0.05),
-        doorMat
-    );
-    door.position.set(0, 0.75, -side * d / 2 - 0.03);
-    houseGroup.add(door);
-
-    // Windows
-    for (let wx = -1; wx <= 1; wx += 2) {
-        // Lower window
-        const winFrame = new THREE.Mesh(
-            new THREE.BoxGeometry(0.85, 0.85, 0.05),
-            MAT.windowFrame
-        );
-        winFrame.position.set(wx * 1.2, 1.5, -side * d / 2 - 0.03);
-        houseGroup.add(winFrame);
-        const winGlass = new THREE.Mesh(
-            new THREE.BoxGeometry(0.7, 0.7, 0.06),
-            MAT.windowGlass
-        );
-        winGlass.position.set(wx * 1.2, 1.5, -side * d / 2 - 0.04);
-        houseGroup.add(winGlass);
-
-        // Upper window (in gable area)
-        if (Math.random() > 0.4) {
-            const winFrame2 = new THREE.Mesh(
-                new THREE.BoxGeometry(0.6, 0.6, 0.05),
-                MAT.windowFrame
-            );
-            winFrame2.position.set(wx * 0.6, h + 0.5, -side * d / 2 - 0.03);
-            houseGroup.add(winFrame2);
-        }
-    }
-
-    // Chimney
-    if (Math.random() > 0.3) {
-        const chimney = new THREE.Mesh(
-            new THREE.BoxGeometry(0.5, 1.5, 0.5),
-            MAT.chimney
-        );
-        chimney.position.set(0.8, h + roofHeight * 0.5, 0.5);
-        chimney.castShadow = true;
-        houseGroup.add(chimney);
-    }
-
-    houseGroup.position.set(x, 0, z);
-    worldGroup.add(houseGroup);
-    G.houses.push({ group: houseGroup, x, z, side, isSubscriber, delivered: false });
-
-    // Mailbox
-    createMailbox(x, side * 8.2, isSubscriber, G.houses.length - 1);
-
-    // Front fence
-    if (Math.random() > 0.3) {
-        createFence(x, side * 9.5, w + 2, side);
-    }
-
-    // Front trees
-    if (Math.random() > 0.4) {
-        createTree(x + (Math.random() - 0.5) * 4, side * 11);
-    }
-    if (Math.random() > 0.6) {
-        createTree(x + (Math.random() - 0.5) * 6, side * 16);
+// Map house type letter to builder function
+function getHouseBuilder(type) {
+    switch (type) {
+        case 'A': return createYellowHouse;
+        case 'B': return createBlueRoofHouse;
+        case 'C': return createGrayHouse;
+        case 'D': return createLargeYellowHouse;
+        case 'E': return createStainedGlassHouse;
+        default: return createYellowHouse;
     }
 }
 
@@ -657,7 +1411,8 @@ function createMailbox(x, z, isSubscriber, houseIdx) {
     G.mailboxes.push({ group: mbGroup, x, z, isSubscriber, houseIdx, delivered: false });
 }
 
-function createTree(x, z) {
+function createTree(x, z, opts) {
+    opts = opts || {};
     const treeGroup = new THREE.Group();
     const trunkH = 1.5 + Math.random() * 1.5;
     const trunk = new THREE.Mesh(
@@ -668,7 +1423,7 @@ function createTree(x, z) {
     trunk.castShadow = true;
     treeGroup.add(trunk);
 
-    const canopyType = Math.random() > 0.5;
+    const canopyType = opts.type === 'sphere' ? true : opts.type === 'cone' ? false : (Math.random() > 0.5);
     const canopyMat = Math.random() > 0.5 ? MAT.leaves : MAT.leavesLight;
     if (canopyType) {
         // Sphere canopy
@@ -749,52 +1504,6 @@ function createLamp(x, z) {
     lampGroup.position.set(x, 0, z);
     worldGroup.add(lampGroup);
     G.lamps.push(lampGroup);
-}
-
-// ====== OBSTACLES ======
-function spawnObstacles() {
-    const len = G.streetLength;
-    const numCars = 4 + G.street * 2;
-    const numDogs = 2 + G.street;
-    const numTrashcans = 3 + G.street;
-    const numPedestrians = 3 + G.street;
-    const numPuddles = 2 + G.street;
-
-    // Cars
-    for (let i = 0; i < numCars; i++) {
-        const carX = 30 + Math.random() * (len - 60);
-        const carZ = (Math.random() > 0.5 ? 1 : -1) * (1.5 + Math.random() * 2);
-        const carDir = carZ > 0 ? -1 : 1;
-        createCar(carX, carZ, carDir);
-    }
-
-    // Dogs
-    for (let i = 0; i < numDogs; i++) {
-        const dx = 30 + Math.random() * (len - 60);
-        const dz = (Math.random() > 0.5 ? 1 : -1) * (5 + Math.random() * 3);
-        createDog(dx, dz);
-    }
-
-    // Trash cans
-    for (let i = 0; i < numTrashcans; i++) {
-        const tx = 20 + Math.random() * (len - 40);
-        const tz = (Math.random() > 0.5 ? 1 : -1) * (4.5 + Math.random() * 1.5);
-        createTrashcan(tx, tz);
-    }
-
-    // Pedestrians
-    for (let i = 0; i < numPedestrians; i++) {
-        const px = 30 + Math.random() * (len - 60);
-        const pz = (Math.random() > 0.5 ? 1 : -1) * (5.5 + Math.random() * 2);
-        createPedestrian(px, pz);
-    }
-
-    // Puddles
-    for (let i = 0; i < numPuddles; i++) {
-        const px = 30 + Math.random() * (len - 60);
-        const pz = (Math.random() - 0.5) * 6;
-        createPuddle(px, pz);
-    }
 }
 
 function createCar(x, z, dir) {
@@ -1195,6 +1904,27 @@ function updateObstacles(dt) {
                 }
             });
         }
+
+        if (obs.type === 'tire') {
+            obs.animTime += dt;
+            obs.z += obs.zSpeed * dt;
+            obs.x += obs.dir * obs.speed * 0.3 * dt;
+            // Bounce off edges
+            if (Math.abs(obs.z) > 6) {
+                obs.zSpeed *= -1;
+                obs.z = Math.max(-6, Math.min(6, obs.z));
+            }
+            if (Math.abs(obs.x - obs.origX) > 15) {
+                obs.dir *= -1;
+            }
+            obs.group.position.set(obs.x, 0, obs.z);
+            // Spin the tire
+            obs.group.children.forEach(c => {
+                if (c.isMesh) {
+                    c.rotation.z += obs.speed * dt * 3;
+                }
+            });
+        }
     });
 }
 
@@ -1245,6 +1975,21 @@ function updateNewspapers(dt) {
                 } else if (dist < 2.5 && !mb.isSubscriber) {
                     G.score -= 25;
                     showDeliveryFeedback(np.x, np.z, false);
+                }
+            });
+
+            // Check target hits (training course bullseyes)
+            G.obstacles.forEach(obs => {
+                if (!obs.isTarget || !obs.active) return;
+                const dist = Math.sqrt(
+                    (np.x - obs.x) ** 2 + (np.z - obs.z) ** 2
+                );
+                if (dist < 1.5) {
+                    obs.active = false;
+                    G.score += 200;
+                    showDeliveryFeedback(np.x, np.z, true);
+                    // Hide the target
+                    obs.group.visible = false;
                 }
             });
 
@@ -1357,7 +2102,7 @@ function nextStreet() {
     G.playerX = 0;
     G.progress = 0;
     G.papers = Math.min(G.papers + 10, 25);
-    G.streetLength = 300 + G.street * 30;
+    G.streetLength = 400;
     G.invulnerable = 0;
     updateHUD();
     buildStreet();
@@ -1381,7 +2126,7 @@ function restartGame() {
     G.playerX = 0;
     G.progress = 0;
     G.speed = 12;
-    G.streetLength = 300;
+    G.streetLength = 400;
     G.invulnerable = 0;
     updateHUD();
     buildStreet();

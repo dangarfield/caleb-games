@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Drift - Caleb's Arcade</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0a12;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100vh; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none; user-select: none; -webkit-user-select: none;
+        }
+        #backBtn {
+            position: fixed; top: 15px; left: 15px; z-index: 100;
+            background: rgba(255,255,255,0.15); border: 2px solid rgba(255,255,255,0.3);
+            color: #fff; padding: 8px 16px; border-radius: 25px; font-size: 16px;
+            cursor: pointer; text-decoration: none; backdrop-filter: blur(10px);
+            transition: background 0.3s;
+        }
+        #backBtn:hover { background: rgba(255,255,255,0.25); }
+        canvas { display: block; }
+        #instructions {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center;
+            z-index: 200; backdrop-filter: blur(5px);
+        }
+        #instructions .box {
+            background: rgba(10, 10, 20, 0.95); border: 2px solid rgba(200,100,255,0.3);
+            border-radius: 20px; padding: 30px 40px; max-width: 420px; text-align: center;
+            color: #fff; box-shadow: 0 0 40px rgba(200,100,255,0.15);
+        }
+        #instructions h2 { font-size: 26px; margin-bottom: 15px; color: #e080ff; text-shadow: 0 0 15px rgba(200,100,255,0.5); }
+        #instructions p { font-size: 15px; line-height: 1.6; margin-bottom: 10px; color: #bba; }
+        #instructions .key { background: rgba(200,100,255,0.2); padding: 3px 10px; border-radius: 6px; font-weight: bold; color: #e0a0ff; }
+        #instructions button {
+            margin-top: 15px; padding: 12px 30px; font-size: 18px; border: none;
+            background: linear-gradient(135deg, #c060ff, #8040cc); color: #fff;
+            border-radius: 30px; cursor: pointer; font-weight: bold;
+            box-shadow: 0 0 20px rgba(200,100,255,0.3);
+        }
+        #instructions button:hover { box-shadow: 0 0 30px rgba(200,100,255,0.5); }
+    </style>
+</head>
+<body>
+    <a id="backBtn" href="../../index.html">Back</a>
+    <canvas id="game"></canvas>
+    <div id="instructions">
+        <div class="box">
+            <h2>Drift Racer</h2>
+            <p>Your car auto-accelerates. No brakes!</p>
+            <p><span class="key">Left/Right</span> or <span class="key">A/D</span> to steer</p>
+            <p><span class="key">Touch</span> left/right side of screen</p>
+            <p>Drift through tile-based stages, stay on the road, and reach the finish!</p>
+            <button id="startBtn">Start Drifting!</button>
+        </div>
+    </div>
+    <script>
+    (function() {
+        'use strict';
+
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resize();
+        window.addEventListener('resize', resize);
+
+        // ---- CONSTANTS ----
+        const TILE = 40;             // tile size in world units
+        const CAR_W = 16, CAR_H = 28;
+
+        // ---- TUNABLE PHYSICS (editable via GUI) ----
+        const physics = {
+            maxSpeed: 3.5,
+            accel: 0.04,
+            steerRate: 0.055,
+            gripBlend: 0.06,
+            roadGrip: 0.7,
+            dirtGrip: 0.35,
+            iceGrip: 0.15,
+            roadSpeedMult: 1.0,
+            dirtSpeedMult: 0.8,
+            iceSpeedMult: 1.15,
+            driftThreshold: 0.2
+        };
+
+        // ---- TERRAIN TYPES ----
+        const T_VOID = 0;
+        const T_ROAD = 1;
+        const T_DIRT = 2;
+        const T_ICE  = 3;
+        const T_FINISH = 4;
+
+        // Terrain visuals (grip/speed read from physics obj at runtime)
+        const TERRAIN_COLORS = {
+            [T_ROAD]: { base: [180, 120, 220], edge: [220, 160, 255] },
+            [T_DIRT]: { base: [160, 120, 80],  edge: [200, 160, 100] },
+            [T_ICE]:  { base: [100, 150, 200], edge: [140, 190, 240] },
+            [T_FINISH]: { base: [100, 220, 100], edge: [140, 255, 140] }
+        };
+
+        function getGrip(tile) {
+            if (tile === T_ROAD || tile === T_FINISH) return physics.roadGrip;
+            if (tile === T_DIRT) return physics.dirtGrip;
+            if (tile === T_ICE) return physics.iceGrip;
+            return 1;
+        }
+        function getSpeedMult(tile) {
+            if (tile === T_ROAD || tile === T_FINISH) return physics.roadSpeedMult;
+            if (tile === T_DIRT) return physics.dirtSpeedMult;
+            if (tile === T_ICE) return physics.iceSpeedMult;
+            return 1;
+        }
+
+        // ---- STAGES ----
+        // Each stage is a tile map + start/finish positions
+        // Map string: . = void, # = road, d = dirt, i = ice, F = finish, S = start
+        const STAGES = [];
+
+        function parseMap(lines, name) {
+            const rows = lines.trim().split('\n').map(l => l.trim());
+            const h = rows.length;
+            const w = Math.max(...rows.map(r => r.length));
+            const grid = [];
+            let startAngle = Math.PI / 2; // face downward (toward finish)
+            let finishTiles = [];
+            let startTiles = [];
+            for (let r = 0; r < h; r++) {
+                grid[r] = [];
+                for (let c = 0; c < w; c++) {
+                    const ch = (rows[r] || '')[c] || '.';
+                    if (ch === '#') grid[r][c] = T_ROAD;
+                    else if (ch === 'd') grid[r][c] = T_DIRT;
+                    else if (ch === 'i') grid[r][c] = T_ICE;
+                    else if (ch === 'F') { grid[r][c] = T_FINISH; finishTiles.push({r, c}); }
+                    else if (ch === 'S') { grid[r][c] = T_ROAD; startTiles.push({r, c}); }
+                    else grid[r][c] = T_VOID;
+                }
+            }
+            // Center of all S tiles
+            const startX = startTiles.reduce((s, t) => s + t.c, 0) / startTiles.length;
+            const startY = startTiles.reduce((s, t) => s + t.r, 0) / startTiles.length;
+            return { name, grid, w, h, startX, startY, startAngle, finishTiles };
+        }
+
+        // Stage 1: Simple L-turn
+        STAGES.push(parseMap(`
+..........
+..SSSS....
+..####....
+..####....
+..####....
+..########
+..########
+......####
+......####
+......FFFF
+`, 'Midnight Start'));
+
+        // Stage 2: S-curve
+        STAGES.push(parseMap(`
+..............
+..SSSS........
+..####........
+..####........
+..##########..
+..##########..
+........####..
+........####..
+..##########..
+..##########..
+..####........
+..####........
+..FFFF........
+`, 'Neon Serpent'));
+
+        // Stage 3: Wide open with dirt patches
+        STAGES.push(parseMap(`
+................
+..SSSS..........
+..####..........
+..##############
+..##############
+..####dddd####..
+..####dddd####..
+..##############
+..##############
+..........####..
+..........####..
+..........FFFF..
+`, 'Dusty Corner'));
+
+        // Stage 4: Ice passage
+        STAGES.push(parseMap(`
+................
+..SSSS..........
+..####..........
+..####..........
+..####iiiiii####
+..####iiiiii####
+............####
+............####
+....############
+....############
+....####........
+....FFFF........
+`, 'Frozen Drift'));
+
+        // Stage 5: Complex maze
+        STAGES.push(parseMap(`
+....................
+..SSSS..............
+..####..............
+..####..............
+..########..........
+..########..........
+......####..........
+......##########....
+......##########....
+..........####......
+..........####......
+....##########......
+....##########......
+....####............
+....####............
+....####ddddFFFF....
+....####ddddFFFF....
+`, 'Midnight Roadride'));
+
+        // Stage 6: Big open arena with mixed terrain
+        STAGES.push(parseMap(`
+......................
+..SSSS................
+..####................
+..##################..
+..##################..
+..####dddd####iiii##..
+..####dddd####iiii##..
+..##################..
+..##################..
+..####....####....##..
+..####....####....##..
+..##################..
+..##################..
+..####iiii####dddd##..
+..####iiii####dddd##..
+..##################..
+..##################..
+................FFFF..
+`, 'The Gauntlet'));
+
+        // Stage 7: Tight zigzag
+        STAGES.push(parseMap(`
+..............
+..SSSS........
+..####........
+..######......
+..######......
+....######....
+....######....
+......######..
+......######..
+....######....
+....######....
+..######......
+..######......
+..FFFF........
+`, 'Zigzag Alley'));
+
+        // Stage 8: Long highway with hazards
+        STAGES.push(parseMap(`
+............................
+..SSSS....................
+..####....................
+..########################
+..########################
+..####dddd####iiii########
+..####dddd####iiii########
+..########################
+..########################
+......................FFFF.
+`, 'Highway Midnight'));
+
+        // ---- GAME STATE ----
+        let currentStage = 0;
+        let stageData = null;
+        let gameRunning = false;
+        let gameOver = false;
+        let stageComplete = false;
+        let timer = 0;
+        let bestTimes = JSON.parse(localStorage.getItem('driftBestTimes') || '{}');
+
+        // Car state
+        const car = {
+            x: 0, y: 0,
+            angle: 0,        // facing direction
+            velX: 0, velY: 0,
+            speed: 0,
+            drifting: false
+        };
+
+        // Tire marks (persistent within stage)
+        let tireMarks = [];
+
+        // Particles
+        let particles = [];
+
+        // Input
+        let steerInput = 0;
+        let touchLeft = false, touchRight = false;
+        const keys = {};
+
+        // ---- TILE HELPERS ----
+        function getTile(gx, gy) {
+            if (!stageData) return T_VOID;
+            const r = Math.floor(gy);
+            const c = Math.floor(gx);
+            if (r < 0 || r >= stageData.h || c < 0 || c >= stageData.w) return T_VOID;
+            return stageData.grid[r][c];
+        }
+
+        function getTileAtWorld(wx, wy) {
+            return getTile(wx / TILE, wy / TILE);
+        }
+
+        function getTerrainProps(tile) {
+            return TERRAIN_COLORS[tile] || null;
+        }
+
+        // ---- INIT STAGE ----
+        function initStage(idx) {
+            currentStage = idx;
+            stageData = STAGES[idx];
+            car.x = (stageData.startX + 0.5) * TILE;
+            car.y = (stageData.startY + 0.5) * TILE;
+            car.angle = stageData.startAngle;
+            car.velX = 0;
+            car.velY = 0;
+            car.speed = 0;
+            car.drifting = false;
+            tireMarks = [];
+            particles = [];
+            timer = 0;
+            gameOver = false;
+            stageComplete = false;
+            gameRunning = true;
+        }
+
+        // ---- CAR PHYSICS ----
+        function updateCar(dt) {
+            // Get terrain under car
+            const tile = getTileAtWorld(car.x, car.y);
+
+            if (tile === T_VOID) {
+                gameOver = true;
+                gameRunning = false;
+                return;
+            }
+
+            if (tile === T_FINISH && car.speed > 0.5) {
+                stageComplete = true;
+                gameRunning = false;
+                const key = 'stage' + currentStage;
+                if (!bestTimes[key] || timer < bestTimes[key]) {
+                    bestTimes[key] = timer;
+                    localStorage.setItem('driftBestTimes', JSON.stringify(bestTimes));
+                }
+                return;
+            }
+
+            const terrain = TERRAIN_COLORS[tile];
+            if (!terrain) { gameOver = true; gameRunning = false; return; }
+
+            const grip = getGrip(tile);
+            const speedMult = getSpeedMult(tile);
+
+            // Auto-accelerate
+            const maxSpeed = physics.maxSpeed * speedMult;
+            car.speed = Math.min(car.speed + physics.accel * dt, maxSpeed);
+
+            // Steering
+            const steerAmount = steerInput * physics.steerRate * dt;
+            car.angle += steerAmount * car.speed;
+
+            // Forward direction
+            const fwdX = Math.cos(car.angle);
+            const fwdY = Math.sin(car.angle);
+
+            // Desired velocity (where the car wants to go based on facing)
+            const desiredVX = fwdX * car.speed;
+            const desiredVY = fwdY * car.speed;
+
+            // Blend current velocity toward desired based on grip
+            // Low grip = velocity lags behind facing direction = DRIFT
+            const blendRate = grip * physics.gripBlend * dt;
+            car.velX += (desiredVX - car.velX) * blendRate;
+            car.velY += (desiredVY - car.velY) * blendRate;
+
+            // Normalize velocity to maintain speed
+            const velMag = Math.sqrt(car.velX * car.velX + car.velY * car.velY);
+            if (velMag > 0.01) {
+                car.velX = (car.velX / velMag) * car.speed;
+                car.velY = (car.velY / velMag) * car.speed;
+            }
+
+            // Detect drift: angle between facing and velocity
+            const velAngle = Math.atan2(car.velY, car.velX);
+            const driftAngle = Math.abs(Math.atan2(Math.sin(car.angle - velAngle), Math.cos(car.angle - velAngle)));
+            car.drifting = driftAngle > physics.driftThreshold && car.speed > 1;
+
+            // Move
+            const newX = car.x + car.velX * dt;
+            const newY = car.y + car.velY * dt;
+
+            // Check if new position is on valid terrain
+            const newTile = getTileAtWorld(newX, newY);
+            if (newTile === T_VOID) {
+                // Hit the void - game over
+                gameOver = true;
+                gameRunning = false;
+                // Spawn crash particles
+                for (let i = 0; i < 20; i++) {
+                    particles.push({
+                        x: car.x, y: car.y,
+                        vx: (Math.random() - 0.5) * 4,
+                        vy: (Math.random() - 0.5) * 4,
+                        life: 30 + Math.random() * 30,
+                        maxLife: 60,
+                        color: `hsl(${30 + Math.random() * 30}, 100%, ${50 + Math.random() * 30}%)`
+                    });
+                }
+                return;
+            }
+
+            car.x = newX;
+            car.y = newY;
+
+            // Tire marks
+            if (car.drifting && car.speed > 0.5) {
+                const perpX = -Math.sin(car.angle);
+                const perpY = Math.cos(car.angle);
+                const backX = -fwdX * 10;
+                const backY = -fwdY * 10;
+                tireMarks.push(
+                    { x: car.x + perpX * 6 + backX, y: car.y + perpY * 6 + backY, alpha: 1.0 },
+                    { x: car.x - perpX * 6 + backX, y: car.y - perpY * 6 + backY, alpha: 1.0 }
+                );
+                if (tireMarks.length > 2000) tireMarks.splice(0, 20);
+
+                // Drift particles
+                for (let i = 0; i < 2; i++) {
+                    const smokeColor = tile === T_ICE ? '200,220,255' : tile === T_DIRT ? '180,140,80' : '150,150,150';
+                    particles.push({
+                        x: car.x + backX + (Math.random() - 0.5) * 12,
+                        y: car.y + backY + (Math.random() - 0.5) * 12,
+                        vx: -car.velX * 0.2 + (Math.random() - 0.5) * 1.5,
+                        vy: -car.velY * 0.2 + (Math.random() - 0.5) * 1.5,
+                        life: 20 + Math.random() * 20,
+                        maxLife: 40,
+                        color: `rgba(${smokeColor},`
+                    });
+                }
+            }
+
+            timer += dt / 60; // Approximate seconds
+        }
+
+        function updateParticles(dt) {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.life -= dt;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+        }
+
+        // ---- RENDERING ----
+        function render() {
+            const W = canvas.width;
+            const H = canvas.height;
+
+            // Dark background
+            ctx.fillStyle = '#0a0a12';
+            ctx.fillRect(0, 0, W, H);
+
+            if (!stageData) return;
+
+            const camX = car.x;
+            const camY = car.y;
+            const scale = Math.min(W, H) / 400;
+
+            ctx.save();
+            ctx.translate(W / 2, H / 2);
+            ctx.scale(scale, scale);
+
+            // Visible tile range
+            const viewW = (W / scale) / 2 + TILE * 2;
+            const viewH = (H / scale) / 2 + TILE * 2;
+
+            const minC = Math.max(0, Math.floor((camX - viewW) / TILE));
+            const maxC = Math.min(stageData.w - 1, Math.ceil((camX + viewW) / TILE));
+            const minR = Math.max(0, Math.floor((camY - viewH) / TILE));
+            const maxR = Math.min(stageData.h - 1, Math.ceil((camY + viewH) / TILE));
+
+            // Draw tiles
+            for (let r = minR; r <= maxR; r++) {
+                for (let c = minC; c <= maxC; c++) {
+                    const tile = stageData.grid[r][c];
+                    if (tile === T_VOID) continue;
+
+                    const terrain = TERRAIN_COLORS[tile];
+                    if (!terrain) continue;
+
+                    const wx = c * TILE - camX;
+                    const wy = r * TILE - camY;
+
+                    // Base tile color with subtle variation
+                    const shade = ((r + c) % 2 === 0) ? 0.85 : 1.0;
+                    const [br, bg, bb] = terrain.base;
+                    ctx.fillStyle = `rgb(${Math.floor(br * shade)},${Math.floor(bg * shade)},${Math.floor(bb * shade)})`;
+                    ctx.fillRect(wx, wy, TILE + 0.5, TILE + 0.5);
+
+                    // Edge highlight on tile borders
+                    const [er, eg, eb] = terrain.edge;
+
+                    // Check if adjacent tile is different
+                    const above = (r > 0) ? stageData.grid[r-1][c] : T_VOID;
+                    const below = (r < stageData.h - 1) ? stageData.grid[r+1][c] : T_VOID;
+                    const left = (c > 0) ? stageData.grid[r][c-1] : T_VOID;
+                    const right = (c < stageData.w - 1) ? stageData.grid[r][c+1] : T_VOID;
+
+                    ctx.strokeStyle = `rgba(${er},${eg},${eb},0.3)`;
+                    ctx.lineWidth = 1;
+
+                    if (above === T_VOID || above !== tile) {
+                        ctx.beginPath(); ctx.moveTo(wx, wy); ctx.lineTo(wx + TILE, wy); ctx.stroke();
+                    }
+                    if (below === T_VOID || below !== tile) {
+                        ctx.beginPath(); ctx.moveTo(wx, wy + TILE); ctx.lineTo(wx + TILE, wy + TILE); ctx.stroke();
+                    }
+                    if (left === T_VOID || left !== tile) {
+                        ctx.beginPath(); ctx.moveTo(wx, wy); ctx.lineTo(wx, wy + TILE); ctx.stroke();
+                    }
+                    if (right === T_VOID || right !== tile) {
+                        ctx.beginPath(); ctx.moveTo(wx + TILE, wy); ctx.lineTo(wx + TILE, wy + TILE); ctx.stroke();
+                    }
+
+                    // Small x marker on each tile (like in the original game)
+                    ctx.strokeStyle = `rgba(${er},${eg},${eb},0.15)`;
+                    ctx.lineWidth = 0.5;
+                    const cx = wx + TILE / 2;
+                    const cy = wy + TILE / 2;
+                    ctx.beginPath();
+                    ctx.moveTo(cx - 3, cy - 3); ctx.lineTo(cx + 3, cy + 3);
+                    ctx.moveTo(cx + 3, cy - 3); ctx.lineTo(cx - 3, cy + 3);
+                    ctx.stroke();
+                }
+            }
+
+            // Draw tire marks
+            for (let i = 0; i < tireMarks.length; i++) {
+                const m = tireMarks[i];
+                const mx = m.x - camX;
+                const my = m.y - camY;
+                m.alpha = Math.max(0, m.alpha - 0.0008);
+                if (m.alpha > 0.02) {
+                    ctx.fillStyle = `rgba(20,20,30,${m.alpha * 0.7})`;
+                    ctx.beginPath();
+                    ctx.arc(mx, my, 2.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // Draw particles
+            for (const p of particles) {
+                const px = p.x - camX;
+                const py = p.y - camY;
+                const alpha = Math.max(0, p.life / p.maxLife);
+                if (p.color.endsWith(',')) {
+                    ctx.fillStyle = p.color + alpha + ')';
+                } else {
+                    ctx.globalAlpha = alpha;
+                    ctx.fillStyle = p.color;
+                }
+                ctx.beginPath();
+                ctx.arc(px, py, 3 * alpha + 1, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            }
+
+            // Draw headlight beam
+            const beamLen = 160;
+            const beamSpread = 0.35;
+            const hlX = car.x - camX + Math.cos(car.angle) * 14;
+            const hlY = car.y - camY + Math.sin(car.angle) * 14;
+            const beamGrad = ctx.createRadialGradient(
+                hlX, hlY, 5,
+                hlX + Math.cos(car.angle) * beamLen * 0.6,
+                hlY + Math.sin(car.angle) * beamLen * 0.6,
+                beamLen * 0.5
+            );
+            beamGrad.addColorStop(0, 'rgba(255,255,240,0.2)');
+            beamGrad.addColorStop(1, 'rgba(255,255,240,0)');
+            ctx.fillStyle = beamGrad;
+            ctx.beginPath();
+            ctx.moveTo(hlX, hlY);
+            ctx.lineTo(
+                hlX + Math.cos(car.angle - beamSpread) * beamLen,
+                hlY + Math.sin(car.angle - beamSpread) * beamLen
+            );
+            ctx.lineTo(
+                hlX + Math.cos(car.angle + beamSpread) * beamLen,
+                hlY + Math.sin(car.angle + beamSpread) * beamLen
+            );
+            ctx.closePath();
+            ctx.fill();
+
+            // Draw car
+            const carSX = car.x - camX;
+            const carSY = car.y - camY;
+
+            ctx.save();
+            ctx.translate(carSX, carSY);
+            ctx.rotate(car.angle + Math.PI / 2); // +90deg so sprite top (headlights) points in car.angle direction
+
+            // Car shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.fillRect(-CAR_W / 2 + 2, -CAR_H / 2 + 2, CAR_W, CAR_H);
+
+            // Car body
+            ctx.fillStyle = '#e060a0';
+            ctx.beginPath();
+            ctx.roundRect(-CAR_W / 2, -CAR_H / 2, CAR_W, CAR_H, 3);
+            ctx.fill();
+
+            // Windshield
+            ctx.fillStyle = 'rgba(200,180,255,0.6)';
+            ctx.fillRect(-CAR_W / 2 + 3, -CAR_H / 2 + 2, CAR_W - 6, 7);
+
+            // Roof stripe
+            ctx.fillStyle = '#c04080';
+            ctx.fillRect(-CAR_W / 2 + 2, -2, CAR_W - 4, 8);
+
+            // Headlights
+            ctx.fillStyle = '#fff';
+            ctx.shadowColor = '#ffe';
+            ctx.shadowBlur = 6;
+            ctx.fillRect(-CAR_W / 2 + 1, -CAR_H / 2 - 1, 4, 3);
+            ctx.fillRect(CAR_W / 2 - 5, -CAR_H / 2 - 1, 4, 3);
+            ctx.shadowBlur = 0;
+
+            // Tail lights
+            ctx.fillStyle = '#ff2222';
+            ctx.shadowColor = '#ff0000';
+            ctx.shadowBlur = 4;
+            ctx.fillRect(-CAR_W / 2 + 1, CAR_H / 2 - 2, 4, 3);
+            ctx.fillRect(CAR_W / 2 - 5, CAR_H / 2 - 2, 4, 3);
+            ctx.shadowBlur = 0;
+
+            // Underglow when drifting
+            if (car.drifting) {
+                ctx.shadowColor = '#c060ff';
+                ctx.shadowBlur = 15;
+                ctx.strokeStyle = 'rgba(200,100,255,0.5)';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.roundRect(-CAR_W / 2 - 2, -CAR_H / 2 - 2, CAR_W + 4, CAR_H + 4, 4);
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
+
+            ctx.restore();
+
+            ctx.restore(); // end camera transform
+
+            // ---- HUD ----
+
+            // Timer
+            const mins = Math.floor(timer / 60);
+            const secs = Math.floor(timer % 60);
+            const ms = Math.floor((timer * 1000) % 1000);
+            const timeStr = `${mins}:${String(secs).padStart(2, '0')}:${String(ms).padStart(3, '0')}`;
+
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 18px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText(timeStr, 20, H - 50);
+
+            // Speed
+            const kmh = Math.floor(car.speed * 25);
+            ctx.fillText(kmh + 'KM/H', 150, H - 50);
+
+            // Stage name
+            ctx.fillStyle = '#c0a0e0';
+            ctx.font = 'bold 14px monospace';
+            ctx.fillText(stageData.name.toUpperCase(), 20, H - 25);
+
+            // Health/progress bar (just a visual bar showing stage progress)
+            const barX = 20;
+            const barY = H - 15;
+            const barW = 200;
+            const barH = 6;
+            ctx.fillStyle = 'rgba(255,255,255,0.15)';
+            ctx.fillRect(barX, barY, barW, barH);
+
+            // Approximate progress based on distance to finish
+            if (stageData.finishTiles.length > 0) {
+                const ft = stageData.finishTiles[0];
+                const fx = (ft.c + 0.5) * TILE;
+                const fy = (ft.r + 0.5) * TILE;
+                const sx = (stageData.startX + 0.5) * TILE;
+                const sy = (stageData.startY + 0.5) * TILE;
+                const totalDist = Math.sqrt((fx - sx) * (fx - sx) + (fy - sy) * (fy - sy));
+                const currentDist = Math.sqrt((fx - car.x) * (fx - car.x) + (fy - car.y) * (fy - car.y));
+                const progress = Math.max(0, Math.min(1, 1 - currentDist / totalDist));
+                const filledW = barW * progress;
+
+                // Green/white gradient
+                const greenPart = Math.min(filledW, barW * 0.7);
+                if (greenPart > 0) {
+                    ctx.fillStyle = '#44cc44';
+                    ctx.fillRect(barX, barY, greenPart, barH);
+                }
+                if (filledW > greenPart) {
+                    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                    ctx.fillRect(barX + greenPart, barY, filledW - greenPart, barH);
+                }
+            }
+
+            // Stage indicator
+            ctx.textAlign = 'right';
+            ctx.fillStyle = '#888';
+            ctx.font = '14px monospace';
+            ctx.fillText('Stage ' + (currentStage + 1) + '/' + STAGES.length, W - 20, H - 25);
+
+            // Best time
+            const bestKey = 'stage' + currentStage;
+            if (bestTimes[bestKey]) {
+                const bt = bestTimes[bestKey];
+                const bm = Math.floor(bt / 60);
+                const bs = Math.floor(bt % 60);
+                const bms = Math.floor((bt * 1000) % 1000);
+                ctx.fillText('Best: ' + bm + ':' + String(bs).padStart(2,'0') + ':' + String(bms).padStart(3,'0'), W - 20, H - 50);
+            }
+
+            // Minimap (bottom-right)
+            const mmScale = 3;
+            const mmW = stageData.w * mmScale;
+            const mmH = stageData.h * mmScale;
+            const mmX = W - mmW - 15;
+            const mmY = H - mmH - 70;
+
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.fillRect(mmX - 2, mmY - 2, mmW + 4, mmH + 4);
+
+            for (let r = 0; r < stageData.h; r++) {
+                for (let c = 0; c < stageData.w; c++) {
+                    const t = stageData.grid[r][c];
+                    if (t === T_VOID) continue;
+                    const tc = TERRAIN_COLORS[t];
+                    if (!tc) continue;
+                    ctx.fillStyle = `rgb(${tc.base[0]},${tc.base[1]},${tc.base[2]})`;
+                    ctx.fillRect(mmX + c * mmScale, mmY + r * mmScale, mmScale, mmScale);
+                }
+            }
+
+            // Car dot on minimap
+            const carMmX = mmX + (car.x / TILE) * mmScale;
+            const carMmY = mmY + (car.y / TILE) * mmScale;
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(carMmX, carMmY, 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Drift indicator
+            if (car.drifting && gameRunning) {
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#ff60a0';
+                ctx.font = 'bold 22px monospace';
+                ctx.shadowColor = '#ff60a0';
+                ctx.shadowBlur = 10;
+                ctx.fillText('DRIFT!', W / 2, 50);
+                ctx.shadowBlur = 0;
+            }
+
+            // Game over overlay
+            if (gameOver) {
+                ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                ctx.fillRect(0, 0, W, H);
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#ff4060';
+                ctx.font = 'bold 42px "Segoe UI", sans-serif';
+                ctx.shadowColor = '#ff4060';
+                ctx.shadowBlur = 15;
+                ctx.fillText('CRASHED!', W / 2, H / 2 - 30);
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#ccc';
+                ctx.font = '20px "Segoe UI", sans-serif';
+                ctx.fillText('Tap or Space to retry', W / 2, H / 2 + 20);
+            }
+
+            // Stage complete overlay
+            if (stageComplete) {
+                ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                ctx.fillRect(0, 0, W, H);
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#44ff88';
+                ctx.font = 'bold 42px "Segoe UI", sans-serif';
+                ctx.shadowColor = '#44ff88';
+                ctx.shadowBlur = 15;
+                ctx.fillText('STAGE CLEAR!', W / 2, H / 2 - 50);
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#fff';
+                ctx.font = '24px "Segoe UI", sans-serif';
+                ctx.fillText('Time: ' + timeStr, W / 2, H / 2);
+                const bestKey = 'stage' + currentStage;
+                if (bestTimes[bestKey] && bestTimes[bestKey] >= timer) {
+                    ctx.fillStyle = '#ffcc00';
+                    ctx.font = 'bold 20px "Segoe UI", sans-serif';
+                    ctx.fillText('New Best!', W / 2, H / 2 + 30);
+                }
+                if (currentStage < STAGES.length - 1) {
+                    ctx.fillStyle = '#88ccff';
+                    ctx.font = '18px "Segoe UI", sans-serif';
+                    ctx.fillText('Tap or Space for next stage', W / 2, H / 2 + 70);
+                } else {
+                    ctx.fillStyle = '#ffcc00';
+                    ctx.font = 'bold 20px "Segoe UI", sans-serif';
+                    ctx.fillText('You are the Drift King!', W / 2, H / 2 + 70);
+                    ctx.fillStyle = '#88ccff';
+                    ctx.font = '16px "Segoe UI", sans-serif';
+                    ctx.fillText('Tap or Space to play again', W / 2, H / 2 + 100);
+                }
+            }
+        }
+
+        // ---- GAME LOOP ----
+        let lastTime = 0;
+        function gameLoop(timestamp) {
+            const rawDt = (timestamp - lastTime) / 16.667;
+            const dt = Math.min(rawDt, 3);
+            lastTime = timestamp;
+
+            if (gameRunning) {
+                steerInput = 0;
+                if (keys['ArrowLeft'] || keys['KeyA'] || touchLeft) steerInput = -1;
+                if (keys['ArrowRight'] || keys['KeyD'] || touchRight) steerInput = 1;
+
+                updateCar(dt);
+                updateParticles(dt);
+            }
+
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // ---- INPUT ----
+        function handleAction() {
+            if (gameOver) {
+                initStage(currentStage);
+            } else if (stageComplete) {
+                if (currentStage < STAGES.length - 1) {
+                    initStage(currentStage + 1);
+                } else {
+                    initStage(0);
+                }
+            }
+        }
+
+        document.addEventListener('keydown', function(e) {
+            keys[e.code] = true;
+            if (e.code === 'Space') handleAction();
+        });
+        document.addEventListener('keyup', function(e) {
+            keys[e.code] = false;
+        });
+
+        canvas.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            if (gameOver || stageComplete) { handleAction(); return; }
+            for (const touch of e.changedTouches) {
+                if (touch.clientX < canvas.width / 2) touchLeft = true;
+                else touchRight = true;
+            }
+        });
+        canvas.addEventListener('touchmove', function(e) {
+            e.preventDefault();
+            touchLeft = false; touchRight = false;
+            for (const touch of e.touches) {
+                if (touch.clientX < canvas.width / 2) touchLeft = true;
+                else touchRight = true;
+            }
+        });
+        canvas.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            touchLeft = false; touchRight = false;
+            for (const touch of e.touches) {
+                if (touch.clientX < canvas.width / 2) touchLeft = true;
+                else touchRight = true;
+            }
+        });
+
+        canvas.addEventListener('mousedown', function(e) {
+            if (gameOver || stageComplete) { handleAction(); return; }
+            if (e.clientX < canvas.width / 2) touchLeft = true;
+            else touchRight = true;
+        });
+        canvas.addEventListener('mouseup', function() {
+            touchLeft = false; touchRight = false;
+        });
+
+        // Start button
+        document.getElementById('startBtn').addEventListener('click', function() {
+            document.getElementById('instructions').style.display = 'none';
+            initStage(0);
+        });
+
+        // Pre-init for rendering
+        stageData = STAGES[0];
+        car.x = (stageData.startX + 0.5) * TILE;
+        car.y = (stageData.startY + 0.5) * TILE;
+        car.angle = Math.PI / 2;
+
+        requestAnimationFrame(gameLoop);
+
+        // ---- LIL-GUI PHYSICS PANEL ----
+        const guiScript = document.createElement('script');
+        guiScript.src = 'https://cdn.jsdelivr.net/npm/lil-gui@0.19/dist/lil-gui.umd.min.js';
+        guiScript.onload = function() {
+            const gui = new lil.GUI({ title: 'Physics Tuning' });
+            gui.domElement.style.zIndex = '300';
+
+            const f1 = gui.addFolder('Car');
+            f1.add(physics, 'maxSpeed', 1, 10, 0.1).name('Max Speed');
+            f1.add(physics, 'accel', 0.01, 0.2, 0.005).name('Acceleration');
+            f1.add(physics, 'steerRate', 0.01, 0.15, 0.005).name('Steer Rate');
+            f1.add(physics, 'gripBlend', 0.01, 0.2, 0.005).name('Grip Blend');
+            f1.add(physics, 'driftThreshold', 0.05, 0.5, 0.01).name('Drift Threshold');
+
+            const f2 = gui.addFolder('Road');
+            f2.add(physics, 'roadGrip', 0.1, 1.5, 0.05).name('Grip');
+            f2.add(physics, 'roadSpeedMult', 0.5, 2, 0.05).name('Speed Mult');
+
+            const f3 = gui.addFolder('Dirt');
+            f3.add(physics, 'dirtGrip', 0.05, 1, 0.05).name('Grip');
+            f3.add(physics, 'dirtSpeedMult', 0.3, 1.5, 0.05).name('Speed Mult');
+
+            const f4 = gui.addFolder('Ice');
+            f4.add(physics, 'iceGrip', 0.01, 0.5, 0.01).name('Grip');
+            f4.add(physics, 'iceSpeedMult', 0.5, 2, 0.05).name('Speed Mult');
+
+            // Export button
+            gui.add({ export: function() {
+                console.log('Current physics:', JSON.stringify(physics, null, 2));
+                navigator.clipboard.writeText(JSON.stringify(physics, null, 2)).then(function() {
+                    alert('Physics values copied to clipboard!');
+                });
+            }}, 'export').name('Copy Values to Clipboard');
+        };
+        document.head.appendChild(guiScript);
+    })();
+    </script>
+</body>
+</html>

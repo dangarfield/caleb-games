@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Bomberman - Caleb's Arcade</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  #gameContainer {
+    position: relative;
+    width: 100%; height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+  }
+  canvas { display: block; border-radius: 4px; }
+  #backBtn {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    z-index: 100;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: background 0.2s;
+  }
+  #backBtn:hover, #backBtn:active { background: rgba(255,255,255,0.3); }
+  #hud {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    color: #fff;
+    font-size: 14px;
+    z-index: 100;
+    text-align: right;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+  }
+  #controls {
+    position: absolute;
+    bottom: 20px;
+    left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding: 0 20px;
+    z-index: 100;
+    pointer-events: none;
+  }
+  .dpad {
+    width: 140px; height: 140px;
+    position: relative;
+    pointer-events: auto;
+  }
+  .dpad-btn {
+    position: absolute;
+    width: 46px; height: 46px;
+    background: rgba(255,255,255,0.2);
+    border: 2px solid rgba(255,255,255,0.3);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: #fff;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .dpad-btn:active, .dpad-btn.active { background: rgba(255,255,255,0.45); }
+  .dpad-up { top: 0; left: 47px; }
+  .dpad-down { bottom: 0; left: 47px; }
+  .dpad-left { top: 47px; left: 0; }
+  .dpad-right { top: 47px; right: 0; }
+  #bombBtn {
+    width: 70px; height: 70px;
+    border-radius: 50%;
+    background: rgba(255,80,80,0.4);
+    border: 3px solid rgba(255,100,100,0.5);
+    color: #fff;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #bombBtn:active, #bombBtn.active { background: rgba(255,80,80,0.7); }
+  #overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    color: #fff;
+    text-align: center;
+    padding: 20px;
+  }
+  #overlay h1 { font-size: 28px; margin-bottom: 16px; }
+  #overlay p { font-size: 16px; margin-bottom: 8px; line-height: 1.5; opacity: 0.9; }
+  #overlay .start-btn {
+    margin-top: 20px;
+    padding: 12px 36px;
+    font-size: 18px;
+    background: #e94560;
+    color: #fff;
+    border: none;
+    border-radius: 25px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  @media (min-width: 800px) {
+    #controls { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="gameContainer">
+  <a id="backBtn" href="../../index.html">Back to Games</a>
+  <div id="hud">
+    <div>Score: <span id="scoreDisplay">0</span></div>
+    <div>Level: <span id="levelDisplay">1</span></div>
+    <div>Lives: <span id="livesDisplay">3</span></div>
+  </div>
+  <canvas id="gameCanvas"></canvas>
+  <div id="controls">
+    <div class="dpad">
+      <div class="dpad-btn dpad-up" data-dir="up">&#9650;</div>
+      <div class="dpad-btn dpad-down" data-dir="down">&#9660;</div>
+      <div class="dpad-btn dpad-left" data-dir="left">&#9664;</div>
+      <div class="dpad-btn dpad-right" data-dir="right">&#9654;</div>
+    </div>
+    <button id="bombBtn">BOMB</button>
+  </div>
+  <div id="overlay">
+    <h1>Bomberman</h1>
+    <p>Place bombs to destroy walls and enemies!</p>
+    <p>Arrow keys / D-pad to move<br>Space / Bomb button to place bombs</p>
+    <p>Collect power-ups: Blast+, Bombs+, Speed+</p>
+    <button class="start-btn" id="startBtn">Play</button>
+  </div>
+</div>
+<script>
+(function() {
+  "use strict";
+
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const container = document.getElementById('gameContainer');
+  const overlay = document.getElementById('overlay');
+  const startBtn = document.getElementById('startBtn');
+  const scoreDisplay = document.getElementById('scoreDisplay');
+  const levelDisplay = document.getElementById('levelDisplay');
+  const livesDisplay = document.getElementById('livesDisplay');
+
+  // Grid config
+  const COLS = 15, ROWS = 13;
+  const TILE = 40;
+  const GW = COLS * TILE, GH = ROWS * TILE;
+
+  // Cell types
+  const EMPTY = 0, WALL = 1, BRICK = 2;
+
+  // Game state
+  let grid, player, enemies, bombs, explosions, powerups;
+  let score, level, lives, maxBombs, bombRange, speedLevel;
+  let gameRunning = false, gamePaused = false, gameOver = false;
+  let animFrame;
+  let lastTime = 0;
+  let dpadDir = null;
+
+  // Resize
+  let canvasScale = 1, offsetX = 0, offsetY = 0;
+  function resize() {
+    const cw = container.clientWidth;
+    const ch = container.clientHeight;
+    const hudHeight = 40;
+    const controlsHeight = window.innerWidth < 800 ? 170 : 0;
+    const availH = ch - hudHeight - controlsHeight;
+    const availW = cw;
+    const sx = availW / GW;
+    const sy = availH / GH;
+    canvasScale = Math.min(sx, sy, 1.5);
+    canvas.width = Math.floor(GW * canvasScale);
+    canvas.height = Math.floor(GH * canvasScale);
+    canvas.style.marginTop = hudHeight + 'px';
+  }
+  window.addEventListener('resize', resize);
+
+  // Level generation
+  function generateLevel(lvl) {
+    grid = [];
+    for (let r = 0; r < ROWS; r++) {
+      grid[r] = [];
+      for (let c = 0; c < COLS; c++) {
+        if (r === 0 || r === ROWS - 1 || c === 0 || c === COLS - 1) {
+          grid[r][c] = WALL;
+        } else if (r % 2 === 0 && c % 2 === 0) {
+          grid[r][c] = WALL;
+        } else {
+          grid[r][c] = EMPTY;
+        }
+      }
+    }
+    // Add destructible bricks
+    const brickChance = 0.35 + lvl * 0.03;
+    for (let r = 1; r < ROWS - 1; r++) {
+      for (let c = 1; c < COLS - 1; c++) {
+        if (grid[r][c] !== EMPTY) continue;
+        // Keep starting area clear
+        if ((r <= 2 && c <= 2) || (r <= 1 && c <= 3) || (r <= 3 && c <= 1)) continue;
+        if (Math.random() < Math.min(brickChance, 0.55)) {
+          grid[r][c] = BRICK;
+        }
+      }
+    }
+
+    // Place enemies
+    enemies = [];
+    const numEnemies = 3 + lvl;
+    let attempts = 0;
+    while (enemies.length < numEnemies && attempts < 500) {
+      attempts++;
+      const er = 1 + Math.floor(Math.random() * (ROWS - 2));
+      const ec = 1 + Math.floor(Math.random() * (COLS - 2));
+      if (grid[er][ec] !== EMPTY) continue;
+      if (er <= 3 && ec <= 3) continue;
+      enemies.push({
+        x: ec * TILE + TILE / 2,
+        y: er * TILE + TILE / 2,
+        dir: ['up', 'down', 'left', 'right'][Math.floor(Math.random() * 4)],
+        speed: 40 + lvl * 5,
+        changeTimer: 0,
+        alive: true
+      });
+    }
+
+    bombs = [];
+    explosions = [];
+    powerups = [];
+  }
+
+  function initGame() {
+    score = 0;
+    level = 1;
+    lives = 3;
+    maxBombs = 1;
+    bombRange = 2;
+    speedLevel = 0;
+    gameOver = false;
+    startLevel();
+  }
+
+  function startLevel() {
+    generateLevel(level);
+    player = {
+      x: 1 * TILE + TILE / 2,
+      y: 1 * TILE + TILE / 2,
+      dir: null,
+      alive: true,
+      invincible: 0
+    };
+    updateHUD();
+  }
+
+  function updateHUD() {
+    scoreDisplay.textContent = score;
+    levelDisplay.textContent = level;
+    livesDisplay.textContent = lives;
+  }
+
+  // Grid helpers
+  function toGrid(px, py) {
+    return { c: Math.floor(px / TILE), r: Math.floor(py / TILE) };
+  }
+
+  function canMove(x, y, size) {
+    const s = size || 14;
+    const pts = [
+      { x: x - s, y: y - s },
+      { x: x + s, y: y - s },
+      { x: x - s, y: y + s },
+      { x: x + s, y: y + s }
+    ];
+    for (const p of pts) {
+      const gc = Math.floor(p.x / TILE);
+      const gr = Math.floor(p.y / TILE);
+      if (gr < 0 || gr >= ROWS || gc < 0 || gc >= COLS) return false;
+      if (grid[gr][gc] === WALL || grid[gr][gc] === BRICK) return false;
+    }
+    return true;
+  }
+
+  // Place bomb
+  function placeBomb() {
+    if (!player.alive) return;
+    const g = toGrid(player.x, player.y);
+    // Count active bombs
+    let activeBombs = bombs.filter(b => !b.exploded).length;
+    if (activeBombs >= maxBombs) return;
+    // Don't place on existing bomb
+    for (const b of bombs) {
+      const bg = toGrid(b.x, b.y);
+      if (bg.r === g.r && bg.c === g.c) return;
+    }
+    bombs.push({
+      x: g.c * TILE + TILE / 2,
+      y: g.r * TILE + TILE / 2,
+      timer: 3,
+      range: bombRange,
+      exploded: false,
+      owner: true
+    });
+  }
+
+  // Explode bomb
+  function explodeBomb(bomb) {
+    if (bomb.exploded) return;
+    bomb.exploded = true;
+    const g = toGrid(bomb.x, bomb.y);
+    const cells = [{ r: g.r, c: g.c }];
+    const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+    for (const [dr, dc] of dirs) {
+      for (let i = 1; i <= bomb.range; i++) {
+        const nr = g.r + dr * i;
+        const nc = g.c + dc * i;
+        if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) break;
+        if (grid[nr][nc] === WALL) break;
+        if (grid[nr][nc] === BRICK) {
+          cells.push({ r: nr, c: nc });
+          grid[nr][nc] = EMPTY;
+          score += 10;
+          // Chance for power-up
+          if (Math.random() < 0.3) {
+            const types = ['blast', 'bombs', 'speed'];
+            powerups.push({
+              x: nc * TILE + TILE / 2,
+              y: nr * TILE + TILE / 2,
+              type: types[Math.floor(Math.random() * types.length)],
+              timer: 15
+            });
+          }
+          break;
+        }
+        cells.push({ r: nr, c: nc });
+      }
+    }
+    explosions.push({ cells, timer: 0.5 });
+
+    // Chain reaction
+    for (const b of bombs) {
+      if (b.exploded) continue;
+      const bg = toGrid(b.x, b.y);
+      for (const cell of cells) {
+        if (bg.r === cell.r && bg.c === cell.c) {
+          explodeBomb(b);
+        }
+      }
+    }
+
+    // Check enemy hits
+    for (const e of enemies) {
+      if (!e.alive) continue;
+      const eg = toGrid(e.x, e.y);
+      for (const cell of cells) {
+        if (eg.r === cell.r && eg.c === cell.c) {
+          e.alive = false;
+          score += 100;
+        }
+      }
+    }
+
+    // Check player hit
+    if (player.alive && player.invincible <= 0) {
+      const pg = toGrid(player.x, player.y);
+      for (const cell of cells) {
+        if (pg.r === cell.r && pg.c === cell.c) {
+          playerDie();
+        }
+      }
+    }
+
+    updateHUD();
+  }
+
+  function playerDie() {
+    player.alive = false;
+    lives--;
+    updateHUD();
+    if (lives <= 0) {
+      gameOver = true;
+    } else {
+      setTimeout(() => {
+        player.x = 1 * TILE + TILE / 2;
+        player.y = 1 * TILE + TILE / 2;
+        player.alive = true;
+        player.invincible = 3;
+      }, 1000);
+    }
+  }
+
+  // Update
+  function update(dt) {
+    if (!gameRunning || gamePaused || gameOver) return;
+    if (!player.alive && lives <= 0) return;
+
+    // Player movement
+    const baseSpeed = 120 + speedLevel * 20;
+    const dir = player.dir;
+    if (dir && player.alive) {
+      let nx = player.x, ny = player.y;
+      const move = baseSpeed * dt;
+      if (dir === 'up') ny -= move;
+      if (dir === 'down') ny += move;
+      if (dir === 'left') nx -= move;
+      if (dir === 'right') nx += move;
+      // Snap to grid lane: when moving vertically, align X to tile center; when moving horizontally, align Y
+      if (dir === 'up' || dir === 'down') {
+        const gridCenterX = Math.floor(player.x / TILE) * TILE + TILE / 2;
+        nx = gridCenterX; // Lock to grid column
+      } else {
+        const gridCenterY = Math.floor(player.y / TILE) * TILE + TILE / 2;
+        ny = gridCenterY; // Lock to grid row
+      }
+      if (canMove(nx, ny)) {
+        player.x = nx;
+        player.y = ny;
+      }
+    }
+    if (player.invincible > 0) player.invincible -= dt;
+
+    // Enemies
+    for (const e of enemies) {
+      if (!e.alive) continue;
+      e.changeTimer -= dt;
+      if (e.changeTimer <= 0) {
+        e.dir = ['up', 'down', 'left', 'right'][Math.floor(Math.random() * 4)];
+        e.changeTimer = 1 + Math.random() * 2;
+      }
+      let ex = e.x, ey = e.y;
+      if (e.dir === 'up') ey -= e.speed * dt;
+      if (e.dir === 'down') ey += e.speed * dt;
+      if (e.dir === 'left') ex -= e.speed * dt;
+      if (e.dir === 'right') ex += e.speed * dt;
+      if (canMoveEnemy(ex, ey)) {
+        e.x = ex;
+        e.y = ey;
+      } else {
+        e.dir = ['up', 'down', 'left', 'right'][Math.floor(Math.random() * 4)];
+        e.changeTimer = 0.5 + Math.random();
+      }
+      // Collide with player
+      if (player.alive && player.invincible <= 0) {
+        const dx = e.x - player.x, dy = e.y - player.y;
+        if (Math.sqrt(dx * dx + dy * dy) < TILE * 0.7) {
+          playerDie();
+        }
+      }
+    }
+
+    // Bombs
+    for (const b of bombs) {
+      if (b.exploded) continue;
+      b.timer -= dt;
+      if (b.timer <= 0) explodeBomb(b);
+    }
+
+    // Explosions
+    for (let i = explosions.length - 1; i >= 0; i--) {
+      explosions[i].timer -= dt;
+      if (explosions[i].timer <= 0) { explosions.splice(i, 1); continue; }
+      // Check if player walks into active explosion
+      if (player.alive && player.invincible <= 0) {
+        const pg = toGrid(player.x, player.y);
+        for (const cell of explosions[i].cells) {
+          if (pg.r === cell.r && pg.c === cell.c) {
+            playerDie();
+            break;
+          }
+        }
+      }
+    }
+
+    // Clean up bombs
+    for (let i = bombs.length - 1; i >= 0; i--) {
+      if (bombs[i].exploded) bombs.splice(i, 1);
+    }
+
+    // Power-ups
+    for (let i = powerups.length - 1; i >= 0; i--) {
+      const pu = powerups[i];
+      pu.timer -= dt;
+      if (pu.timer <= 0) { powerups.splice(i, 1); continue; }
+      if (player.alive) {
+        const dx = pu.x - player.x, dy = pu.y - player.y;
+        if (Math.sqrt(dx * dx + dy * dy) < TILE * 0.6) {
+          if (pu.type === 'blast') bombRange = Math.min(bombRange + 1, 6);
+          if (pu.type === 'bombs') maxBombs = Math.min(maxBombs + 1, 5);
+          if (pu.type === 'speed') speedLevel = Math.min(speedLevel + 1, 4);
+          score += 50;
+          powerups.splice(i, 1);
+          updateHUD();
+        }
+      }
+    }
+
+    // Check level complete
+    if (enemies.every(e => !e.alive)) {
+      level++;
+      if (level > 10) {
+        gameOver = true;
+        showOverlay('You Win!', 'Final Score: ' + score);
+        return;
+      }
+      startLevel();
+    }
+
+    // Game over
+    if (gameOver) {
+      showOverlay('Game Over', 'Score: ' + score);
+    }
+  }
+
+  function canMoveEnemy(x, y) {
+    const s = 12;
+    const pts = [
+      { x: x - s, y: y - s },
+      { x: x + s, y: y - s },
+      { x: x - s, y: y + s },
+      { x: x + s, y: y + s }
+    ];
+    for (const p of pts) {
+      const gc = Math.floor(p.x / TILE);
+      const gr = Math.floor(p.y / TILE);
+      if (gr < 0 || gr >= ROWS || gc < 0 || gc >= COLS) return false;
+      if (grid[gr][gc] !== EMPTY) return false;
+    }
+    for (const b of bombs) {
+      const bg = toGrid(b.x, b.y);
+      for (const p of pts) {
+        const gc = Math.floor(p.x / TILE);
+        const gr = Math.floor(p.y / TILE);
+        if (gr === bg.r && gc === bg.c) return false;
+      }
+    }
+    return true;
+  }
+
+  // Draw
+  function draw() {
+    ctx.save();
+    ctx.scale(canvasScale, canvasScale);
+    // Background
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, GW, GH);
+
+    // Grid
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const x = c * TILE, y = r * TILE;
+        if (grid[r][c] === WALL) {
+          // Indestructible wall
+          ctx.fillStyle = '#4a4a6a';
+          ctx.fillRect(x, y, TILE, TILE);
+          ctx.fillStyle = '#5a5a7a';
+          ctx.fillRect(x + 2, y + 2, TILE - 4, TILE - 4);
+          ctx.fillStyle = '#6a6a8a';
+          ctx.fillRect(x + 4, y + 4, TILE - 8, 3);
+          ctx.fillRect(x + 4, y + TILE / 2, TILE - 8, 3);
+        } else if (grid[r][c] === BRICK) {
+          // Destructible brick
+          ctx.fillStyle = '#8B5E3C';
+          ctx.fillRect(x, y, TILE, TILE);
+          ctx.fillStyle = '#A0724B';
+          ctx.fillRect(x + 2, y + 2, TILE - 4, TILE - 4);
+          // Brick pattern
+          ctx.fillStyle = '#7A4E2C';
+          ctx.fillRect(x + 2, y + TILE / 2 - 1, TILE - 4, 2);
+          ctx.fillRect(x + TILE / 2 - 1, y + 2, 2, TILE / 2 - 3);
+          ctx.fillRect(x + TILE / 4, y + TILE / 2 + 1, 2, TILE / 2 - 3);
+          ctx.fillRect(x + TILE * 3 / 4, y + TILE / 2 + 1, 2, TILE / 2 - 3);
+        } else {
+          // Floor
+          ctx.fillStyle = '#222244';
+          ctx.fillRect(x, y, TILE, TILE);
+          ctx.strokeStyle = '#2a2a4a';
+          ctx.strokeRect(x, y, TILE, TILE);
+        }
+      }
+    }
+
+    // Power-ups
+    for (const pu of powerups) {
+      const px = pu.x - TILE / 2 + 6, py = pu.y - TILE / 2 + 6;
+      const ps = TILE - 12;
+      if (pu.type === 'blast') {
+        ctx.fillStyle = '#FF6B35';
+        ctx.beginPath();
+        ctx.roundRect(px, py, ps, ps, 5);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 16px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('B+', pu.x, pu.y);
+      } else if (pu.type === 'bombs') {
+        ctx.fillStyle = '#4ECDC4';
+        ctx.beginPath();
+        ctx.roundRect(px, py, ps, ps, 5);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 16px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('#', pu.x, pu.y);
+      } else {
+        ctx.fillStyle = '#FFE66D';
+        ctx.beginPath();
+        ctx.roundRect(px, py, ps, ps, 5);
+        ctx.fill();
+        ctx.fillStyle = '#333';
+        ctx.font = 'bold 16px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('S+', pu.x, pu.y);
+      }
+    }
+
+    // Bombs
+    for (const b of bombs) {
+      if (b.exploded) continue;
+      const bx = b.x, by = b.y;
+      const pulse = 1 + 0.1 * Math.sin(b.timer * 8);
+      const r = (TILE / 2 - 6) * pulse;
+      // Body
+      ctx.fillStyle = '#333';
+      ctx.beginPath();
+      ctx.arc(bx, by + 2, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#555';
+      ctx.beginPath();
+      ctx.arc(bx - 3, by - 2, r * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      // Fuse
+      ctx.strokeStyle = '#AA6633';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(bx, by - r);
+      ctx.quadraticCurveTo(bx + 6, by - r - 8, bx + 10, by - r - 4);
+      ctx.stroke();
+      // Spark
+      if (b.timer < 2) {
+        ctx.fillStyle = `hsl(${30 + Math.random() * 30}, 100%, ${60 + Math.random() * 30}%)`;
+        ctx.beginPath();
+        ctx.arc(bx + 10, by - r - 4, 3 + Math.random() * 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Explosions
+    for (const exp of explosions) {
+      const alpha = Math.min(1, exp.timer * 2);
+      for (const cell of exp.cells) {
+        const ex = cell.c * TILE, ey = cell.r * TILE;
+        const grad = ctx.createRadialGradient(
+          ex + TILE / 2, ey + TILE / 2, 0,
+          ex + TILE / 2, ey + TILE / 2, TILE / 2
+        );
+        grad.addColorStop(0, `rgba(255, 255, 200, ${alpha})`);
+        grad.addColorStop(0.3, `rgba(255, 160, 50, ${alpha})`);
+        grad.addColorStop(0.7, `rgba(255, 60, 20, ${alpha * 0.7})`);
+        grad.addColorStop(1, `rgba(100, 20, 10, ${alpha * 0.3})`);
+        ctx.fillStyle = grad;
+        ctx.fillRect(ex, ey, TILE, TILE);
+      }
+    }
+
+    // Enemies
+    for (const e of enemies) {
+      if (!e.alive) continue;
+      // Body
+      ctx.fillStyle = '#e94560';
+      ctx.beginPath();
+      ctx.arc(e.x, e.y - 2, TILE / 2 - 6, Math.PI, 0);
+      ctx.lineTo(e.x + TILE / 2 - 6, e.y + TILE / 2 - 8);
+      // Wavy bottom
+      const segments = 4;
+      const sw = (TILE - 12) / segments;
+      for (let i = 0; i < segments; i++) {
+        const sx = e.x + TILE / 2 - 6 - i * sw;
+        const sy = e.y + TILE / 2 - 8;
+        ctx.lineTo(sx - sw / 2, sy - 5);
+        ctx.lineTo(sx - sw, sy);
+      }
+      ctx.closePath();
+      ctx.fill();
+      // Eyes
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(e.x - 5, e.y - 5, 5, 0, Math.PI * 2);
+      ctx.arc(e.x + 5, e.y - 5, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#333';
+      let edx = 0, edy = 0;
+      if (e.dir === 'left') edx = -2;
+      if (e.dir === 'right') edx = 2;
+      if (e.dir === 'up') edy = -2;
+      if (e.dir === 'down') edy = 2;
+      ctx.beginPath();
+      ctx.arc(e.x - 5 + edx, e.y - 5 + edy, 2.5, 0, Math.PI * 2);
+      ctx.arc(e.x + 5 + edx, e.y - 5 + edy, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Player
+    if (player.alive) {
+      const blink = player.invincible > 0 && Math.sin(player.invincible * 15) > 0;
+      if (!blink) {
+        // Body
+        ctx.fillStyle = '#4ECDC4';
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, TILE / 2 - 5, 0, Math.PI * 2);
+        ctx.fill();
+        // Face visor
+        ctx.fillStyle = '#333';
+        ctx.beginPath();
+        ctx.ellipse(player.x, player.y - 3, 10, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#88EEFF';
+        ctx.beginPath();
+        ctx.ellipse(player.x, player.y - 3, 8, 4.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Eyes
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(player.x - 4, player.y - 3, 2, 0, Math.PI * 2);
+        ctx.arc(player.x + 4, player.y - 3, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Game over / win overlay
+    if (gameOver) {
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(0, 0, GW, GH);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 36px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(lives <= 0 ? 'Game Over' : 'You Win!', GW / 2, GH / 2 - 30);
+      ctx.font = '20px sans-serif';
+      ctx.fillText('Score: ' + score, GW / 2, GH / 2 + 10);
+      ctx.font = '16px sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.fillText('Tap or press Enter to restart', GW / 2, GH / 2 + 50);
+    }
+
+    ctx.restore();
+  }
+
+  function showOverlay(title, subtitle) {
+    overlay.innerHTML = `<h1>${title}</h1><p>${subtitle}</p><button class="start-btn" id="startBtn">Play Again</button>`;
+    overlay.style.display = 'flex';
+    document.getElementById('startBtn').addEventListener('click', startGame);
+    document.getElementById('startBtn').addEventListener('touchend', function(e) {
+      e.preventDefault();
+      startGame();
+    });
+  }
+
+  // Game loop
+  function loop(time) {
+    const dt = Math.min((time - lastTime) / 1000, 0.05);
+    lastTime = time;
+    update(dt);
+    draw();
+    animFrame = requestAnimationFrame(loop);
+  }
+
+  function startGame() {
+    overlay.style.display = 'none';
+    initGame();
+    gameRunning = true;
+    lastTime = performance.now();
+    if (animFrame) cancelAnimationFrame(animFrame);
+    animFrame = requestAnimationFrame(loop);
+  }
+
+  // Input: keyboard
+  const keys = {};
+  document.addEventListener('keydown', function(e) {
+    keys[e.key] = true;
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+      e.preventDefault();
+    }
+    if (e.key === ' ') placeBomb();
+    if (e.key === 'Enter' && gameOver) startGame();
+    updatePlayerDir();
+  });
+  document.addEventListener('keyup', function(e) {
+    keys[e.key] = false;
+    updatePlayerDir();
+  });
+
+  function updatePlayerDir() {
+    if (dpadDir) { player.dir = dpadDir; return; }
+    if (keys['ArrowUp']) player.dir = 'up';
+    else if (keys['ArrowDown']) player.dir = 'down';
+    else if (keys['ArrowLeft']) player.dir = 'left';
+    else if (keys['ArrowRight']) player.dir = 'right';
+    else player.dir = null;
+  }
+
+  // Input: touch d-pad
+  document.querySelectorAll('.dpad-btn').forEach(btn => {
+    function onStart(e) {
+      e.preventDefault();
+      dpadDir = btn.dataset.dir;
+      btn.classList.add('active');
+      if (player) player.dir = dpadDir;
+    }
+    function onEnd(e) {
+      e.preventDefault();
+      btn.classList.remove('active');
+      if (dpadDir === btn.dataset.dir) {
+        dpadDir = null;
+        updatePlayerDir();
+      }
+    }
+    btn.addEventListener('touchstart', onStart, { passive: false });
+    btn.addEventListener('touchend', onEnd, { passive: false });
+    btn.addEventListener('touchcancel', onEnd, { passive: false });
+    btn.addEventListener('mousedown', onStart);
+    btn.addEventListener('mouseup', onEnd);
+    btn.addEventListener('mouseleave', onEnd);
+  });
+
+  // Bomb button
+  const bombBtn = document.getElementById('bombBtn');
+  bombBtn.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    bombBtn.classList.add('active');
+    placeBomb();
+  }, { passive: false });
+  bombBtn.addEventListener('touchend', function(e) {
+    e.preventDefault();
+    bombBtn.classList.remove('active');
+  }, { passive: false });
+  bombBtn.addEventListener('mousedown', function() {
+    bombBtn.classList.add('active');
+    placeBomb();
+  });
+  bombBtn.addEventListener('mouseup', function() {
+    bombBtn.classList.remove('active');
+  });
+
+  // Canvas tap to restart
+  canvas.addEventListener('click', function() {
+    if (gameOver) startGame();
+  });
+
+  // Start button
+  startBtn.addEventListener('click', startGame);
+  startBtn.addEventListener('touchend', function(e) {
+    e.preventDefault();
+    startGame();
+  });
+
+  resize();
+})();
+</script>
+</body>
+</html>
