@@ -319,10 +319,15 @@
     return Math.round(base / mul);
   }
 
+  let prevSnake = [];
+  let moveProgress = 1; // 0..1 interpolation between ticks
+  let lastTickTime = 0;
+
   function init() {
     const cx = Math.floor(cols / 2);
     const cy = Math.floor(rows / 2);
     snake = [{x: cx, y: cy}, {x: cx - 1, y: cy}, {x: cx - 2, y: cy}];
+    prevSnake = snake.map(s => ({x: s.x, y: s.y}));
     dir = {x: 1, y: 0};
     nextDir = {x: 1, y: 0};
     score = 0;
@@ -331,6 +336,8 @@
     alive = true;
     particles = [];
     warningCell = null;
+    moveProgress = 1;
+    lastTickTime = performance.now();
     scoreEl.textContent = '0';
     livesEl.textContent = lives;
     diffLabel.textContent = DIFFICULTIES[currentDifficulty].label;
@@ -379,6 +386,11 @@
   function update() {
     if (!alive) return;
 
+    // Save previous positions for smooth interpolation
+    prevSnake = snake.map(s => ({x: s.x, y: s.y}));
+    moveProgress = 0;
+    lastTickTime = performance.now();
+
     dir = nextDir;
     const head = {x: snake[0].x + dir.x, y: snake[0].y + dir.y};
 
@@ -397,6 +409,8 @@
       const cx = Math.floor(cols / 2);
       const cy = Math.floor(rows / 2);
       snake = [{x: cx, y: cy}, {x: cx - 1, y: cy}, {x: cx - 2, y: cy}];
+      prevSnake = snake.map(s => ({x: s.x, y: s.y}));
+      moveProgress = 1;
       dir = {x: 1, y: 0};
       nextDir = {x: 1, y: 0};
       warningCell = null;
@@ -501,16 +515,25 @@
       ctx.fill();
     }
 
-    // Snake
+    // Snake - smooth interpolation between ticks
+    // Update moveProgress based on time since last tick
+    if (alive && speed > 0) {
+      moveProgress = Math.min(1, (performance.now() - lastTickTime) / speed);
+    }
+    const t_lerp = moveProgress;
+    // Ease-out for smooth deceleration into position
+    const eased = 1 - (1 - t_lerp) * (1 - t_lerp);
+
     const len = snake.length;
     for (let i = snake.length - 1; i >= 0; i--) {
       const s = snake[i];
+      const prev = prevSnake[i] || s;
       const t = i / Math.max(len - 1, 1);
       const hue = 120 + t * 40;
       const lightness = 55 - t * 15;
 
-      const px = s.x * cellSize;
-      const py = s.y * cellSize;
+      const px = (prev.x + (s.x - prev.x) * eased) * cellSize;
+      const py = (prev.y + (s.y - prev.y) * eased) * cellSize;
       const pad = i === 0 ? 0.5 : 1;
       const r = Math.min(cellSize * 0.3, 6);
 
@@ -534,8 +557,8 @@
       if (i === 0) {
         const eyeOff = cellSize * 0.2;
         const eyeR = cellSize * 0.12;
-        const cx = px + cellSize / 2;
-        const cy_pos = py + cellSize / 2;
+        const cx = Math.round(px) + cellSize / 2;
+        const cy_pos = Math.round(py) + cellSize / 2;
         let e1x, e1y, e2x, e2y;
         if (dir.x === 1) { e1x = cx + eyeOff; e1y = cy_pos - eyeOff; e2x = cx + eyeOff; e2y = cy_pos + eyeOff; }
         else if (dir.x === -1) { e1x = cx - eyeOff; e1y = cy_pos - eyeOff; e2x = cx - eyeOff; e2y = cy_pos + eyeOff; }

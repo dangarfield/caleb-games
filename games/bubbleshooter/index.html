@@ -77,6 +77,7 @@
       display: block;
       flex: 1;
       min-height: 0;
+      max-width: 100%;
     }
 
     .overlay {
@@ -217,13 +218,15 @@
   function resize() {
     const topBar = document.querySelector('.top-bar');
     const topBarH = topBar ? topBar.offsetHeight : 40;
-    const w = window.innerWidth;
-    const h = window.innerHeight - topBarH;
+    const availH = window.innerHeight - topBarH;
+    // Keep the grid's natural width (11 columns + padding) and center it
+    const gridW = COLS * BUBBLE_DIAMETER + BUBBLE_RADIUS * 2;
+    const w = Math.min(gridW, window.innerWidth);
     canvas.width = w;
-    canvas.height = h;
+    canvas.height = availH;
     shooter.x = w / 2;
-    shooter.y = h - BUBBLE_RADIUS - 10;
-    maxRows = Math.floor((h - BUBBLE_DIAMETER * 3) / ROW_HEIGHT);
+    shooter.y = availH - BUBBLE_RADIUS - 10;
+    maxRows = Math.floor((availH - BUBBLE_DIAMETER * 3) / ROW_HEIGHT);
   }
 
   function gridX(col, row) {

@@ -147,11 +147,11 @@
             track.bestLaps.push({ time: lapTime, date: Date.now() });
             track.bestLaps.sort(function(a, b) { return a.time - b.time; });
             track.bestLaps = track.bestLaps.slice(0, 10);
-            // Store ghost for top 3
+            // Store ghost for top 10
             if (ghostData && ghostData.length > 0) {
                 track.top3Ghost.push({ time: lapTime, frames: ghostData });
                 track.top3Ghost.sort(function(a, b) { return a.time - b.time; });
-                track.top3Ghost = track.top3Ghost.slice(0, 3);
+                track.top3Ghost = track.top3Ghost.slice(0, 10);
             }
             saveDriftData(data);
         }
@@ -159,7 +159,7 @@
             const track = getTrackData(trackId);
             return track.bestLaps || [];
         }
-        function getTop3Ghosts(trackId) {
+        function getTop10Ghosts(trackId) {
             const data = getDriftData();
             if (!data.drift.tracks[trackId]) return [];
             return data.drift.tracks[trackId].top3Ghost || [];
@@ -420,8 +420,8 @@
 
         // Ghost replay
         let currentGhostRecording = [];  // frames for current lap
-        let sessionGhost = null;         // ghost from previous lap this session
-        let storedGhosts = [];           // top 3 ghosts from localStorage
+        let sessionGhost = null;         // ghost from previous completed lap this session
+        let storedGhosts = [];           // top 10 ghosts from localStorage
         let ghostFrame = 0;
 
         // Tire marks
@@ -490,16 +490,13 @@
             stageComplete = false;
             gameRunning = true;
 
-            // Ghost setup
-            if (currentGhostRecording.length > 10) {
-                sessionGhost = currentGhostRecording.slice();
-            }
+            // Ghost setup — don't overwrite sessionGhost here; it's only set on lap completion
             currentGhostRecording = [];
             ghostFrame = 0;
 
-            // Load stored ghosts
+            // Load stored ghosts (up to 10)
             const trackId = 'stage' + currentStage;
-            storedGhosts = getTop3Ghosts(trackId);
+            storedGhosts = getTop10Ghosts(trackId);
         }
 
         // ---- CAR PHYSICS (REWRITTEN) ----
@@ -525,6 +522,10 @@
             if (tile === T_FINISH && car.speed > 0.5) {
                 stageComplete = true;
                 gameRunning = false;
+                // Save ghost from this completed lap for session replay
+                if (currentGhostRecording.length > 10) {
+                    sessionGhost = currentGhostRecording.slice();
+                }
                 const trackId = 'stage' + currentStage;
                 saveTrackLap(trackId, timer, currentGhostRecording);
                 return;
@@ -794,20 +795,32 @@
                 ctx.globalAlpha = 1;
             }
 
-            // Draw ghost cars (stored top 3)
-            const ghostColors = ['rgba(100,200,255,0.6)', 'rgba(255,200,100,0.5)', 'rgba(200,100,255,0.4)'];
+            // Draw ghost cars (stored top 10)
+            const ghostColorPool = [
+                'rgba(255,215,0,0.6)',    // 1st: gold
+                'rgba(192,192,192,0.55)', // 2nd: silver
+                'rgba(205,127,50,0.5)',   // 3rd: bronze
+                'rgba(100,200,255,0.4)',  // 4th+
+                'rgba(200,100,255,0.35)',
+                'rgba(100,255,180,0.3)',
+                'rgba(255,150,100,0.3)',
+                'rgba(180,180,255,0.25)',
+                'rgba(255,200,180,0.25)',
+                'rgba(180,220,200,0.2)',
+            ];
             for (let gi = 0; gi < storedGhosts.length; gi++) {
                 const ghost = storedGhosts[gi];
                 if (ghost.frames && ghostFrame < ghost.frames.length) {
                     const gf = ghost.frames[ghostFrame];
-                    drawGhostCar(gf.x - camX, gf.y - camY, gf.angle, ghostColors[gi] || 'rgba(150,150,255,0.3)', 0.35);
+                    const alpha = gi < 3 ? 0.4 : Math.max(0.1, 0.3 - gi * 0.02);
+                    drawGhostCar(gf.x - camX, gf.y - camY, gf.angle, ghostColorPool[gi] || 'rgba(150,150,255,0.15)', alpha);
                 }
             }
 
-            // Draw session ghost (previous lap)
+            // Draw session ghost (previous completed lap) — white, most visible
             if (sessionGhost && ghostFrame < sessionGhost.length) {
                 const gf = sessionGhost[ghostFrame];
-                drawGhostCar(gf.x - camX, gf.y - camY, gf.angle, 'rgba(255,255,255,0.5)', 0.25);
+                drawGhostCar(gf.x - camX, gf.y - camY, gf.angle, 'rgba(255,255,255,0.6)', 0.35);
             }
 
             // Draw headlight beam

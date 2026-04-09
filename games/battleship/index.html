@@ -14,7 +14,7 @@ h1{font-size:1.3rem;text-shadow:0 0 20px rgba(100,180,255,0.6);letter-spacing:0.
 #scoreInfo{font-size:0.75rem;color:#ffd700}
 .status{font-size:0.85rem;color:#7eb8da;min-height:1.2em;text-align:center;padding:0.2rem;letter-spacing:0.02em}
 .game-area{display:flex;flex-direction:column;align-items:center;width:100%;max-width:960px;padding:0 0.3rem;flex:1;min-height:0}
-canvas{display:block;max-width:100%}
+canvas#boardCanvas{display:block}
 .controls{display:flex;flex-wrap:wrap;justify-content:center;gap:0.4rem;padding:0.4rem}
 .btn{color:#fff;border:none;border-radius:0.7rem;padding:0.5rem 1.2rem;font-size:0.9rem;font-weight:700;cursor:pointer;transition:transform 0.1s;letter-spacing:0.02em}
 .btn:active{transform:scale(0.95)}
@@ -140,9 +140,11 @@ function draw(){
   bx.fillText('YOUR FLEET', gOx+cell*SZ/2, gOy-4);
   if(phase!=='place') bx.fillText('ENEMY WATERS', rOx+cell*SZ/2, gOy-4);
 
-  drawGrid(gOx, me.g, true, en.s);
-  if(phase==='select'||phase==='firing') drawGrid(rOx, null, false, me.s);
-  else if(phase!=='place') drawGrid(rOx, null, false, me.s);
+  const mySunkShips = getSunkShips(P[1-curP], me);  // ships of mine that enemy has sunk
+  const enSunkShips = getSunkShips(P[curP], en);    // enemy ships I've sunk
+  drawGrid(gOx, me.g, true, en.s, mySunkShips);
+  if(phase==='select'||phase==='firing') drawGrid(rOx, null, false, me.s, enSunkShips);
+  else if(phase!=='place') drawGrid(rOx, null, false, me.s, enSunkShips);
 
   if(phase==='place' && hover) drawPlacePreview();
   if(phase==='select'){
@@ -151,9 +153,18 @@ function draw(){
   }
 }
 
-function drawGrid(ox, shipG, showShip, shotG){
+function drawGrid(ox, shipG, showShip, shotG, sunkShips){
+  // Build a lookup of sunk cells for fast checking
+  const sunkCells = new Set();
+  if(sunkShips){
+    for(const ship of sunkShips)
+      for(const c of ship) sunkCells.add(c.r+','+c.c);
+  }
+
   for(let r=0;r<SZ;r++) for(let c=0;c<SZ;c++){
     const x=ox+c*cell, y=gOy+r*cell;
+    const isSunk = sunkCells.has(r+','+c);
+
     // water
     bx.fillStyle = (r+c)%2===0 ? 'rgba(12,40,70,0.8)' : 'rgba(16,50,85,0.8)';
     bx.fillRect(x,y,cell,cell);
@@ -170,10 +181,19 @@ function drawGrid(ox, shipG, showShip, shotG){
     }
 
     if(shotG && shotG[r][c]===2){
-      bx.fillStyle='rgba(255,40,20,0.25)';
-      bx.fillRect(x,y,cell,cell);
+      if(isSunk){
+        // Sunk ship cell: bright red/orange background
+        bx.fillStyle='rgba(255,80,20,0.45)';
+        bx.fillRect(x,y,cell,cell);
+        // Ship hull outline
+        bx.fillStyle='rgba(120,60,30,0.5)';
+        bx.fillRect(x+2,y+2,cell-4,cell-4);
+      } else {
+        bx.fillStyle='rgba(255,40,20,0.25)';
+        bx.fillRect(x,y,cell,cell);
+      }
       const cx=x+cell/2,cy=y+cell/2,s=cell*.28;
-      bx.strokeStyle='#ff3020'; bx.lineWidth=2;
+      bx.strokeStyle=isSunk?'#ff6030':'#ff3020'; bx.lineWidth=2;
       bx.beginPath();
       bx.moveTo(cx-s,cy-s);bx.lineTo(cx+s,cy+s);
       bx.moveTo(cx+s,cy-s);bx.lineTo(cx-s,cy+s);
@@ -181,6 +201,34 @@ function drawGrid(ox, shipG, showShip, shotG){
     } else if(shotG && shotG[r][c]===1){
       bx.fillStyle='rgba(180,210,240,0.2)';
       bx.beginPath(); bx.arc(x+cell/2,y+cell/2,cell*.18,0,Math.PI*2); bx.fill();
+    }
+  }
+
+  // Draw sunk ship outlines as connected shapes
+  if(sunkShips){
+    for(const ship of sunkShips){
+      bx.strokeStyle='#ff6030';
+      bx.lineWidth=2.5;
+      bx.shadowColor='#ff4020';
+      bx.shadowBlur=6;
+      for(const c of ship){
+        const sx=ox+c.c*cell, sy=gOy+c.r*cell;
+        bx.strokeRect(sx+1,sy+1,cell-2,cell-2);
+      }
+      // Draw ship name label at the center of the ship
+      const midCell = ship[Math.floor(ship.length/2)];
+      const lx = ox + midCell.c*cell + cell/2;
+      const ly = gOy + midCell.r*cell + cell/2;
+      const shipDef = SHIPS.find(s=>s.len===ship.length);
+      if(shipDef){
+        bx.font=`bold ${Math.max(7,cell*.28)}px sans-serif`;
+        bx.textAlign='center'; bx.textBaseline='middle';
+        bx.fillStyle='rgba(0,0,0,0.6)';
+        bx.fillRect(lx-cell*1.2,ly-cell*.22,cell*2.4,cell*.44);
+        bx.fillStyle='#ff8040';
+        bx.fillText(shipDef.name+' SUNK',lx,ly);
+      }
+      bx.shadowBlur=0;
     }
   }
 }
@@ -277,6 +325,16 @@ function resolve(attacker,defGrid,targets){
   return res;
 }
 
+// Check if a ship is sunk: all its cells have been hit in the attacker's shot grid
+function isShipSunk(ship, shotGrid){
+  return ship.every(c => shotGrid[c.r][c.c]===2);
+}
+
+// Get all sunk ships for a given attacker vs defender
+function getSunkShips(attacker, defender){
+  return defender.ships.filter(ship => isShipSunk(ship, attacker.s));
+}
+
 // ── FIRING VIEW ──
 function firingView(results, isPlayer, defenderShips, cb){
   fc.style.display='block';
@@ -331,12 +389,20 @@ function firingView(results, isPlayer, defenderShips, cb){
     fx.translate(shakeX, shakeY);
     fx.clearRect(-10,-10,W+20,H+20);
 
-    // ── Sky ──
+    // ── Sky (tinted by whose turn) ──
     const skyG = fx.createLinearGradient(0,0,0,horizon);
-    skyG.addColorStop(0,'#050a18');
-    skyG.addColorStop(0.4,'#0c1a30');
-    skyG.addColorStop(0.8,'#1a3050');
-    skyG.addColorStop(1,'#2a4a6a');
+    if(isPlayer){
+      skyG.addColorStop(0,'#050a18');
+      skyG.addColorStop(0.4,'#0c1a30');
+      skyG.addColorStop(0.8,'#1a3050');
+      skyG.addColorStop(1,'#2a4a6a');
+    } else {
+      // Enemy firing: reddish/amber sky
+      skyG.addColorStop(0,'#180808');
+      skyG.addColorStop(0.4,'#301510');
+      skyG.addColorStop(0.8,'#4a2518');
+      skyG.addColorStop(1,'#6a3a2a');
+    }
     fx.fillStyle=skyG;
     fx.fillRect(0,0,W,horizon+10);
 
@@ -356,10 +422,17 @@ function firingView(results, isPlayer, defenderShips, cb){
 
     // ── Ocean ──
     const oceanG = fx.createLinearGradient(0,horizon,0,H);
-    oceanG.addColorStop(0,'#1a3a5a');
-    oceanG.addColorStop(0.3,'#122a42');
-    oceanG.addColorStop(0.7,'#0a1a2a');
-    oceanG.addColorStop(1,'#060f18');
+    if(isPlayer){
+      oceanG.addColorStop(0,'#1a3a5a');
+      oceanG.addColorStop(0.3,'#122a42');
+      oceanG.addColorStop(0.7,'#0a1a2a');
+      oceanG.addColorStop(1,'#060f18');
+    } else {
+      oceanG.addColorStop(0,'#3a2a1a');
+      oceanG.addColorStop(0.3,'#2a1a12');
+      oceanG.addColorStop(0.7,'#1a100a');
+      oceanG.addColorStop(1,'#0f0a06');
+    }
     fx.fillStyle=oceanG;
     fx.fillRect(0,horizon,W,H-horizon);
 
@@ -423,7 +496,7 @@ function firingView(results, isPlayer, defenderShips, cb){
         const alpha = 0.35 + depth*0.3;
 
         // Hull
-        fx.fillStyle=`rgba(35,50,70,${alpha})`;
+        fx.fillStyle=isPlayer?`rgba(35,50,70,${alpha})`:`rgba(40,55,80,${alpha})`;
         fx.beginPath();
         fx.moveTo(sx-hullLen/2-6*sc, sy);
         fx.lineTo(sx-hullLen/2, sy-hullH);
@@ -663,10 +736,16 @@ function firingView(results, isPlayer, defenderShips, cb){
     }
 
     // ── Label ──
-    fx.fillStyle='rgba(255,255,255,0.7)';
-    fx.font='bold 16px sans-serif';
+    // ── Label with distinct color per turn ──
+    fx.font='bold 18px sans-serif';
     fx.textAlign='center';
-    fx.fillText(isPlayer?'YOUR SALVO':'INCOMING FIRE', W/2, 28);
+    if(isPlayer){
+      fx.fillStyle='rgba(100,200,255,0.85)';
+      fx.fillText('YOUR SALVO', W/2, 28);
+    } else {
+      fx.fillStyle='rgba(255,120,80,0.85)';
+      fx.fillText('⚠ INCOMING FIRE ⚠', W/2, 28);
+    }
 
     // ── Shot counter ──
     const done = shots.filter(s=>s.phase==='done').length;

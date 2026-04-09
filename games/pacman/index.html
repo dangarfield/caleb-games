@@ -275,17 +275,17 @@ function canGhostWalk(r, c) {
 function wrapC(c) { return ((c % COLS) + COLS) % COLS; }
 
 function initPacman() {
-  pacman = { r: 15, c: 10, dir: 0, nextDir: 0 }; // dir: 0=right,1=down,2=left,3=up
+  pacman = { r: 15, c: 10, prevR: 15, prevC: 10, dir: 0, nextDir: 0 }; // dir: 0=right,1=down,2=left,3=up
   mouthAngle = 0.25;
   mouthDir = 1;
 }
 
 function initGhosts() {
   ghosts = [
-    { r: 9, c: 9,  dir: 3, color: GHOST_COLORS[0], scatter: { r: 0, c: COLS-1 }, inHouse: false, releaseTimer: 0 },
-    { r: 9, c: 10, dir: 3, color: GHOST_COLORS[1], scatter: { r: 0, c: 0 }, inHouse: true, releaseTimer: 60 },
-    { r: 9, c: 11, dir: 3, color: GHOST_COLORS[2], scatter: { r: ROWS-1, c: COLS-1 }, inHouse: true, releaseTimer: 120 },
-    { r: 9, c: 12, dir: 3, color: GHOST_COLORS[3], scatter: { r: ROWS-1, c: 0 }, inHouse: true, releaseTimer: 180 },
+    { r: 9, c: 9, prevR: 9, prevC: 9,  dir: 3, color: GHOST_COLORS[0], scatter: { r: 0, c: COLS-1 }, inHouse: false, releaseTimer: 0 },
+    { r: 9, c: 10, prevR: 9, prevC: 10, dir: 3, color: GHOST_COLORS[1], scatter: { r: 0, c: 0 }, inHouse: true, releaseTimer: 60 },
+    { r: 9, c: 11, prevR: 9, prevC: 11, dir: 3, color: GHOST_COLORS[2], scatter: { r: ROWS-1, c: COLS-1 }, inHouse: true, releaseTimer: 120 },
+    { r: 9, c: 12, prevR: 9, prevC: 12, dir: 3, color: GHOST_COLORS[3], scatter: { r: ROWS-1, c: 0 }, inHouse: true, releaseTimer: 180 },
   ];
   frightTimer = 0;
   ghostMoveAccum = 0;
@@ -321,6 +321,8 @@ function tick() {
   }
 
   // Move pacman (pacman always moves 1 cell per tick)
+  pacman.prevR = pacman.r;
+  pacman.prevC = pacman.c;
   let nr = pacman.r + DIR_DR[pacman.dir];
   let nc = wrapC(pacman.c + DIR_DC[pacman.dir]);
   if (isWalkable(nr, nc) && maze[nr] && maze[nr][nc] !== 5) {
@@ -436,6 +438,8 @@ function moveGhosts() {
       bestDir = reverse;
     }
     g.dir = bestDir;
+    g.prevR = g.r;
+    g.prevC = g.c;
     let nr = g.r + DIR_DR[g.dir];
     let nc = wrapC(g.c + DIR_DC[g.dir]);
     if (canGhostWalk(nr, nc)) {
@@ -533,9 +537,14 @@ function draw() {
     }
   }
 
-  // Draw Pac-Man
-  const px = pacman.c * CELL + CELL/2;
-  const py = pacman.r * CELL + CELL/2;
+  // Draw Pac-Man (smoothly interpolated)
+  const eased = 1 - (1 - tickLerp) * (1 - tickLerp);
+  // Handle tunnel wrap: if delta > half the grid, don't interpolate
+  let pcDelta = pacman.c - pacman.prevC;
+  if (Math.abs(pcDelta) > COLS / 2) pcDelta = 0; // tunnel wrap, skip lerp
+  let prDelta = pacman.r - pacman.prevR;
+  const px = (pacman.prevC + pcDelta * eased) * CELL + CELL/2;
+  const py = (pacman.prevR + prDelta * eased) * CELL + CELL/2;
   const angle = [0, Math.PI/2, Math.PI, Math.PI*1.5][pacman.dir];
 
   ctx.fillStyle = '#FFD700';
@@ -557,8 +566,12 @@ function draw() {
   // Draw ghosts
   for (let g of ghosts) {
     if (g.inHouse && g.releaseTimer > 0) continue;
-    const gx = g.c * CELL + CELL/2;
-    const gy = g.r * CELL + CELL/2;
+    // Interpolate ghost position
+    let gcDelta = g.c - g.prevC;
+    if (Math.abs(gcDelta) > COLS / 2) gcDelta = 0; // tunnel wrap
+    let grDelta = g.r - g.prevR;
+    const gx = (g.prevC + gcDelta * eased) * CELL + CELL/2;
+    const gy = (g.prevR + grDelta * eased) * CELL + CELL/2;
     const gr = CELL * 0.45;
 
     // Ghost body color
@@ -643,15 +656,19 @@ function draw() {
 // Game loop
 let lastTick = 0;
 const TICK_RATE = 150; // ms per tick
+let tickLerp = 1; // 0..1 interpolation between ticks
 
 function gameLoop(ts) {
   animFrame = requestAnimationFrame(gameLoop);
-  if (!gameRunning) { draw(); return; }
+  if (!gameRunning) { tickLerp = 1; draw(); return; }
 
   const tickInterval = Math.max(80, TICK_RATE - level * 10);
   if (ts - lastTick >= tickInterval) {
     tick();
     lastTick = ts;
+    tickLerp = 0;
+  } else {
+    tickLerp = Math.min(1, (ts - lastTick) / tickInterval);
   }
   draw();
 }

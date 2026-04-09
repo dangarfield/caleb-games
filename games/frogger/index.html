@@ -349,9 +349,16 @@ function update(dt) {
   if (frog.hopAnim > 0) frog.hopAnim--;
   var targetX = frog.col * CELL + CELL / 2;
   var targetY = frog.row * CELL + CELL / 2;
-  frog.px += (targetX - frog.px) * 0.3;
-  frog.py += (targetY - frog.py) * 0.3;
-  if (frog.hopAnim <= 0) { frog.px = targetX; frog.py = targetY; }
+  if (frog.hopAnim > 0) {
+    frog.px += (targetX - frog.px) * 0.3;
+    frog.py += (targetY - frog.py) * 0.3;
+  } else {
+    // Only snap Y to grid; X is managed by riding when on river
+    frog.py = targetY;
+    if (!frog.riding) {
+      frog.px = targetX;
+    }
+  }
   if (frog.hopAnim > 0) return;
 
   var frogRow = frog.row;

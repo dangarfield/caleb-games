@@ -56,8 +56,8 @@
   "use strict";
 
   // --- Constants ---
-  const GRID_COLS = 15;
-  const GRID_ROWS = 15;
+  const GRID_COLS = 25;
+  const GRID_ROWS = 25;
   const COUNTDOWN_SECS = 3;
   const ROUNDS_TO_WIN = 3;
   const BASE_SPEED = 6; // cells per second (slightly slower since grid is smaller)
@@ -130,6 +130,7 @@
   let crashWho = ''; // 'player','ai','both'
   let crashTimer = 0;
   let moveAccum = 0;
+  let moveLerp = 1; // 0..1 interpolation between ticks
   let lastTime = 0;
   let showInstructions = true;
   let difficultyLevel = 1; // increases each round
@@ -155,6 +156,8 @@
     player = {
       x: margin,
       y: startY,
+      prevX: margin,
+      prevY: startY,
       dir: 1, // moving right
       nextDir: 1,
       alive: true,
@@ -163,6 +166,8 @@
     ai = {
       x: cols - margin - 1,
       y: startY,
+      prevX: cols - margin - 1,
+      prevY: startY,
       dir: 3, // moving left
       nextDir: 3,
       alive: true,
@@ -388,6 +393,8 @@
       spawnCrashParticles(c.x, c.y, id === 1 ? PLAYER_COLOR : AI_COLOR);
       return;
     }
+    c.prevX = c.x;
+    c.prevY = c.y;
     c.x = nx;
     c.y = ny;
     grid[nx][ny] = id;
@@ -409,8 +416,10 @@
 
     if (state === 'playing') {
       moveAccum += dt * gameSpeed;
+      moveLerp = Math.min(1, moveAccum);
       while (moveAccum >= 1) {
         moveAccum -= 1;
+        moveLerp = 0;
 
         // AI thinks before moving
         aiThink();
@@ -509,8 +518,18 @@
     ctx.shadowBlur = 0;
   }
 
-  function drawTrail(trail, color, glowFunc) {
+  function drawTrail(trail, color, cycle) {
     if (trail.length < 2) return;
+
+    // Compute interpolated head position for the trail tip
+    const eased = 1 - (1 - moveLerp) * (1 - moveLerp);
+    const last = trail[trail.length - 1];
+    const headX = cycle && cycle.alive
+      ? offsetX + (cycle.prevX + (cycle.x - cycle.prevX) * eased) * cellSize + cellSize / 2
+      : gcx(last.x);
+    const headY = cycle && cycle.alive
+      ? offsetY + (cycle.prevY + (cycle.y - cycle.prevY) * eased) * cellSize + cellSize / 2
+      : gcy(last.y);
 
     // Main trail line
     ctx.strokeStyle = color;
@@ -522,9 +541,10 @@
 
     ctx.beginPath();
     ctx.moveTo(gcx(trail[0].x), gcy(trail[0].y));
-    for (let i = 1; i < trail.length; i++) {
+    for (let i = 1; i < trail.length - 1; i++) {
       ctx.lineTo(gcx(trail[i].x), gcy(trail[i].y));
     }
+    ctx.lineTo(headX, headY);
     ctx.stroke();
 
     // Inner bright core
@@ -534,17 +554,20 @@
     ctx.shadowBlur = 6;
     ctx.beginPath();
     ctx.moveTo(gcx(trail[0].x), gcy(trail[0].y));
-    for (let i = 1; i < trail.length; i++) {
+    for (let i = 1; i < trail.length - 1; i++) {
       ctx.lineTo(gcx(trail[i].x), gcy(trail[i].y));
     }
+    ctx.lineTo(headX, headY);
     ctx.stroke();
     ctx.shadowBlur = 0;
   }
 
   function drawCycleHead(c, color) {
     if (!c.alive) return;
-    const cx = gcx(c.x);
-    const cy = gcy(c.y);
+    // Smooth interpolation between previous and current position
+    const eased = 1 - (1 - moveLerp) * (1 - moveLerp);
+    const cx = offsetX + (c.prevX + (c.x - c.prevX) * eased) * cellSize + cellSize / 2;
+    const cy = offsetY + (c.prevY + (c.y - c.prevY) * eased) * cellSize + cellSize / 2;
     const r = cellSize * 0.7;
 
     // Outer glow
@@ -790,8 +813,8 @@
     }
 
     // Trails
-    drawTrail(player.trail, PLAYER_COLOR, PLAYER_GLOW);
-    drawTrail(ai.trail, AI_COLOR, AI_GLOW);
+    drawTrail(player.trail, PLAYER_COLOR, player);
+    drawTrail(ai.trail, AI_COLOR, ai);
 
     // Cycle heads
     drawCycleHead(player, PLAYER_COLOR);
