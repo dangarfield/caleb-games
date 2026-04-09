@@ -9,14 +9,15 @@
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
     body {
-      min-height: 100vh;
+      width: 100vw;
+      height: 100vh;
       background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      padding: 1rem;
+      justify-content: flex-start;
+      padding: 0.5vh 1vw;
       overflow: hidden;
       touch-action: none;
       user-select: none;
@@ -28,8 +29,8 @@
       align-items: center;
       justify-content: space-between;
       width: 100%;
-      max-width: 500px;
-      margin-bottom: 0.5rem;
+      margin-bottom: 0.3vh;
+      flex-shrink: 0;
     }
 
     .back-btn {
@@ -37,8 +38,8 @@
       color: #fff;
       border: none;
       border-radius: 0.75rem;
-      padding: 0.5rem 1rem;
-      font-size: 1rem;
+      padding: 0.4rem 0.8rem;
+      font-size: clamp(0.8rem, 1.5vw, 1rem);
       cursor: pointer;
       text-decoration: none;
       display: inline-block;
@@ -47,7 +48,7 @@
     .back-btn:active { transform: scale(0.95); }
 
     h1 {
-      font-size: 1.8rem;
+      font-size: clamp(1.2rem, 3vw, 2rem);
       font-weight: 800;
       color: #fff;
       text-shadow: 0 0 20px rgba(255, 200, 50, 0.5);
@@ -55,35 +56,37 @@
 
     .hud {
       display: flex;
-      gap: 1rem;
+      gap: 0.8vw;
       width: 100%;
-      max-width: 500px;
-      margin-bottom: 0.5rem;
+      margin-bottom: 0.3vh;
+      flex-shrink: 0;
     }
 
     .hud-box {
       background: rgba(255,255,255,0.12);
       border-radius: 0.5rem;
-      padding: 0.3rem 0.75rem;
+      padding: 0.2rem 0.6rem;
       text-align: center;
       flex: 1;
     }
 
     .hud-label {
-      font-size: 0.65rem;
+      font-size: clamp(0.5rem, 1vw, 0.7rem);
       color: rgba(255,255,255,0.6);
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
 
     .hud-value {
-      font-size: 1.4rem;
+      font-size: clamp(1rem, 2.5vw, 1.6rem);
       font-weight: 700;
       color: #fff;
     }
 
     #gameCanvas {
       border-radius: 1rem;
+      flex: 1;
+      min-height: 0;
       cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="%23654321" stroke="%23432100" stroke-width="2"/><rect x="14" y="2" width="4" height="12" rx="2" fill="%23876543"/></svg>') 16 16, pointer;
     }
 
@@ -106,7 +109,7 @@
       padding: 2rem;
       text-align: center;
       color: #fff;
-      max-width: 360px;
+      max-width: 400px;
       width: 90%;
     }
 
@@ -158,6 +161,10 @@
       <div class="hud-value" id="scoreDisplay">0</div>
     </div>
     <div class="hud-box">
+      <div class="hud-label">Level</div>
+      <div class="hud-value" id="levelDisplay">1</div>
+    </div>
+    <div class="hud-box">
       <div class="hud-label">Time</div>
       <div class="hud-value" id="timeDisplay">60</div>
     </div>
@@ -176,6 +183,7 @@
       <p>Brown moles = <strong>+10 pts</strong></p>
       <p style="color: #ffd700;">Golden moles = <strong>+25 pts</strong></p>
       <p style="color: #ff4444;">Red bombs = <strong>-15 pts</strong> (avoid!)</p>
+      <p>Levels get harder as you score more!</p>
       <button class="play-btn" id="startBtn">Play!</button>
     </div>
   </div>
@@ -185,6 +193,7 @@
       <h2>Time's Up!</h2>
       <div class="final-score" id="finalScore">0</div>
       <p id="endMessage"></p>
+      <p id="endLevel"></p>
       <button class="play-btn" id="restartBtn">Play Again</button>
     </div>
   </div>
@@ -194,35 +203,90 @@
     const ctx = canvas.getContext('2d');
     const scoreDisplay = document.getElementById('scoreDisplay');
     const timeDisplay = document.getElementById('timeDisplay');
+    const levelDisplay = document.getElementById('levelDisplay');
     const bestDisplay = document.getElementById('bestDisplay');
     const startOverlay = document.getElementById('startOverlay');
     const endOverlay = document.getElementById('endOverlay');
     const finalScoreEl = document.getElementById('finalScore');
     const endMessage = document.getElementById('endMessage');
+    const endLevel = document.getElementById('endLevel');
 
     const COLS = 4;
     const ROWS = 3;
     const ROUND_TIME = 60;
 
+    // --- Shared localStorage under calebArcadeData ---
+    function loadArcadeData() {
+      try {
+        return JSON.parse(localStorage.getItem('calebArcadeData')) || {};
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function saveHighScore(score) {
+      const data = loadArcadeData();
+      if (!data.whackamole) data.whackamole = {};
+      data.whackamole.highScore = score;
+      localStorage.setItem('calebArcadeData', JSON.stringify(data));
+    }
+
+    function getHighScore() {
+      const data = loadArcadeData();
+      return (data.whackamole && data.whackamole.highScore) || 0;
+    }
+
+    // --- Level definitions ---
+    // Each level specifies: scoreThreshold, moleShowTime, spawnDelay, maxMoles, bombChance
+    const LEVELS = [
+      { level: 1,  scoreThreshold: 0,   moleShowTime: 2400, spawnDelay: 1400, maxMoles: 1, bombChance: 0.08 },
+      { level: 2,  scoreThreshold: 30,  moleShowTime: 2100, spawnDelay: 1200, maxMoles: 2, bombChance: 0.10 },
+      { level: 3,  scoreThreshold: 80,  moleShowTime: 1800, spawnDelay: 1050, maxMoles: 2, bombChance: 0.13 },
+      { level: 4,  scoreThreshold: 150, moleShowTime: 1500, spawnDelay: 900,  maxMoles: 3, bombChance: 0.15 },
+      { level: 5,  scoreThreshold: 250, moleShowTime: 1300, spawnDelay: 780,  maxMoles: 3, bombChance: 0.18 },
+      { level: 6,  scoreThreshold: 380, moleShowTime: 1100, spawnDelay: 650,  maxMoles: 4, bombChance: 0.20 },
+      { level: 7,  scoreThreshold: 520, moleShowTime: 950,  spawnDelay: 550,  maxMoles: 4, bombChance: 0.22 },
+      { level: 8,  scoreThreshold: 700, moleShowTime: 800,  spawnDelay: 450,  maxMoles: 5, bombChance: 0.25 },
+      { level: 9,  scoreThreshold: 900, moleShowTime: 680,  spawnDelay: 380,  maxMoles: 5, bombChance: 0.27 },
+      { level: 10, scoreThreshold: 1200, moleShowTime: 580, spawnDelay: 320,  maxMoles: 6, bombChance: 0.30 },
+    ];
+
+    function getCurrentLevel(score) {
+      let current = LEVELS[0];
+      for (const lvl of LEVELS) {
+        if (score >= lvl.scoreThreshold) current = lvl;
+        else break;
+      }
+      return current;
+    }
+
     let holes = [];
     let score = 0;
+    let currentLevel = 1;
     let timeLeft = ROUND_TIME;
-    let bestScore = parseInt(localStorage.getItem('whackamole_best') || '0');
+    let bestScore = getHighScore();
     let gameRunning = false;
     let gameTimer = null;
     let spawnTimer = null;
     let animFrame = null;
     let effects = [];
+    let levelUpEffect = 0;
 
     bestDisplay.textContent = bestScore;
 
     function resize() {
-      const maxW = Math.min(window.innerWidth - 32, 500);
-      const maxH = window.innerHeight - 200;
+      const padX = 16;
+      const topBarH = document.querySelector('.top-bar').offsetHeight;
+      const hudH = document.querySelector('.hud').offsetHeight;
+      const usedH = topBarH + hudH + 12; // small gap
+      const availW = window.innerWidth - padX * 2;
+      const availH = window.innerHeight - usedH - 8;
+
       const aspect = COLS / ROWS;
-      let w = maxW;
+      let w = availW;
       let h = w / aspect;
-      if (h > maxH) { h = maxH; w = h * aspect; }
+      if (h > availH) { h = availH; w = h * aspect; }
+
       canvas.width = w * devicePixelRatio;
       canvas.height = h * devicePixelRatio;
       canvas.style.width = w + 'px';
@@ -235,7 +299,7 @@
       holes = [];
       const cellW = w / COLS;
       const cellH = h / ROWS;
-      const holeR = Math.min(cellW, cellH) * 0.32;
+      const holeR = Math.min(cellW, cellH) * 0.34;
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
           holes.push({
@@ -257,27 +321,32 @@
 
     function spawnMole() {
       if (!gameRunning) return;
+      const lvl = getCurrentLevel(score);
+      const activeMoles = holes.filter(h => h.mole).length;
+      if (activeMoles >= lvl.maxMoles) return;
       const empty = holes.filter(h => !h.mole);
       if (empty.length === 0) return;
       const hole = empty[Math.floor(Math.random() * empty.length)];
 
       const rand = Math.random();
       let type;
-      if (rand < 0.12) type = 'golden';
-      else if (rand < 0.28) type = 'bomb';
+      const goldenChance = 0.12;
+      if (rand < goldenChance) type = 'golden';
+      else if (rand < goldenChance + lvl.bombChance) type = 'bomb';
       else type = 'regular';
 
-      const showTime = Math.max(600, 1800 - score * 8);
+      const showTime = lvl.moleShowTime + Math.random() * 400 - 200;
       hole.mole = { type, phase: 'rising', progress: 0, showTime, elapsed: 0 };
     }
 
     function scheduleSpawn() {
       if (!gameRunning) return;
-      const delay = Math.max(300, 1000 - score * 5);
+      const lvl = getCurrentLevel(score);
+      const delay = lvl.spawnDelay + Math.random() * 300;
       spawnTimer = setTimeout(() => {
         spawnMole();
         scheduleSpawn();
-      }, delay + Math.random() * 400);
+      }, delay);
     }
 
     function addEffect(x, y, type) {
@@ -312,6 +381,8 @@
       } else if (type === 'bomb') {
         effects.push({ type: 'ring', x, y, life: 1, decay: 0.03, size: 10, color: '#ff4444' });
         effects.push({ type: 'text', x, y: y - 20, text: '-15', life: 1, decay: 0.025, color: '#ff4444' });
+      } else if (type === 'levelup') {
+        effects.push({ type: 'text', x, y, text: 'LEVEL UP!', life: 1, decay: 0.012, color: '#00ff88', big: true });
       }
     }
 
@@ -323,18 +394,31 @@
 
       for (const hole of holes) {
         if (!hole.mole || hole.mole.phase === 'sinking') continue;
-        // Mole is drawn above the hole — check both the hole area and the mole body
         const riseH = hole.r * 1.4;
         const moleY = hole.y - riseH * hole.mole.progress;
         const bodyR = hole.r * 0.7;
         const distToMole = Math.hypot(x - hole.x, y - moleY);
         const distToHole = Math.hypot(x - hole.x, y - hole.y);
-        // Hit if tap is near the mole body OR near the hole, with generous radius
         if (distToMole < bodyR * 1.5 || distToHole < hole.r * 1.5) {
           const mole = hole.mole;
           const typeInfo = MOLE_TYPES[mole.type];
+          const oldLevel = getCurrentLevel(score).level;
           score = Math.max(0, score + typeInfo.points);
           scoreDisplay.textContent = score;
+
+          const newLvl = getCurrentLevel(score);
+          if (newLvl.level > oldLevel) {
+            currentLevel = newLvl.level;
+            levelDisplay.textContent = currentLevel;
+            levelUpEffect = 60;
+            const w = canvas.width / devicePixelRatio;
+            const h = canvas.height / devicePixelRatio;
+            addEffect(w / 2, h / 2, 'levelup');
+          } else {
+            currentLevel = newLvl.level;
+            levelDisplay.textContent = currentLevel;
+          }
+
           addEffect(hole.x, hole.y, mole.type === 'golden' ? 'golden' : mole.type === 'bomb' ? 'bomb' : 'hit');
           mole.phase = 'sinking';
           mole.progress = 1;
@@ -365,20 +449,20 @@
 
       // Hole rim
       ctx.strokeStyle = '#3a2a10';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2.5;
       ctx.beginPath();
       ctx.ellipse(x, y, r, r * 0.4, 0, 0, Math.PI * 2);
       ctx.stroke();
 
-      // Grass tufts on rim (always visible)
+      // Grass tufts on rim
       ctx.fillStyle = '#2a6e2a';
       for (let i = 0; i < 5; i++) {
         const angle = Math.PI + (Math.PI / 6) * (i - 2);
         const gx = x + Math.cos(angle) * r * 0.9;
         const gy = y + Math.sin(angle) * r * 0.35;
         ctx.beginPath();
-        ctx.moveTo(gx - 3, gy);
-        ctx.quadraticCurveTo(gx, gy - 8 - Math.sin(Date.now() / 500 + i) * 2, gx + 3, gy);
+        ctx.moveTo(gx - 4, gy);
+        ctx.quadraticCurveTo(gx, gy - 10 - Math.sin(Date.now() / 500 + i) * 2, gx + 4, gy);
         ctx.fill();
       }
 
@@ -471,7 +555,6 @@
           ctx.moveTo(x, moleY - bodyR);
           ctx.quadraticCurveTo(x + bodyR * 0.5, moleY - bodyR * 1.3, x + bodyR * 0.3, moleY - bodyR * 1.5);
           ctx.stroke();
-          // Spark
           const sparkT = Date.now() / 100;
           ctx.fillStyle = `hsl(${(sparkT * 30) % 60}, 100%, 60%)`;
           ctx.beginPath();
@@ -500,11 +583,10 @@
         ctx.ellipse(x, y, r, r * 0.4, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = '#3a2a10';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2.5;
         ctx.beginPath();
         ctx.ellipse(x, y, r, r * 0.4, 0, 0, Math.PI * 2);
         ctx.stroke();
-
       }
     }
 
@@ -542,7 +624,8 @@
         } else if (e.type === 'text') {
           e.y -= 1;
           ctx.fillStyle = e.color;
-          ctx.font = `bold ${18 + (1 - e.life) * 8}px system-ui`;
+          const fontSize = e.big ? 36 + (1 - e.life) * 12 : 18 + (1 - e.life) * 8;
+          ctx.font = `bold ${fontSize}px system-ui`;
           ctx.textAlign = 'center';
           ctx.fillText(e.text, e.x, e.y);
         } else if (e.type === 'ring') {
@@ -579,6 +662,13 @@
         ctx.ellipse(gx, gy, 15, 4, (i * 0.7) % Math.PI, 0, Math.PI * 2);
         ctx.fill();
       }
+
+      // Level-up screen flash
+      if (levelUpEffect > 0) {
+        ctx.fillStyle = `rgba(0, 255, 136, ${levelUpEffect / 300})`;
+        ctx.fillRect(0, 0, w, h);
+        levelUpEffect--;
+      }
     }
 
     function update(dt) {
@@ -607,12 +697,8 @@
       const dt = lastTime ? timestamp - lastTime : 16;
       lastTime = timestamp;
 
-      const w = canvas.width / devicePixelRatio;
-      const h = canvas.height / devicePixelRatio;
-
       drawBackground();
 
-      // Draw holes back to front
       for (const hole of holes) {
         drawHole(hole);
       }
@@ -627,10 +713,13 @@
 
     function startGame() {
       score = 0;
+      currentLevel = 1;
       timeLeft = ROUND_TIME;
       scoreDisplay.textContent = '0';
+      levelDisplay.textContent = '1';
       timeDisplay.textContent = ROUND_TIME;
       effects = [];
+      levelUpEffect = 0;
       for (const hole of holes) hole.mole = null;
 
       startOverlay.classList.add('hidden');
@@ -645,9 +734,9 @@
       }, 1000);
 
       scheduleSpawn();
-      // Spawn a couple immediately
+      // Spawn one immediately
       spawnMole();
-      setTimeout(() => spawnMole(), 300);
+      setTimeout(() => spawnMole(), 600);
 
       animFrame = requestAnimationFrame(gameLoop);
     }
@@ -659,11 +748,12 @@
 
       if (score > bestScore) {
         bestScore = score;
-        localStorage.setItem('whackamole_best', bestScore);
+        saveHighScore(bestScore);
         bestDisplay.textContent = bestScore;
       }
 
       finalScoreEl.textContent = score;
+      endLevel.textContent = 'Reached Level ' + currentLevel;
       if (score >= 300) endMessage.textContent = 'Amazing! You are a mole-whacking master!';
       else if (score >= 150) endMessage.textContent = 'Great job! Keep practicing!';
       else endMessage.textContent = 'Nice try! You can do better!';

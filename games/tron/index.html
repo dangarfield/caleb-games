@@ -56,12 +56,13 @@
   "use strict";
 
   // --- Constants ---
-  const GRID_SIZE = 10;
+  const GRID_COLS = 15;
+  const GRID_ROWS = 15;
   const COUNTDOWN_SECS = 3;
   const ROUNDS_TO_WIN = 3;
-  const BASE_SPEED = 8; // cells per second
-  const SPEED_INCREMENT = 0.6;
-  const AI_LOOKAHEAD = 15;
+  const BASE_SPEED = 6; // cells per second (slightly slower since grid is smaller)
+  const SPEED_INCREMENT = 0.5;
+  const AI_LOOKAHEAD = 10;
 
   // Colors
   const PLAYER_COLOR = '#00ffff';
@@ -72,18 +73,46 @@
   const GRID_BORDER = 'rgba(0,255,255,0.25)';
   const BG_COLOR = '#0a0a12';
 
+  // --- localStorage helpers ---
+  function loadArcadeData() {
+    try {
+      const raw = localStorage.getItem('calebArcadeData');
+      return raw ? JSON.parse(raw) : {};
+    } catch(e) { return {}; }
+  }
+  function saveArcadeData(data) {
+    try { localStorage.setItem('calebArcadeData', JSON.stringify(data)); } catch(e) {}
+  }
+  function getHighScore() {
+    const data = loadArcadeData();
+    return (data.tron && typeof data.tron.highScore === 'number') ? data.tron.highScore : 0;
+  }
+  function setHighScore(val) {
+    const data = loadArcadeData();
+    if (!data.tron) data.tron = {};
+    data.tron.highScore = val;
+    saveArcadeData(data);
+  }
+
+  let totalWins = getHighScore();
+
   // --- Canvas Setup ---
   const canvas = document.getElementById('gc');
   const ctx = canvas.getContext('2d');
-  let W, H, cols, rows;
+  let W, H, cellSize, offsetX, offsetY;
+  const cols = GRID_COLS;
+  const rows = GRID_ROWS;
 
   function resize() {
     W = window.innerWidth;
     H = window.innerHeight;
     canvas.width = W;
     canvas.height = H;
-    cols = Math.floor(W / GRID_SIZE);
-    rows = Math.floor(H / GRID_SIZE);
+    // Compute cell size so grid fills the screen with some padding
+    const pad = 20;
+    cellSize = Math.floor(Math.min((W - pad * 2) / cols, (H - pad * 2) / rows));
+    offsetX = Math.floor((W - cols * cellSize) / 2);
+    offsetY = Math.floor((H - rows * cellSize) / 2);
   }
   window.addEventListener('resize', resize);
   resize();
@@ -259,14 +288,14 @@
       const angle = Math.random() * Math.PI * 2;
       const speed = 1 + Math.random() * 4;
       crashParticles.push({
-        x: x * GRID_SIZE + GRID_SIZE / 2,
-        y: y * GRID_SIZE + GRID_SIZE / 2,
+        x: offsetX + x * cellSize + cellSize / 2,
+        y: offsetY + y * cellSize + cellSize / 2,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
         life: 1,
         decay: 0.01 + Math.random() * 0.025,
         color: color,
-        size: 2 + Math.random() * 4
+        size: 2 + Math.random() * 6
       });
     }
   }
@@ -433,6 +462,11 @@
 
       if (crashTimer <= 0) {
         if (playerScore >= ROUNDS_TO_WIN || aiScore >= ROUNDS_TO_WIN) {
+          // Track wins
+          if (playerScore >= ROUNDS_TO_WIN) {
+            totalWins++;
+            setHighScore(totalWins);
+          }
           state = 'gameover';
         } else {
           roundNum++;
@@ -443,17 +477,26 @@
   }
 
   // --- Drawing ---
+  // Helper: convert grid coords to pixel coords
+  function gx(x) { return offsetX + x * cellSize; }
+  function gy(y) { return offsetY + y * cellSize; }
+  function gcx(x) { return offsetX + x * cellSize + cellSize / 2; }
+  function gcy(y) { return offsetY + y * cellSize + cellSize / 2; }
+
   function drawGrid() {
+    const gridW = cols * cellSize;
+    const gridH = rows * cellSize;
+
     ctx.strokeStyle = GRID_COLOR;
     ctx.lineWidth = 0.5;
     ctx.beginPath();
-    for (let x = 0; x <= W; x += GRID_SIZE) {
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, H);
+    for (let x = 0; x <= cols; x++) {
+      ctx.moveTo(offsetX + x * cellSize, offsetY);
+      ctx.lineTo(offsetX + x * cellSize, offsetY + gridH);
     }
-    for (let y = 0; y <= H; y += GRID_SIZE) {
-      ctx.moveTo(0, y);
-      ctx.lineTo(W, y);
+    for (let y = 0; y <= rows; y++) {
+      ctx.moveTo(offsetX, offsetY + y * cellSize);
+      ctx.lineTo(offsetX + gridW, offsetY + y * cellSize);
     }
     ctx.stroke();
 
@@ -462,7 +505,7 @@
     ctx.lineWidth = 2;
     ctx.shadowColor = '#0ff';
     ctx.shadowBlur = 10;
-    ctx.strokeRect(1, 1, cols * GRID_SIZE - 2, rows * GRID_SIZE - 2);
+    ctx.strokeRect(offsetX, offsetY, gridW, gridH);
     ctx.shadowBlur = 0;
   }
 
@@ -471,16 +514,16 @@
 
     // Main trail line
     ctx.strokeStyle = color;
-    ctx.lineWidth = GRID_SIZE - 2;
+    ctx.lineWidth = cellSize - 2;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.shadowColor = color;
     ctx.shadowBlur = 12;
 
     ctx.beginPath();
-    ctx.moveTo(trail[0].x * GRID_SIZE + GRID_SIZE / 2, trail[0].y * GRID_SIZE + GRID_SIZE / 2);
+    ctx.moveTo(gcx(trail[0].x), gcy(trail[0].y));
     for (let i = 1; i < trail.length; i++) {
-      ctx.lineTo(trail[i].x * GRID_SIZE + GRID_SIZE / 2, trail[i].y * GRID_SIZE + GRID_SIZE / 2);
+      ctx.lineTo(gcx(trail[i].x), gcy(trail[i].y));
     }
     ctx.stroke();
 
@@ -490,9 +533,9 @@
     ctx.shadowColor = color;
     ctx.shadowBlur = 6;
     ctx.beginPath();
-    ctx.moveTo(trail[0].x * GRID_SIZE + GRID_SIZE / 2, trail[0].y * GRID_SIZE + GRID_SIZE / 2);
+    ctx.moveTo(gcx(trail[0].x), gcy(trail[0].y));
     for (let i = 1; i < trail.length; i++) {
-      ctx.lineTo(trail[i].x * GRID_SIZE + GRID_SIZE / 2, trail[i].y * GRID_SIZE + GRID_SIZE / 2);
+      ctx.lineTo(gcx(trail[i].x), gcy(trail[i].y));
     }
     ctx.stroke();
     ctx.shadowBlur = 0;
@@ -500,9 +543,9 @@
 
   function drawCycleHead(c, color) {
     if (!c.alive) return;
-    const cx = c.x * GRID_SIZE + GRID_SIZE / 2;
-    const cy = c.y * GRID_SIZE + GRID_SIZE / 2;
-    const r = GRID_SIZE * 0.7;
+    const cx = gcx(c.x);
+    const cy = gcy(c.y);
+    const r = cellSize * 0.7;
 
     // Outer glow
     ctx.shadowColor = color;
@@ -538,23 +581,25 @@
     ctx.font = `bold ${size}px 'Courier New', monospace`;
     ctx.textAlign = 'center';
 
+    const scoreY = offsetY - 20;
+
     // Player score
     ctx.shadowColor = PLAYER_COLOR;
     ctx.shadowBlur = 15;
     ctx.fillStyle = PLAYER_COLOR;
-    ctx.fillText(playerScore, W * 0.3, size + 20);
+    ctx.fillText(playerScore, W * 0.3, scoreY);
 
     // Dash
     ctx.shadowColor = '#fff';
     ctx.shadowBlur = 5;
     ctx.fillStyle = '#556';
-    ctx.fillText('-', W * 0.5, size + 20);
+    ctx.fillText('-', W * 0.5, scoreY);
 
     // AI score
     ctx.shadowColor = AI_COLOR;
     ctx.shadowBlur = 15;
     ctx.fillStyle = AI_COLOR;
-    ctx.fillText(aiScore, W * 0.7, size + 20);
+    ctx.fillText(aiScore, W * 0.7, scoreY);
 
     // Labels
     const smallSize = Math.min(14, W * 0.02);
@@ -563,18 +608,18 @@
 
     ctx.shadowColor = PLAYER_COLOR;
     ctx.fillStyle = PLAYER_COLOR;
-    ctx.fillText('PLAYER', W * 0.3, size + 20 + smallSize + 6);
+    ctx.fillText('PLAYER', W * 0.3, scoreY + smallSize + 4);
 
     ctx.shadowColor = AI_COLOR;
     ctx.fillStyle = AI_COLOR;
-    ctx.fillText('CPU', W * 0.7, size + 20 + smallSize + 6);
+    ctx.fillText('CPU', W * 0.7, scoreY + smallSize + 4);
 
-    // Round
+    // Round + high score
     ctx.shadowColor = '#fff';
     ctx.shadowBlur = 5;
     ctx.fillStyle = '#889';
     ctx.font = `${smallSize}px 'Courier New', monospace`;
-    ctx.fillText(`ROUND ${roundNum + 1}  |  FIRST TO ${ROUNDS_TO_WIN}`, W * 0.5, size + 20 + smallSize + 6);
+    ctx.fillText(`ROUND ${roundNum + 1}  |  FIRST TO ${ROUNDS_TO_WIN}  |  WINS: ${totalWins}`, W * 0.5, scoreY + smallSize + 4);
 
     ctx.shadowBlur = 0;
   }
@@ -644,10 +689,16 @@
     ctx.shadowColor = '#aab';
     ctx.fillText(`${playerScore} - ${aiScore}`, W / 2, H / 2 + subSize);
 
+    // High score
+    ctx.fillStyle = PLAYER_COLOR;
+    ctx.shadowColor = PLAYER_COLOR;
+    ctx.shadowBlur = 8;
+    ctx.fillText(`TOTAL WINS: ${totalWins}`, W / 2, H / 2 + subSize * 2.5);
+
     ctx.fillStyle = '#667';
     ctx.shadowColor = '#667';
     ctx.shadowBlur = 5;
-    ctx.fillText('TAP OR PRESS ANY KEY TO PLAY AGAIN', W / 2, H / 2 + subSize * 3);
+    ctx.fillText('TAP OR PRESS ANY KEY TO PLAY AGAIN', W / 2, H / 2 + subSize * 4);
     ctx.shadowBlur = 0;
     ctx.textBaseline = 'alphabetic';
   }
@@ -702,6 +753,15 @@
       }
       ctx.fillText(line, W / 2, y);
       y += textSize * 1.6;
+    }
+
+    // Show high score on instructions screen
+    if (totalWins > 0) {
+      ctx.font = `${textSize}px 'Courier New', monospace`;
+      ctx.fillStyle = PLAYER_COLOR;
+      ctx.shadowColor = PLAYER_COLOR;
+      ctx.shadowBlur = 10;
+      ctx.fillText(`TOTAL WINS: ${totalWins}`, W / 2, y + textSize);
     }
 
     const promptSize = Math.min(22, W * 0.035);

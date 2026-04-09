@@ -10,7 +10,7 @@
         body {
             background: #0a0a12;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            height: 100vh; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             touch-action: none; user-select: none; -webkit-user-select: none;
         }
         #backBtn {
@@ -21,7 +21,7 @@
             transition: background 0.3s;
         }
         #backBtn:hover { background: rgba(255,255,255,0.25); }
-        canvas { display: block; }
+        canvas { display: block; width: 100vw; height: 100vh; }
         #instructions {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center;
@@ -29,19 +29,41 @@
         }
         #instructions .box {
             background: rgba(10, 10, 20, 0.95); border: 2px solid rgba(200,100,255,0.3);
-            border-radius: 20px; padding: 30px 40px; max-width: 420px; text-align: center;
+            border-radius: 20px; padding: 30px 40px; max-width: 480px; text-align: center;
             color: #fff; box-shadow: 0 0 40px rgba(200,100,255,0.15);
         }
         #instructions h2 { font-size: 26px; margin-bottom: 15px; color: #e080ff; text-shadow: 0 0 15px rgba(200,100,255,0.5); }
         #instructions p { font-size: 15px; line-height: 1.6; margin-bottom: 10px; color: #bba; }
         #instructions .key { background: rgba(200,100,255,0.2); padding: 3px 10px; border-radius: 6px; font-weight: bold; color: #e0a0ff; }
         #instructions button {
-            margin-top: 15px; padding: 12px 30px; font-size: 18px; border: none;
+            margin-top: 10px; padding: 12px 30px; font-size: 18px; border: none;
             background: linear-gradient(135deg, #c060ff, #8040cc); color: #fff;
             border-radius: 30px; cursor: pointer; font-weight: bold;
             box-shadow: 0 0 20px rgba(200,100,255,0.3);
         }
         #instructions button:hover { box-shadow: 0 0 30px rgba(200,100,255,0.5); }
+        #instructions .btn-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+        /* Editor overlay */
+        #editorUI {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 250; display: none; pointer-events: none;
+        }
+        #editorUI .toolbar {
+            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 6px; background: rgba(0,0,0,0.8); padding: 8px 14px;
+            border-radius: 12px; pointer-events: auto; border: 1px solid rgba(200,100,255,0.3);
+        }
+        #editorUI .toolbar button {
+            padding: 6px 14px; font-size: 13px; border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.1); color: #fff; border-radius: 8px; cursor: pointer;
+        }
+        #editorUI .toolbar button.active { background: rgba(200,100,255,0.4); border-color: #c060ff; }
+        #editorUI .toolbar button:hover { background: rgba(255,255,255,0.2); }
+        #editorStatus {
+            position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%);
+            color: #fff; font-size: 14px; background: rgba(0,0,0,0.7); padding: 6px 16px;
+            border-radius: 8px; pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -54,8 +76,27 @@
             <p><span class="key">Left/Right</span> or <span class="key">A/D</span> to steer</p>
             <p><span class="key">Touch</span> left/right side of screen</p>
             <p>Drift through tile-based stages, stay on the road, and reach the finish!</p>
-            <button id="startBtn">Start Drifting!</button>
+            <p style="font-size:13px;color:#888;">Race ghosts of your best laps. Top 10 times saved per track.</p>
+            <div class="btn-row">
+                <button id="startBtn">Start Drifting!</button>
+                <button id="editorBtn" style="background:linear-gradient(135deg,#60c0ff,#4080cc);">Track Editor</button>
+            </div>
         </div>
+    </div>
+    <div id="editorUI">
+        <div class="toolbar">
+            <button data-tool="road" class="active">Road</button>
+            <button data-tool="dirt">Dirt</button>
+            <button data-tool="ice">Ice</button>
+            <button data-tool="start">Start</button>
+            <button data-tool="finish">Finish</button>
+            <button data-tool="erase">Erase</button>
+            <button data-tool="save" style="background:rgba(100,200,100,0.3);">Save</button>
+            <button data-tool="load" style="background:rgba(100,150,255,0.3);">Load</button>
+            <button data-tool="race" style="background:rgba(255,100,150,0.3);">Race!</button>
+            <button data-tool="exit" style="background:rgba(255,80,80,0.3);">Exit</button>
+        </div>
+        <div id="editorStatus">Click to place tiles. Scroll to zoom. Drag right-click to pan.</div>
     </div>
     <script>
     (function() {
@@ -71,23 +112,81 @@
         resize();
         window.addEventListener('resize', resize);
 
+        // ---- LOCALSTORAGE HELPERS ----
+        function loadArcadeData() {
+            try {
+                return JSON.parse(localStorage.getItem('calebArcadeData')) || {};
+            } catch(e) { return {}; }
+        }
+        function saveArcadeData(data) {
+            localStorage.setItem('calebArcadeData', JSON.stringify(data));
+        }
+        function getDriftData() {
+            const data = loadArcadeData();
+            if (!data.drift) data.drift = { tracks: {}, customTracks: [] };
+            if (!data.drift.tracks) data.drift.tracks = {};
+            if (!data.drift.customTracks) data.drift.customTracks = [];
+            return data;
+        }
+        function saveDriftData(arcadeData) {
+            saveArcadeData(arcadeData);
+        }
+        function getTrackData(trackId) {
+            const data = getDriftData();
+            if (!data.drift.tracks[trackId]) {
+                data.drift.tracks[trackId] = { bestLaps: [], top3Ghost: [] };
+            }
+            return data.drift.tracks[trackId];
+        }
+        function saveTrackLap(trackId, lapTime, ghostData) {
+            const data = getDriftData();
+            if (!data.drift.tracks[trackId]) {
+                data.drift.tracks[trackId] = { bestLaps: [], top3Ghost: [] };
+            }
+            const track = data.drift.tracks[trackId];
+            track.bestLaps.push({ time: lapTime, date: Date.now() });
+            track.bestLaps.sort(function(a, b) { return a.time - b.time; });
+            track.bestLaps = track.bestLaps.slice(0, 10);
+            // Store ghost for top 3
+            if (ghostData && ghostData.length > 0) {
+                track.top3Ghost.push({ time: lapTime, frames: ghostData });
+                track.top3Ghost.sort(function(a, b) { return a.time - b.time; });
+                track.top3Ghost = track.top3Ghost.slice(0, 3);
+            }
+            saveDriftData(data);
+        }
+        function getTop10Times(trackId) {
+            const track = getTrackData(trackId);
+            return track.bestLaps || [];
+        }
+        function getTop3Ghosts(trackId) {
+            const data = getDriftData();
+            if (!data.drift.tracks[trackId]) return [];
+            return data.drift.tracks[trackId].top3Ghost || [];
+        }
+
         // ---- CONSTANTS ----
-        const TILE = 40;             // tile size in world units
-        const CAR_W = 16, CAR_H = 28;
+        const TILE = 60;             // tile size in world units (bigger tracks)
+        const CAR_W = 20, CAR_H = 36;
 
         // ---- TUNABLE PHYSICS (editable via GUI) ----
         const physics = {
-            maxSpeed: 3.5,
-            accel: 0.04,
-            steerRate: 0.055,
-            gripBlend: 0.06,
-            roadGrip: 0.7,
+            maxSpeed: 4.0,
+            accel: 0.045,
+            braking: 0.02,           // passive drag
+            steerRate: 0.05,
+            steerSpeedFactor: 0.6,   // how much speed affects steering (lower = less steering at high speed)
+            gripBlend: 0.08,
+            driftFriction: 0.015,    // extra friction when drifting
+            roadGrip: 0.85,
             dirtGrip: 0.35,
-            iceGrip: 0.15,
+            iceGrip: 0.12,
             roadSpeedMult: 1.0,
-            dirtSpeedMult: 0.8,
-            iceSpeedMult: 1.15,
-            driftThreshold: 0.2
+            dirtSpeedMult: 0.75,
+            iceSpeedMult: 1.1,
+            driftThreshold: 0.25,
+            lateralDrag: 0.04,       // drag on sideways velocity component
+            forwardDrag: 0.005       // small forward drag always
         };
 
         // ---- TERRAIN TYPES ----
@@ -97,7 +196,6 @@
         const T_ICE  = 3;
         const T_FINISH = 4;
 
-        // Terrain visuals (grip/speed read from physics obj at runtime)
         const TERRAIN_COLORS = {
             [T_ROAD]: { base: [180, 120, 220], edge: [220, 160, 255] },
             [T_DIRT]: { base: [160, 120, 80],  edge: [200, 160, 100] },
@@ -119,16 +217,13 @@
         }
 
         // ---- STAGES ----
-        // Each stage is a tile map + start/finish positions
-        // Map string: . = void, # = road, d = dirt, i = ice, F = finish, S = start
         const STAGES = [];
 
         function parseMap(lines, name) {
-            const rows = lines.trim().split('\n').map(l => l.trim());
+            const rows = lines.trim().split('\n').map(function(l) { return l.trim(); });
             const h = rows.length;
-            const w = Math.max(...rows.map(r => r.length));
+            const w = Math.max.apply(null, rows.map(function(r) { return r.length; }));
             const grid = [];
-            let startAngle = Math.PI / 2; // face downward (toward finish)
             let finishTiles = [];
             let startTiles = [];
             for (let r = 0; r < h; r++) {
@@ -138,154 +233,172 @@
                     if (ch === '#') grid[r][c] = T_ROAD;
                     else if (ch === 'd') grid[r][c] = T_DIRT;
                     else if (ch === 'i') grid[r][c] = T_ICE;
-                    else if (ch === 'F') { grid[r][c] = T_FINISH; finishTiles.push({r, c}); }
-                    else if (ch === 'S') { grid[r][c] = T_ROAD; startTiles.push({r, c}); }
+                    else if (ch === 'F') { grid[r][c] = T_FINISH; finishTiles.push({r: r, c: c}); }
+                    else if (ch === 'S') { grid[r][c] = T_ROAD; startTiles.push({r: r, c: c}); }
                     else grid[r][c] = T_VOID;
                 }
             }
-            // Center of all S tiles
-            const startX = startTiles.reduce((s, t) => s + t.c, 0) / startTiles.length;
-            const startY = startTiles.reduce((s, t) => s + t.r, 0) / startTiles.length;
-            return { name, grid, w, h, startX, startY, startAngle, finishTiles };
+            const startX = startTiles.reduce(function(s, t) { return s + t.c; }, 0) / (startTiles.length || 1);
+            const startY = startTiles.reduce(function(s, t) { return s + t.r; }, 0) / (startTiles.length || 1);
+            return { name: name, grid: grid, w: w, h: h, startX: startX, startY: startY, startAngle: Math.PI / 2, finishTiles: finishTiles };
         }
 
-        // Stage 1: Simple L-turn
-        STAGES.push(parseMap(`
-..........
-..SSSS....
-..####....
-..####....
-..####....
-..########
-..########
-......####
-......####
-......FFFF
-`, 'Midnight Start'));
+        // Stage 1: Simple L-turn (bigger)
+        STAGES.push(parseMap(
+'...............\n' +
+'..SSSSS........\n' +
+'..#####........\n' +
+'..#####........\n' +
+'..#####........\n' +
+'..#####........\n' +
+'..###########..\n' +
+'..###########..\n' +
+'..###########..\n' +
+'........#####..\n' +
+'........#####..\n' +
+'........#####..\n' +
+'........FFFFF..\n', 'Midnight Start'));
 
-        // Stage 2: S-curve
-        STAGES.push(parseMap(`
-..............
-..SSSS........
-..####........
-..####........
-..##########..
-..##########..
-........####..
-........####..
-..##########..
-..##########..
-..####........
-..####........
-..FFFF........
-`, 'Neon Serpent'));
+        // Stage 2: S-curve (bigger)
+        STAGES.push(parseMap(
+'..................\n' +
+'..SSSSS...........\n' +
+'..#####...........\n' +
+'..#####...........\n' +
+'..#####...........\n' +
+'..##############..\n' +
+'..##############..\n' +
+'..##############..\n' +
+'..........#####..\n' +
+'..........#####..\n' +
+'..##############..\n' +
+'..##############..\n' +
+'..##############..\n' +
+'..#####...........\n' +
+'..#####...........\n' +
+'..FFFFF...........\n', 'Neon Serpent'));
 
-        // Stage 3: Wide open with dirt patches
-        STAGES.push(parseMap(`
-................
-..SSSS..........
-..####..........
-..##############
-..##############
-..####dddd####..
-..####dddd####..
-..##############
-..##############
-..........####..
-..........####..
-..........FFFF..
-`, 'Dusty Corner'));
+        // Stage 3: Wide open with dirt patches (bigger)
+        STAGES.push(parseMap(
+'....................\n' +
+'..SSSSS.............\n' +
+'..#####.............\n' +
+'..##################\n' +
+'..##################\n' +
+'..##################\n' +
+'..#####ddddd######.\n' +
+'..#####ddddd######.\n' +
+'..#####ddddd######.\n' +
+'..##################\n' +
+'..##################\n' +
+'..##################\n' +
+'..............#####.\n' +
+'..............#####.\n' +
+'..............FFFFF.\n', 'Dusty Corner'));
 
-        // Stage 4: Ice passage
-        STAGES.push(parseMap(`
-................
-..SSSS..........
-..####..........
-..####..........
-..####iiiiii####
-..####iiiiii####
-............####
-............####
-....############
-....############
-....####........
-....FFFF........
-`, 'Frozen Drift'));
+        // Stage 4: Ice passage (bigger)
+        STAGES.push(parseMap(
+'....................\n' +
+'..SSSSS.............\n' +
+'..#####.............\n' +
+'..#####.............\n' +
+'..#####.............\n' +
+'..#####iiiiiii#####.\n' +
+'..#####iiiiiii#####.\n' +
+'..#####iiiiiii#####.\n' +
+'...............#####\n' +
+'...............#####\n' +
+'......##############\n' +
+'......##############\n' +
+'......##############\n' +
+'......#####.........\n' +
+'......FFFFF.........\n', 'Frozen Drift'));
 
-        // Stage 5: Complex maze
-        STAGES.push(parseMap(`
-....................
-..SSSS..............
-..####..............
-..####..............
-..########..........
-..########..........
-......####..........
-......##########....
-......##########....
-..........####......
-..........####......
-....##########......
-....##########......
-....####............
-....####............
-....####ddddFFFF....
-....####ddddFFFF....
-`, 'Midnight Roadride'));
+        // Stage 5: Complex maze (bigger)
+        STAGES.push(parseMap(
+'........................\n' +
+'..SSSSS.................\n' +
+'..#####.................\n' +
+'..#####.................\n' +
+'..#####.................\n' +
+'..###########...........\n' +
+'..###########...........\n' +
+'..###########...........\n' +
+'.......##############...\n' +
+'.......##############...\n' +
+'.......##############...\n' +
+'............#####.......\n' +
+'............#####.......\n' +
+'.....##############.....\n' +
+'.....##############.....\n' +
+'.....##############.....\n' +
+'.....#####..............\n' +
+'.....#####..............\n' +
+'.....#####dddddFFFFF...\n' +
+'.....#####dddddFFFFF...\n', 'Midnight Roadride'));
 
-        // Stage 6: Big open arena with mixed terrain
-        STAGES.push(parseMap(`
-......................
-..SSSS................
-..####................
-..##################..
-..##################..
-..####dddd####iiii##..
-..####dddd####iiii##..
-..##################..
-..##################..
-..####....####....##..
-..####....####....##..
-..##################..
-..##################..
-..####iiii####dddd##..
-..####iiii####dddd##..
-..##################..
-..##################..
-................FFFF..
-`, 'The Gauntlet'));
+        // Stage 6: Big open arena with mixed terrain (bigger)
+        STAGES.push(parseMap(
+'............................\n' +
+'..SSSSS....................\n' +
+'..#####....................\n' +
+'..#####....................\n' +
+'..########################.\n' +
+'..########################.\n' +
+'..########################.\n' +
+'..#####ddddd#####iiiii###.\n' +
+'..#####ddddd#####iiiii###.\n' +
+'..#####ddddd#####iiiii###.\n' +
+'..########################.\n' +
+'..########################.\n' +
+'..#####.....#####.....###.\n' +
+'..#####.....#####.....###.\n' +
+'..########################.\n' +
+'..########################.\n' +
+'..########################.\n' +
+'..#####iiiii#####ddddd###.\n' +
+'..#####iiiii#####ddddd###.\n' +
+'..########################.\n' +
+'..########################.\n' +
+'....................FFFFF..\n', 'The Gauntlet'));
 
-        // Stage 7: Tight zigzag
-        STAGES.push(parseMap(`
-..............
-..SSSS........
-..####........
-..######......
-..######......
-....######....
-....######....
-......######..
-......######..
-....######....
-....######....
-..######......
-..######......
-..FFFF........
-`, 'Zigzag Alley'));
+        // Stage 7: Tight zigzag (bigger)
+        STAGES.push(parseMap(
+'..................\n' +
+'..SSSSS...........\n' +
+'..#####...........\n' +
+'..#####...........\n' +
+'..########........\n' +
+'..########........\n' +
+'..########........\n' +
+'.....########.....\n' +
+'.....########.....\n' +
+'.....########.....\n' +
+'........########..\n' +
+'........########..\n' +
+'........########..\n' +
+'.....########.....\n' +
+'.....########.....\n' +
+'.....########.....\n' +
+'..########........\n' +
+'..########........\n' +
+'..FFFFF...........\n', 'Zigzag Alley'));
 
-        // Stage 8: Long highway with hazards
-        STAGES.push(parseMap(`
-............................
-..SSSS....................
-..####....................
-..########################
-..########################
-..####dddd####iiii########
-..####dddd####iiii########
-..########################
-..########################
-......................FFFF.
-`, 'Highway Midnight'));
+        // Stage 8: Long highway with hazards (bigger)
+        STAGES.push(parseMap(
+'...................................\n' +
+'..SSSSS...........................\n' +
+'..#####...........................\n' +
+'..#####...........................\n' +
+'..#############################...\n' +
+'..#############################...\n' +
+'..#############################...\n' +
+'..#####ddddd#####iiiii##########..\n' +
+'..#####ddddd#####iiiii##########..\n' +
+'..#############################...\n' +
+'..#############################...\n' +
+'..#############################...\n' +
+'..........................FFFFF...\n', 'Highway Midnight'));
 
         // ---- GAME STATE ----
         let currentStage = 0;
@@ -294,18 +407,24 @@
         let gameOver = false;
         let stageComplete = false;
         let timer = 0;
-        let bestTimes = JSON.parse(localStorage.getItem('driftBestTimes') || '{}');
 
-        // Car state
+        // Car state - proper physics model with separation of facing/velocity
         const car = {
             x: 0, y: 0,
-            angle: 0,        // facing direction
-            velX: 0, velY: 0,
-            speed: 0,
-            drifting: false
+            angle: 0,        // facing direction (where the car points)
+            velX: 0, velY: 0, // actual velocity vector
+            speed: 0,         // actual speed (magnitude of velocity)
+            drifting: false,
+            driftAngle: 0     // angle between facing and velocity
         };
 
-        // Tire marks (persistent within stage)
+        // Ghost replay
+        let currentGhostRecording = [];  // frames for current lap
+        let sessionGhost = null;         // ghost from previous lap this session
+        let storedGhosts = [];           // top 3 ghosts from localStorage
+        let ghostFrame = 0;
+
+        // Tire marks
         let tireMarks = [];
 
         // Particles
@@ -315,6 +434,17 @@
         let steerInput = 0;
         let touchLeft = false, touchRight = false;
         const keys = {};
+
+        // ---- EDITOR STATE ----
+        let editorActive = false;
+        let editorGrid = [];
+        let editorW = 40, editorH = 30;
+        let editorTool = 'road';
+        let editorCamX = 0, editorCamY = 0;
+        let editorZoom = 1;
+        let editorDragging = false;
+        let editorLastMouse = { x: 0, y: 0 };
+        let editorPainting = false;
 
         // ---- TILE HELPERS ----
         function getTile(gx, gy) {
@@ -329,14 +459,22 @@
             return getTile(wx / TILE, wy / TILE);
         }
 
-        function getTerrainProps(tile) {
-            return TERRAIN_COLORS[tile] || null;
+        // ---- ANGLE HELPERS ----
+        function normalizeAngle(a) {
+            while (a > Math.PI) a -= Math.PI * 2;
+            while (a < -Math.PI) a += Math.PI * 2;
+            return a;
+        }
+
+        function angleDiff(a, b) {
+            return normalizeAngle(a - b);
         }
 
         // ---- INIT STAGE ----
         function initStage(idx) {
             currentStage = idx;
             stageData = STAGES[idx];
+            if (!stageData) return;
             car.x = (stageData.startX + 0.5) * TILE;
             car.y = (stageData.startY + 0.5) * TILE;
             car.angle = stageData.startAngle;
@@ -344,17 +482,38 @@
             car.velY = 0;
             car.speed = 0;
             car.drifting = false;
+            car.driftAngle = 0;
             tireMarks = [];
             particles = [];
             timer = 0;
             gameOver = false;
             stageComplete = false;
             gameRunning = true;
+
+            // Ghost setup
+            if (currentGhostRecording.length > 10) {
+                sessionGhost = currentGhostRecording.slice();
+            }
+            currentGhostRecording = [];
+            ghostFrame = 0;
+
+            // Load stored ghosts
+            const trackId = 'stage' + currentStage;
+            storedGhosts = getTop3Ghosts(trackId);
         }
 
-        // ---- CAR PHYSICS ----
+        // ---- CAR PHYSICS (REWRITTEN) ----
+        // Proper drift model:
+        // - car.angle = facing direction
+        // - car.velX/velY = actual velocity (can differ from facing)
+        // - car.speed = magnitude of velocity
+        // - Acceleration is always in FACING direction
+        // - Grip blends velocity TOWARD facing direction
+        // - Drift = when velocity direction differs from facing direction
+        // - Friction increases during drift
+        // - No abrupt flips at 180 degrees
+
         function updateCar(dt) {
-            // Get terrain under car
             const tile = getTileAtWorld(car.x, car.y);
 
             if (tile === T_VOID) {
@@ -366,11 +525,8 @@
             if (tile === T_FINISH && car.speed > 0.5) {
                 stageComplete = true;
                 gameRunning = false;
-                const key = 'stage' + currentStage;
-                if (!bestTimes[key] || timer < bestTimes[key]) {
-                    bestTimes[key] = timer;
-                    localStorage.setItem('driftBestTimes', JSON.stringify(bestTimes));
-                }
+                const trackId = 'stage' + currentStage;
+                saveTrackLap(trackId, timer, currentGhostRecording);
                 return;
             }
 
@@ -379,52 +535,75 @@
 
             const grip = getGrip(tile);
             const speedMult = getSpeedMult(tile);
-
-            // Auto-accelerate
             const maxSpeed = physics.maxSpeed * speedMult;
-            car.speed = Math.min(car.speed + physics.accel * dt, maxSpeed);
 
-            // Steering
-            const steerAmount = steerInput * physics.steerRate * dt;
-            car.angle += steerAmount * car.speed;
+            // 1. Steering - turn the car's facing direction
+            // Steering effectiveness scales with speed (can't steer as sharply at high speed)
+            const steerEffectiveness = 1.0 / (1.0 + car.speed * physics.steerSpeedFactor);
+            const steerAmount = steerInput * physics.steerRate * steerEffectiveness * dt;
+            car.angle += steerAmount * Math.max(car.speed, 0.3);
+            car.angle = normalizeAngle(car.angle);
 
-            // Forward direction
+            // 2. Forward direction (where the car is FACING)
             const fwdX = Math.cos(car.angle);
             const fwdY = Math.sin(car.angle);
 
-            // Desired velocity (where the car wants to go based on facing)
-            const desiredVX = fwdX * car.speed;
-            const desiredVY = fwdY * car.speed;
+            // 3. Decompose current velocity into forward and lateral components
+            // relative to the car's facing direction
+            const forwardSpeed = car.velX * fwdX + car.velY * fwdY;  // dot product
+            const lateralSpeed = car.velX * (-fwdY) + car.velY * fwdX;  // perpendicular dot
 
-            // Blend current velocity toward desired based on grip
-            // Low grip = velocity lags behind facing direction = DRIFT
+            // 4. Apply acceleration in the FACING direction only
+            // Acceleration only adds speed in the forward direction of the car
+            let newForwardSpeed = forwardSpeed + physics.accel * dt;
+
+            // 5. Apply drag/friction
+            // Forward drag (always)
+            newForwardSpeed *= (1.0 - physics.forwardDrag * dt);
+
+            // Lateral drag (grip-dependent - this is what makes the car grip vs drift)
+            // Higher grip = more lateral drag = less sliding
+            const lateralDragFactor = physics.lateralDrag * grip * dt;
+            let newLateralSpeed = lateralSpeed * (1.0 - lateralDragFactor);
+
+            // Grip blending: gradually align velocity with facing direction
+            // This is a smooth blend, not an abrupt snap
             const blendRate = grip * physics.gripBlend * dt;
-            car.velX += (desiredVX - car.velX) * blendRate;
-            car.velY += (desiredVY - car.velY) * blendRate;
+            newLateralSpeed *= (1.0 - blendRate);
 
-            // Normalize velocity to maintain speed
-            const velMag = Math.sqrt(car.velX * car.velX + car.velY * car.velY);
-            if (velMag > 0.01) {
-                car.velX = (car.velX / velMag) * car.speed;
-                car.velY = (car.velY / velMag) * car.speed;
+            // 6. Detect drift angle
+            car.driftAngle = Math.abs(Math.atan2(newLateralSpeed, Math.abs(newForwardSpeed)));
+            car.drifting = car.driftAngle > physics.driftThreshold && car.speed > 0.8;
+
+            // 7. Apply drift friction - drifting should slow you down
+            if (car.drifting) {
+                const driftFrictionMult = 1.0 - physics.driftFriction * dt * (car.driftAngle / Math.PI);
+                newForwardSpeed *= driftFrictionMult;
+                newLateralSpeed *= driftFrictionMult;
             }
 
-            // Detect drift: angle between facing and velocity
-            const velAngle = Math.atan2(car.velY, car.velX);
-            const driftAngle = Math.abs(Math.atan2(Math.sin(car.angle - velAngle), Math.cos(car.angle - velAngle)));
-            car.drifting = driftAngle > physics.driftThreshold && car.speed > 1;
+            // 8. Clamp forward speed to max
+            if (newForwardSpeed > maxSpeed) newForwardSpeed = maxSpeed;
+            // Allow negative forward speed (reversing from drift) but with heavy drag
+            if (newForwardSpeed < 0) {
+                newForwardSpeed *= (1.0 - 0.05 * dt); // heavy drag when going backwards
+            }
 
-            // Move
+            // 9. Reconstruct velocity from forward/lateral components
+            car.velX = fwdX * newForwardSpeed + (-fwdY) * newLateralSpeed;
+            car.velY = fwdY * newForwardSpeed + fwdX * newLateralSpeed;
+
+            // 10. Compute actual speed (magnitude of velocity)
+            car.speed = Math.sqrt(car.velX * car.velX + car.velY * car.velY);
+
+            // 11. Move
             const newX = car.x + car.velX * dt;
             const newY = car.y + car.velY * dt;
 
-            // Check if new position is on valid terrain
             const newTile = getTileAtWorld(newX, newY);
             if (newTile === T_VOID) {
-                // Hit the void - game over
                 gameOver = true;
                 gameRunning = false;
-                // Spawn crash particles
                 for (let i = 0; i < 20; i++) {
                     particles.push({
                         x: car.x, y: car.y,
@@ -432,7 +611,7 @@
                         vy: (Math.random() - 0.5) * 4,
                         life: 30 + Math.random() * 30,
                         maxLife: 60,
-                        color: `hsl(${30 + Math.random() * 30}, 100%, ${50 + Math.random() * 30}%)`
+                        color: 'hsl(' + (30 + Math.random() * 30) + ', 100%, ' + (50 + Math.random() * 30) + '%)'
                     });
                 }
                 return;
@@ -441,34 +620,38 @@
             car.x = newX;
             car.y = newY;
 
+            // Record ghost frame
+            currentGhostRecording.push({
+                x: car.x, y: car.y, angle: car.angle
+            });
+
             // Tire marks
             if (car.drifting && car.speed > 0.5) {
                 const perpX = -Math.sin(car.angle);
                 const perpY = Math.cos(car.angle);
-                const backX = -fwdX * 10;
-                const backY = -fwdY * 10;
+                const backX = -fwdX * 12;
+                const backY = -fwdY * 12;
                 tireMarks.push(
-                    { x: car.x + perpX * 6 + backX, y: car.y + perpY * 6 + backY, alpha: 1.0 },
-                    { x: car.x - perpX * 6 + backX, y: car.y - perpY * 6 + backY, alpha: 1.0 }
+                    { x: car.x + perpX * 7 + backX, y: car.y + perpY * 7 + backY, alpha: 1.0 },
+                    { x: car.x - perpX * 7 + backX, y: car.y - perpY * 7 + backY, alpha: 1.0 }
                 );
                 if (tireMarks.length > 2000) tireMarks.splice(0, 20);
 
-                // Drift particles
                 for (let i = 0; i < 2; i++) {
                     const smokeColor = tile === T_ICE ? '200,220,255' : tile === T_DIRT ? '180,140,80' : '150,150,150';
                     particles.push({
-                        x: car.x + backX + (Math.random() - 0.5) * 12,
-                        y: car.y + backY + (Math.random() - 0.5) * 12,
+                        x: car.x + backX + (Math.random() - 0.5) * 14,
+                        y: car.y + backY + (Math.random() - 0.5) * 14,
                         vx: -car.velX * 0.2 + (Math.random() - 0.5) * 1.5,
                         vy: -car.velY * 0.2 + (Math.random() - 0.5) * 1.5,
                         life: 20 + Math.random() * 20,
                         maxLife: 40,
-                        color: `rgba(${smokeColor},`
+                        color: 'rgba(' + smokeColor + ','
                     });
                 }
             }
 
-            timer += dt / 60; // Approximate seconds
+            timer += dt / 60;
         }
 
         function updateParticles(dt) {
@@ -481,14 +664,35 @@
             }
         }
 
+        // ---- GHOST DRAWING ----
+        function drawGhostCar(sx, sy, angle, color, alpha) {
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.translate(sx, sy);
+            ctx.rotate(angle + Math.PI / 2);
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.roundRect(-CAR_W / 2, -CAR_H / 2, CAR_W, CAR_H, 3);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.restore();
+            ctx.globalAlpha = 1;
+        }
+
         // ---- RENDERING ----
         function render() {
             const W = canvas.width;
             const H = canvas.height;
 
-            // Dark background
             ctx.fillStyle = '#0a0a12';
             ctx.fillRect(0, 0, W, H);
+
+            if (editorActive) {
+                renderEditor();
+                return;
+            }
 
             if (!stageData) return;
 
@@ -500,7 +704,6 @@
             ctx.translate(W / 2, H / 2);
             ctx.scale(scale, scale);
 
-            // Visible tile range
             const viewW = (W / scale) / 2 + TILE * 2;
             const viewH = (H / scale) / 2 + TILE * 2;
 
@@ -521,22 +724,19 @@
                     const wx = c * TILE - camX;
                     const wy = r * TILE - camY;
 
-                    // Base tile color with subtle variation
                     const shade = ((r + c) % 2 === 0) ? 0.85 : 1.0;
-                    const [br, bg, bb] = terrain.base;
-                    ctx.fillStyle = `rgb(${Math.floor(br * shade)},${Math.floor(bg * shade)},${Math.floor(bb * shade)})`;
+                    const br = terrain.base[0], bg = terrain.base[1], bb = terrain.base[2];
+                    ctx.fillStyle = 'rgb(' + Math.floor(br * shade) + ',' + Math.floor(bg * shade) + ',' + Math.floor(bb * shade) + ')';
                     ctx.fillRect(wx, wy, TILE + 0.5, TILE + 0.5);
 
-                    // Edge highlight on tile borders
-                    const [er, eg, eb] = terrain.edge;
+                    const er = terrain.edge[0], eg = terrain.edge[1], eb = terrain.edge[2];
 
-                    // Check if adjacent tile is different
                     const above = (r > 0) ? stageData.grid[r-1][c] : T_VOID;
                     const below = (r < stageData.h - 1) ? stageData.grid[r+1][c] : T_VOID;
                     const left = (c > 0) ? stageData.grid[r][c-1] : T_VOID;
                     const right = (c < stageData.w - 1) ? stageData.grid[r][c+1] : T_VOID;
 
-                    ctx.strokeStyle = `rgba(${er},${eg},${eb},0.3)`;
+                    ctx.strokeStyle = 'rgba(' + er + ',' + eg + ',' + eb + ',0.3)';
                     ctx.lineWidth = 1;
 
                     if (above === T_VOID || above !== tile) {
@@ -552,14 +752,13 @@
                         ctx.beginPath(); ctx.moveTo(wx + TILE, wy); ctx.lineTo(wx + TILE, wy + TILE); ctx.stroke();
                     }
 
-                    // Small x marker on each tile (like in the original game)
-                    ctx.strokeStyle = `rgba(${er},${eg},${eb},0.15)`;
+                    ctx.strokeStyle = 'rgba(' + er + ',' + eg + ',' + eb + ',0.15)';
                     ctx.lineWidth = 0.5;
                     const cx = wx + TILE / 2;
                     const cy = wy + TILE / 2;
                     ctx.beginPath();
-                    ctx.moveTo(cx - 3, cy - 3); ctx.lineTo(cx + 3, cy + 3);
-                    ctx.moveTo(cx + 3, cy - 3); ctx.lineTo(cx - 3, cy + 3);
+                    ctx.moveTo(cx - 4, cy - 4); ctx.lineTo(cx + 4, cy + 4);
+                    ctx.moveTo(cx + 4, cy - 4); ctx.lineTo(cx - 4, cy + 4);
                     ctx.stroke();
                 }
             }
@@ -571,9 +770,9 @@
                 const my = m.y - camY;
                 m.alpha = Math.max(0, m.alpha - 0.0008);
                 if (m.alpha > 0.02) {
-                    ctx.fillStyle = `rgba(20,20,30,${m.alpha * 0.7})`;
+                    ctx.fillStyle = 'rgba(20,20,30,' + (m.alpha * 0.7) + ')';
                     ctx.beginPath();
-                    ctx.arc(mx, my, 2.5, 0, Math.PI * 2);
+                    ctx.arc(mx, my, 3, 0, Math.PI * 2);
                     ctx.fill();
                 }
             }
@@ -595,11 +794,27 @@
                 ctx.globalAlpha = 1;
             }
 
+            // Draw ghost cars (stored top 3)
+            const ghostColors = ['rgba(100,200,255,0.6)', 'rgba(255,200,100,0.5)', 'rgba(200,100,255,0.4)'];
+            for (let gi = 0; gi < storedGhosts.length; gi++) {
+                const ghost = storedGhosts[gi];
+                if (ghost.frames && ghostFrame < ghost.frames.length) {
+                    const gf = ghost.frames[ghostFrame];
+                    drawGhostCar(gf.x - camX, gf.y - camY, gf.angle, ghostColors[gi] || 'rgba(150,150,255,0.3)', 0.35);
+                }
+            }
+
+            // Draw session ghost (previous lap)
+            if (sessionGhost && ghostFrame < sessionGhost.length) {
+                const gf = sessionGhost[ghostFrame];
+                drawGhostCar(gf.x - camX, gf.y - camY, gf.angle, 'rgba(255,255,255,0.5)', 0.25);
+            }
+
             // Draw headlight beam
-            const beamLen = 160;
+            const beamLen = 200;
             const beamSpread = 0.35;
-            const hlX = car.x - camX + Math.cos(car.angle) * 14;
-            const hlY = car.y - camY + Math.sin(car.angle) * 14;
+            const hlX = car.x - camX + Math.cos(car.angle) * 18;
+            const hlY = car.y - camY + Math.sin(car.angle) * 18;
             const beamGrad = ctx.createRadialGradient(
                 hlX, hlY, 5,
                 hlX + Math.cos(car.angle) * beamLen * 0.6,
@@ -628,43 +843,36 @@
 
             ctx.save();
             ctx.translate(carSX, carSY);
-            ctx.rotate(car.angle + Math.PI / 2); // +90deg so sprite top (headlights) points in car.angle direction
+            ctx.rotate(car.angle + Math.PI / 2);
 
-            // Car shadow
             ctx.fillStyle = 'rgba(0,0,0,0.3)';
             ctx.fillRect(-CAR_W / 2 + 2, -CAR_H / 2 + 2, CAR_W, CAR_H);
 
-            // Car body
             ctx.fillStyle = '#e060a0';
             ctx.beginPath();
             ctx.roundRect(-CAR_W / 2, -CAR_H / 2, CAR_W, CAR_H, 3);
             ctx.fill();
 
-            // Windshield
             ctx.fillStyle = 'rgba(200,180,255,0.6)';
-            ctx.fillRect(-CAR_W / 2 + 3, -CAR_H / 2 + 2, CAR_W - 6, 7);
+            ctx.fillRect(-CAR_W / 2 + 3, -CAR_H / 2 + 2, CAR_W - 6, 8);
 
-            // Roof stripe
             ctx.fillStyle = '#c04080';
-            ctx.fillRect(-CAR_W / 2 + 2, -2, CAR_W - 4, 8);
+            ctx.fillRect(-CAR_W / 2 + 2, -2, CAR_W - 4, 10);
 
-            // Headlights
             ctx.fillStyle = '#fff';
             ctx.shadowColor = '#ffe';
             ctx.shadowBlur = 6;
-            ctx.fillRect(-CAR_W / 2 + 1, -CAR_H / 2 - 1, 4, 3);
-            ctx.fillRect(CAR_W / 2 - 5, -CAR_H / 2 - 1, 4, 3);
+            ctx.fillRect(-CAR_W / 2 + 1, -CAR_H / 2 - 1, 5, 4);
+            ctx.fillRect(CAR_W / 2 - 6, -CAR_H / 2 - 1, 5, 4);
             ctx.shadowBlur = 0;
 
-            // Tail lights
             ctx.fillStyle = '#ff2222';
             ctx.shadowColor = '#ff0000';
             ctx.shadowBlur = 4;
-            ctx.fillRect(-CAR_W / 2 + 1, CAR_H / 2 - 2, 4, 3);
-            ctx.fillRect(CAR_W / 2 - 5, CAR_H / 2 - 2, 4, 3);
+            ctx.fillRect(-CAR_W / 2 + 1, CAR_H / 2 - 3, 5, 4);
+            ctx.fillRect(CAR_W / 2 - 6, CAR_H / 2 - 3, 5, 4);
             ctx.shadowBlur = 0;
 
-            // Underglow when drifting
             if (car.drifting) {
                 ctx.shadowColor = '#c060ff';
                 ctx.shadowBlur = 15;
@@ -677,32 +885,35 @@
             }
 
             ctx.restore();
-
             ctx.restore(); // end camera transform
 
             // ---- HUD ----
-
-            // Timer
             const mins = Math.floor(timer / 60);
             const secs = Math.floor(timer % 60);
             const ms = Math.floor((timer * 1000) % 1000);
-            const timeStr = `${mins}:${String(secs).padStart(2, '0')}:${String(ms).padStart(3, '0')}`;
+            const timeStr = mins + ':' + String(secs).padStart(2, '0') + ':' + String(ms).padStart(3, '0');
 
             ctx.fillStyle = '#fff';
             ctx.font = 'bold 18px monospace';
             ctx.textAlign = 'left';
             ctx.fillText(timeStr, 20, H - 50);
 
-            // Speed
+            // Speed - show actual velocity magnitude
             const kmh = Math.floor(car.speed * 25);
-            ctx.fillText(kmh + 'KM/H', 150, H - 50);
+            ctx.fillText(kmh + 'KM/H', 160, H - 50);
 
-            // Stage name
+            // Drift angle indicator
+            if (car.drifting) {
+                const degDrift = Math.floor(car.driftAngle * 180 / Math.PI);
+                ctx.fillStyle = '#ff60a0';
+                ctx.fillText(degDrift + ' deg', 280, H - 50);
+            }
+
             ctx.fillStyle = '#c0a0e0';
             ctx.font = 'bold 14px monospace';
             ctx.fillText(stageData.name.toUpperCase(), 20, H - 25);
 
-            // Health/progress bar (just a visual bar showing stage progress)
+            // Progress bar
             const barX = 20;
             const barY = H - 15;
             const barW = 200;
@@ -710,7 +921,6 @@
             ctx.fillStyle = 'rgba(255,255,255,0.15)';
             ctx.fillRect(barX, barY, barW, barH);
 
-            // Approximate progress based on distance to finish
             if (stageData.finishTiles.length > 0) {
                 const ft = stageData.finishTiles[0];
                 const fx = (ft.c + 0.5) * TILE;
@@ -721,8 +931,6 @@
                 const currentDist = Math.sqrt((fx - car.x) * (fx - car.x) + (fy - car.y) * (fy - car.y));
                 const progress = Math.max(0, Math.min(1, 1 - currentDist / totalDist));
                 const filledW = barW * progress;
-
-                // Green/white gradient
                 const greenPart = Math.min(filledW, barW * 0.7);
                 if (greenPart > 0) {
                     ctx.fillStyle = '#44cc44';
@@ -734,23 +942,33 @@
                 }
             }
 
-            // Stage indicator
             ctx.textAlign = 'right';
             ctx.fillStyle = '#888';
             ctx.font = '14px monospace';
             ctx.fillText('Stage ' + (currentStage + 1) + '/' + STAGES.length, W - 20, H - 25);
 
-            // Best time
-            const bestKey = 'stage' + currentStage;
-            if (bestTimes[bestKey]) {
-                const bt = bestTimes[bestKey];
-                const bm = Math.floor(bt / 60);
-                const bs = Math.floor(bt % 60);
-                const bms = Math.floor((bt * 1000) % 1000);
-                ctx.fillText('Best: ' + bm + ':' + String(bs).padStart(2,'0') + ':' + String(bms).padStart(3,'0'), W - 20, H - 50);
+            // Top 10 best times panel
+            const trackId = 'stage' + currentStage;
+            const topTimes = getTop10Times(trackId);
+            if (topTimes.length > 0) {
+                ctx.textAlign = 'right';
+                ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                ctx.fillRect(W - 180, 50, 170, 18 + topTimes.length * 16);
+                ctx.fillStyle = '#ffcc00';
+                ctx.font = 'bold 12px monospace';
+                ctx.fillText('TOP TIMES', W - 18, 64);
+                for (let ti = 0; ti < topTimes.length; ti++) {
+                    const bt = topTimes[ti].time;
+                    const bm = Math.floor(bt / 60);
+                    const bs = Math.floor(bt % 60);
+                    const bms = Math.floor((bt * 1000) % 1000);
+                    ctx.fillStyle = ti === 0 ? '#ffcc00' : ti < 3 ? '#aaddff' : '#888';
+                    ctx.font = '11px monospace';
+                    ctx.fillText((ti + 1) + '. ' + bm + ':' + String(bs).padStart(2,'0') + ':' + String(bms).padStart(3,'0'), W - 18, 80 + ti * 16);
+                }
             }
 
-            // Minimap (bottom-right)
+            // Minimap
             const mmScale = 3;
             const mmW = stageData.w * mmScale;
             const mmH = stageData.h * mmScale;
@@ -766,12 +984,11 @@
                     if (t === T_VOID) continue;
                     const tc = TERRAIN_COLORS[t];
                     if (!tc) continue;
-                    ctx.fillStyle = `rgb(${tc.base[0]},${tc.base[1]},${tc.base[2]})`;
+                    ctx.fillStyle = 'rgb(' + tc.base[0] + ',' + tc.base[1] + ',' + tc.base[2] + ')';
                     ctx.fillRect(mmX + c * mmScale, mmY + r * mmScale, mmScale, mmScale);
                 }
             }
 
-            // Car dot on minimap
             const carMmX = mmX + (car.x / TILE) * mmScale;
             const carMmY = mmY + (car.y / TILE) * mmScale;
             ctx.fillStyle = '#fff';
@@ -821,7 +1038,8 @@
                 ctx.font = '24px "Segoe UI", sans-serif';
                 ctx.fillText('Time: ' + timeStr, W / 2, H / 2);
                 const bestKey = 'stage' + currentStage;
-                if (bestTimes[bestKey] && bestTimes[bestKey] >= timer) {
+                const topTimesNow = getTop10Times(bestKey);
+                if (topTimesNow.length > 0 && topTimesNow[0].time >= timer) {
                     ctx.fillStyle = '#ffcc00';
                     ctx.font = 'bold 20px "Segoe UI", sans-serif';
                     ctx.fillText('New Best!', W / 2, H / 2 + 30);
@@ -841,6 +1059,243 @@
             }
         }
 
+        // ---- EDITOR RENDERING ----
+        function renderEditor() {
+            const W = canvas.width;
+            const H = canvas.height;
+
+            ctx.save();
+            ctx.translate(W / 2 - editorCamX * editorZoom, H / 2 - editorCamY * editorZoom);
+            ctx.scale(editorZoom, editorZoom);
+
+            // Draw grid
+            for (let r = 0; r < editorH; r++) {
+                for (let c = 0; c < editorW; c++) {
+                    const tile = editorGrid[r] ? editorGrid[r][c] : T_VOID;
+                    const wx = c * TILE;
+                    const wy = r * TILE;
+
+                    if (tile !== T_VOID) {
+                        const terrain = TERRAIN_COLORS[tile];
+                        if (terrain) {
+                            const shade = ((r + c) % 2 === 0) ? 0.85 : 1.0;
+                            ctx.fillStyle = 'rgb(' + Math.floor(terrain.base[0] * shade) + ',' + Math.floor(terrain.base[1] * shade) + ',' + Math.floor(terrain.base[2] * shade) + ')';
+                            ctx.fillRect(wx, wy, TILE, TILE);
+                        }
+                    }
+
+                    // Grid lines
+                    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+                    ctx.lineWidth = 0.5;
+                    ctx.strokeRect(wx, wy, TILE, TILE);
+                }
+            }
+
+            ctx.restore();
+        }
+
+        function editorScreenToGrid(sx, sy) {
+            const W = canvas.width;
+            const H = canvas.height;
+            const wx = (sx - W / 2 + editorCamX * editorZoom) / editorZoom;
+            const wy = (sy - H / 2 + editorCamY * editorZoom) / editorZoom;
+            return { c: Math.floor(wx / TILE), r: Math.floor(wy / TILE) };
+        }
+
+        function editorPlaceTile(sx, sy) {
+            const pos = editorScreenToGrid(sx, sy);
+            if (pos.r < 0 || pos.r >= editorH || pos.c < 0 || pos.c >= editorW) return;
+            if (!editorGrid[pos.r]) editorGrid[pos.r] = [];
+
+            const toolMap = {
+                'road': T_ROAD,
+                'dirt': T_DIRT,
+                'ice': T_ICE,
+                'start': T_ROAD, // start tiles are road tiles marked specially
+                'finish': T_FINISH,
+                'erase': T_VOID
+            };
+            const tileType = toolMap[editorTool];
+            if (tileType !== undefined) {
+                editorGrid[pos.r][pos.c] = tileType;
+                // Mark start tiles in a separate structure
+                if (editorTool === 'start') {
+                    if (!editorGrid._starts) editorGrid._starts = [];
+                    const key = pos.r + ',' + pos.c;
+                    if (editorGrid._starts.indexOf(key) === -1) editorGrid._starts.push(key);
+                }
+            }
+        }
+
+        function initEditor() {
+            editorActive = true;
+            editorGrid = [];
+            editorGrid._starts = [];
+            for (let r = 0; r < editorH; r++) {
+                editorGrid[r] = [];
+                for (let c = 0; c < editorW; c++) {
+                    editorGrid[r][c] = T_VOID;
+                }
+            }
+            editorCamX = (editorW * TILE) / 2;
+            editorCamY = (editorH * TILE) / 2;
+            editorZoom = Math.min(canvas.width / (editorW * TILE), canvas.height / (editorH * TILE)) * 0.9;
+            document.getElementById('editorUI').style.display = 'block';
+        }
+
+        function editorBuildStage(name) {
+            // Convert editor grid to a stage
+            let startTiles = [];
+            let finishTiles = [];
+            const grid = [];
+            for (let r = 0; r < editorH; r++) {
+                grid[r] = [];
+                for (let c = 0; c < editorW; c++) {
+                    grid[r][c] = editorGrid[r] ? (editorGrid[r][c] || T_VOID) : T_VOID;
+                    if (editorGrid._starts && editorGrid._starts.indexOf(r + ',' + c) !== -1) {
+                        startTiles.push({ r: r, c: c });
+                    }
+                    if (grid[r][c] === T_FINISH) {
+                        finishTiles.push({ r: r, c: c });
+                    }
+                }
+            }
+            if (startTiles.length === 0 || finishTiles.length === 0) {
+                alert('Please place at least one Start and one Finish tile.');
+                return null;
+            }
+            const startX = startTiles.reduce(function(s, t) { return s + t.c; }, 0) / startTiles.length;
+            const startY = startTiles.reduce(function(s, t) { return s + t.r; }, 0) / startTiles.length;
+            return {
+                name: name || 'Custom Track',
+                grid: grid, w: editorW, h: editorH,
+                startX: startX, startY: startY,
+                startAngle: Math.PI / 2,
+                finishTiles: finishTiles
+            };
+        }
+
+        function editorSave() {
+            const name = prompt('Track name:', 'My Track');
+            if (!name) return;
+            const stage = editorBuildStage(name);
+            if (!stage) return;
+            const data = getDriftData();
+            // Store grid + starts as serializable data
+            const saveObj = {
+                name: name,
+                w: editorW,
+                h: editorH,
+                grid: [],
+                starts: editorGrid._starts || []
+            };
+            for (let r = 0; r < editorH; r++) {
+                saveObj.grid[r] = [];
+                for (let c = 0; c < editorW; c++) {
+                    saveObj.grid[r][c] = editorGrid[r] ? (editorGrid[r][c] || 0) : 0;
+                }
+            }
+            data.drift.customTracks.push(saveObj);
+            saveDriftData(data);
+            alert('Track "' + name + '" saved!');
+        }
+
+        function editorLoad() {
+            const data = getDriftData();
+            const tracks = data.drift.customTracks;
+            if (!tracks || tracks.length === 0) {
+                alert('No saved custom tracks found.');
+                return;
+            }
+            let list = 'Select a track number:\n';
+            for (let i = 0; i < tracks.length; i++) {
+                list += (i + 1) + '. ' + tracks[i].name + '\n';
+            }
+            const choice = prompt(list);
+            if (!choice) return;
+            const idx = parseInt(choice) - 1;
+            if (idx < 0 || idx >= tracks.length) { alert('Invalid selection.'); return; }
+            const t = tracks[idx];
+            editorW = t.w;
+            editorH = t.h;
+            editorGrid = [];
+            editorGrid._starts = t.starts || [];
+            for (let r = 0; r < editorH; r++) {
+                editorGrid[r] = [];
+                for (let c = 0; c < editorW; c++) {
+                    editorGrid[r][c] = t.grid[r] ? (t.grid[r][c] || 0) : 0;
+                }
+            }
+        }
+
+        function editorRace() {
+            const stage = editorBuildStage('Custom');
+            if (!stage) return;
+            editorActive = false;
+            document.getElementById('editorUI').style.display = 'none';
+            // Add as a temporary stage and race it
+            const customIdx = STAGES.length;
+            STAGES.push(stage);
+            initStage(customIdx);
+        }
+
+        // Editor toolbar events
+        document.querySelectorAll('#editorUI .toolbar button').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const tool = btn.getAttribute('data-tool');
+                if (tool === 'save') { editorSave(); return; }
+                if (tool === 'load') { editorLoad(); return; }
+                if (tool === 'race') { editorRace(); return; }
+                if (tool === 'exit') {
+                    editorActive = false;
+                    document.getElementById('editorUI').style.display = 'none';
+                    document.getElementById('instructions').style.display = 'flex';
+                    return;
+                }
+                editorTool = tool;
+                document.querySelectorAll('#editorUI .toolbar button').forEach(function(b) { b.classList.remove('active'); });
+                btn.classList.add('active');
+            });
+        });
+
+        // Editor mouse/touch events
+        canvas.addEventListener('mousedown', function(e) {
+            if (!editorActive) return;
+            if (e.button === 2) {
+                editorDragging = true;
+                editorLastMouse = { x: e.clientX, y: e.clientY };
+                return;
+            }
+            editorPainting = true;
+            editorPlaceTile(e.clientX, e.clientY);
+        });
+        canvas.addEventListener('mousemove', function(e) {
+            if (!editorActive) return;
+            if (editorDragging) {
+                editorCamX -= (e.clientX - editorLastMouse.x) / editorZoom;
+                editorCamY -= (e.clientY - editorLastMouse.y) / editorZoom;
+                editorLastMouse = { x: e.clientX, y: e.clientY };
+                return;
+            }
+            if (editorPainting) {
+                editorPlaceTile(e.clientX, e.clientY);
+            }
+        });
+        canvas.addEventListener('mouseup', function(e) {
+            if (!editorActive) return;
+            editorDragging = false;
+            editorPainting = false;
+        });
+        canvas.addEventListener('contextmenu', function(e) {
+            if (editorActive) e.preventDefault();
+        });
+        canvas.addEventListener('wheel', function(e) {
+            if (!editorActive) return;
+            e.preventDefault();
+            const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+            editorZoom = Math.max(0.2, Math.min(5, editorZoom * zoomFactor));
+        }, { passive: false });
+
         // ---- GAME LOOP ----
         let lastTime = 0;
         function gameLoop(timestamp) {
@@ -855,6 +1310,7 @@
 
                 updateCar(dt);
                 updateParticles(dt);
+                ghostFrame++;
             }
 
             render();
@@ -883,6 +1339,7 @@
         });
 
         canvas.addEventListener('touchstart', function(e) {
+            if (editorActive) return;
             e.preventDefault();
             if (gameOver || stageComplete) { handleAction(); return; }
             for (const touch of e.changedTouches) {
@@ -891,6 +1348,7 @@
             }
         });
         canvas.addEventListener('touchmove', function(e) {
+            if (editorActive) return;
             e.preventDefault();
             touchLeft = false; touchRight = false;
             for (const touch of e.touches) {
@@ -899,6 +1357,7 @@
             }
         });
         canvas.addEventListener('touchend', function(e) {
+            if (editorActive) return;
             e.preventDefault();
             touchLeft = false; touchRight = false;
             for (const touch of e.touches) {
@@ -908,11 +1367,13 @@
         });
 
         canvas.addEventListener('mousedown', function(e) {
+            if (editorActive) return;
             if (gameOver || stageComplete) { handleAction(); return; }
             if (e.clientX < canvas.width / 2) touchLeft = true;
             else touchRight = true;
         });
         canvas.addEventListener('mouseup', function() {
+            if (editorActive) return;
             touchLeft = false; touchRight = false;
         });
 
@@ -920,6 +1381,12 @@
         document.getElementById('startBtn').addEventListener('click', function() {
             document.getElementById('instructions').style.display = 'none';
             initStage(0);
+        });
+
+        // Editor button
+        document.getElementById('editorBtn').addEventListener('click', function() {
+            document.getElementById('instructions').style.display = 'none';
+            initEditor();
         });
 
         // Pre-init for rendering
@@ -941,28 +1408,37 @@
             f1.add(physics, 'maxSpeed', 1, 10, 0.1).name('Max Speed');
             f1.add(physics, 'accel', 0.01, 0.2, 0.005).name('Acceleration');
             f1.add(physics, 'steerRate', 0.01, 0.15, 0.005).name('Steer Rate');
-            f1.add(physics, 'gripBlend', 0.01, 0.2, 0.005).name('Grip Blend');
-            f1.add(physics, 'driftThreshold', 0.05, 0.5, 0.01).name('Drift Threshold');
+            f1.add(physics, 'steerSpeedFactor', 0, 2, 0.05).name('Steer Speed Factor');
+            f1.add(physics, 'gripBlend', 0.01, 0.3, 0.005).name('Grip Blend');
+            f1.add(physics, 'driftThreshold', 0.05, 1.0, 0.01).name('Drift Threshold');
+            f1.add(physics, 'driftFriction', 0, 0.1, 0.001).name('Drift Friction');
+            f1.add(physics, 'lateralDrag', 0, 0.2, 0.005).name('Lateral Drag');
+            f1.add(physics, 'forwardDrag', 0, 0.05, 0.001).name('Forward Drag');
+            f1.close();
 
             const f2 = gui.addFolder('Road');
             f2.add(physics, 'roadGrip', 0.1, 1.5, 0.05).name('Grip');
             f2.add(physics, 'roadSpeedMult', 0.5, 2, 0.05).name('Speed Mult');
+            f2.close();
 
             const f3 = gui.addFolder('Dirt');
             f3.add(physics, 'dirtGrip', 0.05, 1, 0.05).name('Grip');
             f3.add(physics, 'dirtSpeedMult', 0.3, 1.5, 0.05).name('Speed Mult');
+            f3.close();
 
             const f4 = gui.addFolder('Ice');
             f4.add(physics, 'iceGrip', 0.01, 0.5, 0.01).name('Grip');
             f4.add(physics, 'iceSpeedMult', 0.5, 2, 0.05).name('Speed Mult');
+            f4.close();
 
-            // Export button
             gui.add({ export: function() {
                 console.log('Current physics:', JSON.stringify(physics, null, 2));
                 navigator.clipboard.writeText(JSON.stringify(physics, null, 2)).then(function() {
                     alert('Physics values copied to clipboard!');
                 });
             }}, 'export').name('Copy Values to Clipboard');
+
+            gui.close();
         };
         document.head.appendChild(guiScript);
     })();

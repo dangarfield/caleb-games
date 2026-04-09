@@ -8,19 +8,31 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
     body {
-      min-height: 100vh;
       background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .game-wrapper {
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 1rem;
-      overflow: hidden;
-      touch-action: none;
-      user-select: none;
-      -webkit-user-select: none;
+      width: 100%;
+      height: 100%;
+      padding: 0.75rem;
     }
 
     .top-bar {
@@ -28,8 +40,9 @@
       align-items: center;
       justify-content: space-between;
       width: 100%;
-      max-width: 420px;
-      margin-bottom: 0.75rem;
+      max-width: 520px;
+      margin-bottom: 0.5rem;
+      flex-shrink: 0;
     }
 
     .back-btn {
@@ -47,7 +60,7 @@
     .back-btn:active { transform: scale(0.95); }
 
     h1 {
-      font-size: 2.5rem;
+      font-size: 2.2rem;
       font-weight: 800;
       color: #fff;
       text-shadow: 0 0 20px rgba(255, 200, 50, 0.5);
@@ -79,10 +92,92 @@
       color: #fff;
     }
 
+    .controls-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      max-width: 520px;
+      margin-bottom: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    .mode-toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .mode-toggle label {
+      color: rgba(255,255,255,0.7);
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    .mode-indicator {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.25rem 0.6rem;
+      border-radius: 0.4rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .mode-indicator.normal {
+      background: rgba(231, 76, 60, 0.3);
+      color: #e74c3c;
+    }
+
+    .mode-indicator.easy {
+      background: rgba(46, 204, 113, 0.3);
+      color: #2ecc71;
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      inset: 0;
+      background: rgba(255,255,255,0.2);
+      border-radius: 24px;
+      transition: background 0.2s;
+    }
+
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+
+    .toggle-switch input:checked + .toggle-slider {
+      background: rgba(46, 204, 113, 0.6);
+    }
+
+    .toggle-switch input:checked + .toggle-slider::before {
+      transform: translateX(20px);
+    }
+
     .board-container {
       position: relative;
-      width: min(420px, calc(100vw - 2rem));
-      height: min(420px, calc(100vw - 2rem));
+      flex-shrink: 0;
     }
 
     .board {
@@ -169,9 +264,10 @@
 
     .controls-hint {
       color: rgba(255,255,255,0.4);
-      font-size: 0.85rem;
-      margin-top: 1rem;
+      font-size: 0.8rem;
+      margin-top: 0.5rem;
       text-align: center;
+      flex-shrink: 0;
     }
 
     .new-game-btn {
@@ -190,39 +286,51 @@
   </style>
 </head>
 <body>
-  <div class="top-bar">
-    <a href="../../index.html" class="back-btn">Back</a>
-    <h1>2048</h1>
-    <div class="scores">
-      <div class="score-box">
-        <div class="score-label">Score</div>
-        <div class="score-value" id="score">0</div>
-      </div>
-      <div class="score-box">
-        <div class="score-label">Best</div>
-        <div class="score-value" id="best">0</div>
+  <div class="game-wrapper">
+    <div class="top-bar">
+      <a href="../../index.html" class="back-btn">Back</a>
+      <h1>2048</h1>
+      <div class="scores">
+        <div class="score-box">
+          <div class="score-label">Score</div>
+          <div class="score-value" id="score">0</div>
+        </div>
+        <div class="score-box">
+          <div class="score-label">Best</div>
+          <div class="score-value" id="best">0</div>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div style="display:flex;justify-content:flex-end;width:100%;max-width:420px;margin-bottom:0.5rem;">
-    <button class="new-game-btn" id="newGameBtn">New Game</button>
-  </div>
+    <div class="controls-row">
+      <div class="mode-toggle">
+        <span class="mode-indicator normal" id="modeIndicator">Normal</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="easyToggle">
+          <span class="toggle-slider"></span>
+        </label>
+        <label for="easyToggle" style="color:rgba(255,255,255,0.7);font-size:0.85rem;cursor:pointer;">Easy Mode</label>
+      </div>
+      <button class="new-game-btn" id="newGameBtn">New Game</button>
+    </div>
 
-  <div class="board-container" id="boardContainer">
-    <div class="board" id="board"></div>
-  </div>
+    <div class="board-container" id="boardContainer">
+      <div class="board" id="board"></div>
+    </div>
 
-  <p class="controls-hint">Swipe or use arrow keys to slide tiles</p>
+    <p class="controls-hint">Swipe or use arrow keys to slide tiles</p>
+  </div>
 
   <script>
   (function() {
     var SIZE = 4;
-    var board, score, best, won, gameOver, tileId;
+    var board, score, best, won, gameOver, tileId, easyMode;
     var boardEl = document.getElementById('board');
     var boardContainer = document.getElementById('boardContainer');
     var scoreEl = document.getElementById('score');
     var bestEl = document.getElementById('best');
+    var easyToggle = document.getElementById('easyToggle');
+    var modeIndicator = document.getElementById('modeIndicator');
 
     // Tile colors
     var TILE_COLORS = {
@@ -245,9 +353,83 @@
       return TILE_COLORS[val] || { bg: '#3c3a32', color: '#f9f6f2', fontSize: 1.2 };
     }
 
+    // --- Shared localStorage: calebArcadeData ---
+    function loadArcadeData() {
+      try {
+        var raw = localStorage.getItem('calebArcadeData');
+        return raw ? JSON.parse(raw) : {};
+      } catch(e) {
+        return {};
+      }
+    }
+
+    function saveArcadeData(data) {
+      localStorage.setItem('calebArcadeData', JSON.stringify(data));
+    }
+
+    function loadBestScore() {
+      var data = loadArcadeData();
+      // Migrate old key if present
+      var oldBest = localStorage.getItem('2048_best');
+      if (oldBest !== null) {
+        var oldVal = parseInt(oldBest, 10) || 0;
+        if (!data['2048']) data['2048'] = {};
+        if (!data['2048'].highScore || oldVal > data['2048'].highScore) {
+          data['2048'].highScore = oldVal;
+          saveArcadeData(data);
+        }
+        localStorage.removeItem('2048_best');
+      }
+      return (data['2048'] && data['2048'].highScore) ? data['2048'].highScore : 0;
+    }
+
+    function saveBestScore(val) {
+      var data = loadArcadeData();
+      if (!data['2048']) data['2048'] = {};
+      data['2048'].highScore = val;
+      saveArcadeData(data);
+    }
+
     // Load best score
-    best = parseInt(localStorage.getItem('2048_best') || '0', 10);
+    best = loadBestScore();
     bestEl.textContent = best;
+
+    // Easy mode toggle
+    easyMode = false;
+    easyToggle.addEventListener('change', function() {
+      easyMode = easyToggle.checked;
+      updateModeIndicator();
+    });
+
+    function updateModeIndicator() {
+      if (easyMode) {
+        modeIndicator.textContent = 'Easy';
+        modeIndicator.className = 'mode-indicator easy';
+      } else {
+        modeIndicator.textContent = 'Normal';
+        modeIndicator.className = 'mode-indicator normal';
+      }
+    }
+
+    // --- Sizing: fill available screen, landscape-optimized ---
+    function calcBoardSize() {
+      var wrapperPadding = 0.75 * 16 * 2; // 0.75rem padding * 2
+      var topBarH = 48;
+      var controlsRowH = 40;
+      var hintH = 28;
+      var gaps = 24; // margins between sections
+      var availH = window.innerHeight - topBarH - controlsRowH - hintH - gaps - wrapperPadding;
+      var availW = Math.min(window.innerWidth - 24, 520);
+      var size = Math.min(availH, availW);
+      size = Math.max(size, 200);
+      return Math.floor(size);
+    }
+
+    function resizeBoard() {
+      var size = calcBoardSize();
+      boardContainer.style.width = size + 'px';
+      boardContainer.style.height = size + 'px';
+    }
 
     function init() {
       board = [];
@@ -262,6 +444,7 @@
       gameOver = false;
       tileId = 0;
       scoreEl.textContent = '0';
+      resizeBoard();
       addRandomTile();
       addRandomTile();
       render();
@@ -277,6 +460,7 @@
       if (empty.length === 0) return;
       var cell = empty[Math.floor(Math.random() * empty.length)];
       board[cell.r][cell.c] = Math.random() < 0.9 ? 2 : 4;
+      return cell;
     }
 
     function getCellRect(r, c) {
@@ -434,18 +618,38 @@
       }
 
       if (moved) {
-        addRandomTile();
-        // Find new tile
+        // In easy mode, only add a new tile if at least one merge happened
+        var didMerge = mergedCells.length > 0;
+        var newCell = null;
         var newCells = [];
-        for (var r5 = 0; r5 < SIZE; r5++) {
-          for (var c5 = 0; c5 < SIZE; c5++) {
-            if (oldBoard[r5][c5] === 0 && board[r5][c5] !== 0) {
-              // Check it wasn't just moved here
-              var wasInMerged = false;
-              for (var mc = 0; mc < mergedCells.length; mc++) {
-                if (mergedCells[mc].r === r5 && mergedCells[mc].c === c5) wasInMerged = true;
+
+        if (!easyMode || didMerge) {
+          newCell = addRandomTile();
+        }
+
+        // Find new tile positions for animation
+        if (newCell) {
+          newCells.push(newCell);
+        } else {
+          // Also detect new tiles by comparing boards (for normal mode where addRandomTile doesn't return cleanly via merges)
+          for (var r5 = 0; r5 < SIZE; r5++) {
+            for (var c5 = 0; c5 < SIZE; c5++) {
+              if (oldBoard[r5][c5] === 0 && board[r5][c5] !== 0) {
+                var wasInMerged = false;
+                for (var mc = 0; mc < mergedCells.length; mc++) {
+                  if (mergedCells[mc].r === r5 && mergedCells[mc].c === c5) wasInMerged = true;
+                }
+                // Also not a tile that slid into this position
+                var wasSlid = false;
+                for (var r6 = 0; r6 < SIZE; r6++) {
+                  for (var c6 = 0; c6 < SIZE; c6++) {
+                    if (oldBoard[r6][c6] === board[r5][c5] && (r6 !== r5 || c6 !== c5)) {
+                      // Could be a slid tile, skip complex detection, just use newCell
+                    }
+                  }
+                }
+                if (!wasInMerged) newCells.push({ r: r5, c: c5 });
               }
-              if (!wasInMerged) newCells.push({ r: r5, c: c5 });
             }
           }
         }
@@ -454,7 +658,7 @@
         if (score > best) {
           best = score;
           bestEl.textContent = best;
-          localStorage.setItem('2048_best', best.toString());
+          saveBestScore(best);
         }
 
         if (!canMove()) gameOver = true;
@@ -518,7 +722,10 @@
     document.getElementById('newGameBtn').addEventListener('click', function() { init(); });
 
     // Reposition tiles on resize
-    window.addEventListener('resize', function() { render(); });
+    window.addEventListener('resize', function() {
+      resizeBoard();
+      render();
+    });
 
     init();
   })();

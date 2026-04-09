@@ -8,16 +8,18 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
     body {
-      min-height: 100vh;
       background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      padding: 1rem;
-      overflow: hidden;
       touch-action: none;
       user-select: none;
       -webkit-user-select: none;
@@ -28,8 +30,8 @@
       align-items: center;
       justify-content: space-between;
       width: 100%;
-      max-width: 420px;
-      margin-bottom: 0.5rem;
+      padding: 0.4rem 0.75rem;
+      flex-shrink: 0;
     }
 
     .back-btn {
@@ -37,8 +39,8 @@
       color: #fff;
       border: none;
       border-radius: 0.75rem;
-      padding: 0.5rem 1rem;
-      font-size: 1rem;
+      padding: 0.4rem 0.8rem;
+      font-size: 0.9rem;
       cursor: pointer;
       text-decoration: none;
       display: inline-block;
@@ -47,22 +49,34 @@
     .back-btn:active { transform: scale(0.95); }
 
     h1 {
-      font-size: 1.4rem;
+      font-size: 1.2rem;
       color: #fff;
       text-shadow: 0 2px 10px rgba(0,0,0,0.4);
     }
 
+    .score-area {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+
     .score-display {
       color: #ffd700;
-      font-size: 1.1rem;
+      font-size: 1rem;
       font-weight: bold;
     }
 
+    .high-score-display {
+      color: #aaa;
+      font-size: 0.75rem;
+    }
+
     canvas {
-      border-radius: 1rem;
+      border-radius: 0.5rem;
       background: rgba(0,0,0,0.3);
       display: block;
-      max-width: 100%;
+      flex: 1;
+      min-height: 0;
     }
 
     .overlay {
@@ -108,7 +122,10 @@
   <div class="top-bar">
     <a href="../../index.html" class="back-btn">Back</a>
     <h1>Bubble Shooter</h1>
-    <div class="score-display" id="scoreDisplay">Score: 0</div>
+    <div class="score-area">
+      <div class="score-display" id="scoreDisplay">Score: 0</div>
+      <div class="high-score-display" id="highScoreDisplay">Best: 0</div>
+    </div>
   </div>
   <canvas id="gameCanvas"></canvas>
 
@@ -118,6 +135,7 @@
       <p>Tap or click to aim and shoot bubbles upward.</p>
       <p>Match 3 or more same-color bubbles to pop them!</p>
       <p>Disconnected bubbles fall for bonus points.</p>
+      <p>Each bubble has a unique shape inside to help tell them apart.</p>
       <button class="overlay-btn" id="startBtn">Play!</button>
     </div>
   </div>
@@ -126,6 +144,7 @@
     <div class="overlay-content">
       <h2>Game Over</h2>
       <p id="finalScore">Score: 0</p>
+      <p id="finalHighScore"></p>
       <button class="overlay-btn" id="retryBtn">Try Again</button>
     </div>
   </div>
@@ -135,24 +154,48 @@
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
   const scoreDisplay = document.getElementById('scoreDisplay');
+  const highScoreDisplay = document.getElementById('highScoreDisplay');
   const instructionsOverlay = document.getElementById('instructionsOverlay');
   const gameOverOverlay = document.getElementById('gameOverOverlay');
   const finalScore = document.getElementById('finalScore');
+  const finalHighScore = document.getElementById('finalHighScore');
+
+  // --- localStorage using shared calebArcadeData key ---
+  function loadArcadeData() {
+    try {
+      return JSON.parse(localStorage.getItem('calebArcadeData')) || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function saveHighScore(s) {
+    const data = loadArcadeData();
+    if (!data.bubbleshooter) data.bubbleshooter = {};
+    data.bubbleshooter.highScore = s;
+    localStorage.setItem('calebArcadeData', JSON.stringify(data));
+  }
+
+  function getHighScore() {
+    const data = loadArcadeData();
+    return (data.bubbleshooter && data.bubbleshooter.highScore) || 0;
+  }
 
   // Game constants
   const BUBBLE_RADIUS = 18;
   const BUBBLE_DIAMETER = BUBBLE_RADIUS * 2;
   const COLS = 11;
   const ROW_HEIGHT = BUBBLE_RADIUS * Math.sqrt(3);
+
+  // Color-blind-friendly palette (no red/green confusion)
   const COLORS = [
-    { main: '#e94560', light: '#ff7b94', dark: '#b8203d' },
-    { main: '#0f3460', light: '#3a6baa', dark: '#091d3a' },
-    { main: '#00b894', light: '#55efc4', dark: '#008c6e' },
-    { main: '#fdcb6e', light: '#ffeaa7', dark: '#d4a843' },
-    { main: '#6c5ce7', light: '#a29bfe', dark: '#4834d4' },
-    { main: '#e17055', light: '#fab1a0', dark: '#b8503d' },
-    { main: '#00cec9', light: '#81ecec', dark: '#009e9a' },
-    { main: '#fd79a8', light: '#ffb8d0', dark: '#c9557e' },
+    { main: '#3498db', light: '#6db9f2', dark: '#1a6fad', symbol: 'circle' },    // Blue
+    { main: '#f1c40f', light: '#f7dc6f', dark: '#c49e0c', symbol: 'star' },      // Yellow
+    { main: '#e67e22', light: '#f0a963', dark: '#b8631a', symbol: 'diamond' },    // Orange
+    { main: '#9b59b6', light: '#c39bd3', dark: '#7a3d96', symbol: 'triangle' },   // Purple
+    { main: '#e91e8a', light: '#f06eb5', dark: '#b8176d', symbol: 'square' },     // Pink
+    { main: '#ecf0f1', light: '#ffffff', dark: '#bdc3c7', symbol: 'cross' },      // White
+    { main: '#00bcd4', light: '#4dd9ec', dark: '#008fa1', symbol: 'heart' },      // Cyan
   ];
 
   let grid = [];
@@ -160,6 +203,7 @@
   let nextColor = 0;
   let flying = null;
   let score = 0;
+  let highScore = getHighScore();
   let gameRunning = false;
   let animating = false;
   let popAnimations = [];
@@ -168,10 +212,13 @@
   let showAimLine = false;
   let maxRows = 0;
 
+  highScoreDisplay.textContent = 'Best: ' + highScore;
+
   function resize() {
-    const maxW = Math.min(420, window.innerWidth - 20);
-    const w = Math.max(COLS * BUBBLE_DIAMETER + BUBBLE_RADIUS, maxW);
-    const h = Math.min(640, window.innerHeight - 120);
+    const topBar = document.querySelector('.top-bar');
+    const topBarH = topBar ? topBar.offsetHeight : 40;
+    const w = window.innerWidth;
+    const h = window.innerHeight - topBarH;
     canvas.width = w;
     canvas.height = h;
     shooter.x = w / 2;
@@ -217,6 +264,99 @@
     return arr[Math.floor(Math.random() * arr.length)];
   }
 
+  // Draw a symbol inside the bubble for color-blind accessibility
+  function drawSymbol(x, y, symbol, r, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha || 1;
+    const size = r * 0.45;
+    // Use dark stroke for white bubbles, white for all others
+    ctx.strokeStyle = symbol === 'cross' ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.7)';
+    ctx.fillStyle = symbol === 'cross' ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = 1.5;
+
+    switch (symbol) {
+      case 'circle':
+        ctx.beginPath();
+        ctx.arc(x, y, size * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        break;
+
+      case 'star': {
+        const spikes = 5;
+        const outerR = size * 0.8;
+        const innerR = size * 0.35;
+        ctx.beginPath();
+        for (let i = 0; i < spikes * 2; i++) {
+          const rad = (i * Math.PI) / spikes - Math.PI / 2;
+          const rr = i % 2 === 0 ? outerR : innerR;
+          const sx = x + Math.cos(rad) * rr;
+          const sy = y + Math.sin(rad) * rr;
+          if (i === 0) ctx.moveTo(sx, sy);
+          else ctx.lineTo(sx, sy);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        break;
+      }
+
+      case 'diamond':
+        ctx.beginPath();
+        ctx.moveTo(x, y - size * 0.8);
+        ctx.lineTo(x + size * 0.55, y);
+        ctx.lineTo(x, y + size * 0.8);
+        ctx.lineTo(x - size * 0.55, y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        break;
+
+      case 'triangle':
+        ctx.beginPath();
+        ctx.moveTo(x, y - size * 0.7);
+        ctx.lineTo(x + size * 0.7, y + size * 0.5);
+        ctx.lineTo(x - size * 0.7, y + size * 0.5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        break;
+
+      case 'square':
+        ctx.beginPath();
+        const half = size * 0.55;
+        ctx.rect(x - half, y - half, half * 2, half * 2);
+        ctx.fill();
+        ctx.stroke();
+        break;
+
+      case 'cross':
+        ctx.lineWidth = 2.5;
+        const arm = size * 0.7;
+        ctx.beginPath();
+        ctx.moveTo(x - arm, y);
+        ctx.lineTo(x + arm, y);
+        ctx.moveTo(x, y - arm);
+        ctx.lineTo(x, y + arm);
+        ctx.stroke();
+        break;
+
+      case 'heart': {
+        const hs = size * 0.45;
+        ctx.beginPath();
+        ctx.moveTo(x, y + hs * 1.2);
+        ctx.bezierCurveTo(x - hs * 1.8, y - hs * 0.2, x - hs * 0.8, y - hs * 1.6, x, y - hs * 0.5);
+        ctx.bezierCurveTo(x + hs * 0.8, y - hs * 1.6, x + hs * 1.8, y - hs * 0.2, x, y + hs * 1.2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        break;
+      }
+    }
+
+    ctx.restore();
+  }
+
   function drawBubble(x, y, colorIdx, alpha, scale) {
     if (colorIdx < 0 || colorIdx >= COLORS.length) return;
     const a = alpha || 1;
@@ -237,10 +377,14 @@
     ctx.fillStyle = grad;
     ctx.fill();
 
+    // Draw the symbol inside
+    drawSymbol(x, y, c.symbol, r, a);
+
     // Shine highlight
+    ctx.globalAlpha = a;
     ctx.beginPath();
-    ctx.arc(x - r * 0.25, y - r * 0.25, r * 0.3, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(255,255,255,${0.4 * a})`;
+    ctx.arc(x - r * 0.25, y - r * 0.25, r * 0.2, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${0.35 * a})`;
     ctx.fill();
 
     ctx.restore();
@@ -575,11 +719,19 @@
         grid.pop();
       }
 
-      scoreDisplay.textContent = 'Score: ' + score;
+      updateScoreDisplay();
     }
 
     // Check game over
     checkGameOver();
+  }
+
+  function updateScoreDisplay() {
+    scoreDisplay.textContent = 'Score: ' + score;
+    if (score > highScore) {
+      highScore = score;
+      highScoreDisplay.textContent = 'Best: ' + highScore;
+    }
   }
 
   function checkGameOver() {
@@ -603,7 +755,7 @@
 
     if (!hasBubbles) {
       score += 100;
-      scoreDisplay.textContent = 'Score: ' + score;
+      updateScoreDisplay();
       // Reinitialize with new bubbles
       initGrid();
     }
@@ -611,7 +763,12 @@
 
   function endGame() {
     gameRunning = false;
+    // Save high score
+    if (score > getHighScore()) {
+      saveHighScore(score);
+    }
     finalScore.textContent = 'Score: ' + score;
+    finalHighScore.textContent = 'Best: ' + Math.max(score, getHighScore());
     gameOverOverlay.classList.remove('hidden');
   }
 
@@ -699,7 +856,9 @@
 
   function startGame() {
     score = 0;
+    highScore = getHighScore();
     scoreDisplay.textContent = 'Score: 0';
+    highScoreDisplay.textContent = 'Best: ' + highScore;
     grid = [];
     flying = null;
     popAnimations = [];
@@ -722,16 +881,18 @@
     startGame();
   });
 
-  // Check if first play
-  const hasPlayed = localStorage.getItem('bubbleshooter_played');
-  if (hasPlayed) {
+  // Migrate old localStorage key if present
+  const oldPlayed = localStorage.getItem('bubbleshooter_played');
+  if (oldPlayed) {
+    localStorage.removeItem('bubbleshooter_played');
+  }
+
+  // Check if returning player via shared data
+  const arcadeData = loadArcadeData();
+  if (arcadeData.bubbleshooter && arcadeData.bubbleshooter.highScore > 0) {
     instructionsOverlay.classList.add('hidden');
     startGame();
   }
-
-  document.getElementById('startBtn').addEventListener('click', () => {
-    localStorage.setItem('bubbleshooter_played', '1');
-  }, { once: true });
 
   resize();
   window.addEventListener('resize', resize);

@@ -7,13 +7,13 @@
 <title>Battleship - Caleb's Arcade</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{min-height:100vh;background:linear-gradient(135deg,#0a0e1a 0%,#0d1b2a 50%,#1b263b 100%);font-family:'Segoe UI',system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;overflow-x:hidden;touch-action:manipulation;user-select:none;-webkit-user-select:none;color:#fff}
+body{height:100vh;background:linear-gradient(135deg,#0a0e1a 0%,#0d1b2a 50%,#1b263b 100%);font-family:'Segoe UI',system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;overflow:hidden;touch-action:manipulation;user-select:none;-webkit-user-select:none;color:#fff}
 .top-bar{display:flex;align-items:center;justify-content:space-between;width:100%;max-width:960px;padding:0.4rem 0.8rem}
 .back-btn{background:rgba(255,255,255,0.12);color:#fff;border:none;border-radius:0.6rem;padding:0.35rem 0.7rem;font-size:0.85rem;cursor:pointer;text-decoration:none}
 h1{font-size:1.3rem;text-shadow:0 0 20px rgba(100,180,255,0.6);letter-spacing:0.05em}
 #scoreInfo{font-size:0.75rem;color:#ffd700}
 .status{font-size:0.85rem;color:#7eb8da;min-height:1.2em;text-align:center;padding:0.2rem;letter-spacing:0.02em}
-.game-area{display:flex;flex-direction:column;align-items:center;width:100%;max-width:960px;padding:0 0.3rem}
+.game-area{display:flex;flex-direction:column;align-items:center;width:100%;max-width:960px;padding:0 0.3rem;flex:1;min-height:0}
 canvas{display:block;max-width:100%}
 .controls{display:flex;flex-wrap:wrap;justify-content:center;gap:0.4rem;padding:0.4rem}
 .btn{color:#fff;border:none;border-radius:0.7rem;padding:0.5rem 1.2rem;font-size:0.9rem;font-weight:700;cursor:pointer;transition:transform 0.1s;letter-spacing:0.02em}
@@ -84,6 +84,11 @@ const SHIPS = [
 const TOTAL_HP = SHIPS.reduce((s,sh)=>s+sh.len,0);
 const SALVO = 10;
 
+function loadArcadeData(){ try{return JSON.parse(localStorage.getItem('calebArcadeData'))||{};}catch(e){return {};} }
+function saveArcadeData(d){ localStorage.setItem('calebArcadeData',JSON.stringify(d)); }
+function getHighScore(){ const d=loadArcadeData(); return (d.battleship&&d.battleship.highScore)||0; }
+function setHighScore(v){ const d=loadArcadeData(); if(!d.battleship) d.battleship={}; d.battleship.highScore=v; saveArcadeData(d); }
+
 const bc = document.getElementById('boardCanvas');
 const bx = bc.getContext('2d');
 const fc = document.getElementById('firingCanvas');
@@ -104,9 +109,16 @@ function mkPlayer(){
 }
 
 function resize(){
-  const maxW = Math.min(960, window.innerWidth-8);
-  cell = Math.floor((maxW - 12) / (SZ*2+1));
-  cell = Math.min(cell, 32); cell = Math.max(cell, 14);
+  const topBar = document.querySelector('.top-bar');
+  const statusBar = document.querySelector('.status');
+  const ctrlBar = document.getElementById('controls');
+  const usedH = (topBar?topBar.offsetHeight:0) + (statusBar?statusBar.offsetHeight:0) + (ctrlBar?ctrlBar.offsetHeight:0) + 24;
+  const availH = window.innerHeight - usedH;
+  const availW = window.innerWidth - 8;
+  const cellByW = Math.floor((availW - 12) / (SZ*2+1));
+  const cellByH = Math.floor((availH - 16) / (SZ+1));
+  cell = Math.min(cellByW, cellByH);
+  cell = Math.max(cell, 10);
   const tw = cell*SZ*2 + cell;
   const th = cell*SZ + cell + 16;
   bc.width = tw; bc.height = th;
@@ -404,7 +416,7 @@ function firingView(results, isPlayer, defenderShips, cb){
         const depth = 0.2 + depthBand*0.8;
         const sx = W*nx;
         const sy = horizon + depth*(H*0.52);
-        const sc = 1.6 + depth*2.8; // scale by depth
+        const sc = 3.2 + depth*5.6; // scale by depth (doubled)
         const shipLen = ship.length;
         const hullLen = shipLen*28*sc;
         const hullH = 12*sc;
@@ -530,7 +542,7 @@ function firingView(results, isPlayer, defenderShips, cb){
         fx.shadowColor='#ffd700';
         fx.shadowBlur=15;
         fx.fillStyle='#ffeebb';
-        fx.beginPath(); fx.arc(px,py,7,0,Math.PI*2); fx.fill();
+        fx.beginPath(); fx.arc(px,py,12,0,Math.PI*2); fx.fill();
         fx.shadowBlur=0;
 
         // Trail
@@ -542,7 +554,7 @@ function firingView(results, isPlayer, defenderShips, cb){
           const tpy = tby + tarc;
           const ta = (1 - ti/7)*0.5;
           fx.fillStyle=`rgba(255,200,100,${ta})`;
-          fx.beginPath(); fx.arc(tpx,tpy,Math.max(0.5, 5-ti*0.6),0,Math.PI*2); fx.fill();
+          fx.beginPath(); fx.arc(tpx,tpy,Math.max(1, 9-ti*1.1),0,Math.PI*2); fx.fill();
         }
       } else if(s.phase==='impact'){
         s.impactT += 0.02;
@@ -777,7 +789,8 @@ function updateUI(){
     const who=mode==='local'?`P${curP+1}: `:'';
     statusEl.textContent=`${who}Pick targets: ${salvo.length}/${SALVO}`;
   }
-  scoreEl.textContent = P&&phase!=='place' ? `Hits: ${P[curP].hits}/${TOTAL_HP}` : '';
+  const hs=getHighScore();
+  scoreEl.textContent = P&&phase!=='place' ? `Hits: ${P[curP].hits}/${TOTAL_HP} | Wins: ${hs}` : (hs?`Wins: ${hs}`:'');
   buildControls();
 }
 
@@ -860,10 +873,16 @@ function handoff(title,msg,cb){
 
 function showWin(pi){
   phase='gameover';
+  if(mode==='ai'&&pi===0){
+    const wins=getHighScore()+1;
+    setHighScore(wins);
+  }
+  const hs=getHighScore();
   const o=document.getElementById('winOverlay');
   document.getElementById('winTitle').textContent = mode==='ai'?(pi===0?'VICTORY!':'DEFEAT'):`Player ${pi+1} Wins!`;
-  document.getElementById('winMsg').textContent = mode==='ai'?(pi===0?`Fleet destroyed! Enemy hit ${P[1].hits}/${TOTAL_HP} of yours.`:`You hit ${P[0].hits}/${TOTAL_HP}. Better luck next time.`):'All enemy ships sunk!';
+  document.getElementById('winMsg').textContent = mode==='ai'?(pi===0?`Fleet destroyed! Enemy hit ${P[1].hits}/${TOTAL_HP} of yours.\nWins: ${hs}`:`You hit ${P[0].hits}/${TOTAL_HP}. Better luck next time.\nWins: ${hs}`):'All enemy ships sunk!';
   o.classList.remove('hidden');
+  scoreEl.textContent=`Wins: ${hs}`;
 }
 
 // ── Input ──

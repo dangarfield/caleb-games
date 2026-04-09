@@ -7,7 +7,8 @@
     <title>Fruit Ninja - Caleb's Arcade</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
+        html, body {
+            width: 100%; height: 100%;
             background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
             overflow: hidden;
             touch-action: none;
@@ -15,7 +16,7 @@
             user-select: none;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        canvas { display: block; }
+        canvas { display: block; width: 100%; height: 100%; }
         #backBtn {
             position: fixed; top: 10px; left: 10px; z-index: 100;
             background: rgba(255,255,255,0.15); border: 2px solid rgba(255,255,255,0.3);
@@ -64,6 +65,26 @@ const overlay = document.getElementById('overlay');
 const overlayContent = document.getElementById('overlayContent');
 const startBtn = document.getElementById('startBtn');
 
+// --- localStorage: shared calebArcadeData ---
+function loadArcadeData() {
+    try {
+        const raw = localStorage.getItem('calebArcadeData');
+        return raw ? JSON.parse(raw) : {};
+    } catch (e) { return {}; }
+}
+function saveHighScore(newScore) {
+    const data = loadArcadeData();
+    if (!data.fruitninja) data.fruitninja = {};
+    if (!data.fruitninja.highScore || newScore > data.fruitninja.highScore) {
+        data.fruitninja.highScore = newScore;
+    }
+    localStorage.setItem('calebArcadeData', JSON.stringify(data));
+}
+function getHighScore() {
+    const data = loadArcadeData();
+    return (data.fruitninja && data.fruitninja.highScore) || 0;
+}
+
 let W, H;
 function resize() {
     W = canvas.width = window.innerWidth;
@@ -77,6 +98,7 @@ let fruits = [];
 let particles = [];
 let sliceTrail = [];
 let score = 0;
+let highScore = getHighScore();
 let lives = 3;
 let combo = 0;
 let comboTimer = 0;
@@ -88,15 +110,16 @@ let spawnInterval = 80;
 let difficulty = 0;
 let missDisplay = [];
 let animFrame;
+let frameCount = 0; // for animations
 
-// Fruit types
+// Fruit types - bright colors only, no dark fruits that could be confused with bombs
 const FRUIT_TYPES = [
-    { name: 'watermelon', radius: 52, color1: '#2ecc71', color2: '#27ae60', inner: '#e74c3c', seeds: '#333' },
+    { name: 'watermelon', radius: 52, color1: '#2ecc71', color2: '#27ae60', inner: '#e74c3c', seeds: '#555' },
     { name: 'orange', radius: 42, color1: '#f39c12', color2: '#e67e22', inner: '#f1c40f', seeds: null },
     { name: 'apple', radius: 39, color1: '#e74c3c', color2: '#c0392b', inner: '#ffffcc', seeds: '#8b4513' },
     { name: 'lemon', radius: 36, color1: '#f1c40f', color2: '#f39c12', inner: '#fffde7', seeds: null },
-    { name: 'blueberry', radius: 30, color1: '#3498db', color2: '#2980b9', inner: '#a8d8ea', seeds: null },
-    { name: 'kiwi', radius: 36, color1: '#8b6914', color2: '#6b4f12', inner: '#7dce5e', seeds: '#333' },
+    { name: 'strawberry', radius: 34, color1: '#ff6b81', color2: '#ee5a6f', inner: '#ffcccc', seeds: '#fff' },
+    { name: 'lime', radius: 36, color1: '#7bed9f', color2: '#2ed573', inner: '#d4ffdb', seeds: null },
 ];
 
 function drawFruit(x, y, type, rotation) {
@@ -160,13 +183,8 @@ function drawFruitHalf(x, y, type, rotation, side) {
 
     // Cut face line
     ctx.beginPath();
-    if (side === 'left') {
-        ctx.moveTo(0, -r);
-        ctx.lineTo(0, r);
-    } else {
-        ctx.moveTo(0, -r);
-        ctx.lineTo(0, r);
-    }
+    ctx.moveTo(0, -r);
+    ctx.lineTo(0, r);
     ctx.strokeStyle = type.color2;
     ctx.lineWidth = 2;
     ctx.stroke();
@@ -192,6 +210,19 @@ function drawBomb(x, y, radius, rotation) {
     ctx.translate(x, y);
     ctx.rotate(rotation);
 
+    // Pulsing red danger glow behind the bomb - more prominent at low difficulty
+    const glowIntensity = Math.max(0.3, 1.0 - difficulty * 0.08);
+    const pulse = 0.5 + 0.5 * Math.sin(frameCount * 0.15);
+    const glowRadius = radius * (1.6 + pulse * 0.6);
+    const glowGrad = ctx.createRadialGradient(0, 0, radius * 0.5, 0, 0, glowRadius);
+    glowGrad.addColorStop(0, `rgba(255, 0, 0, ${0.4 * glowIntensity * (0.5 + pulse * 0.5)})`);
+    glowGrad.addColorStop(0.5, `rgba(255, 50, 0, ${0.2 * glowIntensity * (0.5 + pulse * 0.5)})`);
+    glowGrad.addColorStop(1, 'rgba(255, 0, 0, 0)');
+    ctx.beginPath();
+    ctx.arc(0, 0, glowRadius, 0, Math.PI * 2);
+    ctx.fillStyle = glowGrad;
+    ctx.fill();
+
     // Body
     ctx.beginPath();
     ctx.arc(0, 0, radius, 0, Math.PI * 2);
@@ -200,6 +231,18 @@ function drawBomb(x, y, radius, rotation) {
     grad.addColorStop(1, '#1a1a1a');
     ctx.fillStyle = grad;
     ctx.fill();
+
+    // Red X on bomb face
+    ctx.strokeStyle = `rgba(255, 40, 40, ${0.6 + pulse * 0.4})`;
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    const xSize = radius * 0.4;
+    ctx.beginPath();
+    ctx.moveTo(-xSize, -xSize);
+    ctx.lineTo(xSize, xSize);
+    ctx.moveTo(xSize, -xSize);
+    ctx.lineTo(-xSize, xSize);
+    ctx.stroke();
 
     // Fuse
     ctx.beginPath();
@@ -222,10 +265,53 @@ function drawBomb(x, y, radius, rotation) {
     ctx.fill();
 
     ctx.restore();
+
+    // DANGER warning text above bomb (unrotated) - more prominent at low difficulty
+    ctx.save();
+    const warningAlpha = Math.max(0.3, 1.0 - difficulty * 0.1);
+    const dangerPulse = 0.5 + 0.5 * Math.sin(frameCount * 0.2);
+    const fontSize = Math.floor(16 + dangerPulse * 4 + Math.max(0, (3 - difficulty)) * 2);
+    ctx.font = `bold ${fontSize}px Segoe UI, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = `rgba(255, ${Math.floor(40 + dangerPulse * 40)}, 0, ${warningAlpha * (0.7 + dangerPulse * 0.3)})`;
+    ctx.strokeStyle = `rgba(0, 0, 0, ${warningAlpha * 0.8})`;
+    ctx.lineWidth = 3;
+    const textY = y - radius - 28;
+    ctx.strokeText('DANGER', x, textY);
+    ctx.fillText('DANGER', x, textY);
+
+    // Warning triangle icon
+    const triSize = 8 + dangerPulse * 3;
+    const triX = x;
+    const triY = textY - fontSize - 2;
+    ctx.beginPath();
+    ctx.moveTo(triX, triY - triSize);
+    ctx.lineTo(triX - triSize, triY + triSize * 0.6);
+    ctx.lineTo(triX + triSize, triY + triSize * 0.6);
+    ctx.closePath();
+    ctx.fillStyle = `rgba(255, 200, 0, ${warningAlpha * (0.7 + dangerPulse * 0.3)})`;
+    ctx.fill();
+    ctx.strokeStyle = `rgba(0, 0, 0, ${warningAlpha * 0.8})`;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Exclamation in triangle
+    ctx.fillStyle = `rgba(0, 0, 0, ${warningAlpha})`;
+    ctx.font = `bold ${Math.floor(triSize * 1.2)}px Segoe UI, sans-serif`;
+    ctx.fillText('!', triX, triY + triSize * 0.3);
+    ctx.restore();
+}
+
+// Progressive difficulty: bomb probability scales with difficulty
+function getBombChance() {
+    // Early levels: very few bombs; scales up
+    if (difficulty < 1) return 0.04;
+    if (difficulty < 2) return 0.07;
+    if (difficulty < 3) return 0.10;
+    return Math.min(0.20, 0.10 + (difficulty - 3) * 0.02);
 }
 
 function spawnFruit() {
-    const isBomb = Math.random() < 0.12 + difficulty * 0.01;
+    const isBomb = Math.random() < getBombChance();
     const type = isBomb ? null : FRUIT_TYPES[Math.floor(Math.random() * FRUIT_TYPES.length)];
     const xSpread = W * 0.7;
     const x = W * 0.15 + Math.random() * xSpread;
@@ -247,11 +333,12 @@ function spawnFruit() {
 function spawnBurst() {
     const count = 3 + Math.floor(Math.random() * 3) + Math.floor(difficulty * 0.5);
     const baseX = W * 0.2 + Math.random() * W * 0.6;
+    const burstBombChance = getBombChance() * 0.8; // slightly lower in bursts
     for (let i = 0; i < count; i++) {
         setTimeout(() => {
             if (!gameOver) {
-                const type = Math.random() < 0.1 ? null : FRUIT_TYPES[Math.floor(Math.random() * FRUIT_TYPES.length)];
-                const isBomb = type === null;
+                const isBomb = Math.random() < burstBombChance;
+                const type = isBomb ? null : FRUIT_TYPES[Math.floor(Math.random() * FRUIT_TYPES.length)];
                 fruits.push({
                     x: baseX + (Math.random() - 0.5) * 150,
                     y: H + 50,
@@ -326,6 +413,8 @@ function sliceFruit(fruit) {
     if (fruit.isBomb) {
         createBombExplosion(fruit.x, fruit.y);
         gameOver = true;
+        saveHighScore(score);
+        highScore = getHighScore();
         showGameOver();
         return;
     }
@@ -400,7 +489,6 @@ function lineCircleIntersect(x1, y1, x2, y2, cx, cy, r) {
     const fy = y1 - cy;
     const a = dx * dx + dy * dy;
     if (a === 0) {
-        // Zero-length segment: just check if the point is inside the circle
         return fx * fx + fy * fy <= r * r;
     }
     const b = 2 * (fx * dx + fy * dy);
@@ -450,6 +538,11 @@ function drawHUD() {
     ctx.textAlign = 'right';
     ctx.fillText(`Score: ${score}`, W - 20, 40);
 
+    // High score
+    ctx.font = '16px Segoe UI, sans-serif';
+    ctx.fillStyle = 'rgba(255,215,0,0.7)';
+    ctx.fillText(`Best: ${highScore}`, W - 20, 64);
+
     // Lives
     ctx.textAlign = 'left';
     const heartX = W / 2 - 40;
@@ -486,6 +579,8 @@ function drawBackground() {
 }
 
 function update() {
+    frameCount++;
+
     // Spawn
     spawnTimer++;
     difficulty = Math.min(score / 20, 8);
@@ -529,6 +624,8 @@ function update() {
                     missDisplay.push({ x: f.x, y: H - 80, text: 'X', life: 40 });
                     if (lives <= 0) {
                         gameOver = true;
+                        saveHighScore(score);
+                        highScore = getHighScore();
                         showGameOver();
                     }
                 }
@@ -624,12 +721,15 @@ function showGameOver() {
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 48px Segoe UI, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('Game Over', W / 2, H / 2 - 30);
+    ctx.fillText('Game Over', W / 2, H / 2 - 50);
     ctx.font = '28px Segoe UI, sans-serif';
-    ctx.fillText(`Score: ${score}`, W / 2, H / 2 + 20);
+    ctx.fillText(`Score: ${score}`, W / 2, H / 2);
+    ctx.font = '22px Segoe UI, sans-serif';
+    ctx.fillStyle = 'rgba(255,215,0,0.9)';
+    ctx.fillText(`Best: ${highScore}`, W / 2, H / 2 + 35);
     ctx.font = '20px Segoe UI, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.fillText('Tap to play again', W / 2, H / 2 + 60);
+    ctx.fillText('Tap to play again', W / 2, H / 2 + 75);
 
     setTimeout(() => {
         function restart(e) {
@@ -648,6 +748,7 @@ function resetGame() {
     particles = [];
     sliceTrail = [];
     score = 0;
+    highScore = getHighScore();
     lives = 3;
     combo = 0;
     comboTimer = 0;
@@ -656,6 +757,7 @@ function resetGame() {
     gameOver = false;
     spawnTimer = 0;
     difficulty = 0;
+    frameCount = 0;
     gameLoop();
 }
 

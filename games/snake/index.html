@@ -9,14 +9,13 @@
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
     body {
-      min-height: 100vh;
+      height: 100vh;
+      width: 100vw;
       background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      padding: 1rem;
       overflow: hidden;
       touch-action: none;
       user-select: none;
@@ -28,8 +27,8 @@
       align-items: center;
       justify-content: space-between;
       width: 100%;
-      max-width: 420px;
-      margin-bottom: 0.75rem;
+      padding: 0.4rem 1rem;
+      flex-shrink: 0;
     }
 
     .back-btn {
@@ -37,8 +36,8 @@
       color: #fff;
       border: none;
       border-radius: 0.75rem;
-      padding: 0.5rem 1rem;
-      font-size: 1rem;
+      padding: 0.4rem 0.8rem;
+      font-size: 0.9rem;
       cursor: pointer;
       text-decoration: none;
       display: inline-block;
@@ -47,7 +46,7 @@
     .back-btn:active { transform: scale(0.95); }
 
     h1 {
-      font-size: 1.8rem;
+      font-size: 1.5rem;
       color: #fff;
       text-shadow: 0 0 20px rgba(0,255,100,0.5);
       text-align: center;
@@ -57,25 +56,39 @@
     .score-bar {
       display: flex;
       justify-content: center;
-      gap: 2rem;
+      gap: 1rem;
       width: 100%;
-      max-width: 420px;
-      margin-bottom: 0.5rem;
+      padding: 0.3rem 1rem;
       color: #fff;
-      font-size: 1.1rem;
+      font-size: 0.95rem;
+      flex-shrink: 0;
+      flex-wrap: wrap;
     }
 
     .score-bar span {
       background: rgba(255,255,255,0.1);
-      padding: 0.3rem 1rem;
+      padding: 0.2rem 0.7rem;
       border-radius: 0.5rem;
+    }
+
+    .lives-display { color: #ff6b6b; }
+    .difficulty-display { color: #ffd93d; }
+
+    .game-area {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 0;
+      padding: 0.5rem;
     }
 
     #gameCanvas {
       border-radius: 1rem;
       box-shadow: 0 0 30px rgba(0, 255, 100, 0.15), inset 0 0 60px rgba(0,0,0,0.3);
       background: #0a0a1a;
-      max-width: 100%;
+      display: block;
     }
 
     .overlay {
@@ -98,7 +111,7 @@
       padding: 2rem;
       text-align: center;
       color: #fff;
-      max-width: 340px;
+      max-width: 400px;
       width: 90%;
       box-shadow: 0 0 40px rgba(0,255,100,0.2);
     }
@@ -130,6 +143,45 @@
     }
 
     .play-btn:active { transform: scale(0.95); }
+
+    .difficulty-buttons {
+      display: flex;
+      gap: 0.8rem;
+      justify-content: center;
+      margin-bottom: 1.2rem;
+      flex-wrap: wrap;
+    }
+
+    .diff-btn {
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 0.8rem;
+      padding: 0.6rem 1.2rem;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.1s, border-color 0.2s;
+      color: #fff;
+      background: rgba(255,255,255,0.05);
+    }
+
+    .diff-btn:active { transform: scale(0.95); }
+
+    .diff-btn.selected {
+      border-color: #00e676;
+      background: rgba(0,230,118,0.15);
+      box-shadow: 0 0 12px rgba(0,255,100,0.3);
+    }
+
+    .diff-btn.easy { color: #69f0ae; }
+    .diff-btn.medium { color: #ffd740; }
+    .diff-btn.hard { color: #ff5252; }
+
+    .diff-desc {
+      font-size: 0.85rem;
+      opacity: 0.7;
+      margin-bottom: 1rem;
+      min-height: 1.4rem;
+    }
   </style>
 </head>
 <body>
@@ -141,13 +193,23 @@
   <div class="score-bar">
     <span>Score: <strong id="score">0</strong></span>
     <span>Best: <strong id="best">0</strong></span>
+    <span class="lives-display">Lives: <strong id="lives">2</strong></span>
+    <span class="difficulty-display">Mode: <strong id="diffLabel">Medium</strong></span>
   </div>
-  <canvas id="gameCanvas"></canvas>
+  <div class="game-area">
+    <canvas id="gameCanvas"></canvas>
+  </div>
 
   <div class="overlay" id="startOverlay">
     <div class="overlay-box">
       <h2>Snake</h2>
       <p>Swipe or use arrow keys to steer the snake. Eat food to grow and score points. Don't hit the walls or yourself!</p>
+      <div class="difficulty-buttons">
+        <button class="diff-btn easy" data-diff="easy">Easy</button>
+        <button class="diff-btn medium selected" data-diff="medium">Medium</button>
+        <button class="diff-btn hard" data-diff="hard">Hard</button>
+      </div>
+      <div class="diff-desc" id="diffDesc">Normal speed, 2 lives</div>
       <button class="play-btn" id="startBtn">Play</button>
     </div>
   </div>
@@ -166,22 +228,79 @@
   const ctx = canvas.getContext('2d');
   const scoreEl = document.getElementById('score');
   const bestEl = document.getElementById('best');
+  const livesEl = document.getElementById('lives');
+  const diffLabel = document.getElementById('diffLabel');
+  const diffDesc = document.getElementById('diffDesc');
   const finalScoreEl = document.getElementById('finalScore');
   const startOverlay = document.getElementById('startOverlay');
   const gameOverOverlay = document.getElementById('gameOverOverlay');
 
   const GRID = 20;
   let cols, rows, cellSize;
-  let snake = [], dir = {x:1,y:0}, nextDir = {x:1,y:0}, food = null, score = 0, bestScore, speed = 140, gameLoop, alive = false;
+  let snake = [], dir = {x:1,y:0}, nextDir = {x:1,y:0}, food = null, score = 0, speed = 140, gameLoop, alive = false;
   let particles = [];
+  let lives = 2;
+  let warningCell = null; // For easy mode warning flash
 
-  bestScore = parseInt(localStorage.getItem('snake_best') || '0');
-  bestEl.textContent = bestScore;
+  // Difficulty settings
+  const DIFFICULTIES = {
+    easy:   { label: 'Easy',   speedMul: 0.6, lives: 3, desc: 'Slower speed, 3 lives, crash warning' },
+    medium: { label: 'Medium', speedMul: 1.0, lives: 2, desc: 'Normal speed, 2 lives' },
+    hard:   { label: 'Hard',   speedMul: 1.4, lives: 1, desc: 'Faster speed, 1 life' }
+  };
+  let currentDifficulty = 'medium';
 
+  // --- Shared localStorage ---
+  function loadArcadeData() {
+    try {
+      return JSON.parse(localStorage.getItem('calebArcadeData')) || {};
+    } catch(e) { return {}; }
+  }
+
+  function saveArcadeData(data) {
+    localStorage.setItem('calebArcadeData', JSON.stringify(data));
+  }
+
+  function getBestScore(diff) {
+    const data = loadArcadeData();
+    return (data.snake && data.snake.highScore && data.snake.highScore[diff]) || 0;
+  }
+
+  function setBestScore(diff, val) {
+    const data = loadArcadeData();
+    if (!data.snake) data.snake = {};
+    if (!data.snake.highScore) data.snake.highScore = {};
+    data.snake.highScore[diff] = val;
+    saveArcadeData(data);
+  }
+
+  function updateBestDisplay() {
+    bestEl.textContent = getBestScore(currentDifficulty);
+  }
+
+  updateBestDisplay();
+
+  // --- Difficulty selection UI ---
+  const diffBtns = document.querySelectorAll('.diff-btn');
+  diffBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      diffBtns.forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      currentDifficulty = btn.dataset.diff;
+      diffDesc.textContent = DIFFICULTIES[currentDifficulty].desc;
+      updateBestDisplay();
+    });
+  });
+
+  // --- Resize: fill available screen, landscape-optimized ---
   function resize() {
-    const maxW = Math.min(420, window.innerWidth - 32);
-    const maxH = Math.min(420, window.innerHeight - 200);
-    const size = Math.min(maxW, maxH);
+    const topBar = document.querySelector('.top-bar');
+    const scoreBar = document.querySelector('.score-bar');
+    const gameArea = document.querySelector('.game-area');
+    const topH = topBar.offsetHeight + scoreBar.offsetHeight;
+    const availW = window.innerWidth - 16;
+    const availH = window.innerHeight - topH - 16;
+    const size = Math.min(availW, availH);
     cellSize = Math.floor(size / GRID);
     canvas.width = cellSize * GRID;
     canvas.height = cellSize * GRID;
@@ -192,6 +311,14 @@
   resize();
   window.addEventListener('resize', resize);
 
+  // --- Game logic ---
+  function getBaseSpeed() {
+    const base = 140;
+    const mul = DIFFICULTIES[currentDifficulty].speedMul;
+    // Higher multiplier = faster = lower interval
+    return Math.round(base / mul);
+  }
+
   function init() {
     const cx = Math.floor(cols / 2);
     const cy = Math.floor(rows / 2);
@@ -199,17 +326,22 @@
     dir = {x: 1, y: 0};
     nextDir = {x: 1, y: 0};
     score = 0;
-    speed = 140;
+    speed = getBaseSpeed();
+    lives = DIFFICULTIES[currentDifficulty].lives;
     alive = true;
     particles = [];
+    warningCell = null;
     scoreEl.textContent = '0';
+    livesEl.textContent = lives;
+    diffLabel.textContent = DIFFICULTIES[currentDifficulty].label;
+    updateBestDisplay();
     placeFood();
   }
 
   function placeFood() {
     let attempts = 0;
     do {
-      food = {x: Math.floor(Math.random() * cols), y: Math.floor(Math.random() * rows)};
+      food = {x: Math.floor(Math.random() * GRID), y: Math.floor(Math.random() * GRID)};
       attempts++;
     } while (snake.some(s => s.x === food.x && s.y === food.y) && attempts < 500);
     food.pulse = 0;
@@ -230,19 +362,44 @@
     }
   }
 
+  function computeWarning() {
+    // Easy mode: check if the cell the snake will move into next tick is dangerous
+    warningCell = null;
+    if (currentDifficulty !== 'easy' || !alive) return;
+    const nd = nextDir;
+    const head = snake[0];
+    const ahead = {x: head.x + nd.x, y: head.y + nd.y};
+    const willDie = ahead.x < 0 || ahead.x >= cols || ahead.y < 0 || ahead.y >= rows ||
+                    snake.some(s => s.x === ahead.x && s.y === ahead.y);
+    if (willDie) {
+      warningCell = ahead;
+    }
+  }
+
   function update() {
     if (!alive) return;
 
     dir = nextDir;
     const head = {x: snake[0].x + dir.x, y: snake[0].y + dir.y};
 
-    if (head.x < 0 || head.x >= cols || head.y < 0 || head.y >= rows) {
-      die();
-      return;
-    }
+    const hitWall = head.x < 0 || head.x >= cols || head.y < 0 || head.y >= rows;
+    const hitSelf = !hitWall && snake.some(s => s.x === head.x && s.y === head.y);
 
-    if (snake.some(s => s.x === head.x && s.y === head.y)) {
-      die();
+    if (hitWall || hitSelf) {
+      lives--;
+      livesEl.textContent = lives;
+      if (lives <= 0) {
+        die();
+        return;
+      }
+      // Lose a life: flash, respawn snake but keep score
+      spawnParticles(snake[0].x, snake[0].y);
+      const cx = Math.floor(cols / 2);
+      const cy = Math.floor(rows / 2);
+      snake = [{x: cx, y: cy}, {x: cx - 1, y: cy}, {x: cx - 2, y: cy}];
+      dir = {x: 1, y: 0};
+      nextDir = {x: 1, y: 0};
+      warningCell = null;
       return;
     }
 
@@ -253,25 +410,28 @@
       scoreEl.textContent = score;
       spawnParticles(food.x, food.y);
       placeFood();
-      if (speed > 60) speed = Math.max(60, speed - 3);
+      // Speed up slightly, respecting difficulty base
+      const minSpeed = Math.round(60 / DIFFICULTIES[currentDifficulty].speedMul);
+      if (speed > minSpeed) speed = Math.max(minSpeed, speed - 3);
       clearInterval(gameLoop);
       gameLoop = setInterval(update, speed);
     } else {
       snake.pop();
     }
+
+    computeWarning();
   }
 
   function die() {
     alive = false;
     clearInterval(gameLoop);
-    // Spawn death particles along the snake
     for (let i = 0; i < snake.length; i += 2) {
       spawnParticles(snake[i].x, snake[i].y);
     }
-    if (score > bestScore) {
-      bestScore = score;
-      localStorage.setItem('snake_best', bestScore);
-      bestEl.textContent = bestScore;
+    const best = getBestScore(currentDifficulty);
+    if (score > best) {
+      setBestScore(currentDifficulty, score);
+      updateBestDisplay();
     }
     finalScoreEl.textContent = score;
     setTimeout(() => {
@@ -279,8 +439,12 @@
     }, 600);
   }
 
+  // --- Drawing ---
+  let warningFlashT = 0;
+
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    warningFlashT += 0.15;
 
     // Grid lines (subtle)
     ctx.strokeStyle = 'rgba(255,255,255,0.03)';
@@ -298,6 +462,22 @@
       ctx.stroke();
     }
 
+    // Warning flash (easy mode)
+    if (warningCell && currentDifficulty === 'easy' && alive) {
+      const wx = warningCell.x;
+      const wy = warningCell.y;
+      // Only draw if on-screen
+      if (wx >= 0 && wx < cols && wy >= 0 && wy < rows) {
+        const alpha = 0.3 + Math.sin(warningFlashT * 3) * 0.25;
+        ctx.save();
+        ctx.fillStyle = `rgba(255, 50, 50, ${Math.max(0, alpha)})`;
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = 'rgba(255, 0, 0, 0.6)';
+        ctx.fillRect(wx * cellSize, wy * cellSize, cellSize, cellSize);
+        ctx.restore();
+      }
+    }
+
     // Food
     if (food) {
       food.pulse = (food.pulse || 0) + 0.08;
@@ -306,7 +486,6 @@
       const fy = (food.y + 0.5) * cellSize;
       const fr = cellSize * 0.4 * pulse;
 
-      // Glow
       ctx.save();
       ctx.shadowBlur = 15;
       ctx.shadowColor = '#ff4444';
@@ -316,7 +495,6 @@
       ctx.fill();
       ctx.restore();
 
-      // Shine
       ctx.beginPath();
       ctx.arc(fx - fr * 0.25, fy - fr * 0.25, fr * 0.3, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(255,255,255,0.4)';
@@ -346,7 +524,6 @@
       ctx.roundRect(px + pad, py + pad, cellSize - pad * 2, cellSize - pad * 2, r);
       ctx.fill();
 
-      // Segment highlight
       ctx.fillStyle = `hsla(${hue}, 100%, 80%, 0.3)`;
       ctx.beginPath();
       ctx.roundRect(px + pad + 2, py + pad + 2, (cellSize - pad * 2) * 0.5, (cellSize - pad * 2) * 0.35, r * 0.5);
@@ -365,11 +542,9 @@
         else if (dir.y === -1) { e1x = cx - eyeOff; e1y = cy_pos - eyeOff; e2x = cx + eyeOff; e2y = cy_pos - eyeOff; }
         else { e1x = cx - eyeOff; e1y = cy_pos + eyeOff; e2x = cx + eyeOff; e2y = cy_pos + eyeOff; }
 
-        // White of eye
         ctx.fillStyle = '#fff';
         ctx.beginPath(); ctx.arc(e1x, e1y, eyeR, 0, Math.PI * 2); ctx.fill();
         ctx.beginPath(); ctx.arc(e2x, e2y, eyeR, 0, Math.PI * 2); ctx.fill();
-        // Pupil
         ctx.fillStyle = '#111';
         ctx.beginPath(); ctx.arc(e1x + dir.x * 1.5, e1y + dir.y * 1.5, eyeR * 0.55, 0, Math.PI * 2); ctx.fill();
         ctx.beginPath(); ctx.arc(e2x + dir.x * 1.5, e2y + dir.y * 1.5, eyeR * 0.55, 0, Math.PI * 2); ctx.fill();
@@ -396,7 +571,7 @@
     requestAnimationFrame(draw);
   }
 
-  // Controls
+  // --- Controls ---
   function setDir(dx, dy) {
     if (dx === -dir.x && dy === 0) return;
     if (dy === -dir.y && dx === 0) return;
@@ -413,7 +588,6 @@
     }
   });
 
-  // Touch swipe
   let touchStartX, touchStartY;
   document.addEventListener('touchstart', e => {
     touchStartX = e.touches[0].clientX;
@@ -438,15 +612,21 @@
     }
   }, {passive: true});
 
+  // --- Start / Retry ---
   function startGame() {
     init();
     startOverlay.classList.add('hidden');
     gameOverOverlay.classList.add('hidden');
+    computeWarning();
     gameLoop = setInterval(update, speed);
   }
 
   document.getElementById('startBtn').addEventListener('click', startGame);
-  document.getElementById('retryBtn').addEventListener('click', startGame);
+  document.getElementById('retryBtn').addEventListener('click', () => {
+    // Show difficulty selection again
+    startOverlay.classList.remove('hidden');
+    gameOverOverlay.classList.add('hidden');
+  });
 
   draw();
 })();

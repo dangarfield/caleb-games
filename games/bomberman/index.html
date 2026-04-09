@@ -53,46 +53,47 @@
   }
   #controls {
     position: absolute;
-    bottom: 20px;
+    bottom: 10px;
     left: 0; right: 0;
-    display: flex;
+    display: none;
     justify-content: space-between;
     align-items: flex-end;
     padding: 0 20px;
     z-index: 100;
     pointer-events: none;
   }
+  .touch-device #controls { display: flex; }
   .dpad {
-    width: 140px; height: 140px;
+    width: 180px; height: 180px;
     position: relative;
     pointer-events: auto;
   }
   .dpad-btn {
     position: absolute;
-    width: 46px; height: 46px;
-    background: rgba(255,255,255,0.2);
-    border: 2px solid rgba(255,255,255,0.3);
-    border-radius: 10px;
+    width: 60px; height: 60px;
+    background: rgba(255,255,255,0.25);
+    border: 2px solid rgba(255,255,255,0.4);
+    border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 20px;
+    font-size: 26px;
     color: #fff;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
   }
-  .dpad-btn:active, .dpad-btn.active { background: rgba(255,255,255,0.45); }
-  .dpad-up { top: 0; left: 47px; }
-  .dpad-down { bottom: 0; left: 47px; }
-  .dpad-left { top: 47px; left: 0; }
-  .dpad-right { top: 47px; right: 0; }
+  .dpad-btn:active, .dpad-btn.active { background: rgba(255,255,255,0.55); }
+  .dpad-up { top: 0; left: 60px; }
+  .dpad-down { bottom: 0; left: 60px; }
+  .dpad-left { top: 60px; left: 0; }
+  .dpad-right { top: 60px; right: 0; }
   #bombBtn {
-    width: 70px; height: 70px;
+    width: 90px; height: 90px;
     border-radius: 50%;
-    background: rgba(255,80,80,0.4);
-    border: 3px solid rgba(255,100,100,0.5);
+    background: rgba(255,80,80,0.45);
+    border: 3px solid rgba(255,100,100,0.6);
     color: #fff;
-    font-size: 14px;
+    font-size: 18px;
     font-weight: bold;
     cursor: pointer;
     pointer-events: auto;
@@ -101,7 +102,7 @@
     justify-content: center;
     -webkit-tap-highlight-color: transparent;
   }
-  #bombBtn:active, #bombBtn.active { background: rgba(255,80,80,0.7); }
+  #bombBtn:active, #bombBtn.active { background: rgba(255,80,80,0.75); }
   #overlay {
     position: absolute;
     inset: 0;
@@ -128,9 +129,7 @@
     cursor: pointer;
     font-weight: bold;
   }
-  @media (min-width: 800px) {
-    #controls { display: none; }
-  }
+  #hud .highscore { opacity: 0.7; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -140,6 +139,7 @@
     <div>Score: <span id="scoreDisplay">0</span></div>
     <div>Level: <span id="levelDisplay">1</span></div>
     <div>Lives: <span id="livesDisplay">3</span></div>
+    <div class="highscore">Best: <span id="highScoreDisplay">0</span></div>
   </div>
   <canvas id="gameCanvas"></canvas>
   <div id="controls">
@@ -171,6 +171,36 @@
   const scoreDisplay = document.getElementById('scoreDisplay');
   const levelDisplay = document.getElementById('levelDisplay');
   const livesDisplay = document.getElementById('livesDisplay');
+  const highScoreDisplay = document.getElementById('highScoreDisplay');
+
+  // Detect touch device and add class for CSS
+  function isTouchDevice() {
+    return ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  }
+  if (isTouchDevice()) {
+    document.body.classList.add('touch-device');
+  }
+
+  // Shared localStorage helpers
+  function loadArcadeData() {
+    try {
+      const raw = localStorage.getItem('calebArcadeData');
+      return raw ? JSON.parse(raw) : {};
+    } catch(e) { return {}; }
+  }
+  function saveArcadeData(data) {
+    try { localStorage.setItem('calebArcadeData', JSON.stringify(data)); } catch(e) {}
+  }
+  function getHighScore() {
+    const data = loadArcadeData();
+    return (data.bomberman && data.bomberman.highScore) || 0;
+  }
+  function setHighScore(val) {
+    const data = loadArcadeData();
+    if (!data.bomberman) data.bomberman = {};
+    data.bomberman.highScore = val;
+    saveArcadeData(data);
+  }
 
   // Grid config
   const COLS = 15, ROWS = 13;
@@ -188,18 +218,19 @@
   let lastTime = 0;
   let dpadDir = null;
 
-  // Resize
+  // Resize to fill available screen, optimized for landscape
   let canvasScale = 1, offsetX = 0, offsetY = 0;
   function resize() {
     const cw = container.clientWidth;
     const ch = container.clientHeight;
-    const hudHeight = 40;
-    const controlsHeight = window.innerWidth < 800 ? 170 : 0;
+    const hudHeight = 44;
+    const hasTouch = document.body.classList.contains('touch-device');
+    const controlsHeight = hasTouch ? 200 : 0;
     const availH = ch - hudHeight - controlsHeight;
     const availW = cw;
     const sx = availW / GW;
     const sy = availH / GH;
-    canvasScale = Math.min(sx, sy, 1.5);
+    canvasScale = Math.min(sx, sy);
     canvas.width = Math.floor(GW * canvasScale);
     canvas.height = Math.floor(GH * canvasScale);
     canvas.style.marginTop = hudHeight + 'px';
@@ -286,6 +317,7 @@
     scoreDisplay.textContent = score;
     levelDisplay.textContent = level;
     livesDisplay.textContent = lives;
+    highScoreDisplay.textContent = getHighScore();
   }
 
   // Grid helpers
@@ -778,7 +810,13 @@
   }
 
   function showOverlay(title, subtitle) {
-    overlay.innerHTML = `<h1>${title}</h1><p>${subtitle}</p><button class="start-btn" id="startBtn">Play Again</button>`;
+    // Save high score
+    const best = getHighScore();
+    if (score > best) {
+      setHighScore(score);
+    }
+    const currentBest = getHighScore();
+    overlay.innerHTML = `<h1>${title}</h1><p>${subtitle}</p><p>Best: ${currentBest}</p><button class="start-btn" id="startBtn">Play Again</button>`;
     overlay.style.display = 'flex';
     document.getElementById('startBtn').addEventListener('click', startGame);
     document.getElementById('startBtn').addEventListener('touchend', function(e) {
@@ -884,6 +922,9 @@
     e.preventDefault();
     startGame();
   });
+
+  // Init high score display
+  highScoreDisplay.textContent = getHighScore();
 
   resize();
 })();
