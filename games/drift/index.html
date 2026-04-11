@@ -149,7 +149,7 @@
             const track = data.drift.tracks[trackId];
             track.bestLaps.push({ time: lapTime, date: Date.now() });
             track.bestLaps.sort(function(a, b) { return a.time - b.time; });
-            track.bestLaps = track.bestLaps.slice(0, 10);
+            track.bestLaps = track.bestLaps.slice(0, 3);
             // Store ghost for top 3 only
             if (ghostData && ghostData.length > 0) {
                 track.top3Ghost.push({ time: lapTime, frames: ghostData });
@@ -825,15 +825,15 @@
                 ctx.globalAlpha = 1;
             }
 
-            // Draw failed attempt ghosts (session only, grey/dim)
+            // Draw failed attempt ghosts (session only, red-tinted)
             const tk = 'stage' + currentStage;
             const fails = failedAttempts[tk] || [];
             for (let fi = 0; fi < fails.length; fi++) {
                 const ghost = fails[fi];
                 if (ghost.frames && ghostFrame < ghost.frames.length) {
                     const gf = ghost.frames[ghostFrame];
-                    const alpha = Math.max(0.08, 0.2 - fi * 0.015);
-                    drawGhostCar(gf.x - camX, gf.y - camY, gf.angle, 'rgba(150,150,180,0.3)', alpha);
+                    const alpha = Math.max(0.2, 0.45 - fi * 0.03);
+                    drawGhostCar(gf.x - camX, gf.y - camY, gf.angle, 'rgba(255,80,80,0.5)', alpha);
                 }
             }
 
