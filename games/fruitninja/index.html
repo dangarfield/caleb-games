@@ -53,7 +53,13 @@
             <h2>Fruit Ninja</h2>
             <p>Swipe across fruits to slice them!</p>
             <p>Avoid the bombs!</p>
-            <p>Don't let 3 fruits fall unsliced.</p>
+            <p>Don't let 5 fruits fall unsliced.</p>
+            <div style="margin: 12px 0;">
+                <label style="cursor:pointer; font-size:16px;">
+                    <input type="checkbox" id="easyMode" style="margin-right:8px; transform:scale(1.3); vertical-align:middle;">
+                    Easy Mode (slower fruit)
+                </label>
+            </div>
             <button class="start-btn" id="startBtn">Play</button>
         </div>
     </div>
@@ -99,7 +105,7 @@ let particles = [];
 let sliceTrail = [];
 let score = 0;
 let highScore = getHighScore();
-let lives = 3;
+let lives = 5;
 let combo = 0;
 let comboTimer = 0;
 let comboDisplay = [];
@@ -111,6 +117,8 @@ let difficulty = 0;
 let missDisplay = [];
 let animFrame;
 let frameCount = 0; // for animations
+let easyMode = false;
+let lifeLossFlash = 0; // screen flash timer when losing a life
 
 // Fruit types - bright colors only, no dark fruits that could be confused with bombs
 const FRUIT_TYPES = [
@@ -315,8 +323,9 @@ function spawnFruit() {
     const type = isBomb ? null : FRUIT_TYPES[Math.floor(Math.random() * FRUIT_TYPES.length)];
     const xSpread = W * 0.7;
     const x = W * 0.15 + Math.random() * xSpread;
-    const vx = (Math.random() - 0.5) * 4;
-    const vy = -(H * 0.018 + Math.random() * H * 0.008);
+    const speedMul = easyMode ? 0.75 : 1;
+    const vx = (Math.random() - 0.5) * 4 * speedMul;
+    const vy = -(H * 0.018 + Math.random() * H * 0.008) * speedMul;
     fruits.push({
         x, y: H + 50,
         vx, vy,
@@ -339,11 +348,12 @@ function spawnBurst() {
             if (!gameOver) {
                 const isBomb = Math.random() < burstBombChance;
                 const type = isBomb ? null : FRUIT_TYPES[Math.floor(Math.random() * FRUIT_TYPES.length)];
+                const bSpd = easyMode ? 0.75 : 1;
                 fruits.push({
                     x: baseX + (Math.random() - 0.5) * 150,
                     y: H + 50,
-                    vx: (Math.random() - 0.5) * 5,
-                    vy: -(H * 0.02 + Math.random() * H * 0.007),
+                    vx: (Math.random() - 0.5) * 5 * bSpd,
+                    vy: -(H * 0.02 + Math.random() * H * 0.007) * bSpd,
                     rotation: Math.random() * Math.PI * 2,
                     rotSpeed: (Math.random() - 0.5) * 0.1,
                     type, isBomb,
@@ -412,10 +422,15 @@ function sliceFruit(fruit) {
 
     if (fruit.isBomb) {
         createBombExplosion(fruit.x, fruit.y);
-        gameOver = true;
-        saveHighScore(score);
-        highScore = getHighScore();
-        showGameOver();
+        lives--;
+        lifeLossFlash = 30;
+        missDisplay.push({ x: fruit.x, y: fruit.y - 30, text: 'BOMB! -1', life: 50 });
+        if (lives <= 0) {
+            gameOver = true;
+            saveHighScore(score);
+            highScore = getHighScore();
+            showGameOver();
+        }
         return;
     }
 
@@ -545,10 +560,12 @@ function drawHUD() {
 
     // Lives
     ctx.textAlign = 'left';
-    const heartX = W / 2 - 40;
-    for (let i = 0; i < 3; i++) {
-        ctx.font = '24px sans-serif';
-        ctx.fillStyle = i < lives ? '#e74c3c' : 'rgba(255,255,255,0.2)';
+    const heartX = W / 2 - 70;
+    for (let i = 0; i < 5; i++) {
+        const isAlive = i < lives;
+        const heartScale = (isAlive && lifeLossFlash > 20 && i === lives) ? 1.5 : 1;
+        ctx.font = `${Math.floor(24 * heartScale)}px sans-serif`;
+        ctx.fillStyle = isAlive ? '#e74c3c' : 'rgba(255,255,255,0.2)';
         ctx.fillText('\u2764', heartX + i * 30, 40);
     }
 
@@ -584,7 +601,8 @@ function update() {
     // Spawn
     spawnTimer++;
     difficulty = Math.min(score / 20, 8);
-    const interval = Math.max(40, spawnInterval - difficulty * 5);
+    const baseInterval = Math.max(40, spawnInterval - difficulty * 5);
+    const interval = easyMode ? baseInterval * 1.33 : baseInterval;
 
     if (spawnTimer >= interval) {
         spawnTimer = 0;
@@ -621,7 +639,8 @@ function update() {
                 f.missed = true;
                 if (!f.isBomb) {
                     lives--;
-                    missDisplay.push({ x: f.x, y: H - 80, text: 'X', life: 40 });
+                    lifeLossFlash = 30;
+                    missDisplay.push({ x: f.x, y: H - 80, text: 'MISSED!', life: 50 });
                     if (lives <= 0) {
                         gameOver = true;
                         saveHighScore(score);
@@ -667,6 +686,9 @@ function update() {
         missDisplay[i].life--;
         if (missDisplay[i].life <= 0) missDisplay.splice(i, 1);
     }
+
+    // Life loss flash
+    if (lifeLossFlash > 0) lifeLossFlash--;
 }
 
 function draw() {
@@ -698,6 +720,13 @@ function draw() {
         }
     }
 
+    // Life loss flash overlay
+    if (lifeLossFlash > 0) {
+        const flashAlpha = (lifeLossFlash / 30) * 0.4;
+        ctx.fillStyle = `rgba(255, 0, 0, ${flashAlpha})`;
+        ctx.fillRect(0, 0, W, H);
+    }
+
     drawSliceTrail();
     drawHUD();
 }
@@ -714,22 +743,37 @@ function showGameOver() {
     // Final frame
     draw();
 
-    // Darken
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    // Heavy darken
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
     ctx.fillRect(0, 0, W, H);
 
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 48px Segoe UI, sans-serif';
+    // Red banner
+    const bannerH = 200;
+    const bannerY = H / 2 - bannerH / 2;
+    const bannerGrad = ctx.createLinearGradient(0, bannerY, 0, bannerY + bannerH);
+    bannerGrad.addColorStop(0, 'rgba(180, 0, 0, 0.6)');
+    bannerGrad.addColorStop(0.5, 'rgba(200, 0, 0, 0.4)');
+    bannerGrad.addColorStop(1, 'rgba(180, 0, 0, 0.6)');
+    ctx.fillStyle = bannerGrad;
+    ctx.fillRect(0, bannerY, W, bannerH);
+
+    ctx.fillStyle = '#ff4444';
+    ctx.font = 'bold 56px Segoe UI, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('Game Over', W / 2, H / 2 - 50);
-    ctx.font = '28px Segoe UI, sans-serif';
-    ctx.fillText(`Score: ${score}`, W / 2, H / 2);
+    ctx.fillText('GAME OVER', W / 2, H / 2 - 40);
+
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 32px Segoe UI, sans-serif';
+    ctx.fillText(`Score: ${score}`, W / 2, H / 2 + 10);
+
+    const isNewBest = score >= highScore && score > 0;
     ctx.font = '22px Segoe UI, sans-serif';
-    ctx.fillStyle = 'rgba(255,215,0,0.9)';
-    ctx.fillText(`Best: ${highScore}`, W / 2, H / 2 + 35);
+    ctx.fillStyle = isNewBest ? '#ffd700' : 'rgba(255,215,0,0.9)';
+    ctx.fillText(isNewBest ? `NEW BEST: ${highScore}!` : `Best: ${highScore}`, W / 2, H / 2 + 45);
+
     ctx.font = '20px Segoe UI, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.fillText('Tap to play again', W / 2, H / 2 + 75);
+    ctx.fillText('Tap to play again', W / 2, H / 2 + 85);
 
     setTimeout(() => {
         function restart(e) {
@@ -749,7 +793,7 @@ function resetGame() {
     sliceTrail = [];
     score = 0;
     highScore = getHighScore();
-    lives = 3;
+    lives = 5;
     combo = 0;
     comboTimer = 0;
     comboDisplay = [];
@@ -758,10 +802,12 @@ function resetGame() {
     spawnTimer = 0;
     difficulty = 0;
     frameCount = 0;
+    lifeLossFlash = 0;
     gameLoop();
 }
 
 startBtn.addEventListener('click', () => {
+    easyMode = document.getElementById('easyMode').checked;
     overlay.classList.add('hidden');
     gameStarted = true;
     resetGame();

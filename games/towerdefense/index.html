@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>Tower Defense - Caleb's Arcade</title>
+    <script src="https://cdn.jsdelivr.net/npm/lil-gui@0.19/dist/lil-gui.umd.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -260,6 +261,11 @@ function getPathCells() {
 }
 
 // --- Game State ---
+const settings = { damageModifier: 1.5 };
+const gui = new lil.GUI({ title: 'Settings' });
+gui.add(settings, 'damageModifier', 0.5, 5, 0.1).name('Damage Modifier');
+gui.close();
+
 let gold = 100, lives = 20, score = 0, wave = 0;
 let towers = [], enemies = [], projectiles = [], particles = [];
 let selectedType = null, selectedTower = null;
@@ -683,6 +689,7 @@ function update() {
 }
 
 function applyDamage(enemy, dmg) {
+    dmg = Math.floor(dmg * settings.damageModifier);
     if (enemy.shield > 0) {
         const absorbed = Math.min(enemy.shield, dmg);
         enemy.shield -= absorbed;
