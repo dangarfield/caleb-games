@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Paperboy Research Viewer</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #1a1a2e; overflow: hidden; font-family: sans-serif; }
+canvas { display: block; }
+#info {
+    position: fixed; bottom: 10px; left: 10px; z-index: 10;
+    color: #aaa; font-size: 12px; background: rgba(0,0,0,.5);
+    padding: 6px 10px; border-radius: 4px; pointer-events: none;
+}
+</style>
+</head>
+<body>
+<div id="info">Drag to orbit | Scroll to zoom | Right-drag to pan</div>
+
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
+
+// --- Scene setup ---
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+scene.fog = new THREE.Fog(0x87ceeb, 80, 200);
+
+// Free orbit camera (default)
+const orbitCamera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 500);
+orbitCamera.position.set(8, 6, 12);
+
+// OrthoCamera matching Blender's OrthoCamera
+// Blender: loc=(-74.08, -17.2, 25.585), rot=(1.257, 0, -1.292), ortho_scale=14.5
+const aspect = innerWidth / innerHeight;
+const orthoHalfH = 14.5 / 2;
+const orthoHalfW = orthoHalfH * aspect;
+const orthoCamera = new THREE.OrthographicCamera(-orthoHalfW, orthoHalfW, orthoHalfH, -orthoHalfH, 0.1, 1000);
+// Convert Blender coords (Y-forward, Z-up) to Three.js (Z-forward, Y-up)
+// Blender (x,y,z) -> Three.js (x,z,-y)
+orthoCamera.position.set(-74.08, 25.585, 17.2);
+// Apply Blender euler rotation (XYZ order) converted to Three.js
+// Blender rot: (1.257, 0, -1.292) in XYZ euler
+const blenderEuler = new THREE.Euler(1.257, 0, -1.292, 'XYZ');
+const blenderQuat = new THREE.Quaternion().setFromEuler(blenderEuler);
+// Blender-to-Three rotation conversion: swap Y/Z axes
+const coordSwap = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
+const threeQuat = new THREE.Quaternion().multiplyQuaternions(coordSwap, blenderQuat);
+orthoCamera.quaternion.copy(threeQuat);
+
+let activeCamera = orbitCamera;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(orbitCamera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.target.set(0, 2, 0);
+
+// --- Lights ---
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambientLight);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+dirLight.position.set(10, 20, 10);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(2048, 2048);
+dirLight.shadow.camera.near = 1;
+dirLight.shadow.camera.far = 60;
+dirLight.shadow.camera.left = -30;
+dirLight.shadow.camera.right = 30;
+dirLight.shadow.camera.top = 30;
+dirLight.shadow.camera.bottom = -30;
+scene.add(dirLight);
+
+const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x556633, 0.4);
+scene.add(hemiLight);
+
+// --- Ground plane (fallback) ---
+const groundGeo = new THREE.PlaneGeometry(200, 200);
+const groundMat = new THREE.MeshStandardMaterial({ color: 0x4a7c3f });
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// --- Grid helper ---
+const gridHelper = new THREE.GridHelper(100, 100, 0x888888, 0x444444);
+gridHelper.position.y = 0.01;
+scene.add(gridHelper);
+
+// --- Axes helper ---
+const axesHelper = new THREE.AxesHelper(5);
+scene.add(axesHelper);
+
+// --- State ---
+const state = {
+    // Paperboy
+    boyVisible: true,
+    boyWireframe: false,
+    boyPosition: { x: 0, y: 0, z: 0 },
+    boyRotationY: 90,
+    boyScale: 1,
+    currentAnimation: 'Idle',
+    animationSpeed: 1,
+    animationPaused: false,
+    // Level
+    levelVisible: true,
+    levelWireframe: false,
+    levelPosition: { x: 0, y: 0, z: 0 },
+    levelRotationY: 0,
+    levelScale: 1,
+    showWarpedPanorama: true,
+    // Camera
+    useOrthoCamera: false,
+    // Scene
+    showGround: true,
+    showGrid: true,
+    showAxes: true,
+    bgColor: '#87ceeb',
+    ambientIntensity: 0.5,
+    dirLightIntensity: 1.5,
+    hemiIntensity: 0.4,
+    fogNear: 80,
+    fogFar: 200,
+    toneExposure: 1.0,
+    shadowsEnabled: true,
+};
+
+// --- Load assets ---
+const loader = new GLTFLoader();
+const clock = new THREE.Clock();
+
+let boyModel = null;
+let levelModel = null;
+let warpedPanorama = null;
+let mixer = null;
+const animations = {};
+let currentAction = null;
+
+// Load paperboy
+loader.load('paperboy.glb', (gltf) => {
+    boyModel = gltf.scene;
+    boyModel.traverse(child => {
+        if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+        }
+    });
+    // Rotate 90 degrees right by default
+    boyModel.rotation.y = THREE.MathUtils.degToRad(90);
+    scene.add(boyModel);
+
+    // Setup animation mixer
+    mixer = new THREE.AnimationMixer(boyModel);
+    gltf.animations.forEach(clip => {
+        const name = clip.name;
+        animations[name] = mixer.clipAction(clip);
+        console.log(`Animation: ${name} (${clip.duration.toFixed(2)}s)`);
+    });
+
+    // Build animation GUI after loading
+    buildAnimationGUI();
+
+    // Play Idle by default
+    const defaultAnim = animations['Idle'] || animations[Object.keys(animations)[0]];
+    if (defaultAnim) {
+        state.currentAnimation = defaultAnim === animations['Idle'] ? 'Idle' : Object.keys(animations)[0];
+        currentAction = defaultAnim;
+        currentAction.play();
+    }
+
+    console.log('Paperboy loaded');
+}, undefined, (err) => console.error('Error loading paperboy:', err));
+
+// Load level
+loader.load('paper-level.glb', (gltf) => {
+    levelModel = gltf.scene;
+    levelModel.traverse(child => {
+        if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+        }
+        // Find WarpedPanorama.001
+        if (child.name === 'WarpedPanorama001' || child.name === 'WarpedPanorama.001' ||
+            child.name.toLowerCase().includes('warpedpanorama')) {
+            warpedPanorama = child;
+            console.log(`Found WarpedPanorama: ${child.name}`);
+        }
+    });
+    scene.add(levelModel);
+
+    // If not found by exact name, search more broadly
+    if (!warpedPanorama) {
+        levelModel.traverse(child => {
+            if (child.name.toLowerCase().includes('warped') || child.name.toLowerCase().includes('panorama')) {
+                warpedPanorama = child;
+                console.log(`Found WarpedPanorama (broad search): ${child.name}`);
+            }
+        });
+    }
+
+    console.log('Level loaded');
+}, undefined, (err) => console.error('Error loading level:', err));
+
+// --- GUI ---
+const gui = new GUI({ width: 310, title: 'Paperboy Research' });
+
+// Animation folder - built after load
+let animFolder = null;
+function buildAnimationGUI() {
+    if (animFolder) animFolder.destroy();
+    animFolder = gui.addFolder('Animation');
+    animFolder.open();
+
+    const animNames = Object.keys(animations);
+    if (animNames.length > 0) {
+        animFolder.add(state, 'currentAnimation', animNames).name('Clip').onChange(name => {
+            if (currentAction) {
+                currentAction.fadeOut(0.3);
+            }
+            currentAction = animations[name];
+            currentAction.reset().fadeIn(0.3).play();
+        });
+    }
+    animFolder.add(state, 'animationSpeed', 0, 3, 0.05).name('Speed').onChange(v => {
+        if (mixer) mixer.timeScale = v;
+    });
+    animFolder.add(state, 'animationPaused').name('Paused').onChange(v => {
+        if (currentAction) currentAction.paused = v;
+    });
+}
+
+// Paperboy folder
+const boyFolder = gui.addFolder('Paperboy');
+boyFolder.open();
+boyFolder.add(state, 'boyVisible').name('Visible').onChange(v => {
+    if (boyModel) boyModel.visible = v;
+});
+boyFolder.add(state, 'boyWireframe').name('Wireframe').onChange(v => {
+    if (boyModel) boyModel.traverse(c => { if (c.isMesh) c.material.wireframe = v; });
+});
+boyFolder.add(state.boyPosition, 'x', -50, 50, 0.1).name('Position X').onChange(updateBoyTransform);
+boyFolder.add(state.boyPosition, 'y', -10, 20, 0.1).name('Position Y').onChange(updateBoyTransform);
+boyFolder.add(state.boyPosition, 'z', -50, 50, 0.1).name('Position Z').onChange(updateBoyTransform);
+boyFolder.add(state, 'boyRotationY', -180, 180, 1).name('Rotation Y').onChange(updateBoyTransform);
+boyFolder.add(state, 'boyScale', 0.1, 5, 0.05).name('Scale').onChange(updateBoyTransform);
+
+function updateBoyTransform() {
+    if (!boyModel) return;
+    boyModel.position.set(state.boyPosition.x, state.boyPosition.y, state.boyPosition.z);
+    boyModel.rotation.y = THREE.MathUtils.degToRad(state.boyRotationY);
+    boyModel.scale.setScalar(state.boyScale);
+}
+
+// Level folder
+const levelFolder = gui.addFolder('Level');
+levelFolder.open();
+levelFolder.add(state, 'levelVisible').name('Visible').onChange(v => {
+    if (levelModel) levelModel.visible = v;
+});
+levelFolder.add(state, 'showWarpedPanorama').name('WarpedPanorama').onChange(v => {
+    if (warpedPanorama) warpedPanorama.visible = v;
+});
+levelFolder.add(state, 'levelWireframe').name('Wireframe').onChange(v => {
+    if (levelModel) levelModel.traverse(c => { if (c.isMesh) c.material.wireframe = v; });
+});
+levelFolder.add(state.levelPosition, 'x', -50, 50, 0.1).name('Position X').onChange(updateLevelTransform);
+levelFolder.add(state.levelPosition, 'y', -10, 20, 0.1).name('Position Y').onChange(updateLevelTransform);
+levelFolder.add(state.levelPosition, 'z', -50, 50, 0.1).name('Position Z').onChange(updateLevelTransform);
+levelFolder.add(state, 'levelRotationY', -180, 180, 1).name('Rotation Y').onChange(updateLevelTransform);
+levelFolder.add(state, 'levelScale', 0.01, 5, 0.01).name('Scale').onChange(updateLevelTransform);
+
+function updateLevelTransform() {
+    if (!levelModel) return;
+    levelModel.position.set(state.levelPosition.x, state.levelPosition.y, state.levelPosition.z);
+    levelModel.rotation.y = THREE.MathUtils.degToRad(state.levelRotationY);
+    levelModel.scale.setScalar(state.levelScale);
+}
+
+// Camera folder
+const camFolder = gui.addFolder('Camera');
+camFolder.open();
+camFolder.add(state, 'useOrthoCamera').name('Use OrthoCamera').onChange(v => {
+    if (v) {
+        activeCamera = orthoCamera;
+        controls.enabled = false;
+    } else {
+        activeCamera = orbitCamera;
+        controls.enabled = true;
+    }
+});
+camFolder.add({ resetCamera() {
+    orbitCamera.position.set(8, 6, 12);
+    controls.target.set(0, 2, 0);
+    controls.update();
+    state.useOrthoCamera = false;
+    activeCamera = orbitCamera;
+    controls.enabled = true;
+    gui.controllersRecursive().forEach(c => { if (c.property === 'useOrthoCamera') c.updateDisplay(); });
+}}, 'resetCamera').name('Reset Camera');
+camFolder.add({ topDown() {
+    orbitCamera.position.set(0, 30, 0.1);
+    controls.target.set(0, 0, 0);
+    controls.update();
+}}, 'topDown').name('Top Down View');
+camFolder.add({ side() {
+    orbitCamera.position.set(20, 3, 0);
+    controls.target.set(0, 2, 0);
+    controls.update();
+}}, 'side').name('Side View');
+camFolder.add({ front() {
+    orbitCamera.position.set(0, 3, 20);
+    controls.target.set(0, 2, 0);
+    controls.update();
+}}, 'front').name('Front View');
+
+// Lighting folder
+const lightFolder = gui.addFolder('Lighting');
+lightFolder.add(state, 'ambientIntensity', 0, 3, 0.05).name('Ambient').onChange(v => ambientLight.intensity = v);
+lightFolder.add(state, 'dirLightIntensity', 0, 5, 0.1).name('Directional').onChange(v => dirLight.intensity = v);
+lightFolder.add(state, 'hemiIntensity', 0, 3, 0.05).name('Hemisphere').onChange(v => hemiLight.intensity = v);
+lightFolder.add(state, 'toneExposure', 0.1, 3, 0.05).name('Exposure').onChange(v => renderer.toneMappingExposure = v);
+lightFolder.add(state, 'shadowsEnabled').name('Shadows').onChange(v => {
+    renderer.shadowMap.enabled = v;
+    scene.traverse(c => { if (c.isMesh) { c.castShadow = v; c.receiveShadow = v; } });
+});
+
+// Scene folder
+const sceneFolder = gui.addFolder('Scene');
+sceneFolder.addColor(state, 'bgColor').name('Background').onChange(v => {
+    scene.background.set(v);
+    scene.fog.color.set(v);
+});
+sceneFolder.add(state, 'showGround').name('Ground').onChange(v => ground.visible = v);
+sceneFolder.add(state, 'showGrid').name('Grid').onChange(v => gridHelper.visible = v);
+sceneFolder.add(state, 'showAxes').name('Axes').onChange(v => axesHelper.visible = v);
+sceneFolder.add(state, 'fogNear', 0, 200, 1).name('Fog Near').onChange(v => scene.fog.near = v);
+sceneFolder.add(state, 'fogFar', 10, 500, 1).name('Fog Far').onChange(v => scene.fog.far = v);
+
+// --- Animate ---
+function animate() {
+    requestAnimationFrame(animate);
+    const dt = clock.getDelta();
+    if (mixer) mixer.update(dt);
+    if (activeCamera === orbitCamera) controls.update();
+    renderer.render(scene, activeCamera);
+}
+animate();
+
+// --- Resize ---
+window.addEventListener('resize', () => {
+    const w = innerWidth, h = innerHeight;
+    // Orbit camera
+    orbitCamera.aspect = w / h;
+    orbitCamera.updateProjectionMatrix();
+    // Ortho camera
+    const a = w / h;
+    const halfH = 14.5 / 2;
+    orthoCamera.left = -halfH * a;
+    orthoCamera.right = halfH * a;
+    orthoCamera.top = halfH;
+    orthoCamera.bottom = -halfH;
+    orthoCamera.updateProjectionMatrix();
+
+    renderer.setSize(w, h);
+});
+</script>
+</body>
+</html>
