@@ -39,7 +39,7 @@
             padding: 40px; max-width: 420px; text-align: center; color: #fff;
         }
         .overlay-box h2 { font-size: 28px; margin-bottom: 15px; color: #0ff; text-shadow: 0 0 20px rgba(0,255,255,0.5); }
-        .overlay-box p { font-size: 15px; line-height: 1.6; margin-bottom: 8px; opacity: 0.85; }
+        .overlay-box p { font-size: 15px; line-height: 1.7; margin-bottom: 8px; opacity: 0.85; }
         .overlay-box .key { display: inline-block; background: rgba(255,255,255,0.15); padding: 2px 8px; border-radius: 4px; font-family: monospace; }
         .start-btn {
             margin-top: 20px; padding: 14px 50px; font-size: 20px;
@@ -55,11 +55,12 @@
     <div id="overlay">
         <div class="overlay-box">
             <h2>Cyber Lane Jumper</h2>
-            <p>You're a data packet racing through fiber-optic lanes!</p>
-            <p><span class="key">Swipe Up/Down</span> or <span class="key">Arrow Keys</span> to switch lanes</p>
-            <p><span class="key">Tap</span> or <span class="key">Space</span> to shift color</p>
-            <p>Match the gate color to pass through. Wrong color = crash!</p>
-            <p>Watch out for Route Scrambles!</p>
+            <p>You're a data packet racing through the network!</p>
+            <p>Each lane has a color. <b>Your packet matches the lane you're in.</b></p>
+            <p><span class="key">Swipe Up/Down</span> to switch lanes</p>
+            <p>Be in the <b>matching color lane</b> when a gate reaches you.</p>
+            <p>Dodge the <b>GLITCH</b> blocks &mdash; they crash anything!</p>
+            <p>Watch out for <b>Route Scrambles</b> that shuffle the lanes!</p>
             <button class="start-btn" id="startBtn">CONNECT</button>
         </div>
     </div>
@@ -73,8 +74,7 @@ const startBtn = document.getElementById('startBtn');
 // --- Audio ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 function playPing() {
-    const o = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
     o.connect(g); g.connect(audioCtx.destination);
     o.type = 'sine'; o.frequency.value = 1200;
     g.gain.setValueAtTime(0.15, audioCtx.currentTime);
@@ -82,20 +82,17 @@ function playPing() {
     o.start(); o.stop(audioCtx.currentTime + 0.15);
 }
 function playCrash() {
-    const bufSize = audioCtx.sampleRate * 0.3;
-    const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufSize);
-    const src = audioCtx.createBufferSource();
-    const g = audioCtx.createGain();
-    src.buffer = buf; src.connect(g); g.connect(audioCtx.destination);
+    const n = audioCtx.sampleRate * 0.3, buf = audioCtx.createBuffer(1, n, audioCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const s = audioCtx.createBufferSource(), g = audioCtx.createGain();
+    s.buffer = buf; s.connect(g); g.connect(audioCtx.destination);
     g.gain.setValueAtTime(0.25, audioCtx.currentTime);
     g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
-    src.start();
+    s.start();
 }
 function playScramble() {
-    const o = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
     o.connect(g); g.connect(audioCtx.destination);
     o.type = 'sawtooth'; o.frequency.value = 80;
     o.frequency.linearRampToValueAtTime(300, audioCtx.currentTime + 0.4);
@@ -106,7 +103,7 @@ function playScramble() {
 
 // --- localStorage ---
 function loadArcadeData() {
-    try { const raw = localStorage.getItem('calebArcadeData'); return raw ? JSON.parse(raw) : {}; } catch(e) { return {}; }
+    try { return JSON.parse(localStorage.getItem('calebArcadeData')) || {}; } catch(e) { return {}; }
 }
 function saveHighScore(s) {
     const data = loadArcadeData();
@@ -120,271 +117,233 @@ function getHighScore() {
 }
 
 let W, H;
-function resize() {
-    W = canvas.width = window.innerWidth;
-    H = canvas.height = window.innerHeight;
-}
+function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
 resize();
 window.addEventListener('resize', resize);
 
-// --- Colors ---
-const COLORS = [
-    { name: 'Red',   fill: '#ff2255', glow: 'rgba(255,34,85,0.6)',   dim: '#661122' },
-    { name: 'Blue',  fill: '#2266ff', glow: 'rgba(34,102,255,0.6)',  dim: '#112266' },
-    { name: 'Green', fill: '#22ff66', glow: 'rgba(34,255,102,0.6)',  dim: '#116622' },
+// --- Lane Colors ---
+const LANE_COLORS = [
+    { name: 'RED',   fill: '#ff2255', glow: 'rgba(255,34,85,0.5)',  dim: 'rgba(102,17,34,0.35)', light: '#ff6688' },
+    { name: 'BLUE',  fill: '#2266ff', glow: 'rgba(34,102,255,0.5)', dim: 'rgba(17,34,102,0.35)', light: '#6699ff' },
+    { name: 'GREEN', fill: '#22ff66', glow: 'rgba(34,255,102,0.5)', dim: 'rgba(17,102,34,0.35)', light: '#66ff99' },
 ];
 
-// --- Game State ---
-let gameStarted = false, gameOver = false;
+// --- State ---
+let gameStarted = false, gameOver = false, gameOverAnim = 0;
 let score = 0, highScore = getHighScore();
-let laneOrder = [0, 1, 2];
-let playerLane = 1;
-let playerColor = 0;
-let gates = [];
-let gateSpeed = 3;
-let spawnTimer = 0;
-let spawnInterval = 70;
-let elapsed = 0;
-let scrambleTimer = 0;
-let scrambleAnim = 0;
-let screenShake = 0;
-let particles = [];
-let matchParticles = [];
+let laneColors = [0, 1, 2]; // which color index each lane slot has
+let playerLane = 1; // 0=top, 1=mid, 2=bot
+let playerVisualY = 0, playerTargetY = 0;
+let gates = [], particles = [], matchParticles = [];
+let gateSpeed = 3, spawnTimer = 0, spawnInterval = 80;
+let elapsed = 0, frameCount = 0, difficulty = 0;
+let scrambleTimer = 0, scrambleAnim = 0, screenShake = 0;
 let scrollOffset = 0;
-let frameCount = 0;
-let difficulty = 0;
-let fourLaneMode = false;
-let fourLaneTimer = 0;
-let nextFourLaneAt = 600;
 let animFrame;
 
-// Smooth lane transition
-let playerVisualY = 0;
-let playerTargetY = 0;
+// 4-lane mode
+let fourLaneMode = false, fourLaneTimer = 0, nextFourLaneAt = 700;
 
-// Background grid lines
-let gridLines = [];
-for (let i = 0; i < 40; i++) {
-    gridLines.push({ x: Math.random() * 2000, speed: 0.5 + Math.random() * 2, alpha: 0.03 + Math.random() * 0.08 });
-}
-
-// Scrolling code rain
-let codeDrops = [];
-for (let i = 0; i < 30; i++) {
-    codeDrops.push({
-        x: Math.random() * 2000, y: Math.random() * 2000,
-        speed: 30 + Math.random() * 80, char: String.fromCharCode(0x30A0 + Math.random() * 96),
-        alpha: 0.05 + Math.random() * 0.1, size: 10 + Math.random() * 14
-    });
-}
+// Background
+const gridLines = Array.from({length: 40}, () => ({
+    x: Math.random() * 2000, speed: 0.5 + Math.random() * 2, alpha: 0.03 + Math.random() * 0.07
+}));
+const codeDrops = Array.from({length: 25}, () => ({
+    x: Math.random() * 2000, y: Math.random() * 2000,
+    speed: 30 + Math.random() * 80, char: String.fromCharCode(0x30A0 + Math.random() * 96),
+    alpha: 0.04 + Math.random() * 0.08, size: 10 + Math.random() * 14
+}));
 
 function getTotalLanes() { return fourLaneMode ? 4 : 3; }
 
 function getLaneY(slot) {
-    const total = getTotalLanes();
-    const laneH = H / (total + 1);
-    return laneH * (slot + 1);
+    const t = getTotalLanes();
+    return H / (t + 1) * (slot + 1);
 }
 
-function getLaneHeight() {
-    const total = getTotalLanes();
-    return H / (total + 1) * 0.6;
+function getLaneH() {
+    return H / (getTotalLanes() + 1) * 0.55;
 }
 
+function getPlayerColor() {
+    return laneColors[playerLane] % 3;
+}
+
+// --- Spawning ---
 function spawnGate() {
     const total = getTotalLanes();
+    // Pick a random color for the gate
+    const color = Math.floor(Math.random() * 3);
+    // The gate appears in a random lane
     const lane = Math.floor(Math.random() * total);
-    const isGlitch = Math.random() < 0.12 + difficulty * 0.01;
-    const color = isGlitch ? -1 : Math.floor(Math.random() * 3);
-    gates.push({
-        x: W + 60,
-        lane,
-        color,
-        width: 40 + Math.random() * 20,
-        passed: false
-    });
+    gates.push({ x: W + 60, lane, color, width: 45 + Math.random() * 15, passed: false, isGlitch: false });
 }
 
-function createMatchEffect(x, y, color) {
-    for (let i = 0; i < 15; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        const speed = 2 + Math.random() * 4;
-        matchParticles.push({
-            x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-            life: 1, color: COLORS[color].fill, radius: 2 + Math.random() * 4
-        });
+function spawnGlitch() {
+    const total = getTotalLanes();
+    const lane = Math.floor(Math.random() * total);
+    gates.push({ x: W + 60, lane, color: -1, width: 50 + Math.random() * 20, passed: false, isGlitch: true });
+}
+
+// --- Effects ---
+function createMatchEffect(x, y, colorIdx) {
+    const c = LANE_COLORS[colorIdx];
+    for (let i = 0; i < 16; i++) {
+        const a = Math.random() * Math.PI * 2, sp = 2 + Math.random() * 5;
+        matchParticles.push({ x, y, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp, life: 1, color: c.fill, radius: 2+Math.random()*5 });
     }
 }
-
 function createCrashEffect(x, y) {
-    for (let i = 0; i < 30; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        const speed = 3 + Math.random() * 8;
-        particles.push({
-            x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-            life: 1, color: ['#ff0044', '#ff6600', '#ffaa00', '#fff', '#ff2266'][Math.floor(Math.random() * 5)],
-            radius: 2 + Math.random() * 6
-        });
+    for (let i = 0; i < 35; i++) {
+        const a = Math.random() * Math.PI * 2, sp = 3 + Math.random() * 9;
+        particles.push({ x, y, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp, life: 1,
+            color: ['#ff0044','#ff6600','#ffaa00','#fff','#ff2266'][Math.floor(Math.random()*5)],
+            radius: 2+Math.random()*7 });
     }
 }
 
 function triggerScramble() {
     playScramble();
-    scrambleAnim = 40;
+    scrambleAnim = 50;
     screenShake = 25;
-    const total = getTotalLanes();
-    for (let i = total - 1; i > 0; i--) {
+    const t = getTotalLanes();
+    for (let i = t - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
-        [laneOrder[i], laneOrder[j]] = [laneOrder[j], laneOrder[i]];
+        [laneColors[i], laneColors[j]] = [laneColors[j], laneColors[i]];
     }
 }
 
 // --- Input ---
-let touchStartX = 0, touchStartY = 0;
+let touchStartY = 0;
 
 function switchLane(dir) {
-    const total = getTotalLanes();
-    playerLane = Math.max(0, Math.min(total - 1, playerLane + dir));
+    playerLane = Math.max(0, Math.min(getTotalLanes() - 1, playerLane + dir));
     playerTargetY = getLaneY(playerLane);
-}
-
-function cycleColor() {
-    playerColor = (playerColor + 1) % 3;
 }
 
 document.addEventListener('keydown', (e) => {
     if (!gameStarted || gameOver) return;
     if (e.key === 'ArrowUp' || e.key === 'w') switchLane(-1);
     else if (e.key === 'ArrowDown' || e.key === 's') switchLane(1);
-    else if (e.key === ' ') { e.preventDefault(); cycleColor(); }
 });
 
 canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
     if (!gameStarted || gameOver) return;
     audioCtx.resume();
-    touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
 }, { passive: false });
 
 canvas.addEventListener('touchend', (e) => {
     e.preventDefault();
     if (!gameStarted || gameOver) return;
-    const dx = e.changedTouches[0].clientX - touchStartX;
     const dy = e.changedTouches[0].clientY - touchStartY;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < 20) cycleColor();
-    else if (Math.abs(dy) > Math.abs(dx)) switchLane(dy > 0 ? 1 : -1);
-    else cycleColor();
+    if (Math.abs(dy) > 15) switchLane(dy > 0 ? 1 : -1);
 }, { passive: false });
 
-canvas.addEventListener('mousedown', (e) => {
-    if (!gameStarted || gameOver) return;
-    touchStartX = e.clientX; touchStartY = e.clientY;
-});
+canvas.addEventListener('mousedown', (e) => { if (gameStarted && !gameOver) touchStartY = e.clientY; });
 canvas.addEventListener('mouseup', (e) => {
     if (!gameStarted || gameOver) return;
-    const dx = e.clientX - touchStartX;
     const dy = e.clientY - touchStartY;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < 20) cycleColor();
-    else if (Math.abs(dy) > Math.abs(dx)) switchLane(dy > 0 ? 1 : -1);
-    else cycleColor();
+    if (Math.abs(dy) > 15) switchLane(dy > 0 ? 1 : -1);
 });
 
-// --- Player ---
+// --- Update ---
 const PLAYER_X = 100;
 
-// --- Update ---
 function update() {
     frameCount++;
     elapsed++;
     scrollOffset += gateSpeed;
 
-    difficulty = Math.min(elapsed / 3600, 5);
-    gateSpeed = 3 + difficulty * 1.5;
-    spawnInterval = Math.max(25, 70 - difficulty * 8);
+    difficulty = Math.min(elapsed / 3000, 6);
+    gateSpeed = 3.5 + difficulty * 1.4;
+    spawnInterval = Math.max(28, 80 - difficulty * 8);
 
     // 4-lane mode
     fourLaneTimer++;
-    if (!fourLaneMode && fourLaneTimer >= nextFourLaneAt) {
+    if (!fourLaneMode && fourLaneTimer >= nextFourLaneAt && difficulty >= 1.5) {
         fourLaneMode = true;
-        laneOrder = [0, 1, 2, 3];
+        laneColors = [0, 1, 2, Math.floor(Math.random() * 3)];
         if (playerLane > 3) playerLane = 3;
         fourLaneTimer = 0;
-        nextFourLaneAt = 800 + Math.random() * 600;
+        nextFourLaneAt = 800 + Math.random() * 500;
         playerTargetY = getLaneY(playerLane);
-    } else if (fourLaneMode && fourLaneTimer >= 300 + Math.random() * 200) {
+    } else if (fourLaneMode && fourLaneTimer >= 350) {
         fourLaneMode = false;
-        laneOrder = [0, 1, 2];
+        laneColors = laneColors.slice(0, 3);
         if (playerLane > 2) playerLane = 2;
         fourLaneTimer = 0;
         playerTargetY = getLaneY(playerLane);
     }
 
-    // Scramble every ~10 seconds
+    // Scramble
     scrambleTimer++;
-    if (scrambleTimer >= 600) {
-        scrambleTimer = 0;
-        triggerScramble();
-    }
+    if (scrambleTimer >= 600) { scrambleTimer = 0; triggerScramble(); }
 
-    // Spawn gates
+    // Spawning
     spawnTimer++;
     if (spawnTimer >= spawnInterval) {
         spawnTimer = 0;
-        spawnGate();
-        if (Math.random() < difficulty * 0.1) spawnGate();
+        if (Math.random() < 0.15 + difficulty * 0.015) {
+            spawnGlitch();
+        } else {
+            spawnGate();
+        }
+        // Extra gate at higher difficulty
+        if (Math.random() < difficulty * 0.08) spawnGate();
     }
 
-    // Smooth lane movement
+    // Smooth lane transition
     playerTargetY = getLaneY(playerLane);
-    playerVisualY += (playerTargetY - playerVisualY) * 0.25;
+    playerVisualY += (playerTargetY - playerVisualY) * 0.28;
 
-    // Move gates & check collisions
+    // Gates
     for (let i = gates.length - 1; i >= 0; i--) {
         const g = gates[i];
         g.x -= gateSpeed;
 
-        if (!g.passed && g.x < PLAYER_X + 20 && g.x + g.width > PLAYER_X - 20) {
-            if (g.lane === playerLane) {
-                if (g.color === -1) {
-                    playCrash();
-                    createCrashEffect(PLAYER_X, playerVisualY);
-                    screenShake = 15;
-                    endGame();
-                    return;
-                } else if (g.color === playerColor) {
-                    playPing();
-                    score += 100;
-                    createMatchEffect(g.x, getLaneY(g.lane), g.color);
-                    g.passed = true;
-                } else {
-                    playCrash();
-                    createCrashEffect(PLAYER_X, playerVisualY);
-                    screenShake = 15;
-                    endGame();
-                    return;
-                }
+        // Collision check
+        if (!g.passed && g.x < PLAYER_X + 18 && g.x + g.width > PLAYER_X - 18 && g.lane === playerLane) {
+            if (g.isGlitch) {
+                // Glitch = always crash
+                playCrash();
+                createCrashEffect(PLAYER_X, playerVisualY);
+                screenShake = 20;
+                endGame(); return;
+            } else if (g.color === getPlayerColor()) {
+                // Color match! Pass through
+                playPing();
+                score += 100;
+                createMatchEffect(g.x, getLaneY(g.lane), g.color);
+                g.passed = true;
+            } else {
+                // Mismatch = crash
+                playCrash();
+                createCrashEffect(PLAYER_X, playerVisualY);
+                screenShake = 20;
+                endGame(); return;
             }
         }
 
         if (g.x + g.width < -10) gates.splice(i, 1);
     }
 
-    if (screenShake > 0) { screenShake *= 0.9; if (screenShake < 0.5) screenShake = 0; }
+    // Decay
+    if (screenShake > 0) { screenShake *= 0.88; if (screenShake < 0.5) screenShake = 0; }
     if (scrambleAnim > 0) scrambleAnim--;
 
+    // Particles
     for (let i = matchParticles.length - 1; i >= 0; i--) {
-        const p = matchParticles[i];
-        p.x += p.vx; p.y += p.vy; p.life -= 0.025;
+        const p = matchParticles[i]; p.x += p.vx; p.y += p.vy; p.life -= 0.025;
         if (p.life <= 0) matchParticles.splice(i, 1);
     }
     for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i];
-        p.x += p.vx; p.y += p.vy; p.vy += 0.1; p.life -= 0.02;
+        const p = particles[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.1; p.life -= 0.018;
         if (p.life <= 0) particles.splice(i, 1);
     }
+
+    // Code rain
     for (const d of codeDrops) {
         d.y += d.speed * 0.016;
         if (d.y > H + 20) { d.y = -20; d.x = Math.random() * W; d.char = String.fromCharCode(0x30A0 + Math.random() * 96); }
@@ -393,34 +352,42 @@ function update() {
 
 function endGame() {
     gameOver = true;
+    gameOverAnim = 0;
     saveHighScore(score);
     highScore = getHighScore();
-    showGameOver();
 }
 
 // --- Draw ---
+function drawRoundedRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+}
+
 function draw() {
-    const shakeX = screenShake ? (Math.random() - 0.5) * screenShake * 2 : 0;
-    const shakeY = screenShake ? (Math.random() - 0.5) * screenShake * 2 : 0;
-
+    const sx = screenShake ? (Math.random() - 0.5) * screenShake * 2 : 0;
+    const sy = screenShake ? (Math.random() - 0.5) * screenShake * 2 : 0;
     ctx.save();
-    ctx.translate(shakeX, shakeY);
+    ctx.translate(sx, sy);
 
-    // Background
-    ctx.fillStyle = '#0a0a1a';
+    // BG
+    ctx.fillStyle = '#080818';
     ctx.fillRect(-10, -10, W + 20, H + 20);
 
-    // Vertical grid lines scrolling
-    ctx.lineWidth = 1;
+    // Vertical grid scrolling
     for (const gl of gridLines) {
         const x = ((gl.x - scrollOffset * gl.speed) % (W + 200) + W + 200) % (W + 200) - 100;
         ctx.strokeStyle = `rgba(0,255,200,${gl.alpha})`;
+        ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
     }
-
     // Horizontal grid
-    for (let i = 0; i < H; i += 60) {
-        ctx.strokeStyle = 'rgba(0,255,200,0.025)';
+    for (let i = 0; i < H; i += 50) {
+        ctx.strokeStyle = 'rgba(0,255,200,0.02)';
         ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(W, i); ctx.stroke();
     }
 
@@ -433,178 +400,164 @@ function draw() {
     }
     ctx.globalAlpha = 1;
 
-    // Draw lanes
+    // --- Lanes ---
     const total = getTotalLanes();
-    const laneH = getLaneHeight();
+    const laneH = getLaneH();
 
     for (let slot = 0; slot < total; slot++) {
         const y = getLaneY(slot);
-        const laneIdx = laneOrder[slot] % 3;
-        const c = COLORS[laneIdx];
+        const ci = laneColors[slot] % 3;
+        const c = LANE_COLORS[ci];
+        const isPlayerHere = slot === playerLane;
 
-        // Lane background
+        // Lane bg
         ctx.fillStyle = c.dim;
-        ctx.globalAlpha = 0.25;
+        ctx.globalAlpha = isPlayerHere ? 0.4 : 0.2;
         ctx.fillRect(0, y - laneH / 2, W, laneH);
-        ctx.globalAlpha = 1;
 
-        // Lane borders
+        // Lane border glow
         ctx.strokeStyle = c.fill;
-        ctx.globalAlpha = 0.3;
-        ctx.lineWidth = 1;
-        ctx.setLineDash([8, 12]);
+        ctx.globalAlpha = isPlayerHere ? 0.5 : 0.2;
+        ctx.lineWidth = isPlayerHere ? 2 : 1;
         ctx.beginPath(); ctx.moveTo(0, y - laneH / 2); ctx.lineTo(W, y - laneH / 2); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(0, y + laneH / 2); ctx.lineTo(W, y + laneH / 2); ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.globalAlpha = 1;
 
-        // Scrolling data stream dots in lanes
-        ctx.globalAlpha = 0.08;
+        // Scrolling data dots
+        ctx.globalAlpha = 0.06;
         ctx.fillStyle = c.fill;
-        for (let dx = 0; dx < W + 40; dx += 40) {
-            const dotX = ((dx - scrollOffset * 1.5) % (W + 40) + W + 40) % (W + 40) - 20;
-            ctx.beginPath(); ctx.arc(dotX, y, 2, 0, Math.PI * 2); ctx.fill();
+        for (let dx = 0; dx < W + 50; dx += 50) {
+            const dotX = ((dx - scrollOffset * 1.2) % (W + 50) + W + 50) % (W + 50) - 25;
+            ctx.beginPath(); ctx.arc(dotX, y, 1.5, 0, Math.PI * 2); ctx.fill();
         }
-        ctx.globalAlpha = 1;
 
-        // Lane label
+        // Lane color label on right
+        ctx.globalAlpha = isPlayerHere ? 0.6 : 0.2;
         ctx.fillStyle = c.fill;
-        ctx.globalAlpha = 0.25;
-        ctx.font = 'bold 11px monospace';
-        ctx.textAlign = 'right';
-        ctx.fillText(`LANE ${laneOrder[slot]}`, W - 10, y + 4);
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+        ctx.fillText(c.name, W - 12, y);
+
         ctx.globalAlpha = 1;
     }
 
-    // Draw gates
+    // --- Gates ---
     for (const g of gates) {
         if (g.passed) continue;
         const y = getLaneY(g.lane);
         const h = laneH * 0.7;
 
-        if (g.color === -1) {
-            // Glitch block
+        if (g.isGlitch) {
             const pulse = 0.6 + 0.4 * Math.sin(frameCount * 0.2);
-            ctx.fillStyle = `rgba(255,0,0,${0.3 * pulse})`;
-            ctx.fillRect(g.x - 2, y - h / 2 - 2, g.width + 4, h + 4);
+            // Red danger border
+            ctx.strokeStyle = `rgba(255,0,0,${0.6 * pulse})`;
+            ctx.lineWidth = 3;
+            ctx.strokeRect(g.x - 2, y - h / 2 - 2, g.width + 4, h + 4);
 
+            // Static noise
             for (let px = 0; px < g.width; px += 4) {
                 for (let py = 0; py < h; py += 4) {
                     const b = Math.random();
-                    ctx.fillStyle = `rgba(${b > 0.5 ? 255 : 100},${b > 0.7 ? 50 : 0},${b > 0.8 ? 50 : 0},${0.5 + b * 0.5})`;
+                    ctx.fillStyle = `rgba(${b > 0.5 ? 200 : 80},${b > 0.8 ? 40 : 0},${b > 0.9 ? 40 : 0},${0.6 + b * 0.4})`;
                     ctx.fillRect(g.x + px, y - h / 2 + py, 3, 3);
                 }
             }
 
-            ctx.fillStyle = '#ff0044';
-            ctx.font = 'bold 11px monospace';
-            ctx.textAlign = 'center';
-            ctx.globalAlpha = pulse;
-            ctx.fillText('GLITCH', g.x + g.width / 2, y + 4);
-            ctx.globalAlpha = 1;
+            // Warning X
+            ctx.strokeStyle = `rgba(255,50,50,${0.7 + 0.3 * pulse})`;
+            ctx.lineWidth = 4; ctx.lineCap = 'round';
+            const cx = g.x + g.width / 2, xsz = Math.min(g.width, h) * 0.3;
+            ctx.beginPath(); ctx.moveTo(cx - xsz, y - xsz); ctx.lineTo(cx + xsz, y + xsz); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(cx + xsz, y - xsz); ctx.lineTo(cx - xsz, y + xsz); ctx.stroke();
+            ctx.lineCap = 'butt';
         } else {
-            const c = COLORS[g.color];
+            const c = LANE_COLORS[g.color];
 
-            // Glow
-            ctx.shadowColor = c.fill;
-            ctx.shadowBlur = 15;
+            // Glow behind
+            ctx.shadowColor = c.fill; ctx.shadowBlur = 18;
 
-            // Body
+            // Gate body
             ctx.fillStyle = c.fill;
-            ctx.globalAlpha = 0.8;
-            ctx.fillRect(g.x, y - h / 2, g.width, h);
+            ctx.globalAlpha = 0.85;
+            drawRoundedRect(g.x, y - h / 2, g.width, h, 5);
+            ctx.fill();
 
-            // Highlight
-            ctx.fillStyle = '#fff';
-            ctx.globalAlpha = 0.15;
-            ctx.fillRect(g.x + 3, y - h / 2 + 3, g.width - 6, h / 3);
+            // Inner shine
+            ctx.fillStyle = 'rgba(255,255,255,0.15)';
+            ctx.fillRect(g.x + 3, y - h / 2 + 3, g.width - 6, h * 0.35);
 
             // Border
             ctx.globalAlpha = 1;
-            ctx.strokeStyle = c.fill;
+            ctx.strokeStyle = c.light;
             ctx.lineWidth = 2;
-            ctx.strokeRect(g.x, y - h / 2, g.width, h);
+            drawRoundedRect(g.x, y - h / 2, g.width, h, 5);
+            ctx.stroke();
 
-            // Letter
+            // Color letter
             ctx.fillStyle = '#fff';
-            ctx.globalAlpha = 0.9;
-            ctx.font = 'bold 16px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText(['R', 'B', 'G'][g.color], g.x + g.width / 2, y + 6);
+            ctx.font = 'bold 18px monospace';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(c.name[0], g.x + g.width / 2, y);
             ctx.globalAlpha = 1;
             ctx.shadowBlur = 0;
         }
     }
 
-    // Draw player
+    // --- Player ---
     const py = playerVisualY;
-    const pc = COLORS[playerColor];
+    const pci = getPlayerColor();
+    const pc = LANE_COLORS[pci];
     const pulse = 0.8 + 0.2 * Math.sin(frameCount * 0.1);
-    const sz = 22;
+    const sz = 24;
 
-    // Glow
-    const glowGrad = ctx.createRadialGradient(PLAYER_X, py, sz * 0.3, PLAYER_X, py, sz * 2.5);
-    glowGrad.addColorStop(0, pc.glow);
-    glowGrad.addColorStop(1, 'transparent');
-    ctx.fillStyle = glowGrad;
+    // Radial glow
+    const gg = ctx.createRadialGradient(PLAYER_X, py, sz * 0.2, PLAYER_X, py, sz * 3);
+    gg.addColorStop(0, pc.glow); gg.addColorStop(1, 'transparent');
+    ctx.fillStyle = gg;
     ctx.fillRect(PLAYER_X - sz * 3, py - sz * 3, sz * 6, sz * 6);
 
     // Trail
-    for (let t = 1; t <= 5; t++) {
-        ctx.globalAlpha = 0.12 - t * 0.02;
+    for (let t = 1; t <= 6; t++) {
+        ctx.globalAlpha = 0.14 - t * 0.022;
         ctx.fillStyle = pc.fill;
-        ctx.beginPath(); ctx.arc(PLAYER_X - t * 14, py, sz - t * 2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(PLAYER_X - t * 13, py, sz - t * 2.5, 0, Math.PI * 2); ctx.fill();
     }
     ctx.globalAlpha = 1;
 
-    // Body
     ctx.save();
     ctx.translate(PLAYER_X, py);
-    ctx.rotate(Math.sin(frameCount * 0.05) * 0.08);
+    ctx.rotate(Math.sin(frameCount * 0.04) * 0.06);
 
     // Outer ring
-    ctx.strokeStyle = pc.fill;
-    ctx.lineWidth = 2;
-    ctx.globalAlpha = 0.4 * pulse;
-    ctx.beginPath(); ctx.arc(0, 0, sz + 6, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = pc.fill; ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.35 * pulse;
+    ctx.beginPath(); ctx.arc(0, 0, sz + 8, 0, Math.PI * 2); ctx.stroke();
     ctx.globalAlpha = 1;
 
-    // Rounded square body
-    ctx.shadowColor = pc.fill;
-    ctx.shadowBlur = 20;
+    // Body - rounded square
+    ctx.shadowColor = pc.fill; ctx.shadowBlur = 25;
     ctx.fillStyle = pc.fill;
-    const r = 6;
-    ctx.beginPath();
-    ctx.moveTo(-sz + r, -sz);
-    ctx.lineTo(sz - r, -sz);   ctx.quadraticCurveTo(sz, -sz, sz, -sz + r);
-    ctx.lineTo(sz, sz - r);    ctx.quadraticCurveTo(sz, sz, sz - r, sz);
-    ctx.lineTo(-sz + r, sz);   ctx.quadraticCurveTo(-sz, sz, -sz, sz - r);
-    ctx.lineTo(-sz, -sz + r);  ctx.quadraticCurveTo(-sz, -sz, -sz + r, -sz);
-    ctx.closePath();
+    drawRoundedRect(-sz, -sz, sz * 2, sz * 2, 7);
     ctx.fill();
     ctx.shadowBlur = 0;
 
-    // Inner highlight
+    // Shine
     ctx.fillStyle = 'rgba(255,255,255,0.2)';
-    ctx.fillRect(-sz + 4, -sz + 4, (sz - 4) * 2, sz * 0.6);
+    ctx.fillRect(-sz + 4, -sz + 4, sz * 2 - 8, sz * 0.7);
 
     // Color letter
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold 20px monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(['R', 'B', 'G'][playerColor], 0, 1);
+    ctx.font = 'bold 22px monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(pc.name[0], 0, 1);
 
     ctx.restore();
 
-    // Match particles
+    // --- Particles ---
     for (const p of matchParticles) {
         ctx.globalAlpha = p.life;
         ctx.fillStyle = p.color;
         ctx.beginPath(); ctx.arc(p.x, p.y, p.radius * p.life, 0, Math.PI * 2); ctx.fill();
     }
-
-    // Crash particles
     for (const p of particles) {
         ctx.globalAlpha = p.life;
         ctx.fillStyle = p.color;
@@ -612,128 +565,163 @@ function draw() {
     }
     ctx.globalAlpha = 1;
 
-    // Scramble warning
+    // --- Scramble flash ---
     if (scrambleAnim > 0) {
-        ctx.fillStyle = `rgba(255,255,0,${scrambleAnim / 40 * 0.6})`;
-        ctx.font = `bold ${40 + (40 - scrambleAnim)}px monospace`;
+        const a = scrambleAnim / 50;
+        ctx.fillStyle = `rgba(255,255,0,${a * 0.15})`;
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = `rgba(255,255,0,${a * 0.8})`;
+        ctx.font = `bold ${44 + (50 - scrambleAnim) * 0.5}px monospace`;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.shadowColor = '#ff0'; ctx.shadowBlur = 20;
         ctx.fillText('ROUTE SCRAMBLE!', W / 2, H / 2);
+        ctx.shadowBlur = 0;
     }
 
     // 4-lane indicator
     if (fourLaneMode && Math.sin(frameCount * 0.15) > 0) {
-        ctx.fillStyle = 'rgba(255,100,0,0.6)';
+        ctx.fillStyle = 'rgba(255,150,0,0.7)';
         ctx.font = 'bold 14px monospace';
         ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-        ctx.fillText('4-LANE MODE', W / 2, 50);
+        ctx.fillText('4-LANE MODE ACTIVE', W / 2, 50);
     }
 
-    // HUD
+    // --- HUD ---
     ctx.textBaseline = 'top';
+
+    // Score
     ctx.textAlign = 'right';
     ctx.fillStyle = '#0ff';
-    ctx.font = 'bold 24px monospace';
+    ctx.font = 'bold 26px monospace';
+    ctx.shadowColor = '#0ff'; ctx.shadowBlur = 8;
     ctx.fillText(`${score}`, W - 16, 14);
-    ctx.fillStyle = 'rgba(0,255,200,0.5)';
-    ctx.font = '14px monospace';
-    ctx.fillText(`BEST: ${highScore}`, W - 16, 42);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(0,255,200,0.45)';
+    ctx.font = '13px monospace';
+    ctx.fillText(`BEST: ${highScore}`, W - 16, 44);
 
-    // Current color (top center)
+    // Current color indicator
     ctx.textAlign = 'center';
     ctx.fillStyle = pc.fill;
-    ctx.font = 'bold 16px monospace';
+    ctx.font = 'bold 15px monospace';
     ctx.shadowColor = pc.fill; ctx.shadowBlur = 10;
-    ctx.fillText(`[ ${pc.name.toUpperCase()} ]`, W / 2, 14);
+    ctx.fillText(`[ ${pc.name} ]`, W / 2, 14);
     ctx.shadowBlur = 0;
 
-    // Scramble timer bar
-    const scramblePct = scrambleTimer / 600;
-    ctx.fillStyle = 'rgba(255,255,0,0.15)';
-    ctx.fillRect(0, H - 3, W * scramblePct, 3);
-    if (scramblePct > 0.8) {
-        ctx.fillStyle = `rgba(255,255,0,${0.3 + 0.3 * Math.sin(frameCount * 0.3)})`;
-        ctx.fillRect(0, H - 3, W * scramblePct, 3);
+    // Scramble timer bar (bottom)
+    const sp = scrambleTimer / 600;
+    ctx.fillStyle = 'rgba(255,255,0,0.12)';
+    ctx.fillRect(0, H - 4, W * sp, 4);
+    if (sp > 0.75) {
+        ctx.fillStyle = `rgba(255,255,0,${0.25 + 0.25 * Math.sin(frameCount * 0.3)})`;
+        ctx.fillRect(0, H - 4, W * sp, 4);
     }
 
     ctx.restore();
+
+    // --- GAME OVER overlay (drawn outside shake transform) ---
+    if (gameOver) {
+        gameOverAnim = Math.min(gameOverAnim + 0.03, 1);
+        const a = gameOverAnim;
+
+        // Full-screen dark with red tint
+        ctx.fillStyle = `rgba(10,0,0,${0.8 * a})`;
+        ctx.fillRect(0, 0, W, H);
+
+        // Scanlines
+        if (a > 0.3) {
+            for (let y = 0; y < H; y += 3) {
+                ctx.fillStyle = `rgba(255,0,0,${0.04 * a})`;
+                ctx.fillRect(0, y, W, 1);
+            }
+        }
+
+        // Red banner
+        const bannerH = 240;
+        const bannerY = H / 2 - bannerH / 2;
+        ctx.fillStyle = `rgba(150,0,0,${0.4 * a})`;
+        ctx.fillRect(0, bannerY, W, bannerH);
+        ctx.strokeStyle = `rgba(255,0,0,${0.6 * a})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(0, bannerY); ctx.lineTo(W, bannerY); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, bannerY + bannerH); ctx.lineTo(W, bannerY + bannerH); ctx.stroke();
+
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.globalAlpha = a;
+
+        // Title
+        ctx.fillStyle = '#ff2255';
+        ctx.font = 'bold 52px monospace';
+        ctx.shadowColor = '#ff2255'; ctx.shadowBlur = 30;
+        ctx.fillText('CONNECTION', W / 2, H / 2 - 55);
+        ctx.fillText('LOST', W / 2, H / 2 - 5);
+        ctx.shadowBlur = 0;
+
+        // Score
+        ctx.fillStyle = '#0ff';
+        ctx.font = 'bold 30px monospace';
+        ctx.fillText(`SCORE: ${score}`, W / 2, H / 2 + 45);
+
+        // High score
+        const isNewBest = score >= highScore && score > 0;
+        ctx.fillStyle = isNewBest ? '#ffd700' : 'rgba(0,255,200,0.7)';
+        ctx.font = 'bold 20px monospace';
+        ctx.fillText(isNewBest ? `NEW BEST: ${highScore}!` : `BEST: ${highScore}`, W / 2, H / 2 + 80);
+
+        // Restart prompt (blink)
+        if (a > 0.8 && Math.sin(frameCount * 0.08) > -0.3) {
+            ctx.fillStyle = 'rgba(255,255,255,0.7)';
+            ctx.font = '18px monospace';
+            ctx.fillText('TAP TO RECONNECT', W / 2, H / 2 + 115);
+        }
+
+        ctx.globalAlpha = 1;
+    }
 }
 
-function showGameOver() {
-    cancelAnimationFrame(animFrame);
-    draw();
-
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
-    ctx.fillRect(0, 0, W, H);
-
-    // Scanlines
-    for (let y = 0; y < H; y += 4) {
-        ctx.fillStyle = `rgba(255,0,0,${0.02 + Math.random() * 0.03})`;
-        ctx.fillRect(0, y, W, 2);
-    }
-
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-
-    ctx.fillStyle = '#ff2255';
-    ctx.font = 'bold 48px monospace';
-    ctx.shadowColor = '#ff2255'; ctx.shadowBlur = 30;
-    ctx.fillText('CONNECTION LOST', W / 2, H / 2 - 60);
-    ctx.shadowBlur = 0;
-
-    ctx.fillStyle = '#0ff';
-    ctx.font = 'bold 32px monospace';
-    ctx.fillText(`SCORE: ${score}`, W / 2, H / 2);
-
-    const isNewBest = score >= highScore && score > 0;
-    ctx.fillStyle = isNewBest ? '#ffd700' : 'rgba(0,255,200,0.7)';
-    ctx.font = '20px monospace';
-    ctx.fillText(isNewBest ? `NEW BEST: ${highScore}!` : `BEST: ${highScore}`, W / 2, H / 2 + 40);
-
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.font = '18px monospace';
-    ctx.fillText('TAP TO RECONNECT', W / 2, H / 2 + 85);
-
-    setTimeout(() => {
-        function restart(e) {
-            e.preventDefault();
-            canvas.removeEventListener('click', restart);
-            canvas.removeEventListener('touchstart', restart);
-            resetGame();
-        }
-        canvas.addEventListener('click', restart);
-        canvas.addEventListener('touchstart', restart, { passive: false });
-    }, 500);
+// --- Game Over restart ---
+let restartReady = false;
+function handleRestart(e) {
+    e.preventDefault();
+    if (!restartReady) return;
+    restartReady = false;
+    canvas.removeEventListener('click', handleRestart);
+    canvas.removeEventListener('touchstart', handleRestart);
+    resetGame();
 }
 
 function gameLoop() {
-    if (gameOver) return;
-    update();
+    if (!gameOver) update();
+    else {
+        // Keep animating game over
+        gameOverAnim = Math.min(gameOverAnim + 0.03, 1);
+        // Enable restart after animation
+        if (gameOverAnim >= 0.8 && !restartReady) {
+            restartReady = true;
+            canvas.addEventListener('click', handleRestart);
+            canvas.addEventListener('touchstart', handleRestart, { passive: false });
+        }
+        // Keep particles going
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.1; p.life -= 0.018;
+            if (p.life <= 0) particles.splice(i, 1);
+        }
+        if (screenShake > 0) { screenShake *= 0.88; if (screenShake < 0.5) screenShake = 0; }
+    }
     draw();
     animFrame = requestAnimationFrame(gameLoop);
 }
 
 function resetGame() {
-    score = 0;
-    highScore = getHighScore();
-    playerLane = 1;
-    playerColor = 0;
-    gates = [];
-    gateSpeed = 3;
-    spawnTimer = 0;
-    elapsed = 0;
-    scrambleTimer = 0;
-    scrambleAnim = 0;
-    screenShake = 0;
-    particles = [];
-    matchParticles = [];
-    frameCount = 0;
-    difficulty = 0;
-    gameOver = false;
-    fourLaneMode = false;
-    fourLaneTimer = 0;
-    nextFourLaneAt = 600;
-    laneOrder = [0, 1, 2];
-    playerVisualY = getLaneY(1);
-    playerTargetY = playerVisualY;
+    cancelAnimationFrame(animFrame);
+    score = 0; highScore = getHighScore();
+    playerLane = 1; gates = []; particles = []; matchParticles = [];
+    gateSpeed = 3.5; spawnTimer = 0; elapsed = 0; frameCount = 0; difficulty = 0;
+    scrambleTimer = 0; scrambleAnim = 0; screenShake = 0; scrollOffset = 0;
+    gameOver = false; gameOverAnim = 0; restartReady = false;
+    fourLaneMode = false; fourLaneTimer = 0; nextFourLaneAt = 700;
+    laneColors = [0, 1, 2];
+    playerVisualY = getLaneY(1); playerTargetY = playerVisualY;
     gameLoop();
 }
 
@@ -744,8 +732,7 @@ startBtn.addEventListener('click', () => {
     resetGame();
 });
 
-// Initial draw
-ctx.fillStyle = '#0a0a1a';
+ctx.fillStyle = '#080818';
 ctx.fillRect(0, 0, W, H);
 </script>
 </body>
