@@ -326,9 +326,8 @@ function spawnFruit() {
     const type = isBomb ? null : FRUIT_TYPES[Math.floor(Math.random() * FRUIT_TYPES.length)];
     const xSpread = W * 0.7;
     const x = W * 0.15 + Math.random() * xSpread;
-    const speedMul = easyMode ? 0.75 : 1;
-    const vx = (Math.random() - 0.5) * 4 * speedMul;
-    const vy = -(H * 0.018 + Math.random() * H * 0.008) * speedMul;
+    const vx = (Math.random() - 0.5) * 4;
+    const vy = -(H * 0.018 + Math.random() * H * 0.008);
     fruits.push({
         x, y: H + 50,
         vx, vy,
@@ -351,12 +350,11 @@ function spawnBurst() {
             if (!gameOver) {
                 const isBomb = Math.random() < burstBombChance;
                 const type = isBomb ? null : FRUIT_TYPES[Math.floor(Math.random() * FRUIT_TYPES.length)];
-                const bSpd = easyMode ? 0.75 : 1;
                 fruits.push({
                     x: baseX + (Math.random() - 0.5) * 150,
                     y: H + 50,
-                    vx: (Math.random() - 0.5) * 5 * bSpd,
-                    vy: -(H * 0.02 + Math.random() * H * 0.007) * bSpd,
+                    vx: (Math.random() - 0.5) * 5,
+                    vy: -(H * 0.02 + Math.random() * H * 0.007),
                     rotation: Math.random() * Math.PI * 2,
                     rotSpeed: (Math.random() - 0.5) * 0.1,
                     type, isBomb,
@@ -618,24 +616,25 @@ function update() {
 
     // Update fruits
     const gravity = 0.35;
+    const ts = easyMode ? 0.75 : 1; // time scale: same trajectories, just slower
     for (let i = fruits.length - 1; i >= 0; i--) {
         const f = fruits[i];
         if (f.sliced && f.halves) {
             // Update halves
             let allGone = true;
             for (const h of f.halves) {
-                h.x += h.vx;
-                h.y += h.vy;
-                h.vy += gravity;
-                h.rotation += h.rotSpeed;
+                h.x += h.vx * ts;
+                h.y += h.vy * ts;
+                h.vy += gravity * ts;
+                h.rotation += h.rotSpeed * ts;
                 if (h.y < H + 100) allGone = false;
             }
             if (allGone) fruits.splice(i, 1);
         } else if (!f.sliced) {
-            f.x += f.vx;
-            f.y += f.vy;
-            f.vy += gravity;
-            f.rotation += f.rotSpeed;
+            f.x += f.vx * ts;
+            f.y += f.vy * ts;
+            f.vy += gravity * ts;
+            f.rotation += f.rotSpeed * ts;
 
             // Missed fruit (fell below screen)
             if (f.y > H + 60 && f.vy > 0 && !f.missed) {
