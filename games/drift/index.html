@@ -628,6 +628,13 @@
             if (newTile === T_VOID) {
                 gameOver = true;
                 gameRunning = false;
+                // Save failed attempt ghost (session only, max 7 per stage)
+                if (currentGhostRecording.length > 10) {
+                    const tk = 'stage' + currentStage;
+                    if (!failedAttempts[tk]) failedAttempts[tk] = [];
+                    failedAttempts[tk].push({ frames: currentGhostRecording.slice() });
+                    if (failedAttempts[tk].length > 7) failedAttempts[tk].shift();
+                }
                 for (let i = 0; i < 20; i++) {
                     particles.push({
                         x: car.x, y: car.y,
