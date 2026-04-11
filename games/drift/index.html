@@ -79,7 +79,7 @@
             <p><span class="key">Left/Right</span> or <span class="key">A/D</span> to steer</p>
             <p><span class="key">Touch</span> left/right side of screen</p>
             <p>Drift through tile-based stages, stay on the road, and reach the finish!</p>
-            <p style="font-size:13px;color:#888;">Race ghosts of your best laps. Gold, silver &amp; bronze shadows saved per track.</p>
+            <p style="font-size:13px;color:#888;">Race ghosts of your best laps. Gold, blue &amp; bronze shadows saved per track.</p>
             <div class="btn-row">
                 <button id="startBtn">Start Drifting!</button>
                 <button id="editorBtn" style="background:linear-gradient(135deg,#60c0ff,#4080cc);">Track Editor</button>
@@ -837,10 +837,10 @@
                 }
             }
 
-            // Draw stored ghost cars (top 3: gold, silver, bronze)
+            // Draw stored ghost cars (top 3: gold, blue, bronze)
             const medalColors = [
                 'rgba(255,215,0,0.7)',    // gold
-                'rgba(200,200,210,0.6)',  // silver
+                'rgba(80,160,255,0.6)',   // blue
                 'rgba(205,127,50,0.55)', // bronze
             ];
             for (let gi = 0; gi < storedGhosts.length && gi < 3; gi++) {
@@ -1009,7 +1009,7 @@
                     const bm = Math.floor(bt / 60);
                     const bs = Math.floor(bt % 60);
                     const bms = Math.floor((bt * 1000) % 1000);
-                    ctx.fillStyle = ti === 0 ? '#ffcc00' : ti < 3 ? '#aaddff' : '#888';
+                    ctx.fillStyle = ti === 0 ? '#ffd700' : ti === 1 ? '#50a0ff' : ti === 2 ? '#cd7f32' : '#888';
                     ctx.font = '11px monospace';
                     ctx.fillText((ti + 1) + '. ' + bm + ':' + String(bs).padStart(2,'0') + ':' + String(bms).padStart(3,'0'), W - 18, 80 + ti * 16);
                 }
