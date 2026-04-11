@@ -96,6 +96,7 @@
             <button data-tool="erase">Erase</button>
             <button data-tool="save" style="background:rgba(100,200,100,0.3);">Save</button>
             <button data-tool="load" style="background:rgba(100,150,255,0.3);">Load</button>
+            <button data-tool="editlevel" style="background:rgba(255,200,50,0.3);">Edit Level</button>
             <button data-tool="race" style="background:rgba(255,100,150,0.3);">Race!</button>
             <button data-tool="exit" style="background:rgba(255,80,80,0.3);">Exit</button>
         </div>
@@ -243,7 +244,7 @@
             }
             const startX = startTiles.reduce(function(s, t) { return s + t.c; }, 0) / (startTiles.length || 1);
             const startY = startTiles.reduce(function(s, t) { return s + t.r; }, 0) / (startTiles.length || 1);
-            return { name: name, grid: grid, w: w, h: h, startX: startX, startY: startY, startAngle: Math.PI / 2, finishTiles: finishTiles };
+            return { name: name, grid: grid, w: w, h: h, startX: startX, startY: startY, startAngle: Math.PI / 2, finishTiles: finishTiles, startTiles: startTiles };
         }
 
         // Stage 1: Simple L-turn (bigger)
@@ -1131,6 +1132,33 @@
                         }
                     }
 
+                    // Start tile indicator
+                    if (editorGrid._starts && editorGrid._starts.indexOf(r + ',' + c) !== -1) {
+                        // Checkered flag pattern
+                        const cs = TILE / 4;
+                        for (let sr = 0; sr < 4; sr++) {
+                            for (let sc = 0; sc < 4; sc++) {
+                                ctx.fillStyle = (sr + sc) % 2 === 0 ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)';
+                                ctx.fillRect(wx + sc * cs, wy + sr * cs, cs, cs);
+                            }
+                        }
+                        // "S" label
+                        ctx.fillStyle = '#00ff88';
+                        ctx.font = 'bold ' + Math.floor(TILE * 0.6) + 'px sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText('S', wx + TILE / 2, wy + TILE / 2);
+                    }
+
+                    // Finish tile indicator
+                    if (tile === T_FINISH) {
+                        ctx.fillStyle = '#ff4444';
+                        ctx.font = 'bold ' + Math.floor(TILE * 0.6) + 'px sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText('F', wx + TILE / 2, wy + TILE / 2);
+                    }
+
                     // Grid lines
                     ctx.strokeStyle = 'rgba(255,255,255,0.08)';
                     ctx.lineWidth = 0.5;
@@ -1165,10 +1193,14 @@
             const tileType = toolMap[editorTool];
             if (tileType !== undefined) {
                 editorGrid[pos.r][pos.c] = tileType;
-                // Mark start tiles in a separate structure
-                if (editorTool === 'start') {
-                    if (!editorGrid._starts) editorGrid._starts = [];
-                    const key = pos.r + ',' + pos.c;
+                const key = pos.r + ',' + pos.c;
+                if (!editorGrid._starts) editorGrid._starts = [];
+                // Remove from starts if overwriting with non-start tool
+                if (editorTool !== 'start') {
+                    const si = editorGrid._starts.indexOf(key);
+                    if (si !== -1) editorGrid._starts.splice(si, 1);
+                } else {
+                    // Mark start tiles in a separate structure
                     if (editorGrid._starts.indexOf(key) === -1) editorGrid._starts.push(key);
                 }
             }
@@ -1183,6 +1215,32 @@
                 for (let c = 0; c < editorW; c++) {
                     editorGrid[r][c] = T_VOID;
                 }
+            }
+            editorCamX = (editorW * TILE) / 2;
+            editorCamY = (editorH * TILE) / 2;
+            editorZoom = Math.min(canvas.width / (editorW * TILE), canvas.height / (editorH * TILE)) * 0.9;
+            document.getElementById('editorUI').style.display = 'block';
+        }
+
+        function initEditorFromStage(idx) {
+            const stage = STAGES[idx];
+            if (!stage) return;
+            editorActive = true;
+            editorW = stage.w;
+            editorH = stage.h;
+            editorGrid = [];
+            editorGrid._starts = [];
+            for (let r = 0; r < stage.h; r++) {
+                editorGrid[r] = [];
+                for (let c = 0; c < stage.w; c++) {
+                    editorGrid[r][c] = stage.grid[r] ? (stage.grid[r][c] || T_VOID) : T_VOID;
+                }
+            }
+            // Load start tiles from stage data
+            if (stage.startTiles) {
+                stage.startTiles.forEach(function(st) {
+                    editorGrid._starts.push(st.r + ',' + st.c);
+                });
             }
             editorCamX = (editorW * TILE) / 2;
             editorCamY = (editorH * TILE) / 2;
@@ -1275,6 +1333,50 @@
             }
         }
 
+        function editorEditLevel() {
+            // Count built-in stages (first 8 are built-in, rest are custom from editor)
+            const builtInCount = 8;
+            let list = 'Select a level to edit:\n';
+            for (let i = 0; i < builtInCount && i < STAGES.length; i++) {
+                list += (i + 1) + '. ' + STAGES[i].name + '\n';
+            }
+            // Also list custom tracks
+            const data = getDriftData();
+            const custom = data.drift.customTracks || [];
+            for (let i = 0; i < custom.length; i++) {
+                list += (builtInCount + i + 1) + '. [Custom] ' + custom[i].name + '\n';
+            }
+            const choice = prompt(list);
+            if (!choice) return;
+            const idx = parseInt(choice) - 1;
+            if (idx < 0) { alert('Invalid selection.'); return; }
+            if (idx < builtInCount && idx < STAGES.length) {
+                initEditorFromStage(idx);
+            } else {
+                const ci = idx - builtInCount;
+                if (ci >= 0 && ci < custom.length) {
+                    // Load custom track into editor
+                    const t = custom[ci];
+                    editorActive = true;
+                    editorW = t.w;
+                    editorH = t.h;
+                    editorGrid = [];
+                    editorGrid._starts = t.starts || [];
+                    for (let r = 0; r < editorH; r++) {
+                        editorGrid[r] = [];
+                        for (let c = 0; c < editorW; c++) {
+                            editorGrid[r][c] = t.grid[r] ? (t.grid[r][c] || 0) : 0;
+                        }
+                    }
+                    editorCamX = (editorW * TILE) / 2;
+                    editorCamY = (editorH * TILE) / 2;
+                    editorZoom = Math.min(canvas.width / (editorW * TILE), canvas.height / (editorH * TILE)) * 0.9;
+                } else {
+                    alert('Invalid selection.');
+                }
+            }
+        }
+
         function editorRace() {
             const stage = editorBuildStage('Custom');
             if (!stage) return;
@@ -1292,6 +1394,7 @@
                 const tool = btn.getAttribute('data-tool');
                 if (tool === 'save') { editorSave(); return; }
                 if (tool === 'load') { editorLoad(); return; }
+                if (tool === 'editlevel') { editorEditLevel(); return; }
                 if (tool === 'race') { editorRace(); return; }
                 if (tool === 'exit') {
                     editorActive = false;
