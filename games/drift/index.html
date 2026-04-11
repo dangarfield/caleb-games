@@ -79,7 +79,7 @@
             <p><span class="key">Left/Right</span> or <span class="key">A/D</span> to steer</p>
             <p><span class="key">Touch</span> left/right side of screen</p>
             <p>Drift through tile-based stages, stay on the road, and reach the finish!</p>
-            <p style="font-size:13px;color:#888;">Race ghosts of your best laps. Top 10 times saved per track.</p>
+            <p style="font-size:13px;color:#888;">Race ghosts of your best laps. Gold, silver &amp; bronze shadows saved per track.</p>
             <div class="btn-row">
                 <button id="startBtn">Start Drifting!</button>
                 <button id="editorBtn" style="background:linear-gradient(135deg,#60c0ff,#4080cc);">Track Editor</button>
@@ -150,11 +150,11 @@
             track.bestLaps.push({ time: lapTime, date: Date.now() });
             track.bestLaps.sort(function(a, b) { return a.time - b.time; });
             track.bestLaps = track.bestLaps.slice(0, 10);
-            // Store ghost for top 10
+            // Store ghost for top 3 only
             if (ghostData && ghostData.length > 0) {
                 track.top3Ghost.push({ time: lapTime, frames: ghostData });
                 track.top3Ghost.sort(function(a, b) { return a.time - b.time; });
-                track.top3Ghost = track.top3Ghost.slice(0, 10);
+                track.top3Ghost = track.top3Ghost.slice(0, 3);
             }
             saveDriftData(data);
         }
@@ -424,7 +424,8 @@
         // Ghost replay
         let currentGhostRecording = [];  // frames for current lap
         let sessionGhost = null;         // ghost from previous completed lap this session
-        let storedGhosts = [];           // top 10 ghosts from localStorage
+        let storedGhosts = [];           // top 3 ghosts from localStorage (gold/silver/bronze)
+        let failedAttempts = {};         // per-stage failed attempt ghosts (session only, not persisted)
         let ghostFrame = 0;
 
         // Tire marks
@@ -497,9 +498,12 @@
             currentGhostRecording = [];
             ghostFrame = 0;
 
-            // Load stored ghosts (up to 10)
+            // Load stored ghosts (top 3 only)
             const trackId = 'stage' + currentStage;
-            storedGhosts = getTop10Ghosts(trackId);
+            storedGhosts = getTop10Ghosts(trackId).slice(0, 3);
+
+            // Ensure failed attempts array exists for this stage
+            if (!failedAttempts[trackId]) failedAttempts[trackId] = [];
         }
 
         // ---- CAR PHYSICS (REWRITTEN) ----
@@ -519,6 +523,13 @@
             if (tile === T_VOID) {
                 gameOver = true;
                 gameRunning = false;
+                // Save failed attempt ghost (session only, max 7 per stage)
+                if (currentGhostRecording.length > 10) {
+                    const tk = 'stage' + currentStage;
+                    if (!failedAttempts[tk]) failedAttempts[tk] = [];
+                    failedAttempts[tk].push({ frames: currentGhostRecording.slice() });
+                    if (failedAttempts[tk].length > 7) failedAttempts[tk].shift();
+                }
                 return;
             }
 
@@ -535,7 +546,16 @@
             }
 
             const terrain = TERRAIN_COLORS[tile];
-            if (!terrain) { gameOver = true; gameRunning = false; return; }
+            if (!terrain) {
+                gameOver = true; gameRunning = false;
+                if (currentGhostRecording.length > 10) {
+                    const tk = 'stage' + currentStage;
+                    if (!failedAttempts[tk]) failedAttempts[tk] = [];
+                    failedAttempts[tk].push({ frames: currentGhostRecording.slice() });
+                    if (failedAttempts[tk].length > 7) failedAttempts[tk].shift();
+                }
+                return;
+            }
 
             const grip = getGrip(tile);
             const speedMult = getSpeedMult(tile);
@@ -798,25 +818,29 @@
                 ctx.globalAlpha = 1;
             }
 
-            // Draw ghost cars (stored top 10)
-            const ghostColorPool = [
-                'rgba(255,215,0,0.6)',    // 1st: gold
-                'rgba(192,192,192,0.55)', // 2nd: silver
-                'rgba(205,127,50,0.5)',   // 3rd: bronze
-                'rgba(100,200,255,0.4)',  // 4th+
-                'rgba(200,100,255,0.35)',
-                'rgba(100,255,180,0.3)',
-                'rgba(255,150,100,0.3)',
-                'rgba(180,180,255,0.25)',
-                'rgba(255,200,180,0.25)',
-                'rgba(180,220,200,0.2)',
+            // Draw failed attempt ghosts (session only, grey/dim)
+            const tk = 'stage' + currentStage;
+            const fails = failedAttempts[tk] || [];
+            for (let fi = 0; fi < fails.length; fi++) {
+                const ghost = fails[fi];
+                if (ghost.frames && ghostFrame < ghost.frames.length) {
+                    const gf = ghost.frames[ghostFrame];
+                    const alpha = Math.max(0.08, 0.2 - fi * 0.015);
+                    drawGhostCar(gf.x - camX, gf.y - camY, gf.angle, 'rgba(150,150,180,0.3)', alpha);
+                }
+            }
+
+            // Draw stored ghost cars (top 3: gold, silver, bronze)
+            const medalColors = [
+                'rgba(255,215,0,0.7)',    // gold
+                'rgba(200,200,210,0.6)',  // silver
+                'rgba(205,127,50,0.55)', // bronze
             ];
-            for (let gi = 0; gi < storedGhosts.length; gi++) {
+            for (let gi = 0; gi < storedGhosts.length && gi < 3; gi++) {
                 const ghost = storedGhosts[gi];
                 if (ghost.frames && ghostFrame < ghost.frames.length) {
                     const gf = ghost.frames[ghostFrame];
-                    const alpha = gi < 3 ? 0.4 : Math.max(0.1, 0.3 - gi * 0.02);
-                    drawGhostCar(gf.x - camX, gf.y - camY, gf.angle, ghostColorPool[gi] || 'rgba(150,150,255,0.15)', alpha);
+                    drawGhostCar(gf.x - camX, gf.y - camY, gf.angle, medalColors[gi], 0.4);
                 }
             }
 
@@ -1453,6 +1477,21 @@
                     alert('Physics values copied to clipboard!');
                 });
             }}, 'export').name('Copy Values to Clipboard');
+
+            gui.add({ resetScores: function() {
+                if (!confirm('Reset all drift scores and ghost data?')) return;
+                const data = loadArcadeData();
+                if (data.drift) {
+                    data.drift.tracks = {};
+                    data.drift.highScore = 0;
+                }
+                saveArcadeData(data);
+                // Clear session ghosts too
+                sessionGhost = null;
+                storedGhosts = [];
+                failedAttempts = {};
+                alert('All scores and ghosts cleared!');
+            }}, 'resetScores').name('Reset All Scores');
 
             gui.close();
         };
