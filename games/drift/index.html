@@ -46,6 +46,41 @@
         }
         #instructions button:hover { box-shadow: 0 0 30px rgba(200,100,255,0.5); }
         #instructions .btn-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+        /* Level select */
+        #levelSelect {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.92); display: none; align-items: center; justify-content: center;
+            z-index: 210; backdrop-filter: blur(5px); overflow-y: auto;
+        }
+        #levelSelect .ls-inner {
+            padding: 30px; max-width: 700px; width: 100%; text-align: center;
+        }
+        #levelSelect h2 { color: #e080ff; font-size: 24px; margin-bottom: 20px; text-shadow: 0 0 15px rgba(200,100,255,0.5); }
+        #levelSelect .ls-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px;
+        }
+        #levelSelect .ls-card {
+            background: rgba(20,20,40,0.9); border: 2px solid rgba(200,100,255,0.2);
+            border-radius: 12px; padding: 10px; cursor: pointer; transition: all 0.2s;
+        }
+        #levelSelect .ls-card:hover { border-color: #c060ff; box-shadow: 0 0 15px rgba(200,100,255,0.3); }
+        #levelSelect .ls-card canvas { width: 100%; border-radius: 6px; background: #0a0a12; }
+        #levelSelect .ls-card .ls-name { color: #fff; font-size: 13px; margin-top: 6px; }
+        #levelSelect .ls-card .ls-best { color: #888; font-size: 11px; margin-top: 2px; }
+        #levelSelect .ls-back {
+            margin-top: 18px; padding: 10px 24px; font-size: 16px; border: none;
+            background: rgba(255,80,80,0.3); color: #fff; border-radius: 20px; cursor: pointer;
+            border: 1px solid rgba(255,80,80,0.4);
+        }
+        #levelSelect .ls-back:hover { background: rgba(255,80,80,0.5); }
+        /* In-game menu button */
+        #menuBtn {
+            position: fixed; bottom: 15px; left: 50%; transform: translateX(-50%); z-index: 180;
+            display: none; background: rgba(255,80,80,0.3); border: 1px solid rgba(255,80,80,0.4);
+            color: #fff; padding: 10px 22px; border-radius: 20px; font-size: 15px;
+            cursor: pointer; backdrop-filter: blur(4px);
+        }
+        #menuBtn:hover { background: rgba(255,80,80,0.5); }
         /* Editor overlay */
         #editorUI {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -72,6 +107,14 @@
 <body>
     <a id="backBtn" href="../../index.html">Back</a>
     <canvas id="game"></canvas>
+    <button id="menuBtn">Menu</button>
+    <div id="levelSelect">
+        <div class="ls-inner">
+            <h2>Select Stage</h2>
+            <div class="ls-grid" id="lsGrid"></div>
+            <button class="ls-back" id="lsBackBtn">Back</button>
+        </div>
+    </div>
     <div id="instructions">
         <div class="box">
             <h2>Drift Racer</h2>
@@ -82,6 +125,7 @@
             <p style="font-size:13px;color:#888;">Race ghosts of your best laps. Gold, blue &amp; bronze shadows saved per track.</p>
             <div class="btn-row">
                 <button id="startBtn">Start Drifting!</button>
+                <button id="levelSelectBtn" style="background:linear-gradient(135deg,#40cc80,#208860);">Level Select</button>
                 <button id="editorBtn" style="background:linear-gradient(135deg,#60c0ff,#4080cc);">Track Editor</button>
             </div>
         </div>
@@ -190,7 +234,8 @@
             iceSpeedMult: 1.1,
             driftThreshold: 0.25,
             lateralDrag: 0.04,       // drag on sideways velocity component
-            forwardDrag: 0.005       // small forward drag always
+            forwardDrag: 0.005,      // small forward drag always
+            darkness: 0.6            // 0 = fully lit, 1 = very dark (headlights only)
         };
 
         // ---- TERRAIN TYPES ----
@@ -935,6 +980,20 @@
             ctx.restore();
             ctx.restore(); // end camera transform
 
+            // ---- NIGHT DARKNESS OVERLAY ----
+            if (physics.darkness > 0.01) {
+                // Create a darkness overlay with headlight cutout
+                const dk = physics.darkness;
+                // Headlight cone in screen space — car is always at center
+                const hlRadius = 220 * (1.1 - dk * 0.5); // headlight reach shrinks with more darkness
+                const hlGrad = ctx.createRadialGradient(W / 2, H / 2, 30, W / 2, H / 2, hlRadius);
+                hlGrad.addColorStop(0, 'rgba(0,0,0,0)');
+                hlGrad.addColorStop(0.6, 'rgba(0,0,0,' + (dk * 0.3) + ')');
+                hlGrad.addColorStop(1, 'rgba(0,0,0,' + (dk * 0.85) + ')');
+                ctx.fillStyle = hlGrad;
+                ctx.fillRect(0, 0, W, H);
+            }
+
             // ---- HUD ----
             const mins = Math.floor(timer / 60);
             const secs = Math.floor(timer % 60);
@@ -1016,12 +1075,12 @@
                 }
             }
 
-            // Minimap
+            // Minimap (top center)
             const mmScale = 3;
             const mmW = stageData.w * mmScale;
             const mmH = stageData.h * mmScale;
-            const mmX = W - mmW - 15;
-            const mmY = H - mmH - 70;
+            const mmX = Math.floor((W - mmW) / 2);
+            const mmY = 12;
 
             ctx.fillStyle = 'rgba(0,0,0,0.6)';
             ctx.fillRect(mmX - 2, mmY - 2, mmW + 4, mmH + 4);
@@ -1044,14 +1103,14 @@
             ctx.arc(carMmX, carMmY, 2, 0, Math.PI * 2);
             ctx.fill();
 
-            // Drift indicator
+            // Drift indicator (below minimap)
             if (car.drifting && gameRunning) {
                 ctx.textAlign = 'center';
                 ctx.fillStyle = '#ff60a0';
                 ctx.font = 'bold 22px monospace';
                 ctx.shadowColor = '#ff60a0';
                 ctx.shadowBlur = 10;
-                ctx.fillText('DRIFT!', W / 2, 50);
+                ctx.fillText('DRIFT!', W / 2, mmY + mmH + 28);
                 ctx.shadowBlur = 0;
             }
 
@@ -1069,6 +1128,9 @@
                 ctx.fillStyle = '#ccc';
                 ctx.font = '20px "Segoe UI", sans-serif';
                 ctx.fillText('Tap or Space to retry', W / 2, H / 2 + 20);
+                ctx.fillStyle = '#888';
+                ctx.font = '15px "Segoe UI", sans-serif';
+                ctx.fillText('or press Menu to select a level', W / 2, H / 2 + 50);
             }
 
             // Stage complete overlay
@@ -1104,6 +1166,9 @@
                     ctx.font = '16px "Segoe UI", sans-serif';
                     ctx.fillText('Tap or Space to play again', W / 2, H / 2 + 100);
                 }
+                ctx.fillStyle = '#888';
+                ctx.font = '15px "Segoe UI", sans-serif';
+                ctx.fillText('or press Menu to select a level', W / 2, H / 2 + (currentStage < STAGES.length - 1 ? 100 : 130));
             }
         }
 
@@ -1527,10 +1592,105 @@
             touchLeft = false; touchRight = false;
         });
 
+        // Level select rendering
+        function renderLevelSelect() {
+            const grid = document.getElementById('lsGrid');
+            grid.innerHTML = '';
+            for (let i = 0; i < STAGES.length; i++) {
+                const stage = STAGES[i];
+                const card = document.createElement('div');
+                card.className = 'ls-card';
+
+                // Mini canvas preview
+                const preview = document.createElement('canvas');
+                const scale = 3;
+                preview.width = stage.w * scale;
+                preview.height = stage.h * scale;
+                const pctx = preview.getContext('2d');
+                pctx.fillStyle = '#0a0a12';
+                pctx.fillRect(0, 0, preview.width, preview.height);
+                for (let r = 0; r < stage.h; r++) {
+                    for (let c = 0; c < stage.w; c++) {
+                        const t = stage.grid[r][c];
+                        if (t === T_VOID) continue;
+                        const tc = TERRAIN_COLORS[t];
+                        if (!tc) continue;
+                        pctx.fillStyle = 'rgb(' + tc.base[0] + ',' + tc.base[1] + ',' + tc.base[2] + ')';
+                        pctx.fillRect(c * scale, r * scale, scale, scale);
+                    }
+                }
+                // Draw start marker
+                if (stage.startTiles) {
+                    pctx.fillStyle = '#00ff88';
+                    stage.startTiles.forEach(function(st) {
+                        pctx.fillRect(st.c * scale, st.r * scale, scale, scale);
+                    });
+                }
+                card.appendChild(preview);
+
+                const name = document.createElement('div');
+                name.className = 'ls-name';
+                name.textContent = (i + 1) + '. ' + stage.name;
+                card.appendChild(name);
+
+                // Best time
+                const trackId = 'stage' + i;
+                const times = getTop10Times(trackId);
+                const best = document.createElement('div');
+                best.className = 'ls-best';
+                if (times.length > 0) {
+                    const bt = times[0].time;
+                    const bm = Math.floor(bt / 60);
+                    const bs = Math.floor(bt % 60);
+                    const bms = Math.floor((bt * 1000) % 1000);
+                    best.textContent = 'Best: ' + bm + ':' + String(bs).padStart(2,'0') + ':' + String(bms).padStart(3,'0');
+                    best.style.color = '#ffd700';
+                } else {
+                    best.textContent = 'No time yet';
+                }
+                card.appendChild(best);
+
+                (function(idx) {
+                    card.addEventListener('click', function() {
+                        document.getElementById('levelSelect').style.display = 'none';
+                        document.getElementById('menuBtn').style.display = 'block';
+                        initStage(idx);
+                    });
+                })(i);
+
+                grid.appendChild(card);
+            }
+        }
+
+        function showLevelSelect() {
+            gameRunning = false;
+            document.getElementById('menuBtn').style.display = 'none';
+            document.getElementById('levelSelect').style.display = 'flex';
+            renderLevelSelect();
+        }
+
         // Start button
         document.getElementById('startBtn').addEventListener('click', function() {
             document.getElementById('instructions').style.display = 'none';
+            document.getElementById('menuBtn').style.display = 'block';
             initStage(0);
+        });
+
+        // Level select button
+        document.getElementById('levelSelectBtn').addEventListener('click', function() {
+            document.getElementById('instructions').style.display = 'none';
+            showLevelSelect();
+        });
+
+        // Level select back button
+        document.getElementById('lsBackBtn').addEventListener('click', function() {
+            document.getElementById('levelSelect').style.display = 'none';
+            document.getElementById('instructions').style.display = 'flex';
+        });
+
+        // Menu button (shown during gameplay and on crash/complete)
+        document.getElementById('menuBtn').addEventListener('click', function() {
+            showLevelSelect();
         });
 
         // Editor button
@@ -1580,6 +1740,10 @@
             f4.add(physics, 'iceGrip', 0.01, 0.5, 0.01).name('Grip');
             f4.add(physics, 'iceSpeedMult', 0.5, 2, 0.05).name('Speed Mult');
             f4.close();
+
+            const f5 = gui.addFolder('Night Mode');
+            f5.add(physics, 'darkness', 0, 1, 0.05).name('Darkness');
+            f5.close();
 
             gui.add({ export: function() {
                 console.log('Current physics:', JSON.stringify(physics, null, 2));
