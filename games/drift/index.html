@@ -235,7 +235,7 @@
             driftThreshold: 0.25,
             lateralDrag: 0.04,       // drag on sideways velocity component
             forwardDrag: 0.005,      // small forward drag always
-            darkness: 0.6            // 0 = fully lit, 1 = very dark (headlights only)
+            darkness: 0.75           // 0 = fully lit, 1 = very dark (headlights only)
         };
 
         // ---- TERRAIN TYPES ----
@@ -903,32 +903,37 @@
                 drawGhostCar(gf.x - camX, gf.y - camY, gf.angle, 'rgba(255,255,255,0.6)', 0.35);
             }
 
-            // Draw headlight beam
+            // Draw two headlight beams (visible glow on the road)
             const beamLen = 200;
-            const beamSpread = 0.35;
-            const hlX = car.x - camX + Math.cos(car.angle) * 18;
-            const hlY = car.y - camY + Math.sin(car.angle) * 18;
-            const beamGrad = ctx.createRadialGradient(
-                hlX, hlY, 5,
-                hlX + Math.cos(car.angle) * beamLen * 0.6,
-                hlY + Math.sin(car.angle) * beamLen * 0.6,
-                beamLen * 0.5
-            );
-            beamGrad.addColorStop(0, 'rgba(255,255,240,0.2)');
-            beamGrad.addColorStop(1, 'rgba(255,255,240,0)');
-            ctx.fillStyle = beamGrad;
-            ctx.beginPath();
-            ctx.moveTo(hlX, hlY);
-            ctx.lineTo(
-                hlX + Math.cos(car.angle - beamSpread) * beamLen,
-                hlY + Math.sin(car.angle - beamSpread) * beamLen
-            );
-            ctx.lineTo(
-                hlX + Math.cos(car.angle + beamSpread) * beamLen,
-                hlY + Math.sin(car.angle + beamSpread) * beamLen
-            );
-            ctx.closePath();
-            ctx.fill();
+            const beamSpread = 0.3;
+            const hlPerp = { x: -Math.sin(car.angle), y: Math.cos(car.angle) };
+            const hlBrightness = physics.darkness > 0.1 ? 0.15 + physics.darkness * 0.25 : 0.2;
+            const hlOffsets = [-6, 6];
+            for (let hi = 0; hi < 2; hi++) {
+                const hlX = car.x - camX + Math.cos(car.angle) * 18 + hlPerp.x * hlOffsets[hi];
+                const hlY = car.y - camY + Math.sin(car.angle) * 18 + hlPerp.y * hlOffsets[hi];
+                const beamGrad = ctx.createRadialGradient(
+                    hlX, hlY, 3,
+                    hlX + Math.cos(car.angle) * beamLen * 0.6,
+                    hlY + Math.sin(car.angle) * beamLen * 0.6,
+                    beamLen * 0.5
+                );
+                beamGrad.addColorStop(0, 'rgba(255,255,240,' + hlBrightness + ')');
+                beamGrad.addColorStop(1, 'rgba(255,255,240,0)');
+                ctx.fillStyle = beamGrad;
+                ctx.beginPath();
+                ctx.moveTo(hlX, hlY);
+                ctx.lineTo(
+                    hlX + Math.cos(car.angle - beamSpread) * beamLen,
+                    hlY + Math.sin(car.angle - beamSpread) * beamLen
+                );
+                ctx.lineTo(
+                    hlX + Math.cos(car.angle + beamSpread) * beamLen,
+                    hlY + Math.sin(car.angle + beamSpread) * beamLen
+                );
+                ctx.closePath();
+                ctx.fill();
+            }
 
             // Draw car
             const carSX = car.x - camX;
@@ -982,16 +987,73 @@
 
             // ---- NIGHT DARKNESS OVERLAY ----
             if (physics.darkness > 0.01) {
-                // Create a darkness overlay with headlight cutout
                 const dk = physics.darkness;
-                // Headlight cone in screen space — car is always at center
-                const hlRadius = 220 * (1.1 - dk * 0.5); // headlight reach shrinks with more darkness
-                const hlGrad = ctx.createRadialGradient(W / 2, H / 2, 30, W / 2, H / 2, hlRadius);
-                hlGrad.addColorStop(0, 'rgba(0,0,0,0)');
-                hlGrad.addColorStop(0.6, 'rgba(0,0,0,' + (dk * 0.3) + ')');
-                hlGrad.addColorStop(1, 'rgba(0,0,0,' + (dk * 0.85) + ')');
-                ctx.fillStyle = hlGrad;
-                ctx.fillRect(0, 0, W, H);
+                // Use offscreen canvas for darkness mask
+                if (!render._darkCanvas) {
+                    render._darkCanvas = document.createElement('canvas');
+                    render._darkCtx = render._darkCanvas.getContext('2d');
+                }
+                const dc = render._darkCanvas;
+                const dctx = render._darkCtx;
+                dc.width = W;
+                dc.height = H;
+
+                // Fill with darkness
+                dctx.fillStyle = 'rgba(0,0,0,' + (dk * 0.92) + ')';
+                dctx.fillRect(0, 0, W, H);
+
+                // Carve out headlight beams using destination-out
+                dctx.globalCompositeOperation = 'destination-out';
+
+                // Small ambient glow right around the car (very dim)
+                const ambGrad = dctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, 40);
+                ambGrad.addColorStop(0, 'rgba(255,255,255,0.3)');
+                ambGrad.addColorStop(1, 'rgba(255,255,255,0)');
+                dctx.fillStyle = ambGrad;
+                dctx.fillRect(0, 0, W, H);
+
+                // Two headlight beams — offset left and right from car center
+                const beamLen = 220;
+                const beamSpread = 0.3;
+                const perpX = -Math.sin(car.angle);
+                const perpY = Math.cos(car.angle);
+                const headlightOffsets = [-6, 6]; // left and right headlight
+
+                for (let hi = 0; hi < 2; hi++) {
+                    const off = headlightOffsets[hi] * scale;
+                    // Headlight origin in screen coords (car is at screen center)
+                    const ox = W / 2 + perpX * off + Math.cos(car.angle) * 18 * scale;
+                    const oy = H / 2 + perpY * off + Math.sin(car.angle) * 18 * scale;
+                    // Beam tip (far point)
+                    const tx = ox + Math.cos(car.angle) * beamLen * scale;
+                    const ty = oy + Math.sin(car.angle) * beamLen * scale;
+
+                    // Gradient along beam direction
+                    const bGrad = dctx.createRadialGradient(ox, oy, 2, ox, oy, beamLen * scale * 0.9);
+                    bGrad.addColorStop(0, 'rgba(255,255,255,1)');
+                    bGrad.addColorStop(0.5, 'rgba(255,255,255,0.7)');
+                    bGrad.addColorStop(1, 'rgba(255,255,255,0)');
+                    dctx.fillStyle = bGrad;
+
+                    // Draw cone shape
+                    dctx.beginPath();
+                    dctx.moveTo(ox, oy);
+                    dctx.lineTo(
+                        ox + Math.cos(car.angle - beamSpread) * beamLen * scale,
+                        oy + Math.sin(car.angle - beamSpread) * beamLen * scale
+                    );
+                    dctx.lineTo(
+                        ox + Math.cos(car.angle + beamSpread) * beamLen * scale,
+                        oy + Math.sin(car.angle + beamSpread) * beamLen * scale
+                    );
+                    dctx.closePath();
+                    dctx.fill();
+                }
+
+                dctx.globalCompositeOperation = 'source-over';
+
+                // Draw darkness mask onto main canvas
+                ctx.drawImage(dc, 0, 0);
             }
 
             // ---- HUD ----
