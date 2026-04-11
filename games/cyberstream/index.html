@@ -637,18 +637,21 @@ function draw() {
     ctx.fillStyle = 'rgba(0,255,200,0.45)'; ctx.font = '13px monospace';
     ctx.fillText(`BEST: ${highScore}`, W - 16, 44);
 
-    // Lives
-    ctx.textAlign = 'left'; ctx.font = '22px sans-serif';
+    // Lives (top center)
+    ctx.textAlign = 'center'; ctx.font = '30px sans-serif';
+    const heartsWidth = 3 * 36;
+    const heartStart = W/2 - heartsWidth/2;
     for (let i = 0; i < 3; i++) {
         ctx.fillStyle = i < lives ? '#ff2255' : 'rgba(255,255,255,0.15)';
-        ctx.fillText('\u2764', 70 + i*28, 14);
+        ctx.textAlign = 'left';
+        ctx.fillText('\u2764', heartStart + i*36, 16);
     }
 
-    // Current shape indicator (top center)
+    // Current shape indicator (below hearts)
     ctx.textAlign = 'center';
     ctx.fillStyle = ps.fill;
     ctx.shadowColor = ps.fill; ctx.shadowBlur = 10;
-    drawShape(pti, W/2, 22, 12);
+    drawShape(pti, W/2, 56, 12);
     ctx.fill();
     ctx.shadowBlur = 0;
 
