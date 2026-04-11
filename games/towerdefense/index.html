@@ -45,6 +45,8 @@
         .tower-btn .icon { font-size: 22px; }
         .tower-btn .cost { color: #ffd700; font-weight: bold; font-size: 10px; }
         .tower-btn .unlock-info { color: #ff6b6b; font-size: 9px; font-weight: bold; }
+        .tower-btn.unaffordable { opacity: 0.5; }
+        .tower-btn.unaffordable .cost { color: #ff4444; }
         .tower-btn.locked {
             opacity: 0.45; cursor: not-allowed; border-color: rgba(255,255,255,0.1);
         }
@@ -320,6 +322,13 @@ function updateHUD() {
     // Update path label
     const pathNames = ['Classic S-Curve', 'Zigzag Valley', 'Spiral Fortress', 'Diamond Pass'];
     document.getElementById('path-label').textContent = 'Path: ' + pathNames[currentPathLayout % pathNames.length];
+    // Update tower affordability
+    document.querySelectorAll('.tower-btn').forEach(b => {
+        const type = b.dataset.type;
+        if (type && TOWER_DEFS[type]) {
+            b.classList.toggle('unaffordable', gold < TOWER_DEFS[type].cost && !b.classList.contains('locked'));
+        }
+    });
 }
 
 // --- Tower selection ---
