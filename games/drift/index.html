@@ -1012,37 +1012,48 @@
                 dctx.fillStyle = ambGrad;
                 dctx.fillRect(0, 0, W, H);
 
-                // Two headlight beams — soft elliptical gradients projected forward
+                // Two headlight beams — cone shapes with soft feathered edges
                 const beamLen = 220;
+                const beamSpread = 0.28;
                 const perpX = -Math.sin(car.angle);
                 const perpY = Math.cos(car.angle);
                 const fwdX = Math.cos(car.angle);
                 const fwdY = Math.sin(car.angle);
-                const headlightOffsets = [-6, 6];
+                const headlightOffsets = [-7, 7];
 
                 for (let hi = 0; hi < 2; hi++) {
                     const off = headlightOffsets[hi] * scale;
                     const ox = W / 2 + perpX * off + fwdX * 18 * scale;
                     const oy = H / 2 + perpY * off + fwdY * 18 * scale;
-
-                    // Soft beam: use ellipse via save/scale trick for an elongated radial gradient
-                    dctx.save();
-                    dctx.translate(ox, oy);
-                    dctx.rotate(car.angle);
-                    // Scale x (forward) more than y (lateral) to make an elongated oval
-                    dctx.scale(1.0, 0.35);
-
                     const reach = beamLen * scale;
-                    // Gradient centered slightly ahead, fading to edges
-                    const bGrad = dctx.createRadialGradient(reach * 0.3, 0, 0, reach * 0.3, 0, reach * 0.75);
-                    bGrad.addColorStop(0, 'rgba(255,255,255,0.95)');
-                    bGrad.addColorStop(0.4, 'rgba(255,255,255,0.6)');
-                    bGrad.addColorStop(0.7, 'rgba(255,255,255,0.25)');
-                    bGrad.addColorStop(1, 'rgba(255,255,255,0)');
-                    dctx.fillStyle = bGrad;
-                    dctx.fillRect(-reach * 0.15, -reach, reach * 1.2, reach * 2);
 
-                    dctx.restore();
+                    // Draw multiple overlapping cones at increasing spread for soft edges
+                    const passes = [
+                        { spread: beamSpread, alpha: 0.85 },
+                        { spread: beamSpread + 0.08, alpha: 0.35 },
+                        { spread: beamSpread + 0.16, alpha: 0.15 },
+                        { spread: beamSpread + 0.25, alpha: 0.05 }
+                    ];
+                    for (let pi = 0; pi < passes.length; pi++) {
+                        const p = passes[pi];
+                        const bGrad = dctx.createRadialGradient(ox, oy, 2, ox, oy, reach * 0.95);
+                        bGrad.addColorStop(0, 'rgba(255,255,255,' + p.alpha + ')');
+                        bGrad.addColorStop(0.6, 'rgba(255,255,255,' + (p.alpha * 0.6) + ')');
+                        bGrad.addColorStop(1, 'rgba(255,255,255,0)');
+                        dctx.fillStyle = bGrad;
+                        dctx.beginPath();
+                        dctx.moveTo(ox, oy);
+                        dctx.lineTo(
+                            ox + Math.cos(car.angle - p.spread) * reach,
+                            oy + Math.sin(car.angle - p.spread) * reach
+                        );
+                        dctx.lineTo(
+                            ox + Math.cos(car.angle + p.spread) * reach,
+                            oy + Math.sin(car.angle + p.spread) * reach
+                        );
+                        dctx.closePath();
+                        dctx.fill();
+                    }
                 }
 
                 dctx.globalCompositeOperation = 'source-over';
