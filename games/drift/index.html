@@ -1012,9 +1012,9 @@
                 dctx.fillStyle = ambGrad;
                 dctx.fillRect(0, 0, W, H);
 
-                // Two headlight beams — cone shapes with soft feathered edges
+                // Two headlight beams — cone shapes, hard edges
                 const beamLen = 220;
-                const beamSpread = 0.28;
+                const beamSpread = 0.3;
                 const perpX = -Math.sin(car.angle);
                 const perpY = Math.cos(car.angle);
                 const fwdX = Math.cos(car.angle);
@@ -1027,33 +1027,24 @@
                     const oy = H / 2 + perpY * off + fwdY * 18 * scale;
                     const reach = beamLen * scale;
 
-                    // Draw multiple overlapping cones at increasing spread for soft edges
-                    const passes = [
-                        { spread: beamSpread, alpha: 0.85 },
-                        { spread: beamSpread + 0.08, alpha: 0.35 },
-                        { spread: beamSpread + 0.16, alpha: 0.15 },
-                        { spread: beamSpread + 0.25, alpha: 0.05 }
-                    ];
-                    for (let pi = 0; pi < passes.length; pi++) {
-                        const p = passes[pi];
-                        const bGrad = dctx.createRadialGradient(ox, oy, 2, ox, oy, reach * 0.95);
-                        bGrad.addColorStop(0, 'rgba(255,255,255,' + p.alpha + ')');
-                        bGrad.addColorStop(0.6, 'rgba(255,255,255,' + (p.alpha * 0.6) + ')');
-                        bGrad.addColorStop(1, 'rgba(255,255,255,0)');
-                        dctx.fillStyle = bGrad;
-                        dctx.beginPath();
-                        dctx.moveTo(ox, oy);
-                        dctx.lineTo(
-                            ox + Math.cos(car.angle - p.spread) * reach,
-                            oy + Math.sin(car.angle - p.spread) * reach
-                        );
-                        dctx.lineTo(
-                            ox + Math.cos(car.angle + p.spread) * reach,
-                            oy + Math.sin(car.angle + p.spread) * reach
-                        );
-                        dctx.closePath();
-                        dctx.fill();
-                    }
+                    // Radial gradient for distance falloff only
+                    const bGrad = dctx.createRadialGradient(ox, oy, 2, ox, oy, reach);
+                    bGrad.addColorStop(0, 'rgba(255,255,255,1)');
+                    bGrad.addColorStop(0.7, 'rgba(255,255,255,0.5)');
+                    bGrad.addColorStop(1, 'rgba(255,255,255,0)');
+                    dctx.fillStyle = bGrad;
+                    dctx.beginPath();
+                    dctx.moveTo(ox, oy);
+                    dctx.lineTo(
+                        ox + Math.cos(car.angle - beamSpread) * reach,
+                        oy + Math.sin(car.angle - beamSpread) * reach
+                    );
+                    dctx.lineTo(
+                        ox + Math.cos(car.angle + beamSpread) * reach,
+                        oy + Math.sin(car.angle + beamSpread) * reach
+                    );
+                    dctx.closePath();
+                    dctx.fill();
                 }
 
                 dctx.globalCompositeOperation = 'source-over';
