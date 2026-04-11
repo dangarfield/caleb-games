@@ -998,56 +998,51 @@
                 dc.width = W;
                 dc.height = H;
 
-                // Fill with darkness
-                dctx.fillStyle = 'rgba(0,0,0,' + (dk * 0.92) + ')';
+                // Fill with full darkness — at dk=1.0 this is fully opaque black
+                dctx.fillStyle = 'rgba(0,0,0,' + dk + ')';
                 dctx.fillRect(0, 0, W, H);
 
                 // Carve out headlight beams using destination-out
                 dctx.globalCompositeOperation = 'destination-out';
 
                 // Small ambient glow right around the car (very dim)
-                const ambGrad = dctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, 40);
-                ambGrad.addColorStop(0, 'rgba(255,255,255,0.3)');
+                const ambGrad = dctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, 50);
+                ambGrad.addColorStop(0, 'rgba(255,255,255,0.25)');
                 ambGrad.addColorStop(1, 'rgba(255,255,255,0)');
                 dctx.fillStyle = ambGrad;
                 dctx.fillRect(0, 0, W, H);
 
-                // Two headlight beams — offset left and right from car center
+                // Two headlight beams — soft elliptical gradients projected forward
                 const beamLen = 220;
-                const beamSpread = 0.3;
                 const perpX = -Math.sin(car.angle);
                 const perpY = Math.cos(car.angle);
-                const headlightOffsets = [-6, 6]; // left and right headlight
+                const fwdX = Math.cos(car.angle);
+                const fwdY = Math.sin(car.angle);
+                const headlightOffsets = [-6, 6];
 
                 for (let hi = 0; hi < 2; hi++) {
                     const off = headlightOffsets[hi] * scale;
-                    // Headlight origin in screen coords (car is at screen center)
-                    const ox = W / 2 + perpX * off + Math.cos(car.angle) * 18 * scale;
-                    const oy = H / 2 + perpY * off + Math.sin(car.angle) * 18 * scale;
-                    // Beam tip (far point)
-                    const tx = ox + Math.cos(car.angle) * beamLen * scale;
-                    const ty = oy + Math.sin(car.angle) * beamLen * scale;
+                    const ox = W / 2 + perpX * off + fwdX * 18 * scale;
+                    const oy = H / 2 + perpY * off + fwdY * 18 * scale;
 
-                    // Gradient along beam direction
-                    const bGrad = dctx.createRadialGradient(ox, oy, 2, ox, oy, beamLen * scale * 0.9);
-                    bGrad.addColorStop(0, 'rgba(255,255,255,1)');
-                    bGrad.addColorStop(0.5, 'rgba(255,255,255,0.7)');
+                    // Soft beam: use ellipse via save/scale trick for an elongated radial gradient
+                    dctx.save();
+                    dctx.translate(ox, oy);
+                    dctx.rotate(car.angle);
+                    // Scale x (forward) more than y (lateral) to make an elongated oval
+                    dctx.scale(1.0, 0.35);
+
+                    const reach = beamLen * scale;
+                    // Gradient centered slightly ahead, fading to edges
+                    const bGrad = dctx.createRadialGradient(reach * 0.3, 0, 0, reach * 0.3, 0, reach * 0.75);
+                    bGrad.addColorStop(0, 'rgba(255,255,255,0.95)');
+                    bGrad.addColorStop(0.4, 'rgba(255,255,255,0.6)');
+                    bGrad.addColorStop(0.7, 'rgba(255,255,255,0.25)');
                     bGrad.addColorStop(1, 'rgba(255,255,255,0)');
                     dctx.fillStyle = bGrad;
+                    dctx.fillRect(-reach * 0.15, -reach, reach * 1.2, reach * 2);
 
-                    // Draw cone shape
-                    dctx.beginPath();
-                    dctx.moveTo(ox, oy);
-                    dctx.lineTo(
-                        ox + Math.cos(car.angle - beamSpread) * beamLen * scale,
-                        oy + Math.sin(car.angle - beamSpread) * beamLen * scale
-                    );
-                    dctx.lineTo(
-                        ox + Math.cos(car.angle + beamSpread) * beamLen * scale,
-                        oy + Math.sin(car.angle + beamSpread) * beamLen * scale
-                    );
-                    dctx.closePath();
-                    dctx.fill();
+                    dctx.restore();
                 }
 
                 dctx.globalCompositeOperation = 'source-over';
