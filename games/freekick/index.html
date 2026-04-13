@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Free Kick - Caleb's Arcade</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            width: 100%; height: 100%;
+            background: #1a472a;
+            overflow: hidden;
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        canvas { display: block; width: 100%; height: 100%; }
+        #backBtn {
+            position: fixed; top: 10px; left: 10px; z-index: 100;
+            background: rgba(255,255,255,0.15); border: 2px solid rgba(255,255,255,0.3);
+            color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 16px;
+            cursor: pointer; text-decoration: none; backdrop-filter: blur(4px);
+        }
+        #backBtn:hover { background: rgba(255,255,255,0.25); }
+        #overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.75); display: flex; align-items: center;
+            justify-content: center; z-index: 200; backdrop-filter: blur(4px);
+        }
+        #overlay.hidden { display: none; }
+        .overlay-box {
+            background: linear-gradient(135deg, #1a472a, #0d5e2f);
+            border: 2px solid rgba(255,255,255,0.2); border-radius: 20px;
+            padding: 40px; max-width: 400px; text-align: center; color: #fff;
+        }
+        .overlay-box h2 { font-size: 28px; margin-bottom: 15px; }
+        .overlay-box p { font-size: 16px; line-height: 1.6; margin-bottom: 8px; opacity: 0.9; }
+        .overlay-box .start-btn {
+            margin-top: 20px; padding: 12px 40px; font-size: 20px;
+            background: linear-gradient(135deg, #27ae60, #229954); color: #fff;
+            border: none; border-radius: 30px; cursor: pointer;
+        }
+        .overlay-box .start-btn:hover { filter: brightness(1.1); }
+    </style>
+</head>
+<body>
+    <a id="backBtn" href="../../">&#8592; Back</a>
+    <div id="overlay">
+        <div class="overlay-box">
+            <h2>Free Kick</h2>
+            <p>Tap the goal to aim</p>
+            <p>Swipe up to kick - direction and speed control curve!</p>
+            <p>Beat the wall and goalkeeper to score!</p>
+            <button class="start-btn" id="startBtn">Play</button>
+        </div>
+    </div>
+    <canvas id="c"></canvas>
+<script>
+(() => {
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+    const overlay = document.getElementById('overlay');
+    const startBtn = document.getElementById('startBtn');
+
+    let W, H;
+    function resize() {
+        W = canvas.width = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    // Game state
+    const STATE = { AIMING: 0, KICKING: 1, FLYING: 2, RESULT: 3 };
+    let state = STATE.AIMING;
+    let level = 1;
+    let score = 0;
+    let kicks = 0;
+    let maxKicks = 5;
+    let resultText = '';
+    let resultTimer = 0;
+
+    // 3D projection parameters
+    const CAM_HEIGHT = 80;
+    const CAM_DIST = 280;
+    const GOAL_DIST = 250;
+    const GOAL_WIDTH = 120;
+    const GOAL_HEIGHT = 40;
+    const FIELD_WIDTH = 200;
+
+    // Ball state
+    let ball = { x: 0, y: 0, z: 0 };
+    let ballVel = { x: 0, y: 0, z: 0 };
+    let ballSpin = { x: 0, y: 0 };
+    let ballRadius = 4;
+
+    // Aim target on goal plane (in world coords)
+    let aimX = 0, aimY = 20;
+    let aimScreenX = 0, aimScreenY = 0;
+    let hasAim = false;
+
+    // Swipe tracking
+    let swipeStart = null;
+    let swipeEnd = null;
+    let isSwiping = false;
+
+    // Goalkeeper
+    let keeper = { x: 0, y: 0, targetX: 0, targetY: 0, diveDir: 0, diveProgress: 0, isDiving: false };
+    const KEEPER_WIDTH = 14;
+    const KEEPER_HEIGHT = 30;
+
+    // Wall players
+    let wallPlayers = [];
+
+    // Particles
+    let particles = [];
+
+    function resetBall() {
+        ball = { x: 0, y: ballRadius, z: 0 };
+        ballVel = { x: 0, y: 0, z: 0 };
+        ballSpin = { x: 0, y: 0 };
+        hasAim = false;
+        swipeStart = null;
+        swipeEnd = null;
+        isSwiping = false;
+        state = STATE.AIMING;
+    }
+
+    function setupWall() {
+        wallPlayers = [];
+        const count = Math.min(2 + level, 7);
+        const wallDist = 140;
+        const spacing = 12;
+        const startX = -(count - 1) * spacing / 2;
+        for (let i = 0; i < count; i++) {
+            wallPlayers.push({
+                x: startX + i * spacing,
+                z: wallDist,
+                jumping: false,
+                jumpHeight: 0,
+                jumpVel: 0
+            });
+        }
+    }
+
+    function resetKeeper() {
+        keeper = {
+            x: 0, y: 0,
+            targetX: 0, targetY: 0,
+            diveDir: 0, diveProgress: 0, isDiving: false,
+            speed: 1.5 + level * 0.3
+        };
+    }
+
+    function setupRound() {
+        resetBall();
+        setupWall();
+        resetKeeper();
+    }
+
+    // 3D to 2D projection
+    function project(x, y, z) {
+        const d = CAM_DIST + z;
+        if (d <= 1) return { sx: W / 2, sy: H / 2, scale: 0 };
+        const scale = 600 / d;
+        const sx = W / 2 + x * scale;
+        const sy = H * 0.75 - y * scale - (CAM_HEIGHT * scale * 0.3);
+        return { sx, sy, scale };
+    }
+
+    // Screen to goal plane (approximate inverse projection for aim)
+    function screenToGoal(sx, sy) {
+        const d = CAM_DIST + GOAL_DIST;
+        const scale = 600 / d;
+        const worldX = (sx - W / 2) / scale;
+        const worldY = (H * 0.75 - sy - (CAM_HEIGHT * scale * 0.3)) / scale;
+        return { x: worldX, y: Math.max(0, worldY) };
+    }
+
+    // Input handling
+    function getPos(e) {
+        const t = e.touches ? e.touches[0] : e;
+        return { x: t.clientX, y: t.clientY };
+    }
+
+    canvas.addEventListener('touchstart', onDown, { passive: false });
+    canvas.addEventListener('mousedown', onDown);
+
+    function onDown(e) {
+        e.preventDefault();
+        const pos = getPos(e);
+
+        if (state === STATE.RESULT) return;
+
+        if (state === STATE.AIMING) {
+            // Check if tapping on goal area to set aim
+            const goalProj = project(0, GOAL_HEIGHT / 2, GOAL_DIST);
+            const goalLeft = project(-GOAL_WIDTH / 2, 0, GOAL_DIST);
+            const goalRight = project(GOAL_WIDTH / 2, 0, GOAL_DIST);
+            const goalTop = project(0, GOAL_HEIGHT, GOAL_DIST);
+
+            // If tap is roughly in the goal area, set aim point
+            if (pos.y < H * 0.65) {
+                const aim = screenToGoal(pos.x, pos.y);
+                aimX = Math.max(-GOAL_WIDTH / 2 + 5, Math.min(GOAL_WIDTH / 2 - 5, aim.x));
+                aimY = Math.max(2, Math.min(GOAL_HEIGHT - 2, aim.y));
+                hasAim = true;
+                aimScreenX = pos.x;
+                aimScreenY = pos.y;
+                return;
+            }
+
+            // If tap is in lower area, start swipe to kick
+            if (hasAim) {
+                swipeStart = { x: pos.x, y: pos.y, t: Date.now() };
+                isSwiping = true;
+
+                const moveFn = (e2) => {
+                    e2.preventDefault();
+                    swipeEnd = getPos(e2);
+                };
+                const upFn = (e2) => {
+                    e2.preventDefault();
+                    canvas.removeEventListener('touchmove', moveFn);
+                    canvas.removeEventListener('mousemove', moveFn);
+                    canvas.removeEventListener('touchend', upFn);
+                    canvas.removeEventListener('mouseup', upFn);
+                    if (swipeStart && swipeEnd) {
+                        performKick();
+                    }
+                    isSwiping = false;
+                };
+                canvas.addEventListener('touchmove', moveFn, { passive: false });
+                canvas.addEventListener('mousemove', moveFn);
+                canvas.addEventListener('touchend', upFn, { passive: false });
+                canvas.addEventListener('mouseup', upFn);
+            }
+        }
+    }
+
+    function performKick() {
+        if (!swipeStart || !swipeEnd) return;
+
+        const dx = swipeEnd.x - swipeStart.x;
+        const dy = swipeStart.y - swipeEnd.y; // inverted: swipe up = positive
+        const dt = Math.max(50, Date.now() - swipeStart.t);
+        const speed = Math.min(Math.sqrt(dx * dx + dy * dy) / dt, 3);
+
+        if (dy < 20) return; // need upward swipe
+
+        const power = Math.min(speed * 2.5 + 0.8, 4);
+        const curve = dx / 150; // horizontal curve from swipe direction
+
+        // Velocity toward goal
+        const dirX = aimX * 0.008;
+        const dirY = aimY * 0.025 + 0.3;
+        const dirZ = power * 1.8;
+
+        ballVel = { x: dirX * dirZ, y: dirY * power * 0.6, z: dirZ };
+        ballSpin = { x: curve * 2, y: 0 };
+
+        // Keeper reacts
+        const reaction = Math.max(0.1, 0.6 - level * 0.05);
+        const keeperGuessX = aimX + (Math.random() - 0.5) * (40 - level * 3);
+        const keeperGuessY = aimY + (Math.random() - 0.5) * (15 - level);
+        keeper.targetX = keeperGuessX;
+        keeper.targetY = Math.max(0, keeperGuessY);
+        keeper.isDiving = true;
+        keeper.diveProgress = 0;
+
+        // Wall players jump
+        wallPlayers.forEach(p => {
+            p.jumping = true;
+            p.jumpVel = 2.5 + Math.random() * 1;
+        });
+
+        state = STATE.FLYING;
+        kicks++;
+    }
+
+    function spawnParticles(x, y, z, color, count) {
+        for (let i = 0; i < count; i++) {
+            particles.push({
+                x, y, z,
+                vx: (Math.random() - 0.5) * 4,
+                vy: Math.random() * 3 + 1,
+                vz: (Math.random() - 0.5) * 2,
+                life: 1,
+                color
+            });
+        }
+    }
+
+    function update(dt) {
+        if (state === STATE.FLYING) {
+            // Ball physics
+            ball.x += ballVel.x * dt;
+            ball.y += ballVel.y * dt;
+            ball.z += ballVel.z * dt;
+
+            // Gravity
+            ballVel.y -= 0.12 * dt;
+
+            // Spin/curve effect
+            ballVel.x += ballSpin.x * 0.015 * dt;
+
+            // Air drag
+            ballVel.x *= 0.998;
+            ballVel.z *= 0.998;
+
+            // Ground bounce
+            if (ball.y < ballRadius) {
+                ball.y = ballRadius;
+                ballVel.y = Math.abs(ballVel.y) * 0.4;
+            }
+
+            // Wall collision
+            for (const p of wallPlayers) {
+                const wallHeight = 28 + p.jumpHeight;
+                const dxw = ball.x - p.x;
+                const dzw = ball.z - p.z;
+                const dist = Math.sqrt(dxw * dxw + dzw * dzw);
+                if (dist < 10 && ball.y < wallHeight && ball.z > p.z - 5 && ball.z < p.z + 5) {
+                    // Blocked by wall
+                    ballVel.z *= -0.3;
+                    ballVel.x += (Math.random() - 0.5) * 2;
+                    ballVel.y = Math.abs(ballVel.y) * 0.5 + 1;
+                    spawnParticles(ball.x, ball.y, ball.z, '#fff', 8);
+                    break;
+                }
+            }
+
+            // Update wall players jumping
+            wallPlayers.forEach(p => {
+                if (p.jumping) {
+                    p.jumpHeight += p.jumpVel * dt;
+                    p.jumpVel -= 0.15 * dt;
+                    if (p.jumpHeight <= 0) {
+                        p.jumpHeight = 0;
+                        p.jumping = false;
+                    }
+                }
+            });
+
+            // Keeper dive
+            if (keeper.isDiving) {
+                keeper.diveProgress = Math.min(1, keeper.diveProgress + keeper.speed * 0.02 * dt);
+                keeper.x += (keeper.targetX - keeper.x) * 0.06 * dt;
+                keeper.y += (keeper.targetY - keeper.y) * 0.06 * dt;
+            }
+
+            // Check if ball reached goal plane
+            if (ball.z >= GOAL_DIST) {
+                checkGoal();
+            }
+
+            // Ball went too far or stopped
+            if (ball.z > GOAL_DIST + 50 || (ball.z > 10 && Math.abs(ballVel.z) < 0.1 && ball.y < ballRadius + 1)) {
+                showResult('Miss!', false);
+            }
+
+            // Ball came back (blocked)
+            if (ball.z < -20) {
+                showResult('Blocked!', false);
+            }
+        }
+
+        // Update particles
+        particles = particles.filter(p => {
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+            p.z += p.vz * dt;
+            p.vy -= 0.05 * dt;
+            p.life -= 0.02 * dt;
+            return p.life > 0;
+        });
+
+        // Result timer
+        if (state === STATE.RESULT) {
+            resultTimer -= dt;
+            if (resultTimer <= 0) {
+                if (kicks >= maxKicks) {
+                    // Game over, show final score
+                    showGameOver();
+                } else {
+                    setupRound();
+                }
+            }
+        }
+    }
+
+    function checkGoal() {
+        const inGoalX = ball.x > -GOAL_WIDTH / 2 && ball.x < GOAL_WIDTH / 2;
+        const inGoalY = ball.y > 0 && ball.y < GOAL_HEIGHT;
+
+        if (!inGoalX || !inGoalY) {
+            showResult('Wide!', false);
+            return;
+        }
+
+        // Check keeper save
+        const keeperDx = Math.abs(ball.x - keeper.x);
+        const keeperDy = Math.abs(ball.y - keeper.y);
+        const saveReachX = KEEPER_WIDTH * (0.8 + keeper.diveProgress * 0.8);
+        const saveReachY = KEEPER_HEIGHT * 0.5;
+
+        if (keeperDx < saveReachX && keeperDy < saveReachY) {
+            spawnParticles(ball.x, ball.y, ball.z, '#ff0', 15);
+            showResult('Saved!', false);
+        } else {
+            score++;
+            spawnParticles(ball.x, ball.y, ball.z, '#0f0', 25);
+            spawnParticles(ball.x, ball.y, ball.z, '#fff', 15);
+            showResult('GOAL!', true);
+            if (kicks % 3 === 0) level++;
+        }
+    }
+
+    function showResult(text, isGoal) {
+        resultText = text;
+        state = STATE.RESULT;
+        resultTimer = 90;
+        ballVel = { x: 0, y: 0, z: 0 };
+    }
+
+    let gameOverShown = false;
+    function showGameOver() {
+        gameOverShown = true;
+        overlay.classList.remove('hidden');
+        overlay.innerHTML = `
+            <div class="overlay-box">
+                <h2>Full Time!</h2>
+                <p>Score: ${score} / ${maxKicks}</p>
+                <p>Level reached: ${level}</p>
+                <button class="start-btn" onclick="location.reload()">Play Again</button>
+            </div>`;
+    }
+
+    // Drawing
+    function draw() {
+        ctx.clearRect(0, 0, W, H);
+
+        drawSky();
+        drawField();
+        drawGoal();
+        drawWall();
+        drawKeeper();
+        drawBallShadow();
+        drawBall();
+        drawParticles();
+        drawAim();
+        drawHUD();
+        drawSwipeHint();
+
+        if (state === STATE.RESULT && resultTimer > 0) {
+            drawResult();
+        }
+    }
+
+    function drawSky() {
+        const grad = ctx.createLinearGradient(0, 0, 0, H * 0.5);
+        grad.addColorStop(0, '#87CEEB');
+        grad.addColorStop(0.7, '#b8e4f7');
+        grad.addColorStop(1, '#d4efc4');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, H * 0.55);
+
+        // Crowd / stands silhouette
+        ctx.fillStyle = '#3a5a3a';
+        const standY = H * 0.28;
+        ctx.beginPath();
+        ctx.moveTo(0, standY + 40);
+        for (let x = 0; x <= W; x += 3) {
+            const h = Math.sin(x * 0.01) * 8 + Math.sin(x * 0.03) * 4 + Math.random() * 2;
+            ctx.lineTo(x, standY + h);
+        }
+        ctx.lineTo(W, H * 0.55);
+        ctx.lineTo(0, H * 0.55);
+        ctx.fill();
+
+        // Crowd dots
+        ctx.fillStyle = 'rgba(255,255,255,0.1)';
+        for (let i = 0; i < 150; i++) {
+            const cx = Math.random() * W;
+            const cy = standY + Math.random() * 35;
+            ctx.fillRect(cx, cy, 2, 2);
+        }
+    }
+
+    function drawField() {
+        // Green field
+        const grad = ctx.createLinearGradient(0, H * 0.5, 0, H);
+        grad.addColorStop(0, '#2d8a4e');
+        grad.addColorStop(0.3, '#27a844');
+        grad.addColorStop(1, '#1e7a38');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, H * 0.45, W, H * 0.55);
+
+        // Field lines (perspective)
+        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+        ctx.lineWidth = 2;
+        for (let z = 0; z <= GOAL_DIST; z += 30) {
+            const left = project(-FIELD_WIDTH, 0, z);
+            const right = project(FIELD_WIDTH, 0, z);
+            ctx.beginPath();
+            ctx.moveTo(left.sx, left.sy);
+            ctx.lineTo(right.sx, right.sy);
+            ctx.stroke();
+        }
+    }
+
+    function drawGoal() {
+        const postRadius = 3;
+        const topLeft = project(-GOAL_WIDTH / 2, GOAL_HEIGHT, GOAL_DIST);
+        const topRight = project(GOAL_WIDTH / 2, GOAL_HEIGHT, GOAL_DIST);
+        const botLeft = project(-GOAL_WIDTH / 2, 0, GOAL_DIST);
+        const botRight = project(GOAL_WIDTH / 2, 0, GOAL_DIST);
+
+        // Net (back)
+        const netDepth = 20;
+        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+        ctx.lineWidth = 0.5;
+        for (let i = 0; i <= 10; i++) {
+            const t = i / 10;
+            const x = -GOAL_WIDTH / 2 + GOAL_WIDTH * t;
+            const front = project(x, 0, GOAL_DIST);
+            const top = project(x, GOAL_HEIGHT, GOAL_DIST);
+            const back = project(x, GOAL_HEIGHT * 0.8, GOAL_DIST + netDepth);
+            ctx.beginPath();
+            ctx.moveTo(front.sx, front.sy);
+            ctx.lineTo(top.sx, top.sy);
+            ctx.lineTo(back.sx, back.sy);
+            ctx.stroke();
+        }
+        for (let i = 0; i <= 5; i++) {
+            const t = i / 5;
+            const y = GOAL_HEIGHT * t;
+            const yBack = GOAL_HEIGHT * 0.8 * t;
+            const left = project(-GOAL_WIDTH / 2, y, GOAL_DIST);
+            const right = project(GOAL_WIDTH / 2, y, GOAL_DIST);
+            ctx.beginPath();
+            ctx.moveTo(left.sx, left.sy);
+            ctx.lineTo(right.sx, right.sy);
+            ctx.stroke();
+        }
+
+        // Posts
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = Math.max(3, topLeft.scale * postRadius);
+
+        // Left post
+        ctx.beginPath();
+        ctx.moveTo(botLeft.sx, botLeft.sy);
+        ctx.lineTo(topLeft.sx, topLeft.sy);
+        ctx.stroke();
+
+        // Right post
+        ctx.beginPath();
+        ctx.moveTo(botRight.sx, botRight.sy);
+        ctx.lineTo(topRight.sx, topRight.sy);
+        ctx.stroke();
+
+        // Crossbar
+        ctx.beginPath();
+        ctx.moveTo(topLeft.sx, topLeft.sy);
+        ctx.lineTo(topRight.sx, topRight.sy);
+        ctx.stroke();
+    }
+
+    function drawWall() {
+        wallPlayers.forEach(p => {
+            const bodyHeight = 28 + p.jumpHeight;
+            const base = project(p.x, 0, p.z);
+            const top = project(p.x, bodyHeight, p.z);
+            const scale = base.scale;
+
+            // Shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.beginPath();
+            ctx.ellipse(base.sx, base.sy, 6 * scale, 2 * scale, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Body
+            ctx.fillStyle = '#1a237e';
+            const bodyW = 8 * scale;
+            const headR = 4 * scale;
+            ctx.fillRect(base.sx - bodyW / 2, top.sy + headR, bodyW, base.sy - top.sy - headR);
+
+            // Shorts
+            ctx.fillStyle = '#fff';
+            const shortsTop = base.sy - (base.sy - top.sy - headR) * 0.25;
+            ctx.fillRect(base.sx - bodyW / 2, shortsTop, bodyW, (base.sy - shortsTop) * 0.5);
+
+            // Head
+            ctx.fillStyle = '#f5cba7';
+            ctx.beginPath();
+            ctx.arc(base.sx, top.sy + headR, headR, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Arms covering face (wall stance)
+            ctx.fillStyle = '#f5cba7';
+            ctx.fillRect(base.sx - bodyW * 0.7, top.sy + headR * 1.5, bodyW * 1.4, headR);
+        });
+    }
+
+    function drawKeeper() {
+        const kx = keeper.x;
+        const ky = Math.max(0, keeper.y);
+        const kz = GOAL_DIST - 3;
+
+        const base = project(kx, 0, kz);
+        const body = project(kx, 28 + ky * 0.3, kz);
+        const scale = base.scale;
+        const bodyW = 10 * scale;
+        const headR = 5 * scale;
+
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.beginPath();
+        ctx.ellipse(base.sx, base.sy, 8 * scale, 2 * scale, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Determine dive angle
+        let angle = 0;
+        if (keeper.isDiving) {
+            const diveAmount = keeper.diveProgress;
+            angle = Math.sign(keeper.targetX) * diveAmount * 0.8;
+        }
+
+        ctx.save();
+        ctx.translate(base.sx, base.sy);
+        ctx.rotate(angle);
+
+        // Body (jersey - different from wall)
+        ctx.fillStyle = '#f39c12';
+        ctx.fillRect(-bodyW / 2, -(base.sy - body.sy), bodyW, base.sy - body.sy);
+
+        // Shorts
+        ctx.fillStyle = '#2c3e50';
+        const shortsH = (base.sy - body.sy) * 0.25;
+        ctx.fillRect(-bodyW / 2, -shortsH, bodyW, shortsH);
+
+        // Head
+        ctx.fillStyle = '#f5cba7';
+        ctx.beginPath();
+        ctx.arc(0, -(base.sy - body.sy) - headR, headR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Gloves (arms stretched)
+        ctx.fillStyle = '#e74c3c';
+        const armReach = keeper.isDiving ? keeper.diveProgress * bodyW * 2 : bodyW * 0.5;
+        ctx.fillRect(-bodyW / 2 - armReach, -(base.sy - body.sy) * 0.6, armReach + bodyW + armReach, bodyW * 0.4);
+
+        ctx.restore();
+    }
+
+    function drawBallShadow() {
+        const shadow = project(ball.x, 0, ball.z);
+        const heightFade = Math.max(0.1, 1 - ball.y / 60);
+        ctx.fillStyle = `rgba(0,0,0,${0.25 * heightFade})`;
+        ctx.beginPath();
+        ctx.ellipse(shadow.sx, shadow.sy, ballRadius * shadow.scale * 1.5, ballRadius * shadow.scale * 0.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    function drawBall() {
+        const p = project(ball.x, ball.y, ball.z);
+        const r = Math.max(3, ballRadius * p.scale);
+
+        // Ball
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Pentagon pattern
+        ctx.fillStyle = '#333';
+        ctx.beginPath();
+        ctx.arc(p.sx - r * 0.15, p.sy - r * 0.1, r * 0.35, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Highlight
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.beginPath();
+        ctx.arc(p.sx - r * 0.3, p.sy - r * 0.3, r * 0.25, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    function drawAim() {
+        if (!hasAim || state !== STATE.AIMING) return;
+
+        const p = project(aimX, aimY, GOAL_DIST);
+        const r = 12;
+
+        ctx.strokeStyle = 'rgba(255,50,50,0.8)';
+        ctx.lineWidth = 2;
+
+        // Crosshair
+        ctx.beginPath();
+        ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(p.sx - r - 4, p.sy);
+        ctx.lineTo(p.sx + r + 4, p.sy);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(p.sx, p.sy - r - 4);
+        ctx.lineTo(p.sx, p.sy + r + 4);
+        ctx.stroke();
+
+        // Dotted line from ball to aim
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        const ballProj = project(ball.x, ball.y, ball.z);
+        ctx.beginPath();
+        ctx.moveTo(ballProj.sx, ballProj.sy);
+        ctx.lineTo(p.sx, p.sy);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    function drawParticles() {
+        particles.forEach(p => {
+            const proj = project(p.x, p.y, p.z);
+            const r = Math.max(1, 2 * proj.scale * p.life);
+            ctx.globalAlpha = p.life;
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(proj.sx, proj.sy, r, 0, Math.PI * 2);
+            ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+    }
+
+    function drawHUD() {
+        // Score
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.fillRect(W - 160, 10, 150, 50);
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 18px Segoe UI, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(`Score: ${score}`, W - 20, 35);
+        ctx.font = '14px Segoe UI, sans-serif';
+        ctx.fillText(`Kick ${Math.min(kicks + 1, maxKicks)} / ${maxKicks}  |  Lvl ${level}`, W - 20, 52);
+        ctx.textAlign = 'left';
+    }
+
+    function drawSwipeHint() {
+        if (state !== STATE.AIMING || !hasAim) return;
+
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.font = '16px Segoe UI, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Swipe up from below to kick!', W / 2, H - 40);
+
+        // Arrow hint
+        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        ctx.lineWidth = 2;
+        const arrowX = W / 2;
+        const arrowY = H - 70;
+        ctx.beginPath();
+        ctx.moveTo(arrowX, arrowY + 20);
+        ctx.lineTo(arrowX, arrowY - 10);
+        ctx.moveTo(arrowX - 8, arrowY);
+        ctx.lineTo(arrowX, arrowY - 10);
+        ctx.lineTo(arrowX + 8, arrowY);
+        ctx.stroke();
+        ctx.textAlign = 'left';
+    }
+
+    function drawResult() {
+        const alpha = Math.min(1, resultTimer / 30);
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = resultText === 'GOAL!' ? '#2ecc71' : '#e74c3c';
+        ctx.font = `bold ${Math.min(72, W * 0.12)}px Segoe UI, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+        ctx.lineWidth = 4;
+        ctx.strokeText(resultText, W / 2, H * 0.4);
+        ctx.fillText(resultText, W / 2, H * 0.4);
+        ctx.textAlign = 'left';
+        ctx.restore();
+    }
+
+    // Game loop
+    let lastTime = 0;
+    function loop(time) {
+        const dt = Math.min(3, (time - lastTime) / 16.67);
+        lastTime = time;
+
+        if (!gameOverShown) {
+            update(dt);
+            draw();
+        }
+        requestAnimationFrame(loop);
+    }
+
+    // Start
+    startBtn.addEventListener('click', () => {
+        overlay.classList.add('hidden');
+        setupRound();
+        requestAnimationFrame(loop);
+    });
+
+})();
+</script>
+</body>
+</html>

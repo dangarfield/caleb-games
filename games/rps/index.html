@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Rock Paper Scissors - Caleb's Arcade</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      height: 100vh;
+      width: 100vw;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow: hidden;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 0.4rem 1rem;
+      flex-shrink: 0;
+    }
+
+    .back-btn {
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+      border: none;
+      border-radius: 0.75rem;
+      padding: 0.4rem 0.8rem;
+      font-size: 0.9rem;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .back-btn:active { transform: scale(0.95); }
+
+    h1 {
+      font-size: 1.4rem;
+      color: #fff;
+      text-shadow: 0 0 20px rgba(139, 92, 246, 0.5);
+      text-align: center;
+      flex: 1;
+    }
+
+    .score-bar {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      width: 100%;
+      padding: 0.3rem 1rem;
+      color: #fff;
+      font-size: 0.95rem;
+      flex-shrink: 0;
+    }
+
+    .score-bar span {
+      background: rgba(255,255,255,0.1);
+      padding: 0.2rem 0.7rem;
+      border-radius: 0.5rem;
+    }
+
+    /* Screens */
+    .screen { display: none; flex-direction: column; align-items: center; flex: 1; width: 100%; min-height: 0; }
+    .screen.active { display: flex; }
+
+    /* Menu Screen */
+    #menu-screen { justify-content: center; gap: 1.2rem; padding: 1rem; }
+
+    .menu-btn {
+      background: linear-gradient(135deg, rgba(139,92,246,0.3), rgba(59,130,246,0.3));
+      border: 2px solid rgba(139,92,246,0.5);
+      color: #fff;
+      font-size: 1.2rem;
+      padding: 1rem 2rem;
+      border-radius: 1rem;
+      cursor: pointer;
+      width: 80%;
+      max-width: 320px;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .menu-btn:active { transform: scale(0.96); }
+    .menu-btn:hover { box-shadow: 0 0 20px rgba(139,92,246,0.4); }
+
+    .menu-btn.custom-set-btn {
+      background: linear-gradient(135deg, rgba(234,179,8,0.3), rgba(249,115,22,0.3));
+      border-color: rgba(234,179,8,0.5);
+    }
+
+    .saved-sets { width: 80%; max-width: 320px; }
+    .saved-sets h3 { color: rgba(255,255,255,0.6); font-size: 0.85rem; margin-bottom: 0.4rem; text-align: center; }
+
+    .saved-set-btn {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #fff;
+      font-size: 1rem;
+      padding: 0.7rem 1.2rem;
+      border-radius: 0.75rem;
+      cursor: pointer;
+      width: 100%;
+      margin-bottom: 0.4rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .saved-set-btn:active { transform: scale(0.97); }
+    .saved-set-btn .delete-set { color: #ff6b6b; font-size: 1.2rem; padding: 0 0.3rem; }
+
+    /* Game Screen */
+    #game-screen { padding: 0.5rem 1rem; gap: 0.5rem; }
+
+    .arena {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.8rem;
+      min-height: 0;
+      width: 100%;
+    }
+
+    .vs-display {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1.5rem;
+      width: 100%;
+    }
+
+    .player-choice, .cpu-choice {
+      width: 100px;
+      height: 100px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3.5rem;
+      transition: transform 0.3s;
+      overflow: hidden;
+    }
+
+    .player-choice img, .cpu-choice img {
+      width: 80px;
+      height: 80px;
+      object-fit: contain;
+    }
+
+    .vs-text {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: rgba(255,255,255,0.4);
+    }
+
+    .result-text {
+      font-size: 1.6rem;
+      font-weight: bold;
+      color: #fff;
+      min-height: 2rem;
+      text-align: center;
+    }
+
+    .result-text.win { color: #4ade80; text-shadow: 0 0 20px rgba(74,222,128,0.5); }
+    .result-text.lose { color: #f87171; text-shadow: 0 0 20px rgba(248,113,113,0.5); }
+    .result-text.draw { color: #fbbf24; text-shadow: 0 0 20px rgba(251,191,36,0.5); }
+
+    .choices {
+      display: flex;
+      gap: 0.8rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      padding: 0.5rem;
+      max-width: 100%;
+    }
+
+    .choice-btn {
+      width: 90px;
+      height: 90px;
+      background: linear-gradient(135deg, rgba(139,92,246,0.2), rgba(59,130,246,0.2));
+      border: 2px solid rgba(139,92,246,0.4);
+      border-radius: 1rem;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.2rem;
+      transition: transform 0.15s, box-shadow 0.15s;
+      color: #fff;
+      font-size: 0.75rem;
+      overflow: hidden;
+    }
+
+    .choice-btn:active { transform: scale(0.92); }
+    .choice-btn:hover { box-shadow: 0 0 15px rgba(139,92,246,0.4); }
+
+    .choice-btn .emoji { font-size: 2.5rem; line-height: 1; }
+    .choice-btn img { width: 50px; height: 50px; object-fit: contain; }
+    .choice-btn .label { font-size: 0.7rem; opacity: 0.8; }
+
+    /* Bounce animation */
+    @keyframes bounce {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.15); }
+    }
+    .bounce { animation: bounce 0.4s ease; }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-8px); }
+      75% { transform: translateX(8px); }
+    }
+    .shake { animation: shake 0.4s ease; }
+
+    @keyframes pop-in {
+      0% { transform: scale(0); opacity: 0; }
+      70% { transform: scale(1.1); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .pop-in { animation: pop-in 0.35s ease-out; }
+
+    /* Creator Screen */
+    #creator-screen { padding: 1rem; gap: 0.8rem; overflow-y: auto; }
+
+    .creator-form {
+      width: 100%;
+      max-width: 400px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.8rem;
+    }
+
+    .creator-form label {
+      color: rgba(255,255,255,0.7);
+      font-size: 0.85rem;
+    }
+
+    .creator-form input {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #fff;
+      padding: 0.6rem 0.8rem;
+      border-radius: 0.6rem;
+      font-size: 1rem;
+      outline: none;
+    }
+
+    .creator-form input:focus { border-color: rgba(139,92,246,0.6); }
+
+    .item-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .item-entry {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 0.75rem;
+      padding: 0.6rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .item-entry .item-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .item-entry input { flex: 1; }
+
+    .item-icon-preview {
+      width: 48px;
+      height: 48px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .item-icon-preview img { width: 40px; height: 40px; object-fit: contain; }
+
+    .beats-select {
+      display: flex;
+      gap: 0.3rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .beats-select span { color: rgba(255,255,255,0.5); font-size: 0.75rem; }
+
+    .beats-chip {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #fff;
+      padding: 0.15rem 0.5rem;
+      border-radius: 1rem;
+      font-size: 0.7rem;
+      cursor: pointer;
+    }
+
+    .beats-chip.selected {
+      background: rgba(74,222,128,0.3);
+      border-color: rgba(74,222,128,0.6);
+    }
+
+    .remove-item-btn {
+      background: none;
+      border: none;
+      color: #f87171;
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 0 0.3rem;
+      flex-shrink: 0;
+    }
+
+    .add-item-btn {
+      background: rgba(255,255,255,0.08);
+      border: 1px dashed rgba(255,255,255,0.3);
+      color: rgba(255,255,255,0.6);
+      padding: 0.6rem;
+      border-radius: 0.75rem;
+      cursor: pointer;
+      font-size: 0.9rem;
+      text-align: center;
+    }
+
+    .save-set-btn {
+      background: linear-gradient(135deg, rgba(74,222,128,0.3), rgba(34,197,94,0.3));
+      border: 2px solid rgba(74,222,128,0.5);
+      color: #fff;
+      font-size: 1.1rem;
+      padding: 0.8rem;
+      border-radius: 0.75rem;
+      cursor: pointer;
+    }
+
+    .save-set-btn:active { transform: scale(0.97); }
+
+    .creator-back-btn {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #fff;
+      padding: 0.5rem;
+      border-radius: 0.75rem;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+
+    .error-msg { color: #f87171; font-size: 0.8rem; text-align: center; }
+  </style>
+</head>
+<body>
+
+<div class="top-bar">
+  <a href="/" class="back-btn">&#8592; Games</a>
+  <h1>Rock Paper Scissors</h1>
+  <div style="width:60px"></div>
+</div>
+
+<div class="score-bar" id="score-bar" style="display:none;">
+  <span>You: <b id="player-score">0</b></span>
+  <span>CPU: <b id="cpu-score">0</b></span>
+  <span>Round: <b id="round-num">0</b></span>
+</div>
+
+<!-- Menu Screen -->
+<div class="screen active" id="menu-screen">
+  <button class="menu-btn" onclick="startClassic()">Classic RPS</button>
+  <button class="menu-btn custom-set-btn" onclick="showCreator()">+ Create Custom Set</button>
+  <div class="saved-sets" id="saved-sets-container"></div>
+</div>
+
+<!-- Game Screen -->
+<div class="screen" id="game-screen">
+  <div class="arena">
+    <div class="vs-display">
+      <div class="player-choice" id="player-display">?</div>
+      <div class="vs-text">VS</div>
+      <div class="cpu-choice" id="cpu-display">?</div>
+    </div>
+    <div class="result-text" id="result-text"></div>
+  </div>
+  <div class="choices" id="choices-container"></div>
+  <button class="creator-back-btn" style="margin-bottom:0.5rem;width:90%;max-width:400px;" onclick="backToMenu()">Back to Menu</button>
+</div>
+
+<!-- Creator Screen -->
+<div class="screen" id="creator-screen">
+  <div class="creator-form" id="creator-form">
+    <label>Set Name</label>
+    <input type="text" id="set-name-input" placeholder="e.g. Elements, Animals...">
+    <label>Items (minimum 3)</label>
+    <div class="item-list" id="item-list"></div>
+    <button class="add-item-btn" onclick="addItemEntry()">+ Add Item</button>
+    <div class="error-msg" id="creator-error"></div>
+    <button class="save-set-btn" onclick="saveCustomSet()">Save & Play</button>
+    <button class="creator-back-btn" onclick="backToMenu()">Cancel</button>
+  </div>
+</div>
+
+<script>
+const CLASSIC_SET = {
+  name: 'Classic',
+  items: [
+    { name: 'Rock', emoji: '\u{1FAA8}', beats: ['Scissors'], icon: null },
+    { name: 'Paper', emoji: '\u{1F4C4}', beats: ['Rock'], icon: null },
+    { name: 'Scissors', emoji: '\u{2702}\u{FE0F}', beats: ['Paper'], icon: null },
+  ],
+};
+
+let currentSet = null;
+let playerScore = 0;
+let cpuScore = 0;
+let roundNum = 0;
+let isAnimating = false;
+
+// Load saved sets
+function getSavedSets() {
+  try { return JSON.parse(localStorage.getItem('rps-custom-sets') || '[]'); }
+  catch { return []; }
+}
+function saveSets(sets) { localStorage.setItem('rps-custom-sets', JSON.stringify(sets)); }
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// Menu
+function renderSavedSets() {
+  const container = document.getElementById('saved-sets-container');
+  const sets = getSavedSets();
+  if (sets.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+  container.innerHTML = '<h3>Custom Sets</h3>' + sets.map((s, i) => `
+    <button class="saved-set-btn" onclick="startCustom(${i})">
+      <span>${s.name} (${s.items.length} items)</span>
+      <span class="delete-set" onclick="event.stopPropagation();deleteSet(${i})">x</span>
+    </button>
+  `).join('');
+}
+
+function deleteSet(idx) {
+  const sets = getSavedSets();
+  sets.splice(idx, 1);
+  saveSets(sets);
+  renderSavedSets();
+}
+
+function startClassic() { startGame(CLASSIC_SET); }
+function startCustom(idx) { startGame(getSavedSets()[idx]); }
+
+// Game
+function startGame(set) {
+  currentSet = set;
+  playerScore = 0;
+  cpuScore = 0;
+  roundNum = 0;
+  updateScores();
+  document.getElementById('score-bar').style.display = 'flex';
+  document.getElementById('result-text').textContent = 'Choose your move!';
+  document.getElementById('result-text').className = 'result-text';
+  document.getElementById('player-display').innerHTML = '?';
+  document.getElementById('cpu-display').innerHTML = '?';
+  renderChoices();
+  showScreen('game-screen');
+}
+
+function renderChoices() {
+  const container = document.getElementById('choices-container');
+  container.innerHTML = currentSet.items.map((item, i) => `
+    <button class="choice-btn" onclick="playRound(${i})">
+      ${item.icon
+        ? `<img src="${item.icon}" alt="${item.name}">`
+        : `<span class="emoji">${item.emoji || item.name[0]}</span>`
+      }
+      <span class="label">${item.name}</span>
+    </button>
+  `).join('');
+}
+
+function displayItem(item) {
+  if (item.icon) return `<img src="${item.icon}" alt="${item.name}">`;
+  return item.emoji || item.name[0];
+}
+
+function playRound(playerIdx) {
+  if (isAnimating) return;
+  isAnimating = true;
+
+  const playerItem = currentSet.items[playerIdx];
+  const cpuIdx = Math.floor(Math.random() * currentSet.items.length);
+  const cpuItem = currentSet.items[cpuIdx];
+
+  const playerEl = document.getElementById('player-display');
+  const cpuEl = document.getElementById('cpu-display');
+  const resultEl = document.getElementById('result-text');
+
+  // Shake animation
+  playerEl.innerHTML = '?';
+  cpuEl.innerHTML = '?';
+  playerEl.classList.add('shake');
+  cpuEl.classList.add('shake');
+  resultEl.textContent = '';
+  resultEl.className = 'result-text';
+
+  setTimeout(() => {
+    playerEl.classList.remove('shake');
+    cpuEl.classList.remove('shake');
+
+    playerEl.innerHTML = displayItem(playerItem);
+    cpuEl.innerHTML = displayItem(cpuItem);
+    playerEl.classList.add('pop-in');
+    cpuEl.classList.add('pop-in');
+
+    roundNum++;
+    let result;
+    if (playerItem.name === cpuItem.name) {
+      result = 'draw';
+      resultEl.textContent = "It's a draw!";
+      resultEl.className = 'result-text draw';
+    } else if (playerItem.beats.includes(cpuItem.name)) {
+      result = 'win';
+      playerScore++;
+      resultEl.textContent = `${playerItem.name} beats ${cpuItem.name}!`;
+      resultEl.className = 'result-text win';
+      playerEl.classList.add('bounce');
+    } else {
+      result = 'lose';
+      cpuScore++;
+      resultEl.textContent = `${cpuItem.name} beats ${playerItem.name}!`;
+      resultEl.className = 'result-text lose';
+      cpuEl.classList.add('bounce');
+    }
+
+    updateScores();
+
+    setTimeout(() => {
+      playerEl.classList.remove('pop-in', 'bounce');
+      cpuEl.classList.remove('pop-in', 'bounce');
+      isAnimating = false;
+    }, 500);
+  }, 500);
+}
+
+function updateScores() {
+  document.getElementById('player-score').textContent = playerScore;
+  document.getElementById('cpu-score').textContent = cpuScore;
+  document.getElementById('round-num').textContent = roundNum;
+}
+
+function backToMenu() {
+  document.getElementById('score-bar').style.display = 'none';
+  showScreen('menu-screen');
+  renderSavedSets();
+}
+
+// Creator
+function showCreator() {
+  document.getElementById('set-name-input').value = '';
+  document.getElementById('item-list').innerHTML = '';
+  document.getElementById('creator-error').textContent = '';
+  addItemEntry();
+  addItemEntry();
+  addItemEntry();
+  showScreen('creator-screen');
+}
+
+let itemCounter = 0;
+
+function addItemEntry() {
+  const list = document.getElementById('item-list');
+  const idx = itemCounter++;
+  const div = document.createElement('div');
+  div.className = 'item-entry';
+  div.dataset.idx = idx;
+  div.innerHTML = `
+    <div class="item-header">
+      <div class="item-icon-preview" id="icon-preview-${idx}">?</div>
+      <input type="text" class="item-name" placeholder="Item name" oninput="updateBeatsChips()">
+      <button class="remove-item-btn" onclick="this.closest('.item-entry').remove();updateBeatsChips()">x</button>
+    </div>
+    <div class="beats-select" id="beats-${idx}">
+      <span>Beats:</span>
+    </div>
+  `;
+  list.appendChild(div);
+  updateBeatsChips();
+}
+
+function updateBeatsChips() {
+  const entries = document.querySelectorAll('.item-entry');
+  const names = Array.from(entries).map(e => e.querySelector('.item-name').value.trim()).filter(Boolean);
+
+  entries.forEach(entry => {
+    const myName = entry.querySelector('.item-name').value.trim();
+    const beatsDiv = entry.querySelector('.beats-select');
+    const currentlySelected = new Set(
+      Array.from(beatsDiv.querySelectorAll('.beats-chip.selected')).map(c => c.dataset.name)
+    );
+
+    beatsDiv.innerHTML = '<span>Beats:</span> ' +
+      names.filter(n => n !== myName).map(n => {
+        const sel = currentlySelected.has(n) ? ' selected' : '';
+        return `<span class="beats-chip${sel}" data-name="${n}" onclick="this.classList.toggle('selected')">${n}</span>`;
+      }).join('');
+  });
+}
+
+function saveCustomSet() {
+  const errorEl = document.getElementById('creator-error');
+  const name = document.getElementById('set-name-input').value.trim();
+  if (!name) { errorEl.textContent = 'Please enter a set name'; return; }
+
+  const entries = document.querySelectorAll('.item-entry');
+  const items = [];
+
+  for (const entry of entries) {
+    const itemName = entry.querySelector('.item-name').value.trim();
+    if (!itemName) continue;
+    const beats = Array.from(entry.querySelectorAll('.beats-chip.selected')).map(c => c.dataset.name);
+    const icon = entry.dataset.icon || null;
+    items.push({ name: itemName, emoji: null, beats, icon });
+  }
+
+  if (items.length < 3) {
+    errorEl.textContent = 'Need at least 3 items with names';
+    return;
+  }
+
+  // Validate: every item should beat at least one other item
+  const hasBeats = items.every(item => item.beats.length > 0);
+  if (!hasBeats) {
+    errorEl.textContent = 'Every item must beat at least one other item';
+    return;
+  }
+
+  const set = { name, items };
+  const sets = getSavedSets();
+  sets.push(set);
+  saveSets(sets);
+
+  startGame(set);
+}
+
+// Init
+renderSavedSets();
+</script>
+</body>
+</html>

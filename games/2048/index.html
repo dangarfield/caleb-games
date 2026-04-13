@@ -628,6 +628,10 @@
 
         if (!easyMode || didMerge) {
           newCell = addRandomTile();
+        } else if (easyMode && !canMerge()) {
+          // Easy mode: no merge happened and no merge is possible anywhere
+          // on the board — add a tile so the player can make progress
+          newCell = addRandomTile();
         }
 
         // Find new tile positions for animation
@@ -677,6 +681,30 @@
           if (board[r][c] === 0) return true;
           if (c < SIZE - 1 && board[r][c] === board[r][c + 1]) return true;
           if (r < SIZE - 1 && board[r][c] === board[r + 1][c]) return true;
+        }
+      }
+      return false;
+    }
+
+    function canMerge() {
+      // Check if any two tiles on the board share the same value
+      // (they can slide together to merge, regardless of current position)
+      var vals = {};
+      for (var r = 0; r < SIZE; r++) {
+        for (var c = 0; c < SIZE; c++) {
+          if (board[r][c] === 0) continue;
+          // Tiles must be in the same row or column to merge via sliding
+          // Check rows: any duplicate value in the same row
+          // Check cols: any duplicate value in the same column
+          var v = board[r][c];
+          // Check rest of same row
+          for (var c2 = c + 1; c2 < SIZE; c2++) {
+            if (board[r][c2] === v) return true;
+          }
+          // Check rest of same column
+          for (var r2 = r + 1; r2 < SIZE; r2++) {
+            if (board[r2][c] === v) return true;
+          }
         }
       }
       return false;

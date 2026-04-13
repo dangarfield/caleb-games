@@ -4,7 +4,12 @@
   "description": "A collection of browser-based games for Caleb",
   "private": true,
   "scripts": {
-    "start": "serve . -l 5000"
+    "start": "node server/index.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1029.0",
+    "@aws-sdk/credential-providers": "^3.1029.0",
+    "express": "^4.21.0"
   },
   "devDependencies": {
     "serve": "^14.2.4"

@@ -1,0 +1,1949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Sensible Soccer - Caleb's Arcade</title>
+    <script src="https://cdn.jsdelivr.net/npm/lil-gui@0.20/dist/lil-gui.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #1a3a1a;
+            width: 100vw; height: 100vh; overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none; user-select: none; -webkit-user-select: none;
+        }
+        #game-container { width: 100vw; height: 100vh; position: relative; }
+        #game-container canvas { display: block; }
+        #backBtn {
+            position: fixed; top: 15px; left: 15px; z-index: 100;
+            background: rgba(255,255,255,0.15); border: 2px solid rgba(255,255,255,0.3);
+            color: #fff; padding: 8px 16px; border-radius: 25px; font-size: 16px;
+            cursor: pointer; text-decoration: none; backdrop-filter: blur(10px);
+            transition: background 0.3s;
+        }
+        #backBtn:hover { background: rgba(255,255,255,0.25); }
+        #instructions {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center;
+            z-index: 200; backdrop-filter: blur(5px);
+        }
+        #instructions .box {
+            background: rgba(10, 30, 10, 0.95); border: 2px solid rgba(80,200,80,0.3);
+            border-radius: 20px; padding: 30px 40px; max-width: 480px; text-align: center;
+            color: #fff; box-shadow: 0 0 40px rgba(80,200,80,0.15);
+        }
+        #instructions h2 { font-size: 26px; margin-bottom: 15px; color: #80e080; text-shadow: 0 0 15px rgba(80,200,80,0.5); }
+        #instructions p { font-size: 15px; line-height: 1.6; margin-bottom: 10px; color: #bbc; }
+        #instructions .key { background: rgba(80,200,80,0.2); padding: 3px 10px; border-radius: 6px; font-weight: bold; color: #a0ffa0; }
+        #instructions button {
+            margin-top: 15px; padding: 12px 30px; font-size: 18px; border: none;
+            background: linear-gradient(135deg, #40a040, #206020); color: #fff;
+            border-radius: 30px; cursor: pointer; font-weight: bold;
+            box-shadow: 0 0 20px rgba(80,200,80,0.3);
+        }
+        #instructions button:hover { box-shadow: 0 0 30px rgba(80,200,80,0.5); }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="canvas"></canvas>
+    </div>
+    <a id="backBtn" href="../../">&#8592; Back</a>
+    <div id="instructions">
+        <div class="box">
+            <h2>Sensible Soccer</h2>
+            <p>11v11 soccer with full match play!</p>
+            <p>
+                <span class="key">WASD</span> / <span class="key">Arrows</span> Move<br>
+                <span class="key">K</span> Pass / Tackle &nbsp; <span class="key">L</span> Shoot<br>
+                <span class="key">J</span> Switch Player<br>
+                Touch: Joystick (left) + Buttons (right)
+            </p>
+            <button id="startBtn">Kick Off!</button>
+        </div>
+    </div>
+<script>
+'use strict';
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+// ═══════════════════════════════════════════════════════════════
+// EMath — ysoccer framework/EMath.java (degree-based trig)
+// ═══════════════════════════════════════════════════════════════
+const DEG2RAD = Math.PI / 180;
+const RAD2DEG = 180 / Math.PI;
+const EMath = {
+    cos(deg) { return Math.cos(deg * DEG2RAD); },
+    sin(deg) { return Math.sin(deg * DEG2RAD); },
+    aTan2(dy, dx) { return Math.atan2(dy, dx) * RAD2DEG; },
+    dist(x1, y1, x2, y2) { return Math.hypot(x2 - x1, y2 - y1); },
+    angleDiff(a1, a2) {
+        let d = Math.abs(a1 - a2) % 360;
+        if (d > 180) d = 360 - d;
+        return d;
+    },
+    signedAngleDiff(a1, a2) {
+        let d = (a1 - a2) % 360;
+        if (d > 180) d -= 360;
+        if (d < -180) d += 360;
+        return d;
+    },
+    normalizeAngle(a) {
+        a = a % 360;
+        if (a < 0) a += 360;
+        return a;
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// Const — ysoccer match/Const.java
+// All values in ysoccer coordinate space, then scaled to our pitch
+// ═══════════════════════════════════════════════════════════════
+// YSoccer field: x=[-510,510] (touch lines), y=[-640,640] (goal lines)
+// Total: 1020 x 1280 (portrait). Our field: 1050 x 680 (landscape).
+// We map: ysoccer Y-axis (long) → our X-axis, ysoccer X-axis (short) → our Y-axis
+// Scale factors: X: 1050/1280 = 0.8203, Y: 680/1020 = 0.6667
+// For velocities/distances we use an average scale ~0.74
+// Time: ysoccer 512 subframes/sec, we use 60fps. Factor: 1/60 per frame vs 1/512 per subframe.
+// Speed in our coords per frame = ysoccer_speed * spatialScale / 60
+
+const PITCH_W = 1050, PITCH_H = 680;
+const GOAL_W = 8, GOAL_H = 120;
+const GOAL_Y = (PITCH_H - GOAL_H) / 2;
+const PENALTY_W = 165, PENALTY_H = 400;
+const PENALTY_Y = (PITCH_H - PENALTY_H) / 2;
+const CENTER_R = 91;
+const BALL_R = 5, PLAYER_R = 8;
+
+// ysoccer Const.java values (in ysoccer units)
+const YS = {
+    SECOND: 512,            // subframes per second
+    SUBFRAMES: 8,           // subframes per frame
+    FPS: 64,                // virtual refresh rate
+    BALL_R: 4,
+    PLAYER_H: 22,
+    GRAVITY: 332.8 / 512,   // per subframe = 0.65
+    AIR_FRICTION: 0.28,
+    SPIN_FACTOR: 12,
+    BOUNCE: 0.9,
+    GOAL_LINE: 640,
+    TOUCH_LINE: 510,
+    POST_X: 71,
+    CROSSBAR_H: 33,
+    DIRECT_SHOT_DISTANCE: 310,
+    // Grass (normal)
+    GRASS_FRICTION: 8,
+    GRASS_BOUNCE: 0.65,
+};
+
+// Spatial scale: ysoccer coords → our coords
+// ysoccer long axis = 1280 (2*GOAL_LINE), our long axis = PITCH_W = 1050
+// ysoccer short axis = 1020 (2*TOUCH_LINE), our short axis = PITCH_H = 680
+const SCALE_X = PITCH_W / (2 * YS.GOAL_LINE);  // 1050/1280 = 0.8203
+const SCALE_Y = PITCH_H / (2 * YS.TOUCH_LINE);  // 680/1020 = 0.6667
+const SCALE_AVG = (SCALE_X + SCALE_Y) / 2;       // ~0.74
+
+// Time scale: convert ysoccer per-subframe to our per-frame
+// ysoccer: 512 subframes/sec. Our: 60 frames/sec.
+// 1 our frame = 512/60 = 8.533 subframes
+const SUBFRAMES_PER_FRAME = YS.SECOND / 60;  // ~8.533
+
+// Convert ysoccer speed (units/subframe) to our speed (pixels/frame)
+function ysSpeed(v) { return v * SCALE_AVG * SUBFRAMES_PER_FRAME; }
+// Convert ysoccer distance to our distance
+function ysDist(d) { return d * SCALE_AVG; }
+
+// Player speed: ysoccer = (130 + 4*speed_skill) pixels/SECOND
+// Per subframe = (130 + 4*skill) / 512
+// Default skill ~50: speed = (130+200)/512 = 0.6445/subframe
+// In our coords/frame: 0.6445 * 0.74 * 8.533 = 4.07
+const DEFAULT_SKILL = 50;
+const PLAYER_SPEED_BASE = (130 + 4 * DEFAULT_SKILL) / YS.SECOND; // per subframe in ys coords
+
+const MATCH_DURATION = 180; // seconds
+
+// ── Debug config ──
+const debug = {
+    showTackleRange: false,
+    showBallProximity: false,
+    showHasBall: false,
+    showPlayerDist: false,
+    autoplay: false,
+};
+
+// ── Team colors ──
+const TEAM_A = { shirt: '#dd2222', shorts: '#ffffff', socks: '#dd2222', gk: '#ffcc00' };
+const TEAM_B = { shirt: '#2244dd', shorts: '#ffffff', socks: '#2244dd', gk: '#44cc44' };
+
+// ── Formation (4-4-2 relative positions, 0-1 range) ──
+const FORMATION = [
+    { x: 0.05, y: 0.5 },   // GK
+    { x: 0.18, y: 0.2 },   // LB
+    { x: 0.18, y: 0.4 },   // CB
+    { x: 0.18, y: 0.6 },   // CB
+    { x: 0.18, y: 0.8 },   // RB
+    { x: 0.35, y: 0.2 },   // LM
+    { x: 0.35, y: 0.4 },   // CM
+    { x: 0.35, y: 0.6 },   // CM
+    { x: 0.35, y: 0.8 },   // RM
+    { x: 0.52, y: 0.35 },  // ST
+    { x: 0.52, y: 0.65 },  // ST
+];
+
+// ═══════════════════════════════════════════════════════════════
+// Game State
+// ═══════════════════════════════════════════════════════════════
+let W, H, scale, offsetX, offsetY;
+let ball, teamA, teamB, controlledPlayer;
+let score = { a: 0, b: 0 };
+let matchTime = 0, matchRunning = false, halfTime = false, matchOver = false;
+let kickOff = true, kickOffTeam = 'a';
+let gameStarted = false;
+
+// Dead ball state machine (ysoccer match states: THROW_IN_STOP → THROW_IN → MAIN)
+let deadBall = false, deadBallTimer = 0, deadBallType = '';
+let deadBallPos = { x: 0, y: 0 }, deadBallTeam = '';
+let deadBallPhase = 'reposition'; // 'reposition' | 'walk' | 'aim' | 'throw'
+let deadBallThrower = null;
+
+// ═══════════════════════════════════════════════════════════════
+// Input
+// ═══════════════════════════════════════════════════════════════
+let keys = {};
+let touchJoystick = { active: false, id: null, cx: 0, cy: 0, dx: 0, dy: 0 };
+let touchButtons = { pass: false, shoot: false, tackle: false };
+let touchBtnIds = {};
+
+function resize() {
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = W; canvas.height = H;
+    const sx = W / PITCH_W, sy = H / PITCH_H;
+    scale = Math.min(sx, sy) * 0.92;
+    offsetX = (W - PITCH_W * scale) / 2;
+    offsetY = (H - PITCH_H * scale) / 2;
+}
+window.addEventListener('resize', resize);
+resize();
+
+function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function pitchToScreen(px, py) { return { x: offsetX + px * scale, y: offsetY + py * scale }; }
+
+document.addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; });
+document.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+
+function handleTouchStart(e) {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+        if (t.clientX < W * 0.4) {
+            touchJoystick.active = true;
+            touchJoystick.id = t.identifier;
+            touchJoystick.cx = t.clientX;
+            touchJoystick.cy = t.clientY;
+            touchJoystick.dx = 0;
+            touchJoystick.dy = 0;
+        } else if (t.clientX > W * 0.45) {
+            const bx = t.clientX, by = t.clientY;
+            const hitR = 55;
+            const btns = getButtonPositions();
+            if (dist({ x: bx, y: by }, btns.pass) < hitR) {
+                touchButtons.pass = true; touchBtnIds.pass = t.identifier;
+            } else if (dist({ x: bx, y: by }, btns.shoot) < hitR) {
+                touchButtons.shoot = true; touchBtnIds.shoot = t.identifier;
+            } else if (dist({ x: bx, y: by }, btns.tackle) < hitR) {
+                touchButtons.tackle = true; touchBtnIds.tackle = t.identifier;
+            }
+        }
+    }
+}
+
+function handleTouchMove(e) {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+        if (t.identifier === touchJoystick.id) {
+            touchJoystick.dx = t.clientX - touchJoystick.cx;
+            touchJoystick.dy = t.clientY - touchJoystick.cy;
+            const maxDist = 60;
+            const d = Math.hypot(touchJoystick.dx, touchJoystick.dy);
+            if (d > maxDist) {
+                touchJoystick.dx = touchJoystick.dx / d * maxDist;
+                touchJoystick.dy = touchJoystick.dy / d * maxDist;
+            }
+        }
+    }
+}
+
+function handleTouchEnd(e) {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+        if (t.identifier === touchJoystick.id) {
+            touchJoystick.active = false;
+            touchJoystick.dx = 0; touchJoystick.dy = 0;
+        }
+        if (t.identifier === touchBtnIds.pass) touchButtons.pass = false;
+        if (t.identifier === touchBtnIds.shoot) touchButtons.shoot = false;
+        if (t.identifier === touchBtnIds.tackle) touchButtons.tackle = false;
+    }
+}
+
+function getButtonPositions() {
+    const cx = W - 100, cy = H - 140;
+    const spacing = 70;
+    return {
+        shoot:  { x: cx, y: cy - spacing },
+        pass:   { x: cx - spacing, y: cy },
+        tackle: { x: cx + spacing * 0.5, y: cy + spacing * 0.6 }
+    };
+}
+
+function getInput() {
+    let dx = 0, dy = 0, pass = false, shoot = false, tackle = false;
+    if (keys['w'] || keys['arrowup']) dy = -1;
+    if (keys['s'] || keys['arrowdown']) dy = 1;
+    if (keys['a'] || keys['arrowleft']) dx = -1;
+    if (keys['d'] || keys['arrowright']) dx = 1;
+    if (keys['k']) pass = true;
+    if (keys['l']) shoot = true;
+    if (keys['j']) tackle = true;
+    if (touchJoystick.active) {
+        const d = Math.hypot(touchJoystick.dx, touchJoystick.dy);
+        if (d > 8) {
+            dx = touchJoystick.dx / d;
+            dy = touchJoystick.dy / d;
+        }
+    }
+    if (touchButtons.pass) pass = true;
+    if (touchButtons.shoot) shoot = true;
+    if (touchButtons.tackle) tackle = true;
+    const mag = Math.hypot(dx, dy);
+    if (mag > 1) { dx /= mag; dy /= mag; }
+    return { dx, dy, pass, shoot, tackle };
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// Ball — ported from ysoccer match/Ball.java
+// Uses scalar velocity v + angle a (degrees) + spin s + vz
+// ═══════════════════════════════════════════════════════════════
+function createBall() {
+    return {
+        x: PITCH_W / 2, y: PITCH_H / 2,
+        v: 0,           // scalar speed (our coords/frame)
+        a: 0,           // angle in degrees
+        z: 0,           // height
+        vz: 0,          // vertical velocity
+        s: 0,           // spin
+        ownerSide: null, // 'a' or 'b' — last team to touch
+        lastTouchPlayer: null,
+        justKicked: 0,   // frames of immunity after kick
+    };
+}
+
+// Ball.updatePhysics() — ysoccer Ball.java
+function updateBall() {
+    if (!ball) return;
+    if (ball.justKicked > 0) ball.justKicked--;
+
+    // Apply spin to angle (ysoccer: a += s * SPIN_FACTOR / SECOND per subframe)
+    // Per frame: s * 12 / 512 * 8.533 subframes = s * 0.2
+    if (ball.v > 0) {
+        ball.a += ball.s * YS.SPIN_FACTOR / YS.SECOND * SUBFRAMES_PER_FRAME;
+        ball.a = EMath.normalizeAngle(ball.a);
+    }
+
+    // Move ball
+    const vx = ball.v * EMath.cos(ball.a);
+    const vy = ball.v * EMath.sin(ball.a);
+    ball.x += vx;
+    ball.y += vy;
+
+    // Friction
+    if (ball.z <= 0) {
+        // Ground: grass friction — ysoccer: v -= friction/SECOND * sqrt(|v|) per subframe
+        // Per frame: v -= friction/SECOND * sqrt(|v_ys|) * subframes_per_frame
+        // v_ys = v / (SCALE_AVG * SUBFRAMES_PER_FRAME) — convert back to ys speed
+        const v_ys = ball.v / (SCALE_AVG * SUBFRAMES_PER_FRAME);
+        if (v_ys > 0) {
+            const friction_ys = YS.GRASS_FRICTION / YS.SECOND * Math.sqrt(v_ys) * SUBFRAMES_PER_FRAME;
+            ball.v -= friction_ys * SCALE_AVG * SUBFRAMES_PER_FRAME;
+        }
+        // Spin decay on ground
+        if (ball.s > 0) ball.s = Math.max(0, ball.s - 0.02);
+        else if (ball.s < 0) ball.s = Math.min(0, ball.s + 0.02);
+    } else {
+        // Air: v *= (1 - AIR_FRICTION/SECOND) per subframe
+        // Per frame: v *= (1 - 0.28/512)^8.533
+        const airFactor = Math.pow(1 - YS.AIR_FRICTION / YS.SECOND, SUBFRAMES_PER_FRAME);
+        ball.v *= airFactor;
+    }
+
+    // Gravity & bounce
+    if (ball.z > 0 || ball.vz > 0) {
+        // vz -= GRAVITY per subframe, per frame: vz -= GRAVITY * subframes
+        // But vz is in our coords/frame, gravity needs scaling
+        const gravity_per_frame = YS.GRAVITY * SUBFRAMES_PER_FRAME * SCALE_AVG;
+        ball.vz -= gravity_per_frame;
+        ball.z += ball.vz;
+        if (ball.z <= 0) {
+            ball.z = 0;
+            // Bounce: vz *= -BOUNCE * grass_bounce
+            ball.vz = -ball.vz * YS.BOUNCE * YS.GRASS_BOUNCE;
+            if (Math.abs(ball.vz) < 0.3) ball.vz = 0;
+            // Speed loss on bounce
+            ball.v *= 0.85;
+        }
+    }
+
+    if (ball.v < 0.01) { ball.v = 0; ball.s = 0; }
+
+    // ── Boundary checks ──
+    const inGoalY = ball.y > GOAL_Y && ball.y < GOAL_Y + GOAL_H;
+
+    // Goals
+    if (ball.x <= 2 && inGoalY && ball.z < ysDist(YS.CROSSBAR_H)) {
+        scoreGoal('b'); return;
+    }
+    if (ball.x >= PITCH_W - 2 && inGoalY && ball.z < ysDist(YS.CROSSBAR_H)) {
+        scoreGoal('a'); return;
+    }
+
+    // Touchlines (throw-in)
+    if (ball.y < 0 || ball.y > PITCH_H) {
+        deadBall = true;
+        deadBallType = 'throwin';
+        deadBallPos.x = clamp(ball.x, 10, PITCH_W - 10);
+        deadBallPos.y = ball.y < 0 ? 2 : PITCH_H - 2;
+        // Opposite of last team to touch
+        deadBallTeam = ball.ownerSide === 'a' ? 'b' : 'a';
+        ball.v = 0; ball.s = 0; ball.vz = 0; ball.z = 0;
+        ball.x = deadBallPos.x; ball.y = deadBallPos.y;
+        deadBallTimer = 0;
+        deadBallPhase = 'reposition';
+        deadBallThrower = null;
+        for (const p of teamA) p.hasBall = false;
+        for (const p of teamB) p.hasBall = false;
+        return;
+    }
+
+    // Goal lines (goal kick / corner)
+    if (ball.x < 0) {
+        deadBall = true;
+        deadBallType = 'goalkick';
+        deadBallPos.x = 60;
+        deadBallPos.y = ball.y < PITCH_H / 2 ? GOAL_Y + 20 : GOAL_Y + GOAL_H - 20;
+        deadBallTeam = 'a';
+        ball.v = 0; ball.s = 0; ball.vz = 0; ball.z = 0;
+        ball.x = deadBallPos.x; ball.y = deadBallPos.y;
+        deadBallTimer = 0;
+        deadBallPhase = 'reposition';
+        deadBallThrower = null;
+        for (const p of teamA) p.hasBall = false;
+        for (const p of teamB) p.hasBall = false;
+        return;
+    }
+    if (ball.x > PITCH_W) {
+        deadBall = true;
+        deadBallType = 'goalkick';
+        deadBallPos.x = PITCH_W - 60;
+        deadBallPos.y = ball.y < PITCH_H / 2 ? GOAL_Y + 20 : GOAL_Y + GOAL_H - 20;
+        deadBallTeam = 'b';
+        ball.v = 0; ball.s = 0; ball.vz = 0; ball.z = 0;
+        ball.x = deadBallPos.x; ball.y = deadBallPos.y;
+        deadBallTimer = 0;
+        deadBallPhase = 'reposition';
+        deadBallThrower = null;
+        for (const p of teamA) p.hasBall = false;
+        for (const p of teamB) p.hasBall = false;
+        return;
+    }
+
+    // Goalpost collisions
+    checkGoalpostCollision(0, GOAL_Y);
+    checkGoalpostCollision(0, GOAL_Y + GOAL_H);
+    checkGoalpostCollision(PITCH_W, GOAL_Y);
+    checkGoalpostCollision(PITCH_W, GOAL_Y + GOAL_H);
+}
+
+function checkGoalpostCollision(px, py) {
+    const d = dist(ball, { x: px, y: py });
+    if (d < BALL_R + 4) {
+        // Reflect velocity
+        const nx = (ball.x - px) / d, ny = (ball.y - py) / d;
+        const bvx = ball.v * EMath.cos(ball.a);
+        const bvy = ball.v * EMath.sin(ball.a);
+        const dot = bvx * nx + bvy * ny;
+        const rvx = bvx - 2 * dot * nx * 0.7;
+        const rvy = bvy - 2 * dot * ny * 0.7;
+        ball.a = EMath.aTan2(rvy, rvx);
+        ball.v *= 0.7;
+        ball.x = px + nx * (BALL_R + 5);
+        ball.y = py + ny * (BALL_R + 5);
+    }
+}
+
+function scoreGoal(team) {
+    score[team]++;
+    kickOff = true;
+    kickOffTeam = team === 'a' ? 'b' : 'a';
+    resetPositions(kickOffTeam);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Player — ported from ysoccer match/Player.java
+// State machine: standrun, kick, tackle, down, notresponsive, head, reachtarget, idle
+// Uses scalar v + angle a (degrees)
+// ═══════════════════════════════════════════════════════════════
+
+// Player speed in our coords per frame
+// ysoccer: speed = (130 + 4*skill) / 512 per subframe
+function playerSpeed(skill) {
+    return ((130 + 4 * (skill || DEFAULT_SKILL)) / YS.SECOND) * SCALE_AVG * SUBFRAMES_PER_FRAME;
+}
+
+function createPlayer(x, y, side, idx) {
+    const speed = playerSpeed(DEFAULT_SKILL);
+    return {
+        x, y,
+        v: 0,           // scalar speed
+        a: side === 'a' ? 0 : 180, // facing angle in degrees
+        side, idx,
+        isGK: idx === 0,
+        hasBall: false,
+        speed,           // max speed (our coords/frame)
+        // Skills (ysoccer 0-100)
+        skills: { speed: DEFAULT_SKILL, control: DEFAULT_SKILL, tackling: DEFAULT_SKILL, heading: DEFAULT_SKILL, shooting: DEFAULT_SKILL },
+        // State machine (ysoccer PlayerFsm)
+        state: 'standrun',
+        stateTimer: 0,   // frames in current state
+        // Kick state (ysoccer PlayerStateKick)
+        kickMode: null,  // null | 'UNKNOWN' | 'PASSING' | 'SHOOTING' | 'KICKING'
+        kickTimer: 0,    // frames since entering kick state
+        kickAngle: 0,    // direction of kick
+        // Tackle state
+        slideSpeed: 0,
+        slideAngle: 0,
+        // Pass tracking
+        passingMate: null,
+        // Formation home
+        homeX: x, homeY: y,
+        // Animation
+        animFrame: 0,
+        facing: side === 'a' ? 1 : -1,
+        // AI state (ysoccer AiFsm)
+        aiState: 'positioning', // 'attacking' | 'defending' | 'seeking' | 'positioning' | 'passing' | 'kicking' | 'idle'
+        aiTimer: 0,
+        aiTarget: null,
+        // Frame distance (ysoccer: frames needed to reach ball)
+        frameDistance: Infinity,
+    };
+}
+
+function createTeam(side) {
+    const players = [];
+    for (let i = 0; i < 11; i++) {
+        const f = FORMATION[i];
+        let x, y;
+        if (side === 'a') {
+            x = f.x * PITCH_W * 0.9 + PITCH_W * 0.05;
+            y = f.y * PITCH_H * 0.9 + PITCH_H * 0.05;
+        } else {
+            x = PITCH_W - (f.x * PITCH_W * 0.9 + PITCH_W * 0.05);
+            y = PITCH_H - (f.y * PITCH_H * 0.9 + PITCH_H * 0.05);
+        }
+        const p = createPlayer(x, y, side, i);
+        p.homeX = x;
+        p.homeY = y;
+        players.push(p);
+    }
+    return players;
+}
+
+function resetPositions(kickTeam) {
+    teamA = createTeam('a');
+    teamB = createTeam('b');
+    ball = createBall();
+    kickOff = true;
+    kickOffTeam = kickTeam;
+    deadBall = false;
+    deadBallPhase = 'reposition';
+    deadBallThrower = null;
+    controlledPlayer = teamA[10];
+    ball.x = PITCH_W / 2; ball.y = PITCH_H / 2;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Player.getPossession() — ysoccer Player.java
+// Ellipse-based detection then speed contest
+// ═══════════════════════════════════════════════════════════════
+function playerBallInteraction(p) {
+    if (p.state !== 'standrun' && p.state !== 'kick') return false;
+    if (ball.justKicked > 0 && ball.lastTouchPlayer !== p) return false;
+    if (ball.z > ysDist(YS.PLAYER_H)) return false;
+
+    const d = dist(p, ball);
+    // ysoccer uses ellipse; we approximate with distance
+    const captureR = PLAYER_R + BALL_R + 2;
+    if (d > captureR) {
+        if (p.hasBall && d > captureR + 4) p.hasBall = false;
+        return p.hasBall;
+    }
+
+    if (deadBall) return false;
+
+    // Check if opponent currently owns
+    const oppTeam = p.side === 'a' ? teamB : teamA;
+    let currentOwner = null;
+    for (const opp of oppTeam) {
+        if (opp.hasBall) { currentOwner = opp; break; }
+    }
+
+    if (currentOwner) {
+        // ysoccer possession contest: tackling skill vs control skill
+        const attackSkill = p.skills.tackling;
+        const defendSkill = currentOwner.skills.control;
+        const chance = 0.4 + (attackSkill - defendSkill) * 0.004; // ~0.4-0.6
+        if (Math.random() < chance) {
+            currentOwner.hasBall = false;
+            currentOwner.state = 'notresponsive';
+            currentOwner.stateTimer = 0;
+            p.hasBall = true;
+            ball.ownerSide = p.side;
+            ball.lastTouchPlayer = p;
+        } else {
+            p.state = 'notresponsive';
+            p.stateTimer = 0;
+            return false;
+        }
+    } else {
+        p.hasBall = true;
+        ball.ownerSide = p.side;
+        ball.lastTouchPlayer = p;
+    }
+
+    // Attach ball to player (ysoccer: ball follows player with control angle)
+    if (p.hasBall) {
+        const controlAngle = p.a; // ball stays in front
+        ball.x = p.x + EMath.cos(controlAngle) * (PLAYER_R + BALL_R);
+        ball.y = p.y + EMath.sin(controlAngle) * (PLAYER_R + BALL_R);
+        // Ball matches player speed with slight damping
+        ball.v = p.v * 0.85;
+        ball.a = p.a;
+        ball.s = 0;
+    }
+    return p.hasBall;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Player.searchPassingMate() — ysoccer Player.java
+// ±27.5° cone, pick smallest frameDistance
+// ═══════════════════════════════════════════════════════════════
+function searchPassingMate(player, team) {
+    const kickDir = player.a; // current facing angle
+    let best = null, bestFrameDist = Infinity;
+
+    for (const p of team) {
+        if (p === player) continue;
+        if (p.isGK) continue;
+        if (p.state !== 'standrun' && p.state !== 'reachtarget' && p.state !== 'idle') continue;
+
+        const d = dist(player, p);
+        if (d < 25 || d > 500) continue;
+
+        const angleToMate = EMath.aTan2(p.y - player.y, p.x - player.x);
+        const aDiff = EMath.angleDiff(kickDir, angleToMate);
+
+        // ysoccer: ±27.5° cone
+        if (aDiff > 27.5) continue;
+
+        // Use frame distance (ysoccer: frames for player to reach predicted ball position)
+        // Simplified: distance / player speed
+        const frameDist = d / (p.speed || 1);
+        if (frameDist < bestFrameDist) {
+            bestFrameDist = frameDist;
+            best = p;
+        }
+    }
+
+    // Fallback: nearest teammate in wider cone
+    if (!best) {
+        let nearD = Infinity;
+        for (const p of team) {
+            if (p === player || p.isGK) continue;
+            const d = dist(player, p);
+            const angleToMate = EMath.aTan2(p.y - player.y, p.x - player.x);
+            const aDiff = EMath.angleDiff(kickDir, angleToMate);
+            if (aDiff > 60) continue;
+            if (d < nearD) { nearD = d; best = p; }
+        }
+    }
+
+    // Final fallback: nearest non-GK teammate
+    if (!best) {
+        let nearD = Infinity;
+        for (const p of team) {
+            if (p === player || p.isGK) continue;
+            const d = dist(player, p);
+            if (d < nearD) { nearD = d; best = p; }
+        }
+    }
+    return best;
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// Player State Machine — ported from ysoccer PlayerState*.java
+// ═══════════════════════════════════════════════════════════════
+
+// Kick state durations in frames (ysoccer uses subframes)
+const KICK_UNKNOWN_FRAMES = Math.round(0.15 * 60);   // 9 frames = 0.15s
+const KICK_TOTAL_FRAMES = Math.round(0.35 * 60);     // 21 frames = 0.35s
+const DOWN_FRAMES = Math.round(1.5 * 60);            // 90 frames = 1.5s
+const NOT_RESPONSIVE_FRAMES = Math.round(0.2 * 60);  // 12 frames = 0.2s
+
+// Kick speeds in our coords/frame (ysoccer base speeds: pass=240, kick=250, shoot=270)
+const PASS_SPEED = ysSpeed(240 / YS.SECOND);
+const KICK_SPEED = ysSpeed(250 / YS.SECOND);
+const SHOOT_SPEED = ysSpeed(270 / YS.SECOND);
+
+// Tackle: entry speed = 1.4 * playerSpeed * (1 + 0.02 * tackling)
+// Decel: v -= (20 + grass_friction) / SECOND * sqrt(v) per subframe
+const TACKLE_END_SPEED = ysSpeed(30 / YS.SECOND); // slide ends when v < this
+
+function updatePlayerState(p) {
+    p.stateTimer++;
+
+    switch (p.state) {
+        case 'standrun':
+            // Nothing special — handled by AI or player input
+            break;
+
+        case 'kick':
+            // ysoccer PlayerStateKick: player decelerates, ball launches after mode determined
+            p.kickTimer++;
+            // Player decelerates during kick
+            p.v *= 0.9;
+
+            if (p.kickMode === 'UNKNOWN' && p.kickTimer >= KICK_UNKNOWN_FRAMES) {
+                // Fire held past 0.15s — determine kick vs shoot
+                const team = p.side === 'a' ? teamA : teamB;
+                const goalX = p.side === 'a' ? PITCH_W : 0;
+                const goalDist = Math.abs(p.x - goalX);
+                const directShotDist = ysDist(YS.DIRECT_SHOT_DISTANCE);
+
+                if (goalDist < directShotDist) {
+                    p.kickMode = 'SHOOTING';
+                    executeBallKick(p, SHOOT_SPEED, true);
+                } else {
+                    p.kickMode = 'KICKING';
+                    executeBallKick(p, KICK_SPEED, false);
+                }
+            }
+
+            // Kick state ends after 0.35s total
+            if (p.kickTimer >= KICK_TOTAL_FRAMES) {
+                p.state = 'standrun';
+                p.stateTimer = 0;
+                p.kickMode = null;
+                p.passingMate = null;
+            }
+            break;
+
+        case 'tackle':
+            // ysoccer PlayerStateTackle
+            // Decel: v -= (20 + grass_friction) / SECOND * sqrt(v_ys) per subframe
+            {
+                const v_ys = p.slideSpeed / (SCALE_AVG * SUBFRAMES_PER_FRAME);
+                if (v_ys > 0) {
+                    const decel_ys = (20 + YS.GRASS_FRICTION) / YS.SECOND * Math.sqrt(v_ys) * SUBFRAMES_PER_FRAME;
+                    p.slideSpeed -= decel_ys * SCALE_AVG * SUBFRAMES_PER_FRAME;
+                    if (p.slideSpeed < 0) p.slideSpeed = 0;
+                }
+
+                // Move along slide direction
+                p.x += EMath.cos(p.slideAngle) * p.slideSpeed;
+                p.y += EMath.sin(p.slideAngle) * p.slideSpeed;
+                p.x = clamp(p.x, 2, PITCH_W - 2);
+                p.y = clamp(p.y, 2, PITCH_H - 2);
+
+                // Feet collision with ball (ysoccer: distance < 7 scaled, angleDiff <= 90)
+                const ballD = dist(p, ball);
+                if (ballD < PLAYER_R + BALL_R + 4 && ball.z < ysDist(10)) {
+                    const angleToball = EMath.aTan2(ball.y - p.y, ball.x - p.x);
+                    const aDiff = EMath.angleDiff(p.slideAngle, angleToball);
+                    if (aDiff <= 90) {
+                        // Win the ball
+                        ball.a = p.slideAngle;
+                        ball.v = p.slideSpeed * 0.7;
+                        ball.s = 0;
+                        ball.justKicked = 5;
+                        ball.ownerSide = p.side;
+                        ball.lastTouchPlayer = p;
+                        const oppTeam = p.side === 'a' ? teamB : teamA;
+                        for (const opp of oppTeam) opp.hasBall = false;
+                    }
+                }
+
+                // Body collision with opponents (ysoccer: 9px behind, knock them down)
+                const oppTeam = p.side === 'a' ? teamB : teamA;
+                if (p.slideSpeed > TACKLE_END_SPEED * 0.5) {
+                    for (const opp of oppTeam) {
+                        if (opp.state === 'down') continue;
+                        if (dist(p, opp) < PLAYER_R * 2) {
+                            const hadBall = opp.hasBall;
+                            opp.state = 'down';
+                            opp.stateTimer = 0;
+                            opp.hasBall = false;
+                            opp.v = 0;
+                            if (hadBall || dist(opp, ball) < PLAYER_R + BALL_R + 3) {
+                                ball.a = p.slideAngle;
+                                ball.v = p.slideSpeed * 0.4;
+                                ball.justKicked = 5;
+                                ball.ownerSide = p.side;
+                                ball.lastTouchPlayer = p;
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                // Slide ends when speed drops below threshold
+                if (p.slideSpeed <= TACKLE_END_SPEED) {
+                    p.state = 'standrun';
+                    p.stateTimer = 0;
+                    p.slideSpeed = 0;
+                }
+            }
+            break;
+
+        case 'down':
+            // ysoccer PlayerStateDown: v=0, duration 1.5*SECOND
+            p.v = 0;
+            p.hasBall = false;
+            if (p.stateTimer >= DOWN_FRAMES) {
+                p.state = 'standrun';
+                p.stateTimer = 0;
+            }
+            break;
+
+        case 'notresponsive':
+            // ysoccer PlayerStateNotResponsive: duration 0.2*SECOND
+            p.v = 0;
+            if (p.stateTimer >= NOT_RESPONSIVE_FRAMES) {
+                p.state = 'standrun';
+                p.stateTimer = 0;
+            }
+            break;
+
+        case 'reachtarget':
+            // ysoccer PlayerStateReachTarget: move toward target at v=180+rand(30)
+            if (p.aiTarget) {
+                const d = dist(p, p.aiTarget);
+                if (d < 3) {
+                    p.state = 'idle';
+                    p.stateTimer = 0;
+                    p.v = 0;
+                } else {
+                    p.a = EMath.aTan2(p.aiTarget.y - p.y, p.aiTarget.x - p.x);
+                    const reachSpeed = ysSpeed((180 + Math.random() * 30) / YS.SECOND);
+                    p.v = reachSpeed;
+                    p.x += EMath.cos(p.a) * p.v;
+                    p.y += EMath.sin(p.a) * p.v;
+                }
+            } else {
+                p.state = 'standrun';
+                p.stateTimer = 0;
+            }
+            break;
+
+        case 'idle':
+            // ysoccer PlayerStateIdle: v=0, standing
+            p.v = 0;
+            break;
+    }
+}
+
+// Execute a ball kick (pass/shoot/long ball)
+function executeBallKick(p, baseSpeed, isShot) {
+    const team = p.side === 'a' ? teamA : teamB;
+
+    if (isShot) {
+        // Shoot toward goal
+        const goalX = p.side === 'a' ? PITCH_W : 0;
+        const goalY = PITCH_H / 2 + (Math.random() - 0.5) * GOAL_H * 0.6;
+        ball.a = EMath.aTan2(goalY - p.y, goalX - p.x);
+        ball.v = baseSpeed;
+        ball.vz = Math.random() * 1.5;
+        ball.z = Math.max(ball.z, 0.5);
+    } else {
+        // Long ball in facing direction
+        ball.a = p.kickAngle || p.a;
+        ball.v = baseSpeed;
+        ball.vz = 2.0;
+        ball.z = Math.max(ball.z, 0.5);
+    }
+
+    ball.s = 0;
+    ball.justKicked = Math.round(0.35 * 60); // immunity during kick state
+    ball.ownerSide = p.side;
+    ball.lastTouchPlayer = p;
+    p.hasBall = false;
+}
+
+// Enter kick state (ysoccer: fire1 pressed with ball)
+function enterKickState(p, mode) {
+    p.state = 'kick';
+    p.stateTimer = 0;
+    p.kickTimer = 0;
+    p.kickMode = mode;
+    p.kickAngle = p.a;
+}
+
+// Execute a pass (tap fire = PASSING mode)
+function executePass(p) {
+    const team = p.side === 'a' ? teamA : teamB;
+    const target = searchPassingMate(p, team);
+
+    if (target) {
+        const angleToTarget = EMath.aTan2(target.y - p.y, target.x - p.x);
+        // ysoccer: angle correction clamped to ±22.5°
+        let correction = EMath.signedAngleDiff(angleToTarget, p.kickAngle);
+        correction = clamp(correction, -22.5, 22.5);
+        ball.a = p.kickAngle + correction;
+
+        // ysoccer: base 240 + PASSING_SPEED_FACTOR * distance
+        const d = dist(p, target);
+        // Scale pass speed: base + distance factor
+        const passSpeedYs = (240 + d / SCALE_AVG * 0.3) / YS.SECOND;
+        ball.v = ysSpeed(passSpeedYs);
+        // Cap at reasonable speed
+        ball.v = clamp(ball.v, PASS_SPEED * 0.7, PASS_SPEED * 1.8);
+
+        p.passingMate = target;
+    } else {
+        // No target: kick forward
+        ball.a = p.kickAngle;
+        ball.v = PASS_SPEED;
+    }
+
+    ball.s = 0;
+    ball.vz = 0.3; // slight loft
+    ball.z = Math.max(ball.z, 0.2);
+    ball.justKicked = Math.round(0.35 * 60);
+    ball.ownerSide = p.side;
+    ball.lastTouchPlayer = p;
+    p.hasBall = false;
+}
+
+// Enter tackle state (ysoccer PlayerStateTackle)
+function enterTackleState(p) {
+    p.state = 'tackle';
+    p.stateTimer = 0;
+    // ysoccer: v = 1.4 * speed * (1 + 0.02 * tackling)
+    p.slideSpeed = p.speed * 1.4 * (1 + 0.02 * p.skills.tackling);
+    p.slideAngle = p.a;
+    // 10-unit lunge (scaled)
+    const lunge = ysDist(10);
+    p.x += EMath.cos(p.slideAngle) * lunge;
+    p.y += EMath.sin(p.slideAngle) * lunge;
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// Team — ported from ysoccer match/Team.java
+// automaticInputDeviceSelection, findNearest, near1betterThan
+// ═══════════════════════════════════════════════════════════════
+
+function findNearest(team) {
+    // ysoccer Team.findNearest() — by frameDistance
+    let best = null, bestFD = Infinity;
+    for (const p of team) {
+        if (p.isGK) continue;
+        if (p.state !== 'standrun') continue;
+        // frameDistance = distance / speed (frames to reach ball)
+        const d = dist(p, ball);
+        const fd = d / (p.speed || 1);
+        p.frameDistance = fd;
+        if (fd < bestFD) { bestFD = fd; best = p; }
+    }
+    return best;
+}
+
+function bestDefender(team) {
+    // ysoccer: nearest defender between ball and own goal
+    const goalX = team[0].side === 'a' ? 0 : PITCH_W;
+    let best = null, bestScore = Infinity;
+    for (const p of team) {
+        if (p.isGK) continue;
+        if (p.state !== 'standrun') continue;
+        // Must be between ball and goal
+        const betweenBall = (team[0].side === 'a')
+            ? (p.x < ball.x) : (p.x > ball.x);
+        if (!betweenBall && dist(p, ball) > 100) continue;
+        const fd = dist(p, ball) / (p.speed || 1);
+        if (fd < bestScore) { bestScore = fd; best = p; }
+    }
+    // Fallback to nearest
+    if (!best) best = findNearest(team);
+    return best;
+}
+
+// ysoccer Team.automaticInputDeviceSelection()
+function autoSwitchPlayer() {
+    const p = controlledPlayer;
+    if (!p) return;
+
+    // ysoccer: Don't switch while in kick state
+    if (p.state === 'kick') return;
+    // Don't switch if not in standrun
+    if (p.state !== 'standrun') return;
+
+    // Determine ball state
+    const teamAHasBall = teamA.some(t => t.hasBall);
+    const teamBHasBall = teamB.some(t => t.hasBall);
+
+    let newPlayer = null;
+
+    if (teamAHasBall) {
+        // Ball owned by our team → control goes to ball owner
+        for (const t of teamA) {
+            if (t.hasBall) { newPlayer = t; break; }
+        }
+    } else if (teamBHasBall) {
+        // Ball owned by opponent → bestDefender
+        newPlayer = bestDefender(teamA);
+    } else {
+        // Ball loose
+        const near1 = findNearest(teamA);
+        if (ball.ownerSide === 'a') {
+            // We touched last → near1
+            newPlayer = near1;
+        } else if (ball.ownerSide === 'b') {
+            // Opponent touched last
+            if (ball.x < PITCH_W / 2) {
+                // In our half → bestDefender
+                newPlayer = bestDefender(teamA);
+            } else {
+                // In their half → near1
+                newPlayer = near1;
+            }
+        } else {
+            newPlayer = near1;
+        }
+    }
+
+    if (!newPlayer || newPlayer === p) return;
+
+    // ysoccer near1betterThan hysteresis
+    // Don't switch if near1 is the passing mate
+    if (newPlayer === p.passingMate) return;
+
+    // Only switch if significantly closer (0.5x frame distance)
+    const newFD = dist(newPlayer, ball) / (newPlayer.speed || 1);
+    const curFD = dist(p, ball) / (p.speed || 1);
+
+    // Skip hysteresis if new player has the ball
+    if (!newPlayer.hasBall) {
+        if (newFD >= curFD * 0.5) return;
+    }
+
+    p.passingMate = null;
+    controlledPlayer = newPlayer;
+}
+
+// Manual switch (ysoccer: fire1 with no ball = release control)
+function switchControlledPlayer() {
+    let best = null, bestD = Infinity;
+    for (const p of teamA) {
+        if (p.isGK) continue;
+        if (p === controlledPlayer) continue;
+        if (p.state !== 'standrun') continue;
+        const d = dist(p, ball);
+        if (d < bestD) { bestD = d; best = p; }
+    }
+    if (best) controlledPlayer = best;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AI — ported from ysoccer match/AiState*.java
+// ═══════════════════════════════════════════════════════════════
+
+function updateAI(p, team, oppTeam, isControlledTeam) {
+    p.animFrame += 0.1;
+
+    // Non-standrun states handled by updatePlayerState
+    if (p.state !== 'standrun') return;
+
+    // Dead ball repositioning
+    if (deadBall) {
+        if (deadBallThrower === p) return;
+        const shiftX = (deadBallPos.x / PITCH_W - 0.5) * PITCH_W * 0.25;
+        const shiftY = (deadBallPos.y / PITCH_H - 0.5) * PITCH_H * 0.1;
+        const tx = clamp(p.homeX + shiftX, 20, PITCH_W - 20);
+        const ty = clamp(p.homeY + shiftY, 20, PITCH_H - 20);
+        moveToward(p, tx, ty, p.speed * 0.7);
+        return;
+    }
+
+    // GK
+    if (p.isGK) {
+        updateGK(p, team, oppTeam);
+        return;
+    }
+
+    const isControlled = !debug.autoplay && isControlledTeam && p === controlledPlayer;
+    if (isControlled) return;
+
+    // Compute frame distance
+    p.frameDistance = dist(p, ball) / (p.speed || 1);
+
+    // Teammate AI (player's team, non-controlled)
+    if (isControlledTeam && !debug.autoplay) {
+        updateTeammateAI(p, team, oppTeam);
+        return;
+    }
+
+    // Opponent / autoplay AI — full ysoccer AI state machine
+    updateOpponentAI(p, team, oppTeam);
+}
+
+function updateTeammateAI(p, team, oppTeam) {
+    const ballLoose = !anyoneHasBall(team) && !anyoneHasBall(oppTeam);
+    const near1 = findNearest(team);
+    const ballDist = dist(p, ball);
+
+    // Chase ball if nearest and loose
+    if ((p === near1 && ballLoose && ballDist < 150) || (ballDist < 40 && ballLoose)) {
+        moveToward(p, ball.x, ball.y, p.speed);
+        return;
+    }
+
+    // ysoccer positioning: shift formation toward ball
+    const shiftX = (ball.x / PITCH_W - 0.5) * PITCH_W * 0.4;
+    const shiftY = (ball.y / PITCH_H - 0.5) * PITCH_H * 0.15;
+    moveToward(p,
+        clamp(p.homeX + shiftX, 20, PITCH_W - 20),
+        clamp(p.homeY + shiftY, 20, PITCH_H - 20),
+        p.speed * 0.65
+    );
+}
+
+function updateOpponentAI(p, team, oppTeam) {
+    const ballDist = dist(p, ball);
+
+    // Check possession
+    const hasBall = playerBallInteraction(p);
+
+    if (hasBall) {
+        // ysoccer AiStateAttacking
+        const goalX = p.side === 'b' ? 0 : PITCH_W;
+        const goalDist = Math.abs(p.x - goalX);
+        const directShotDist = ysDist(YS.DIRECT_SHOT_DISTANCE);
+
+        if (goalDist < directShotDist && Math.abs(p.y - PITCH_H / 2) < GOAL_H * 1.2) {
+            // Shoot! Enter kick state as SHOOTING
+            enterKickState(p, 'SHOOTING');
+            executeBallKick(p, SHOOT_SPEED, true);
+            return;
+        }
+
+        if (Math.random() < 0.015) {
+            // Pass (ysoccer AiStatePassing: fire for 8 subframes = ~1 frame)
+            enterKickState(p, 'PASSING');
+            executePass(p);
+            return;
+        }
+
+        // Dribble toward goal (ysoccer AiStateAttacking direction weights)
+        const goalAngle = EMath.aTan2(PITCH_H / 2 - p.y, goalX - p.x);
+
+        // Weight-based direction: mostly toward goal, slight randomness
+        let targetAngle = goalAngle;
+
+        // Avoid nearest opponent (ysoccer emergency turn)
+        let nearestOppDist = Infinity;
+        let nearestOpp = null;
+        for (const opp of oppTeam) {
+            const d = dist(p, opp);
+            if (d < nearestOppDist) { nearestOppDist = d; nearestOpp = opp; }
+        }
+        if (nearestOpp && nearestOppDist < 50) {
+            const oppAngle = EMath.aTan2(nearestOpp.y - p.y, nearestOpp.x - p.x);
+            const avoidAngle = oppAngle + 180;
+            targetAngle = (targetAngle + avoidAngle) / 2;
+        }
+
+        p.a = targetAngle;
+        p.v = p.speed * (1 - 0.1); // ysoccer: speed * (1 - 0.1 * hasBall)
+        p.x += EMath.cos(p.a) * p.v;
+        p.y += EMath.sin(p.a) * p.v;
+        p.facing = EMath.cos(p.a) > 0 ? 1 : -1;
+        return;
+    }
+
+    // Not on ball — chase or position
+    const near1 = findNearest(team);
+
+    if (p === near1) {
+        // ysoccer AiStateSeeking / AiStateDefending — chase ball
+        moveToward(p, ball.x, ball.y, p.speed);
+
+        // Tackle attempt (ysoccer: slide tackle when moving, ball in front, opponent has ball)
+        if (ballDist < 80 && ballDist > 12) {
+            const moveAngle = p.a;
+            const ballAngle = EMath.aTan2(ball.y - p.y, ball.x - p.x);
+            const aDiff = EMath.angleDiff(moveAngle, ballAngle);
+            const ballInFront = aDiff < 90;
+
+            let oppHasBall = false;
+            for (const opp of oppTeam) {
+                if (opp.hasBall && dist(p, opp) < 60) { oppHasBall = true; break; }
+            }
+
+            if (p.v > 0 && ballInFront && oppHasBall) {
+                enterTackleState(p);
+            }
+        }
+    } else {
+        // ysoccer AiStatePositioning — shift formation
+        const shiftX = (ball.x / PITCH_W - 0.5) * PITCH_W * 0.35;
+        const shiftY = (ball.y / PITCH_H - 0.5) * PITCH_H * 0.15;
+        moveToward(p,
+            clamp(p.homeX + shiftX, 20, PITCH_W - 20),
+            clamp(p.homeY + shiftY, 20, PITCH_H - 20),
+            p.speed * 0.5
+        );
+    }
+}
+
+function updateGK(gk, team, oppTeam) {
+    const goalX = gk.side === 'a' ? 20 : PITCH_W - 20;
+    const goalCenterY = PITCH_H / 2;
+    const targetY = clamp(lerp(goalCenterY, ball.y, 0.6), GOAL_Y + 15, GOAL_Y + GOAL_H - 15);
+    const ballDist = dist(gk, ball);
+
+    if (ballDist < 80 && Math.abs(ball.x - goalX) < 100) {
+        moveToward(gk, ball.x, ball.y, playerSpeed(70)); // GK slightly faster
+        if (playerBallInteraction(gk)) {
+            // GK clears
+            const clearAngle = gk.side === 'a' ? 0 : 180;
+            const spread = (Math.random() - 0.5) * 40; // degrees
+            ball.a = clearAngle + spread;
+            ball.v = SHOOT_SPEED * 0.8;
+            ball.vz = 2.5;
+            ball.z = 1;
+            ball.justKicked = Math.round(0.35 * 60);
+            ball.ownerSide = gk.side;
+            ball.lastTouchPlayer = gk;
+            gk.hasBall = false;
+        }
+    } else {
+        moveToward(gk, goalX, targetY, playerSpeed(60));
+    }
+}
+
+function moveToward(p, tx, ty, speed) {
+    const dx = tx - p.x, dy = ty - p.y;
+    const d = Math.hypot(dx, dy);
+    if (d > 2) {
+        p.a = EMath.aTan2(dy, dx);
+        p.v = speed;
+        p.x += EMath.cos(p.a) * p.v;
+        p.y += EMath.sin(p.a) * p.v;
+        p.facing = EMath.cos(p.a) > 0 ? 1 : -1;
+    } else {
+        p.v = 0;
+    }
+    // Clamp to pitch
+    if (p.isGK) {
+        const gkMinX = p.side === 'a' ? 2 : PITCH_W - PENALTY_W - 10;
+        const gkMaxX = p.side === 'a' ? PENALTY_W + 10 : PITCH_W - 2;
+        p.x = clamp(p.x, gkMinX, gkMaxX);
+    } else {
+        p.x = clamp(p.x, 2, PITCH_W - 2);
+    }
+    p.y = clamp(p.y, 2, PITCH_H - 2);
+}
+
+function anyoneHasBall(team) {
+    return team.some(p => p.hasBall);
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// Controlled Player Update — ported from ysoccer PlayerStateStandRun
+// Fire1 = pass/tackle/head/switch, separate shoot button
+// ═══════════════════════════════════════════════════════════════
+function updateControlledPlayer(input) {
+    const p = controlledPlayer;
+    if (!p) return;
+    p.animFrame += 0.15;
+
+    // If in non-standrun state, can't be controlled
+    if (p.state !== 'standrun') return;
+
+    // Movement (ysoccer: speed * (1 - 0.1 * hasBall))
+    if (input.dx !== 0 || input.dy !== 0) {
+        p.a = EMath.aTan2(input.dy, input.dx);
+        const speedMult = p.hasBall ? 0.9 : 1.0;
+        p.v = p.speed * speedMult;
+        p.x += EMath.cos(p.a) * p.v;
+        p.y += EMath.sin(p.a) * p.v;
+        p.facing = input.dx > 0 ? 1 : (input.dx < 0 ? -1 : p.facing);
+    } else {
+        p.v = 0;
+    }
+    p.x = clamp(p.x, 2, PITCH_W - 2);
+    p.y = clamp(p.y, 2, PITCH_H - 2);
+
+    const hasBall = playerBallInteraction(p);
+
+    // ── Fire1 (K key) — ysoccer multi-purpose ──
+    if (input.pass) {
+        if (hasBall && p.v > 0 && ball.z < ysDist(YS.PLAYER_H)) {
+            // Has ball, moving, ball low → enter kick state (tap = pass)
+            enterKickState(p, 'PASSING');
+            executePass(p);
+        } else if (!hasBall) {
+            // No ball — check tackle conditions (ysoccer: moving, ball in front, approaching)
+            const ballDist = dist(p, ball);
+            const ballAngle = EMath.aTan2(ball.y - p.y, ball.x - p.x);
+            const aDiff = EMath.angleDiff(p.a, ballAngle);
+            const ballInFront = aDiff < 90;
+
+            if (p.v > 0 && ballInFront && ballDist < 120 && ballDist > 12) {
+                // Slide tackle
+                enterTackleState(p);
+            } else {
+                // Nothing to do → release control (manual switch)
+                switchControlledPlayer();
+            }
+        } else if (hasBall && p.v === 0) {
+            // Standing still with ball — still pass
+            enterKickState(p, 'PASSING');
+            executePass(p);
+        }
+        keys['k'] = false; touchButtons.pass = false;
+    }
+
+    // ── Shoot (X key) ──
+    if (input.shoot && hasBall) {
+        enterKickState(p, 'SHOOTING');
+        executeBallKick(p, SHOOT_SPEED, true);
+        keys['l'] = false; touchButtons.shoot = false;
+    }
+
+    // ── Switch player (J key) ──
+    if (input.tackle) {
+        switchControlledPlayer();
+        keys['j'] = false; touchButtons.tackle = false;
+    }
+
+    // Kick off
+    if (kickOff && kickOffTeam === 'a' && hasBall && (input.pass || input.shoot)) {
+        kickOff = false;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Dead Ball — ported from ysoccer MatchStateThrowInStop/ThrowIn
+// Multi-phase: reposition → walk → aim → throw
+// ═══════════════════════════════════════════════════════════════
+function updateDeadBall() {
+    ball.v = 0; ball.s = 0;
+    ball.x = deadBallPos.x; ball.y = deadBallPos.y;
+
+    deadBallTimer++;
+
+    switch (deadBallPhase) {
+        case 'reposition':
+            // ysoccer MatchStateThrowInStop: all players move to positions, wait
+            if (deadBallTimer > 30) {
+                deadBallPhase = 'walk';
+                deadBallTimer = 0;
+                // Select nearest player from throwing team
+                const throwTeam = deadBallTeam === 'a' ? teamA : teamB;
+                let bestP = null, bestD = Infinity;
+                for (const p of throwTeam) {
+                    if (p.isGK) continue;
+                    if (p.state !== 'standrun') continue;
+                    const d = dist(p, deadBallPos);
+                    if (d < bestD) { bestD = d; bestP = p; }
+                }
+                deadBallThrower = bestP;
+            }
+            break;
+
+        case 'walk':
+            // ysoccer MatchStateThrowIn: thrower walks to ball
+            if (deadBallThrower) {
+                moveToward(deadBallThrower, deadBallPos.x, deadBallPos.y, deadBallThrower.speed);
+                const d = dist(deadBallThrower, deadBallPos);
+                if (d < 5 || deadBallTimer > 60) {
+                    if (deadBallType === 'throwin') {
+                        deadBallPhase = 'aim';
+                    } else {
+                        deadBallPhase = 'throw'; // goal kicks skip aim
+                    }
+                    deadBallTimer = 0;
+                }
+            } else {
+                deadBallPhase = 'throw';
+                deadBallTimer = 0;
+            }
+            break;
+
+        case 'aim':
+            // ysoccer PlayerStateThrowInAngle: thrower aims
+            // AI: after 1.5s aims toward attack side (ysoccer AiStateThrowingIn)
+            if (deadBallTimer > Math.round(1.5 * 60)) {
+                deadBallPhase = 'throw';
+                deadBallTimer = 0;
+            }
+            break;
+
+        case 'throw':
+            // ysoccer PlayerStateThrowInSpeed: charge and release
+            if (deadBallTimer > Math.round(0.3 * 60)) {
+                if (deadBallType === 'throwin') {
+                    // ysoccer throw-in: v=30+1000*t/512, vz=500*t/512
+                    // At near-max hold (~0.3s = 153 subframes): v≈330, vz≈150
+                    const throwTeam = deadBallTeam === 'a' ? teamA : teamB;
+                    const thrower = deadBallThrower || throwTeam[5];
+                    const target = searchPassingMate(thrower, throwTeam);
+
+                    if (target) {
+                        const angleToTarget = EMath.aTan2(target.y - deadBallPos.y, target.x - deadBallPos.x);
+                        ball.a = angleToTarget;
+                    } else {
+                        // Default: toward attack side
+                        ball.a = deadBallTeam === 'a' ? 0 : 180;
+                    }
+
+                    // ysoccer max throw: v≈330/subframe, vz≈150/subframe
+                    ball.v = ysSpeed(300 / YS.SECOND);
+                    ball.vz = ysSpeed(130 / YS.SECOND);
+                    ball.z = ysDist(YS.PLAYER_H + 2); // ball starts at head height
+                    ball.s = 0;
+                } else {
+                    // Goal kick: longer, higher
+                    const throwTeam = deadBallTeam === 'a' ? teamA : teamB;
+                    const kicker = deadBallThrower || throwTeam[5];
+                    const target = searchPassingMate(kicker, throwTeam);
+
+                    if (target) {
+                        ball.a = EMath.aTan2(target.y - deadBallPos.y, target.x - deadBallPos.x);
+                    } else {
+                        ball.a = deadBallTeam === 'a' ? 0 : 180;
+                    }
+
+                    ball.v = KICK_SPEED * 1.2;
+                    ball.vz = 2.5;
+                    ball.z = 1;
+                    ball.s = 0;
+                }
+
+                ball.justKicked = Math.round(0.5 * 60);
+                ball.ownerSide = deadBallTeam;
+                ball.lastTouchPlayer = deadBallThrower;
+                deadBall = false;
+                deadBallPhase = 'reposition';
+                deadBallThrower = null;
+            }
+            break;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Main Update — ported from ysoccer MatchStateMain
+// ═══════════════════════════════════════════════════════════════
+let lastTime = 0, accumulator = 0;
+const TICK = 1000 / 60;
+
+function update() {
+    if (!matchRunning || matchOver) return;
+
+    // Dead ball
+    if (deadBall) {
+        updateDeadBall();
+        for (const p of teamA) updateAI(p, teamA, teamB, true);
+        for (const p of teamB) updateAI(p, teamB, teamA, false);
+        for (const p of teamA) updatePlayerState(p);
+        for (const p of teamB) updatePlayerState(p);
+        return;
+    }
+
+    // Match timer
+    matchTime += 1 / 60;
+    if (matchTime >= MATCH_DURATION / 2 && !halfTime) {
+        halfTime = true;
+        kickOffTeam = 'b';
+        resetPositions('b');
+        return;
+    }
+    if (matchTime >= MATCH_DURATION) {
+        matchOver = true;
+        return;
+    }
+
+    // Player input
+    if (!debug.autoplay) {
+        const input = getInput();
+        updateControlledPlayer(input);
+        autoSwitchPlayer();
+    }
+
+    // AI
+    for (const p of teamA) {
+        if (!debug.autoplay && p === controlledPlayer) continue;
+        updateAI(p, teamA, teamB, true);
+    }
+    for (const p of teamB) {
+        updateAI(p, teamB, teamA, false);
+    }
+
+    // Ball-player interactions for team A teammates
+    if (!debug.autoplay) {
+        for (const p of teamA) {
+            if (p === controlledPlayer) continue;
+            if (p.state !== 'standrun') continue;
+            playerBallInteraction(p);
+        }
+    }
+
+    // Update player states
+    for (const p of teamA) updatePlayerState(p);
+    for (const p of teamB) updatePlayerState(p);
+
+    // Ball physics
+    updateBall();
+
+    // Kick-off
+    if (kickOff && kickOffTeam === 'b') {
+        const kicker = teamB[10];
+        if (dist(kicker, ball) < 30) {
+            const target = teamB[9];
+            ball.a = EMath.aTan2(target.y - kicker.y, target.x - kicker.x);
+            ball.v = PASS_SPEED * 0.6;
+            ball.justKicked = Math.round(0.35 * 60);
+            ball.ownerSide = 'b';
+            ball.lastTouchPlayer = kicker;
+            kickOff = false;
+        }
+    }
+    if (kickOff && kickOffTeam === 'a' && debug.autoplay) {
+        const kicker = teamA[10];
+        if (dist(kicker, ball) < 30) {
+            const target = teamA[9];
+            ball.a = EMath.aTan2(target.y - kicker.y, target.x - kicker.x);
+            ball.v = PASS_SPEED * 0.6;
+            ball.justKicked = Math.round(0.35 * 60);
+            ball.ownerSide = 'a';
+            ball.lastTouchPlayer = kicker;
+            kickOff = false;
+        }
+    }
+
+    // Player-player collisions
+    const all = [...teamA, ...teamB];
+    for (let i = 0; i < all.length; i++) {
+        for (let j = i + 1; j < all.length; j++) {
+            const a = all[i], b = all[j];
+            const d = dist(a, b);
+            if (d < PLAYER_R * 2 && d > 0) {
+                const nx = (b.x - a.x) / d, ny = (b.y - a.y) / d;
+                const overlap = PLAYER_R * 2 - d;
+                a.x -= nx * overlap * 0.5;
+                a.y -= ny * overlap * 0.5;
+                b.x += nx * overlap * 0.5;
+                b.y += ny * overlap * 0.5;
+            }
+        }
+    }
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// Drawing (kept from original — visual layer only)
+// ═══════════════════════════════════════════════════════════════
+function drawPitch() {
+    ctx.fillStyle = '#2d8a2d';
+    ctx.fillRect(0, 0, W, H);
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
+
+    for (let i = 0; i < 14; i++) {
+        ctx.fillStyle = i % 2 === 0 ? '#2d8a2d' : '#339933';
+        ctx.fillRect(i * PITCH_W / 14, 0, PITCH_W / 14, PITCH_H);
+    }
+
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(0, 0, PITCH_W, PITCH_H);
+
+    ctx.beginPath();
+    ctx.moveTo(PITCH_W / 2, 0);
+    ctx.lineTo(PITCH_W / 2, PITCH_H);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(PITCH_W / 2, PITCH_H / 2, CENTER_R, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(PITCH_W / 2, PITCH_H / 2, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeRect(0, PENALTY_Y, PENALTY_W, PENALTY_H);
+    ctx.strokeRect(PITCH_W - PENALTY_W, PENALTY_Y, PENALTY_W, PENALTY_H);
+
+    const goalAreaW = 55, goalAreaH = 200, goalAreaY = (PITCH_H - goalAreaH) / 2;
+    ctx.strokeRect(0, goalAreaY, goalAreaW, goalAreaH);
+    ctx.strokeRect(PITCH_W - goalAreaW, goalAreaY, goalAreaW, goalAreaH);
+
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(110, PITCH_H / 2, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(PITCH_W - 110, PITCH_H / 2, 3, 0, Math.PI * 2); ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(110, PITCH_H / 2, CENTER_R, -0.65, 0.65);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(PITCH_W - 110, PITCH_H / 2, CENTER_R, Math.PI - 0.65, Math.PI + 0.65);
+    ctx.stroke();
+
+    const cR = 10;
+    ctx.beginPath(); ctx.arc(0, 0, cR, 0, Math.PI / 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(PITCH_W, 0, cR, Math.PI / 2, Math.PI); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, PITCH_H, cR, -Math.PI / 2, 0); ctx.stroke();
+    ctx.beginPath(); ctx.arc(PITCH_W, PITCH_H, cR, Math.PI, Math.PI * 1.5); ctx.stroke();
+
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.fillRect(-GOAL_W, GOAL_Y, GOAL_W, GOAL_H);
+    ctx.fillRect(PITCH_W, GOAL_Y, GOAL_W, GOAL_H);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(-2, GOAL_Y - 2, 4, 4);
+    ctx.fillRect(-2, GOAL_Y + GOAL_H - 2, 4, 4);
+    ctx.fillRect(PITCH_W - 2, GOAL_Y - 2, 4, 4);
+    ctx.fillRect(PITCH_W - 2, GOAL_Y + GOAL_H - 2, 4, 4);
+
+    ctx.restore();
+}
+
+function drawPlayer(p, colors) {
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
+
+    const isCtrl = p === controlledPlayer;
+    const bobble = (p.state === 'standrun') ? Math.sin(p.animFrame * 3) * 1.5 : 0;
+
+    if (isCtrl) {
+        ctx.strokeStyle = '#ffff00';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y + 2, PLAYER_R + 4, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y + PLAYER_R, PLAYER_R * 0.8, PLAYER_R * 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (p.state === 'down') {
+        const shirtColor = p.isGK ? colors.gk : colors.shirt;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.slideAngle * DEG2RAD || (p.facing > 0 ? 0 : Math.PI));
+        ctx.fillStyle = shirtColor;
+        ctx.fillRect(-8, -3, 16, 6);
+        ctx.fillStyle = '#ffcc88';
+        ctx.fillRect(8, -2, 4, 4);
+        ctx.fillStyle = colors.shorts;
+        ctx.fillRect(-10, -2, 4, 4);
+        ctx.restore();
+        ctx.restore();
+        return;
+    }
+
+    if (p.state === 'tackle') {
+        const shirtColor = p.isGK ? colors.gk : colors.shirt;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.slideAngle * DEG2RAD);
+        ctx.fillStyle = shirtColor;
+        ctx.fillRect(-4, -3, 14, 6);
+        ctx.fillStyle = '#ffcc88';
+        ctx.fillRect(10, -2, 4, 4);
+        ctx.fillStyle = colors.socks;
+        ctx.fillRect(-8, -2, 5, 3);
+        ctx.restore();
+        ctx.restore();
+        return;
+    }
+
+    const bx = p.x, by = p.y + bobble;
+    const shirtColor = p.isGK ? colors.gk : colors.shirt;
+
+    ctx.fillStyle = colors.shorts;
+    ctx.fillRect(bx - 4, by + 1, 8, 5);
+    ctx.fillStyle = colors.socks;
+    ctx.fillRect(bx - 4, by + 6, 3, 4);
+    ctx.fillRect(bx + 1, by + 6, 3, 4);
+    ctx.fillStyle = shirtColor;
+    ctx.fillRect(bx - 5, by - 6, 10, 8);
+    ctx.fillRect(bx - 7, by - 5, 2, 5);
+    ctx.fillRect(bx + 5, by - 5, 2, 5);
+    ctx.fillStyle = '#ffcc88';
+    ctx.fillRect(bx - 3, by - 10, 6, 5);
+    ctx.fillStyle = '#443322';
+    ctx.fillRect(bx - 3, by - 11, 6, 2);
+    ctx.fillStyle = '#000';
+    if (p.facing > 0) {
+        ctx.fillRect(bx + 1, by - 8, 1, 1);
+    } else {
+        ctx.fillRect(bx - 2, by - 8, 1, 1);
+    }
+
+    // Kick state visual feedback
+    if (p.state === 'kick') {
+        ctx.fillStyle = 'rgba(255,255,0,0.4)';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, PLAYER_R + 2, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    ctx.restore();
+}
+
+function drawBall() {
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
+
+    const shadowScale = 1 + ball.z * 0.02;
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(ball.x, ball.y + BALL_R, BALL_R * shadowScale, BALL_R * 0.4 * shadowScale, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    const by = ball.y - ball.z;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(ball.x, by, BALL_R, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#333';
+    ctx.beginPath();
+    ctx.arc(ball.x - 1, by - 1, BALL_R * 0.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+}
+
+function drawHUD() {
+    const timeLeft = Math.max(0, MATCH_DURATION - matchTime);
+    const mins = Math.floor(timeLeft / 60);
+    const secs = Math.floor(timeLeft % 60);
+    const timeStr = `${mins}:${secs.toString().padStart(2, '0')}`;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    const sbW = 220, sbH = 40;
+    const sbX = W / 2 - sbW / 2, sbY = 8;
+    ctx.fillRect(sbX, sbY, sbW, sbH);
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(sbX, sbY, sbW, sbH);
+
+    ctx.font = 'bold 18px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    ctx.fillStyle = TEAM_A.shirt;
+    ctx.fillText('RED', sbX + 40, sbY + sbH / 2);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(`${score.a}  -  ${score.b}`, sbX + sbW / 2, sbY + sbH / 2);
+    ctx.fillStyle = TEAM_B.shirt;
+    ctx.fillText('BLU', sbX + sbW - 40, sbY + sbH / 2);
+
+    ctx.fillStyle = '#fff';
+    ctx.font = '14px monospace';
+    ctx.fillText(timeStr, W / 2, sbY + sbH + 14);
+
+    if (halfTime && matchTime < MATCH_DURATION) {
+        ctx.fillStyle = '#ff0';
+        ctx.fillText('2ND HALF', W / 2, sbY + sbH + 28);
+    }
+
+    if (matchOver) {
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(W / 2 - 150, H / 2 - 50, 300, 100);
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 28px monospace';
+        ctx.fillText('FULL TIME', W / 2, H / 2 - 15);
+        ctx.font = 'bold 22px monospace';
+        ctx.fillText(`${score.a} - ${score.b}`, W / 2, H / 2 + 20);
+    }
+
+    if (deadBall) {
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.font = '16px monospace';
+        const label = deadBallType === 'throwin' ? 'THROW-IN' : 'GOAL KICK';
+        ctx.fillText(label, W / 2, H - 30);
+    }
+}
+
+let isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+
+function drawTouchControls() {
+    if (!isTouchDevice) return;
+    const jx = touchJoystick.active ? touchJoystick.cx : 100;
+    const jy = touchJoystick.active ? touchJoystick.cy : H - 130;
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(jx, jy, 60, 0, Math.PI * 2);
+    ctx.stroke();
+    if (!touchJoystick.active) {
+        ctx.fillStyle = 'rgba(255,255,255,0.08)';
+        ctx.beginPath();
+        ctx.arc(jx, jy, 60, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.beginPath();
+        ctx.arc(jx, jy, 18, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    if (touchJoystick.active) {
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.beginPath();
+        ctx.arc(jx + touchJoystick.dx, jy + touchJoystick.dy, 24, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    const btns = getButtonPositions();
+    const playerHasBall = controlledPlayer && controlledPlayer.hasBall;
+    drawButton(btns.pass.x, btns.pass.y, playerHasBall ? 'PASS' : 'TACKLE', '#44cc44', touchButtons.pass);
+    drawButton(btns.shoot.x, btns.shoot.y, 'SHOOT', '#ee3333', touchButtons.shoot);
+    drawButton(btns.tackle.x, btns.tackle.y, 'SWITCH', '#3388ee', touchButtons.tackle);
+}
+
+function drawButton(x, y, label, color, pressed) {
+    const r = 38;
+    if (pressed) {
+        ctx.fillStyle = color + '44';
+        ctx.beginPath();
+        ctx.arc(x, y, r + 6, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.fillStyle = pressed ? color : color + '55';
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = pressed ? '#fff' : color;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, x, y);
+}
+
+function drawDebug() {
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
+
+    if (debug.showHasBall) {
+        const all = [...teamA, ...teamB];
+        for (const p of all) {
+            if (p.hasBall) {
+                ctx.fillStyle = 'rgba(0, 255, 0, 0.6)';
+                ctx.beginPath();
+                ctx.arc(p.x, p.y - 16, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            if (debug.showPlayerDist && p.side === 'b') {
+                const d = dist(p, ball);
+                if (d < 100) {
+                    ctx.fillStyle = 'rgba(200, 200, 200, 0.6)';
+                    ctx.font = '8px monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(Math.round(d), p.x, p.y - 18);
+                }
+            }
+        }
+    }
+
+    ctx.restore();
+}
+
+function render() {
+    ctx.clearRect(0, 0, W, H);
+    drawPitch();
+
+    const entities = [];
+    for (const p of teamA) entities.push({ type: 'playerA', entity: p, y: p.y });
+    for (const p of teamB) entities.push({ type: 'playerB', entity: p, y: p.y });
+    entities.push({ type: 'ball', entity: ball, y: ball.y });
+    entities.sort((a, b) => a.y - b.y);
+
+    for (const e of entities) {
+        if (e.type === 'playerA') drawPlayer(e.entity, TEAM_A);
+        else if (e.type === 'playerB') drawPlayer(e.entity, TEAM_B);
+        else drawBall();
+    }
+
+    drawDebug();
+    drawHUD();
+    drawTouchControls();
+}
+
+function gameLoop(timestamp) {
+    if (!lastTime) lastTime = timestamp;
+    const delta = timestamp - lastTime;
+    lastTime = timestamp;
+    accumulator += delta;
+
+    while (accumulator >= TICK) {
+        update();
+        accumulator -= TICK;
+    }
+
+    render();
+    requestAnimationFrame(gameLoop);
+}
+
+// ── Debug GUI ──
+const gui = new lil.GUI({ title: 'Debug' });
+gui.close();
+const dbgFolder = gui.addFolder('Visualize');
+dbgFolder.add(debug, 'showHasBall').name('Has Ball Indicator');
+dbgFolder.add(debug, 'showPlayerDist').name('Player Distances');
+gui.add(debug, 'autoplay').name('Autoplay (AI vs AI)');
+
+// ── Start ──
+document.getElementById('startBtn').addEventListener('click', () => {
+    document.getElementById('instructions').style.display = 'none';
+    gameStarted = true;
+    matchRunning = true;
+    resetPositions('a');
+    requestAnimationFrame(gameLoop);
+});
+</script>
+</body>
+</html>

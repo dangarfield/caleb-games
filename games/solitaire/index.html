@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Solitaire</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  #gameContainer {
+    position: relative;
+    width: 100%; height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  canvas {
+    display: block;
+    border-radius: 4px;
+  }
+  #backBtn {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    z-index: 100;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: background 0.2s;
+  }
+  #backBtn:hover, #backBtn:active {
+    background: rgba(255,255,255,0.3);
+  }
+  #undoBtn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    z-index: 100;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: background 0.2s;
+    cursor: pointer;
+  }
+  #undoBtn:hover, #undoBtn:active {
+    background: rgba(255,255,255,0.3);
+  }
+  #newGameBtn {
+    position: absolute;
+    top: 10px;
+    right: 80px;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    z-index: 100;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: background 0.2s;
+    cursor: pointer;
+  }
+  #newGameBtn:hover, #newGameBtn:active {
+    background: rgba(255,255,255,0.3);
+  }
+</style>
+</head>
+<body>
+<div id="gameContainer">
+  <a id="backBtn" href="../../index.html">Back to Games</a>
+  <button id="newGameBtn">New Game</button>
+  <button id="undoBtn">Undo</button>
+  <canvas id="gameCanvas"></canvas>
+</div>
+<script>
+(function() {
+  "use strict";
+
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const container = document.getElementById('gameContainer');
+
+  // Layout constants (recalculated on resize)
+  let W, H, CARD_W, CARD_H, GAP, MARGIN_TOP, MARGIN_LEFT, TABLEAU_TOP, STACK_OFFSET_Y, FACE_DOWN_OFFSET;
+
+  const SUITS = ['spades', 'hearts', 'diamonds', 'clubs'];
+  const SUIT_SYMBOLS = { spades: '\u2660', hearts: '\u2665', diamonds: '\u2666', clubs: '\u2663' };
+  const SUIT_COLORS = { spades: '#1a1a2e', hearts: '#e74c3c', diamonds: '#e74c3c', clubs: '#1a1a2e' };
+  const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+
+  // Game state
+  let stock = [];
+  let waste = [];
+  let foundations = [[], [], [], []];
+  let tableau = [[], [], [], [], [], [], []];
+  let undoStack = [];
+  let won = false;
+  let winAnimTime = 0;
+
+  // Drag state
+  let dragging = null; // { cards, fromPile, fromIndex, startX, startY, offsetX, offsetY }
+
+  // Double-tap detection
+  let lastTapTime = 0;
+  let lastTapCard = null;
+
+  function createDeck() {
+    const deck = [];
+    for (const suit of SUITS) {
+      for (let r = 0; r < 13; r++) {
+        deck.push({ suit, rank: r, faceUp: false });
+      }
+    }
+    return deck;
+  }
+
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function saveState() {
+    undoStack.push({
+      stock: stock.map(c => ({...c})),
+      waste: waste.map(c => ({...c})),
+      foundations: foundations.map(f => f.map(c => ({...c}))),
+      tableau: tableau.map(t => t.map(c => ({...c})))
+    });
+    if (undoStack.length > 50) undoStack.shift();
+  }
+
+  function undo() {
+    if (undoStack.length === 0) return;
+    const state = undoStack.pop();
+    stock = state.stock;
+    waste = state.waste;
+    foundations = state.foundations;
+    tableau = state.tableau;
+    won = false;
+    draw();
+  }
+
+  function deal() {
+    const deck = shuffle(createDeck());
+    stock = [];
+    waste = [];
+    foundations = [[], [], [], []];
+    tableau = [[], [], [], [], [], [], []];
+    undoStack = [];
+    won = false;
+    winAnimTime = 0;
+
+    let idx = 0;
+    for (let col = 0; col < 7; col++) {
+      for (let row = 0; row <= col; row++) {
+        const card = deck[idx++];
+        card.faceUp = (row === col);
+        tableau[col].push(card);
+      }
+    }
+    stock = deck.slice(idx);
+    stock.forEach(c => c.faceUp = false);
+    draw();
+  }
+
+  function isRed(suit) {
+    return suit === 'hearts' || suit === 'diamonds';
+  }
+
+  function canPlaceOnTableau(card, pile) {
+    if (pile.length === 0) return card.rank === 12; // King on empty
+    const top = pile[pile.length - 1];
+    return top.faceUp && isRed(card.suit) !== isRed(top.suit) && card.rank === top.rank - 1;
+  }
+
+  function canPlaceOnFoundation(card, fIdx) {
+    const pile = foundations[fIdx];
+    if (pile.length === 0) return card.rank === 0; // Ace
+    const top = pile[pile.length - 1];
+    return card.suit === top.suit && card.rank === top.rank + 1;
+  }
+
+  function checkWin() {
+    return foundations.every(f => f.length === 13);
+  }
+
+  // Layout calculation
+  function calcLayout() {
+    const dpr = window.devicePixelRatio || 1;
+    W = container.clientWidth;
+    H = container.clientHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Card sizing: fit 7 cards + gaps across the width
+    const maxCardW = Math.min(120, (W - 40) / 7.5);
+    CARD_W = Math.floor(maxCardW);
+    CARD_H = Math.floor(CARD_W * 1.45);
+    GAP = Math.floor(CARD_W * 0.12);
+    MARGIN_LEFT = Math.floor((W - (7 * CARD_W + 6 * GAP)) / 2);
+    MARGIN_TOP = 50;
+    TABLEAU_TOP = MARGIN_TOP + CARD_H + 20;
+    STACK_OFFSET_Y = Math.floor(CARD_H * 0.22);
+    FACE_DOWN_OFFSET = Math.floor(CARD_H * 0.1);
+  }
+
+  function colX(col) {
+    return MARGIN_LEFT + col * (CARD_W + GAP);
+  }
+
+  // Pile position helpers
+  function stockPos() { return { x: colX(0), y: MARGIN_TOP }; }
+  function wastePos() { return { x: colX(1), y: MARGIN_TOP }; }
+  function foundationPos(i) { return { x: colX(3 + i), y: MARGIN_TOP }; }
+  function tableauCardPos(col, row) {
+    let y = TABLEAU_TOP;
+    const pile = tableau[col];
+    for (let i = 0; i < row; i++) {
+      y += pile[i].faceUp ? STACK_OFFSET_Y : FACE_DOWN_OFFSET;
+    }
+    return { x: colX(col), y };
+  }
+
+  // Drawing
+  function drawRoundedRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function drawCardBack(x, y) {
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.4)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 3;
+    drawRoundedRect(x, y, CARD_W, CARD_H, 6);
+    ctx.fillStyle = '#2c3e7a';
+    ctx.fill();
+    ctx.strokeStyle = '#1a2550';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.shadowColor = 'transparent';
+    // Inner inset rectangle
+    const inset = CARD_W * 0.1;
+    drawRoundedRect(x + inset, y + inset, CARD_W - inset * 2, CARD_H - inset * 2, 4);
+    ctx.fillStyle = '#3b5998';
+    ctx.fill();
+    ctx.strokeStyle = '#4a6cb3';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawCardFace(x, y, card) {
+    ctx.save();
+    // Shadow
+    ctx.shadowColor = 'rgba(0,0,0,0.4)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 3;
+
+    // Card background
+    drawRoundedRect(x, y, CARD_W, CARD_H, 6);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+    ctx.strokeStyle = '#ccc';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.shadowColor = 'transparent';
+
+    const suit = SUIT_SYMBOLS[card.suit];
+    const color = SUIT_COLORS[card.suit];
+    const rankStr = RANKS[card.rank];
+    const fontSize = Math.max(12, Math.floor(CARD_W * 0.28));
+    const suitFontSize = Math.max(10, Math.floor(CARD_W * 0.2));
+
+    ctx.fillStyle = color;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+
+    // Top-left rank and suit
+    ctx.font = `bold ${fontSize}px 'Segoe UI',system-ui,sans-serif`;
+    ctx.fillText(rankStr, x + CARD_W * 0.08, y + CARD_W * 0.06);
+    ctx.font = `${suitFontSize}px 'Segoe UI',system-ui,sans-serif`;
+    ctx.fillText(suit, x + CARD_W * 0.1, y + CARD_W * 0.06 + fontSize);
+
+    // Bottom-right rank and suit (rotated)
+    ctx.save();
+    ctx.translate(x + CARD_W, y + CARD_H);
+    ctx.rotate(Math.PI);
+    ctx.fillStyle = color;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.font = `bold ${fontSize}px 'Segoe UI',system-ui,sans-serif`;
+    ctx.fillText(rankStr, CARD_W * 0.08, CARD_W * 0.06);
+    ctx.font = `${suitFontSize}px 'Segoe UI',system-ui,sans-serif`;
+    ctx.fillText(suit, CARD_W * 0.1, CARD_W * 0.06 + fontSize);
+    ctx.restore();
+
+    // Center suit(s)
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    if (card.rank >= 10) {
+      // Face card: J, Q, K - large center suit
+      const bigFont = Math.floor(CARD_W * 0.55);
+      ctx.font = `${bigFont}px 'Segoe UI',system-ui,sans-serif`;
+      ctx.fillText(suit, x + CARD_W / 2, y + CARD_H / 2);
+    } else {
+      // Number/Ace cards - draw suit pips
+      const pips = getPipPositions(card.rank + 1);
+      for (const p of pips) {
+        const px = x + CARD_W * (0.25 + p.x * 0.5);
+        const py = y + CARD_H * (0.15 + p.y * 0.7);
+        const pipSize = Math.floor(CARD_W * 0.22);
+        ctx.font = `${pipSize}px 'Segoe UI',system-ui,sans-serif`;
+        if (p.flip) {
+          ctx.save();
+          ctx.translate(px, py);
+          ctx.rotate(Math.PI);
+          ctx.fillText(suit, 0, 0);
+          ctx.restore();
+        } else {
+          ctx.fillText(suit, px, py);
+        }
+      }
+    }
+    ctx.restore();
+  }
+
+  function getPipPositions(count) {
+    // Returns normalized positions for pip layout (x: 0-1, y: 0-1)
+    const L = 0, C = 0.5, R = 1;
+    switch(count) {
+      case 1: return [{x:C,y:0.5}];
+      case 2: return [{x:C,y:0.15},{x:C,y:0.85,flip:true}];
+      case 3: return [{x:C,y:0.15},{x:C,y:0.5},{x:C,y:0.85,flip:true}];
+      case 4: return [{x:L,y:0.15},{x:R,y:0.15},{x:L,y:0.85,flip:true},{x:R,y:0.85,flip:true}];
+      case 5: return [{x:L,y:0.15},{x:R,y:0.15},{x:C,y:0.5},{x:L,y:0.85,flip:true},{x:R,y:0.85,flip:true}];
+      case 6: return [{x:L,y:0.15},{x:R,y:0.15},{x:L,y:0.5},{x:R,y:0.5},{x:L,y:0.85,flip:true},{x:R,y:0.85,flip:true}];
+      case 7: return [{x:L,y:0.15},{x:R,y:0.15},{x:C,y:0.33},{x:L,y:0.5},{x:R,y:0.5},{x:L,y:0.85,flip:true},{x:R,y:0.85,flip:true}];
+      case 8: return [{x:L,y:0.15},{x:R,y:0.15},{x:C,y:0.33},{x:L,y:0.5},{x:R,y:0.5},{x:C,y:0.67,flip:true},{x:L,y:0.85,flip:true},{x:R,y:0.85,flip:true}];
+      case 9: return [{x:L,y:0.12},{x:R,y:0.12},{x:L,y:0.37},{x:R,y:0.37},{x:C,y:0.5},{x:L,y:0.63,flip:true},{x:R,y:0.63,flip:true},{x:L,y:0.88,flip:true},{x:R,y:0.88,flip:true}];
+      case 10: return [{x:L,y:0.12},{x:R,y:0.12},{x:C,y:0.27},{x:L,y:0.37},{x:R,y:0.37},{x:L,y:0.63,flip:true},{x:R,y:0.63,flip:true},{x:C,y:0.73,flip:true},{x:L,y:0.88,flip:true},{x:R,y:0.88,flip:true}];
+      default: return [{x:C,y:0.5}];
+    }
+  }
+
+  function drawEmptySlot(x, y, label) {
+    drawRoundedRect(x, y, CARD_W, CARD_H, 6);
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 5]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    if (label) {
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      ctx.font = `${Math.floor(CARD_W * 0.3)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, x + CARD_W / 2, y + CARD_H / 2);
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    // Stock
+    const sp = stockPos();
+    if (stock.length > 0) {
+      drawCardBack(sp.x, sp.y);
+      // Show count
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.font = `bold ${Math.floor(CARD_W * 0.16)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(stock.length, sp.x + CARD_W / 2, sp.y + CARD_H + 14);
+    } else {
+      // Empty stock - draw refresh circle
+      drawEmptySlot(sp.x, sp.y);
+      ctx.beginPath();
+      ctx.arc(sp.x + CARD_W / 2, sp.y + CARD_H / 2, CARD_W * 0.2, 0, Math.PI * 1.5);
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // Arrow
+      const ax = sp.x + CARD_W / 2;
+      const ay = sp.y + CARD_H / 2 - CARD_W * 0.2;
+      ctx.beginPath();
+      ctx.moveTo(ax - 6, ay);
+      ctx.lineTo(ax, ay - 6);
+      ctx.lineTo(ax + 6, ay);
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // Waste
+    const wp = wastePos();
+    if (waste.length > 0) {
+      drawCardFace(wp.x, wp.y, waste[waste.length - 1]);
+    } else {
+      drawEmptySlot(wp.x, wp.y);
+    }
+
+    // Foundations
+    const fLabels = ['\u2660', '\u2665', '\u2666', '\u2663'];
+    for (let i = 0; i < 4; i++) {
+      const fp = foundationPos(i);
+      if (foundations[i].length > 0) {
+        drawCardFace(fp.x, fp.y, foundations[i][foundations[i].length - 1]);
+      } else {
+        drawEmptySlot(fp.x, fp.y, fLabels[i]);
+      }
+    }
+
+    // Tableau
+    for (let col = 0; col < 7; col++) {
+      const pile = tableau[col];
+      if (pile.length === 0) {
+        drawEmptySlot(colX(col), TABLEAU_TOP, 'K');
+        continue;
+      }
+      for (let row = 0; row < pile.length; row++) {
+        // Skip cards being dragged
+        if (dragging && dragging.fromPile === 'tableau' && dragging.fromIndex === col) {
+          const dragStartRow = pile.length; // cards already removed
+          // Actually cards are removed during drag, so we draw all remaining
+        }
+        const card = pile[row];
+        const pos = tableauCardPos(col, row);
+        if (card.faceUp) {
+          drawCardFace(pos.x, pos.y, card);
+        } else {
+          drawCardBack(pos.x, pos.y);
+        }
+      }
+    }
+
+    // Dragged cards
+    if (dragging) {
+      for (let i = 0; i < dragging.cards.length; i++) {
+        const card = dragging.cards[i];
+        const dx = dragging.currentX - dragging.offsetX;
+        const dy = dragging.currentY - dragging.offsetY + i * STACK_OFFSET_Y;
+        ctx.shadowColor = 'rgba(0,0,0,0.4)';
+        ctx.shadowBlur = 12;
+        ctx.shadowOffsetX = 3;
+        ctx.shadowOffsetY = 3;
+        drawCardFace(dx, dy, card);
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+      }
+    }
+
+    // Win animation
+    if (won) {
+      drawWinScreen();
+    }
+  }
+
+  function drawWinScreen() {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0, 0, W, H);
+
+    const t = winAnimTime;
+    const scale = Math.min(1, t / 30);
+    const fontSize = Math.floor(W * 0.1 * scale);
+
+    ctx.save();
+    ctx.translate(W / 2, H / 2 - 40);
+    ctx.fillStyle = '#ffd700';
+    ctx.font = `bold ${fontSize}px 'Segoe UI', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('You Win!', 0, 0);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.font = `${Math.floor(fontSize * 0.35)}px 'Segoe UI', sans-serif`;
+    ctx.fillText('Tap to play again', 0, fontSize * 0.6);
+    ctx.restore();
+
+    // Confetti
+    if (t < 200) {
+      for (let i = 0; i < 30; i++) {
+        const seed = i * 7 + 13;
+        const cx = (Math.sin(seed) * 0.5 + 0.5) * W;
+        const speed = 1 + (seed % 3);
+        const cy = ((t * speed * 2 + seed * 20) % (H + 40)) - 20;
+        const size = 4 + (seed % 5);
+        const colors = ['#ffd700','#ff6b6b','#48dbfb','#ff9ff3','#54a0ff','#5f27cd'];
+        ctx.fillStyle = colors[i % colors.length];
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(t * 0.05 + seed);
+        ctx.fillRect(-size/2, -size/2, size, size);
+        ctx.restore();
+      }
+    }
+  }
+
+  // Hit testing
+  function hitTest(px, py) {
+    // Stock
+    const sp = stockPos();
+    if (px >= sp.x && px <= sp.x + CARD_W && py >= sp.y && py <= sp.y + CARD_H) {
+      return { type: 'stock' };
+    }
+    // Waste
+    const wp = wastePos();
+    if (waste.length > 0 && px >= wp.x && px <= wp.x + CARD_W && py >= wp.y && py <= wp.y + CARD_H) {
+      return { type: 'waste' };
+    }
+    // Foundations
+    for (let i = 0; i < 4; i++) {
+      const fp = foundationPos(i);
+      if (px >= fp.x && px <= fp.x + CARD_W && py >= fp.y && py <= fp.y + CARD_H) {
+        return { type: 'foundation', index: i };
+      }
+    }
+    // Tableau (search from bottom of each pile up)
+    for (let col = 0; col < 7; col++) {
+      const pile = tableau[col];
+      if (pile.length === 0) {
+        const ex = colX(col);
+        if (px >= ex && px <= ex + CARD_W && py >= TABLEAU_TOP && py <= TABLEAU_TOP + CARD_H) {
+          return { type: 'tableau-empty', col };
+        }
+        continue;
+      }
+      for (let row = pile.length - 1; row >= 0; row--) {
+        const pos = tableauCardPos(col, row);
+        const cardH = (row === pile.length - 1) ? CARD_H : (pile[row + 1].faceUp ? STACK_OFFSET_Y : FACE_DOWN_OFFSET);
+        if (px >= pos.x && px <= pos.x + CARD_W && py >= pos.y && py <= pos.y + cardH) {
+          return { type: 'tableau', col, row };
+        }
+      }
+    }
+    return null;
+  }
+
+  // Try to auto-move a card to foundation
+  function tryAutoFoundation(card, sourcePile, sourceLabel, sourceIndex) {
+    for (let i = 0; i < 4; i++) {
+      if (canPlaceOnFoundation(card, i)) {
+        saveState();
+        sourcePile.pop();
+        foundations[i].push(card);
+        // Flip new top card
+        if (sourceLabel === 'tableau' && sourcePile.length > 0 && !sourcePile[sourcePile.length - 1].faceUp) {
+          sourcePile[sourcePile.length - 1].faceUp = true;
+        }
+        if (checkWin()) {
+          won = true;
+          animateWin();
+        }
+        draw();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Interaction
+  let pointerDown = false;
+  let startX, startY;
+  let hasMoved = false;
+
+  function getPointerPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches ? e.touches[0] : e;
+    return {
+      x: touch.clientX - rect.left,
+      y: touch.clientY - rect.top
+    };
+  }
+
+  function onPointerDown(e) {
+    e.preventDefault();
+    if (won) return;
+    const pos = getPointerPos(e);
+    pointerDown = true;
+    startX = pos.x;
+    startY = pos.y;
+    hasMoved = false;
+
+    const hit = hitTest(pos.x, pos.y);
+    if (!hit) return;
+
+    // Check for double-tap to auto-move to foundation
+    const now = Date.now();
+    if (now - lastTapTime < 350 && lastTapCard) {
+      const prevHit = lastTapCard;
+      if (hit.type === prevHit.type &&
+          ((hit.type === 'waste') ||
+           (hit.type === 'tableau' && hit.col === prevHit.col && hit.row === prevHit.row))) {
+        // Double-tap: try auto-foundation
+        let card, pile, label, idx;
+        if (hit.type === 'waste') {
+          card = waste[waste.length - 1];
+          pile = waste;
+          label = 'waste';
+        } else if (hit.type === 'tableau') {
+          const tpile = tableau[hit.col];
+          if (hit.row === tpile.length - 1 && tpile[hit.row].faceUp) {
+            card = tpile[hit.row];
+            pile = tpile;
+            label = 'tableau';
+            idx = hit.col;
+          }
+        }
+        if (card && tryAutoFoundation(card, pile, label, idx)) {
+          lastTapTime = 0;
+          lastTapCard = null;
+          pointerDown = false;
+          return;
+        }
+      }
+    }
+    lastTapTime = now;
+    lastTapCard = hit;
+
+    // Begin drag setup
+    if (hit.type === 'waste' && waste.length > 0) {
+      const card = waste[waste.length - 1];
+      const wp = wastePos();
+      dragging = {
+        cards: [waste.pop()],
+        fromPile: 'waste',
+        fromIndex: -1,
+        startX: wp.x,
+        startY: wp.y,
+        offsetX: pos.x - wp.x,
+        offsetY: pos.y - wp.y,
+        currentX: pos.x,
+        currentY: pos.y
+      };
+    } else if (hit.type === 'tableau') {
+      const pile = tableau[hit.col];
+      const card = pile[hit.row];
+      if (!card.faceUp) {
+        // Tap face-down card at end of pile to flip
+        if (hit.row === pile.length - 1) {
+          saveState();
+          card.faceUp = true;
+          draw();
+          pointerDown = false;
+        }
+        return;
+      }
+      // Grab this card and all below it
+      const grabbed = pile.splice(hit.row);
+      const cardPos = tableauCardPos(hit.col, hit.row);
+      dragging = {
+        cards: grabbed,
+        fromPile: 'tableau',
+        fromIndex: hit.col,
+        fromRow: hit.row,
+        startX: cardPos.x,
+        startY: cardPos.y,
+        offsetX: pos.x - cardPos.x,
+        offsetY: pos.y - cardPos.y,
+        currentX: pos.x,
+        currentY: pos.y
+      };
+    } else if (hit.type === 'foundation') {
+      const fPile = foundations[hit.index];
+      if (fPile.length > 0) {
+        const card = fPile[fPile.length - 1];
+        const fp = foundationPos(hit.index);
+        dragging = {
+          cards: [fPile.pop()],
+          fromPile: 'foundation',
+          fromIndex: hit.index,
+          startX: fp.x,
+          startY: fp.y,
+          offsetX: pos.x - fp.x,
+          offsetY: pos.y - fp.y,
+          currentX: pos.x,
+          currentY: pos.y
+        };
+      }
+    }
+    draw();
+  }
+
+  function onPointerMove(e) {
+    e.preventDefault();
+    if (!pointerDown || !dragging) return;
+    const pos = getPointerPos(e);
+    const dx = pos.x - startX;
+    const dy = pos.y - startY;
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) hasMoved = true;
+    dragging.currentX = pos.x;
+    dragging.currentY = pos.y;
+    draw();
+  }
+
+  function onPointerUp(e) {
+    e.preventDefault();
+
+    if (won) {
+      deal();
+      pointerDown = false;
+      return;
+    }
+
+    if (!pointerDown) return;
+    pointerDown = false;
+
+    // Stock tap (no drag)
+    if (!dragging) {
+      const pos = e.changedTouches ? {
+        x: e.changedTouches[0].clientX - canvas.getBoundingClientRect().left,
+        y: e.changedTouches[0].clientY - canvas.getBoundingClientRect().top
+      } : {
+        x: e.clientX - canvas.getBoundingClientRect().left,
+        y: e.clientY - canvas.getBoundingClientRect().top
+      };
+      const hit = hitTest(pos.x, pos.y);
+      if (hit && hit.type === 'stock') {
+        saveState();
+        if (stock.length > 0) {
+          const card = stock.pop();
+          card.faceUp = true;
+          waste.push(card);
+        } else {
+          // Recycle waste to stock
+          while (waste.length > 0) {
+            const card = waste.pop();
+            card.faceUp = false;
+            stock.push(card);
+          }
+        }
+        draw();
+      }
+      return;
+    }
+
+    // Drop the dragged cards
+    const dropX = dragging.currentX - dragging.offsetX + CARD_W / 2;
+    const dropY = dragging.currentY - dragging.offsetY + CARD_H / 2;
+
+    let placed = false;
+
+    // Single card -> try foundations
+    if (dragging.cards.length === 1) {
+      for (let i = 0; i < 4; i++) {
+        const fp = foundationPos(i);
+        if (dropX >= fp.x && dropX <= fp.x + CARD_W && dropY >= fp.y && dropY <= fp.y + CARD_H) {
+          if (canPlaceOnFoundation(dragging.cards[0], i)) {
+            saveState();
+            foundations[i].push(dragging.cards[0]);
+            placed = true;
+            // Flip new top of source tableau
+            if (dragging.fromPile === 'tableau') {
+              const src = tableau[dragging.fromIndex];
+              if (src.length > 0 && !src[src.length - 1].faceUp) {
+                src[src.length - 1].faceUp = true;
+              }
+            }
+            if (checkWin()) {
+              won = true;
+              animateWin();
+            }
+            break;
+          }
+        }
+      }
+    }
+
+    // Try tableau columns
+    if (!placed) {
+      for (let col = 0; col < 7; col++) {
+        const pile = tableau[col];
+        let targetX, targetY;
+        if (pile.length === 0) {
+          targetX = colX(col);
+          targetY = TABLEAU_TOP;
+        } else {
+          const lastPos = tableauCardPos(col, pile.length - 1);
+          targetX = lastPos.x;
+          targetY = lastPos.y + STACK_OFFSET_Y;
+        }
+        if (dropX >= targetX && dropX <= targetX + CARD_W && dropY >= targetY - CARD_H / 2 && dropY <= targetY + CARD_H) {
+          if (canPlaceOnTableau(dragging.cards[0], pile)) {
+            saveState();
+            for (const card of dragging.cards) {
+              pile.push(card);
+            }
+            placed = true;
+            if (dragging.fromPile === 'tableau') {
+              const src = tableau[dragging.fromIndex];
+              if (src.length > 0 && !src[src.length - 1].faceUp) {
+                src[src.length - 1].faceUp = true;
+              }
+            }
+            break;
+          }
+        }
+      }
+    }
+
+    // If not placed and didn't move much, try auto-foundation for single tap
+    if (!placed && !hasMoved && dragging.cards.length === 1) {
+      const card = dragging.cards[0];
+      let sourcePile;
+      if (dragging.fromPile === 'waste') {
+        sourcePile = waste;
+      } else if (dragging.fromPile === 'tableau') {
+        sourcePile = tableau[dragging.fromIndex];
+      } else if (dragging.fromPile === 'foundation') {
+        sourcePile = foundations[dragging.fromIndex];
+      }
+      // Put card back then try auto
+      sourcePile.push(card);
+      if (tryAutoFoundation(card, sourcePile, dragging.fromPile, dragging.fromIndex)) {
+        dragging = null;
+        return;
+      }
+      // Didn't auto-move, card stays back
+      placed = true; // it's back in place
+    }
+
+    // Return cards to source if not placed
+    if (!placed) {
+      if (dragging.fromPile === 'waste') {
+        waste.push(...dragging.cards);
+      } else if (dragging.fromPile === 'tableau') {
+        tableau[dragging.fromIndex].push(...dragging.cards);
+      } else if (dragging.fromPile === 'foundation') {
+        foundations[dragging.fromIndex].push(...dragging.cards);
+      }
+    }
+
+    dragging = null;
+    draw();
+  }
+
+  function animateWin() {
+    winAnimTime = 0;
+    function tick() {
+      if (!won) return;
+      winAnimTime++;
+      draw();
+      if (winAnimTime < 200) {
+        requestAnimationFrame(tick);
+      }
+    }
+    tick();
+  }
+
+  // Event listeners
+  canvas.addEventListener('mousedown', onPointerDown);
+  canvas.addEventListener('mousemove', onPointerMove);
+  canvas.addEventListener('mouseup', onPointerUp);
+  canvas.addEventListener('touchstart', onPointerDown, { passive: false });
+  canvas.addEventListener('touchmove', onPointerMove, { passive: false });
+  canvas.addEventListener('touchend', onPointerUp, { passive: false });
+
+  document.getElementById('undoBtn').addEventListener('click', function(e) {
+    e.stopPropagation();
+    undo();
+  });
+
+  document.getElementById('newGameBtn').addEventListener('click', function(e) {
+    e.stopPropagation();
+    deal();
+  });
+
+  window.addEventListener('resize', function() {
+    calcLayout();
+    draw();
+  });
+
+  // Init
+  calcLayout();
+  deal();
+})();
+</script>
+</body>
+</html>

@@ -240,7 +240,8 @@ function getPathPixels() {
         let cx = a.x, cy = a.y;
         while (cx !== b.x || cy !== b.y) {
             pixels.push({x: cx * cell + cell / 2, y: cy * cell + cell / 2});
-            cx += dx; cy += dy;
+            if (cx !== b.x) cx += dx;
+            if (cy !== b.y) cy += dy;
         }
     }
     const last = pts[pts.length - 1];
@@ -257,7 +258,8 @@ function getPathCells() {
         let cx = a.x, cy = a.y;
         while (cx !== b.x || cy !== b.y) {
             cells.add(`${cx},${cy}`);
-            cx += dx; cy += dy;
+            if (cx !== b.x) cx += dx;
+            if (cy !== b.y) cy += dy;
         }
     }
     const last = pts[pts.length - 1];

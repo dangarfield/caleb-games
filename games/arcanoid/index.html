@@ -129,6 +129,8 @@
   let floatingTexts = [];
   let screenShake = 0;
   let bgStars = [];
+  let paddleParticles = [];
+  let prevPaddleX = 0;
 
   // Init background stars once
   function initStars() {
@@ -200,7 +202,24 @@
       hits: hits,
       maxHits: hits,
       alive: true,
+      indestructible: false,
       pattern: BRICK_PATTERNS[patternIdx % BRICK_PATTERNS.length]
+    };
+  }
+
+  function makeIndestructibleBrick(cols, leftMargin, topOffset, c, r) {
+    const brickW = (BASE_W - leftMargin * 2) / cols;
+    return {
+      x: leftMargin + c * brickW,
+      y: topOffset + r * (BRICK_H + BRICK_PAD),
+      w: brickW - BRICK_PAD,
+      h: BRICK_H,
+      color: ['#8a8a8a', '#b0b0b0'],
+      hits: 1,
+      maxHits: 1,
+      alive: true,
+      indestructible: true,
+      pattern: 'solid'
     };
   }
 
@@ -229,6 +248,8 @@
           }
         }
       }
+      b.push(makeIndestructibleBrick(cols, left, top, 3, 2));
+      b.push(makeIndestructibleBrick(cols, left, top, 10, 2));
       return b;
     },
     // Level 3 - Wide diamond pattern
@@ -245,6 +266,9 @@
           }
         }
       }
+      b.push(makeIndestructibleBrick(cols, left, top, 8, 3));
+      b.push(makeIndestructibleBrick(cols, left, top, 4, 1));
+      b.push(makeIndestructibleBrick(cols, left, top, 11, 5));
       return b;
     },
     // Level 4 - Fortress: wide wall with 2 and 3-hit bricks
@@ -257,6 +281,8 @@
           b.push(makeBrick(cols, left, top, c, r, hits, r + c, r + c * 2));
         }
       }
+      b.push(makeIndestructibleBrick(cols, left, top, 4, 3));
+      b.push(makeIndestructibleBrick(cols, left, top, 11, 3));
       return b;
     },
     // Level 5 - Zigzag fortress with gaps
@@ -272,6 +298,9 @@
           }
         }
       }
+      b.push(makeIndestructibleBrick(cols, left, top, 5, 3));
+      b.push(makeIndestructibleBrick(cols, left, top, 12, 3));
+      b.push(makeIndestructibleBrick(cols, left, top, 9, 1));
       return b;
     },
     // Level 6 - Wide arches
@@ -293,9 +322,11 @@
           }
         }
       }
+      b.push(makeIndestructibleBrick(cols, left, top, 4, 4));
+      b.push(makeIndestructibleBrick(cols, left, top, 13, 4));
       return b;
     },
-    // Level 7 - Scattered clusters with indestructible-like 3-hitters
+    // Level 7 - Scattered clusters with indestructible bricks at cluster centers
     function() {
       const b = [];
       const cols = 16, left = 20, top = 30;
@@ -314,6 +345,9 @@
           }
         }
       }
+      b.push(makeIndestructibleBrick(cols, left, top, 3, 3));
+      b.push(makeIndestructibleBrick(cols, left, top, 8, 3));
+      b.push(makeIndestructibleBrick(cols, left, top, 13, 3));
       return b;
     }
   ];
@@ -528,6 +562,8 @@
     powerUpTimers = {};
     paddle = createPaddle();
     paddleTargetX = paddle.x;
+    prevPaddleX = paddle.x;
+    paddleParticles = [];
     balls.push(createBall());
     comboCount = 0;
     comboTimer = 0;
@@ -692,6 +728,68 @@
   function drawBrick(brick) {
     if (!brick.alive) return;
     const x = s(brick.x), y = s(brick.y), w = s(brick.w), h = s(brick.h);
+
+    if (brick.indestructible) {
+      // Metallic indestructible brick
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.beginPath();
+      ctx.roundRect(x + s(1.5), y + s(2), w, h, s(3));
+      ctx.fill();
+
+      const metalGrad = ctx.createLinearGradient(x, y, x, y + h);
+      metalGrad.addColorStop(0, '#d0d0d0');
+      metalGrad.addColorStop(0.2, '#a0a0a0');
+      metalGrad.addColorStop(0.4, '#c8c8c8');
+      metalGrad.addColorStop(0.6, '#909090');
+      metalGrad.addColorStop(0.8, '#b8b8b8');
+      metalGrad.addColorStop(1, '#707070');
+      ctx.fillStyle = metalGrad;
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, s(3));
+      ctx.fill();
+
+      // Bolt/rivet details
+      ctx.fillStyle = 'rgba(60,60,60,0.6)';
+      ctx.beginPath();
+      ctx.arc(x + s(5), y + h / 2, s(2.5), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x + w - s(5), y + h / 2, s(2.5), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(200,200,200,0.4)';
+      ctx.beginPath();
+      ctx.arc(x + s(4.5), y + h / 2 - s(0.5), s(1.2), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x + w - s(5.5), y + h / 2 - s(0.5), s(1.2), 0, Math.PI * 2);
+      ctx.fill();
+
+      // Horizontal groove
+      ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+      ctx.lineWidth = s(0.5);
+      ctx.beginPath();
+      ctx.moveTo(x + s(10), y + h / 2);
+      ctx.lineTo(x + w - s(10), y + h / 2);
+      ctx.stroke();
+
+      // Top highlight
+      const highlightGrad = ctx.createLinearGradient(x, y, x, y + h * 0.4);
+      highlightGrad.addColorStop(0, 'rgba(255,255,255,0.55)');
+      highlightGrad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = highlightGrad;
+      ctx.beginPath();
+      ctx.roundRect(x + s(1), y + s(0.5), w - s(2), h * 0.4, [s(3), s(3), 0, 0]);
+      ctx.fill();
+
+      // Steel border
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = s(1);
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, s(3));
+      ctx.stroke();
+      return;
+    }
+
     const baseColor = brick.color[0];
     const lightColor = brick.color[1];
 
@@ -1599,6 +1697,34 @@
     // Smooth paddle movement
     paddle.x += (paddleTargetX - paddle.x) * 0.25;
 
+    // Paddle movement particles
+    const paddleSpeed = Math.abs(paddle.x - prevPaddleX);
+    if (paddleSpeed > 1.5) {
+      const intensity = Math.min(paddleSpeed / 8, 1);
+      for (let i = 0; i < Math.ceil(intensity * 2); i++) {
+        paddleParticles.push({
+          x: paddle.x + (Math.random() - 0.5) * paddle.w * 0.6,
+          y: paddle.y + paddle.h + Math.random() * 4,
+          vx: (prevPaddleX - paddle.x) * 0.15 + (Math.random() - 0.5) * 0.5,
+          vy: Math.random() * 0.8 + 0.3,
+          life: 0.6 + Math.random() * 0.4,
+          decay: 0.025 + Math.random() * 0.02,
+          size: 1.5 + Math.random() * 2,
+          hue: 210 + Math.random() * 30
+        });
+      }
+    }
+    prevPaddleX = paddle.x;
+
+    // Update paddle particles
+    for (let i = paddleParticles.length - 1; i >= 0; i--) {
+      const p = paddleParticles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.life -= p.decay;
+      if (p.life <= 0) paddleParticles.splice(i, 1);
+    }
+
     // Laser shooting
     if (activePowerUps['LASER']) {
       paddle.laserCooldown -= dt;
@@ -1620,6 +1746,11 @@
         if (!br.alive) continue;
         if (laser.x >= br.x && laser.x <= br.x + br.w &&
             laser.y >= br.y && laser.y <= br.y + br.h) {
+          if (br.indestructible) {
+            spawnParticles(br.x + br.w / 2, br.y + br.h / 2, '#cccccc', 3);
+            lasers.splice(i, 1);
+            break;
+          }
           br.hits--;
           if (br.hits <= 0) {
             br.alive = false;
@@ -1729,6 +1860,23 @@
         if (ball.x + ball.r > br.x && ball.x - ball.r < br.x + br.w &&
             ball.y + ball.r > br.y && ball.y - ball.r < br.y + br.h) {
 
+          if (br.indestructible) {
+            // Bounce off indestructible bricks without damage
+            const overlapL = ball.x + ball.r - br.x;
+            const overlapR = br.x + br.w - (ball.x - ball.r);
+            const overlapT = ball.y + ball.r - br.y;
+            const overlapB = br.y + br.h - (ball.y - ball.r);
+            const minOverlap = Math.min(overlapL, overlapR, overlapT, overlapB);
+            if (minOverlap === overlapL || minOverlap === overlapR) {
+              ball.vx = -ball.vx;
+            } else {
+              ball.vy = -ball.vy;
+            }
+            spawnParticles(br.x + br.w / 2, br.y + br.h / 2, '#cccccc', 4);
+            screenShake = 1;
+            break;
+          }
+
           if (ball.fireball) {
             br.hits = 0;
           } else {
@@ -1810,8 +1958,8 @@
       }
     }
 
-    // Check level complete
-    if (bricks.every(b => !b.alive)) {
+    // Check level complete (indestructible bricks don't count)
+    if (bricks.every(b => !b.alive || b.indestructible)) {
       if (level + 1 < LEVELS.length) {
         state = STATE.LEVEL_COMPLETE;
       } else {
@@ -1854,6 +2002,16 @@
 
     // Draw power-ups
     drawPowerUps();
+
+    // Draw paddle movement particles
+    paddleParticles.forEach(p => {
+      ctx.globalAlpha = p.life * 0.5;
+      ctx.fillStyle = `hsla(${p.hue}, 70%, 70%, ${p.life * 0.6})`;
+      ctx.beginPath();
+      ctx.arc(s(p.x), s(p.y), s(p.size * p.life), 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
 
     // Draw paddle
     drawPaddle();

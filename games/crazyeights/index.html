@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Crazy Eights - Caleb's Arcade</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{height:100vh;height:100dvh;background:linear-gradient(135deg,#0a0e1a 0%,#0d1b2a 50%,#1b263b 100%);font-family:'Segoe UI',system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;overflow:hidden;touch-action:manipulation;user-select:none;-webkit-user-select:none;color:#fff}
+.top-bar{display:flex;align-items:center;justify-content:space-between;width:100%;max-width:960px;padding:0.4rem 0.8rem;z-index:10}
+.back-btn{background:rgba(255,255,255,0.12);color:#fff;border:none;border-radius:0.6rem;padding:0.35rem 0.7rem;font-size:0.85rem;cursor:pointer;text-decoration:none}
+h1{font-size:1.3rem;text-shadow:0 0 20px rgba(100,180,255,0.6);letter-spacing:0.05em}
+#info{font-size:0.75rem;color:#ffd700}
+.status{font-size:0.85rem;color:#7eb8da;min-height:1.2em;text-align:center;padding:0.2rem;letter-spacing:0.02em}
+canvas{display:block}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:20;backdrop-filter:blur(6px)}
+.overlay.hidden{display:none}
+.overlay-box{background:linear-gradient(135deg,#0d1b2a,#1b263b);border:2px solid rgba(100,180,255,0.2);border-radius:1.2rem;padding:1.8rem;max-width:400px;width:90%;text-align:center}
+.overlay-box h2{font-size:1.5rem;margin-bottom:0.8rem;text-shadow:0 0 20px rgba(100,180,255,0.5)}
+.overlay-box p{font-size:0.9rem;line-height:1.5;margin-bottom:0.4rem;color:#9bb}
+.btn{color:#fff;border:none;border-radius:0.7rem;padding:0.5rem 1.2rem;font-size:0.9rem;font-weight:700;cursor:pointer;transition:transform 0.1s;letter-spacing:0.02em;display:inline-block;margin-top:0.8rem}
+.btn:active{transform:scale(0.95)}
+.btn-play{background:linear-gradient(135deg,#2ecc71,#27ae60);box-shadow:0 4px 12px rgba(46,204,113,0.3)}
+.btn-draw{background:linear-gradient(135deg,#3498db,#2980b9);box-shadow:0 4px 12px rgba(52,152,219,0.3)}
+.suit-picker{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:30;backdrop-filter:blur(6px)}
+.suit-picker.hidden{display:none}
+.suit-picker-box{background:linear-gradient(135deg,#0d1b2a,#1b263b);border:2px solid rgba(100,180,255,0.2);border-radius:1.2rem;padding:1.5rem;text-align:center}
+.suit-picker-box h3{font-size:1.2rem;margin-bottom:1rem}
+.suit-btns{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
+.suit-btn{width:64px;height:64px;border-radius:12px;border:2px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.08);font-size:2rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform 0.1s,border-color 0.2s}
+.suit-btn:hover{border-color:rgba(255,255,255,0.5);transform:scale(1.1)}
+.suit-btn:active{transform:scale(0.95)}
+</style>
+</head>
+<body>
+<div class="top-bar">
+  <a href="../../index.html" id="backBtn" class="back-btn">Back</a>
+  <h1>CRAZY EIGHTS</h1>
+  <div id="info"></div>
+</div>
+<div class="status" id="status">Tap a card to select, tap again to play</div>
+<canvas id="gameCanvas"></canvas>
+
+<div class="overlay" id="startOverlay">
+  <div class="overlay-box">
+    <h2>CRAZY EIGHTS</h2>
+    <p>Match the top card by rank or suit.</p>
+    <p>Eights are wild - play them anytime and choose the suit!</p>
+    <p>First to empty their hand wins.</p>
+    <button class="btn btn-play" onclick="G.start()">Play</button>
+  </div>
+</div>
+
+<div class="suit-picker hidden" id="suitPicker">
+  <div class="suit-picker-box">
+    <h3>Choose a suit</h3>
+    <div class="suit-btns">
+      <button class="suit-btn" onclick="G.pickSuit('hearts')" style="color:#e74c3c">&#9829;</button>
+      <button class="suit-btn" onclick="G.pickSuit('diamonds')" style="color:#e74c3c">&#9830;</button>
+      <button class="suit-btn" onclick="G.pickSuit('clubs')" style="color:#fff">&#9827;</button>
+      <button class="suit-btn" onclick="G.pickSuit('spades')" style="color:#fff">&#9824;</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="endOverlay">
+  <div class="overlay-box">
+    <h2 id="endTitle"></h2>
+    <p id="endMsg"></p>
+    <button class="btn btn-play" onclick="G.start()">Play Again</button>
+  </div>
+</div>
+
+<script>
+const G = (() => {
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const statusEl = document.getElementById('status');
+  const infoEl = document.getElementById('info');
+
+  const SUITS = ['hearts','diamonds','clubs','spades'];
+  const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+  const SUIT_SYMBOLS = {hearts:'\u2665',diamonds:'\u2666',clubs:'\u2663',spades:'\u2660'};
+  const SUIT_COLORS = {hearts:'#e74c3c',diamonds:'#e74c3c',clubs:'#1a1a2e',spades:'#1a1a2e'};
+
+  let W, H, CW, CH, deck, discard, playerHand, aiHand, currentSuit, currentRank;
+  let selectedIndex = -1, playerTurn = true, gameOver = false, animating = false;
+  let scrollOffset = 0, maxScroll = 0;
+  let touchStartX = 0, touchStartY = 0, isDragging = false;
+
+  function makeDeck() {
+    const d = [];
+    for (const s of SUITS) for (const r of RANKS) d.push({suit:s, rank:r});
+    return d;
+  }
+
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    W = Math.min(window.innerWidth, 960);
+    H = window.innerHeight - 70;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    CW = Math.min(90, W * 0.16);
+    CH = CW * 1.45;
+    updateScroll();
+    draw();
+  }
+
+  function updateScroll() {
+    if (!playerHand) return;
+    const spacing = Math.min(CW * 0.55, (W - 40 - CW) / Math.max(1, playerHand.length - 1));
+    const totalW = CW + spacing * (playerHand.length - 1);
+    maxScroll = Math.max(0, totalW - (W - 40));
+    scrollOffset = Math.max(0, Math.min(scrollOffset, maxScroll));
+  }
+
+  function canPlay(card) {
+    if (card.rank === '8') return true;
+    return card.suit === currentSuit || card.rank === currentRank;
+  }
+
+  function drawRoundedRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function drawCard(x, y, card, faceUp, highlight, dimmed) {
+    const r = CW * 0.08;
+    ctx.save();
+    // Shadow
+    ctx.shadowColor = 'rgba(0,0,0,0.4)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 3;
+
+    drawRoundedRect(x, y, CW, CH, r);
+    if (!faceUp) {
+      ctx.fillStyle = '#2c3e7a';
+      ctx.fill();
+      ctx.strokeStyle = '#1a2550';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      // Back pattern
+      ctx.shadowColor = 'transparent';
+      const inset = CW * 0.1;
+      drawRoundedRect(x + inset, y + inset, CW - inset * 2, CH - inset * 2, r * 0.6);
+      ctx.fillStyle = '#3b5998';
+      ctx.fill();
+      ctx.strokeStyle = '#4a6cb3';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+
+    ctx.fillStyle = dimmed ? '#bbb' : '#fff';
+    ctx.fill();
+    if (highlight) {
+      ctx.strokeStyle = '#ffd700';
+      ctx.lineWidth = 3;
+    } else {
+      ctx.strokeStyle = '#ccc';
+      ctx.lineWidth = 1;
+    }
+    ctx.stroke();
+    ctx.shadowColor = 'transparent';
+
+    const color = SUIT_COLORS[card.suit];
+    const sym = SUIT_SYMBOLS[card.suit];
+    const fontSize = CW * 0.28;
+    const smallFont = CW * 0.2;
+
+    // Top-left rank + suit
+    ctx.fillStyle = color;
+    ctx.font = `bold ${fontSize}px 'Segoe UI',system-ui,sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(card.rank, x + CW * 0.08, y + CW * 0.06);
+    ctx.font = `${smallFont}px 'Segoe UI',system-ui,sans-serif`;
+    ctx.fillText(sym, x + CW * 0.1, y + CW * 0.06 + fontSize);
+
+    // Bottom-right rank + suit (inverted)
+    ctx.save();
+    ctx.translate(x + CW, y + CH);
+    ctx.rotate(Math.PI);
+    ctx.fillStyle = color;
+    ctx.font = `bold ${fontSize}px 'Segoe UI',system-ui,sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(card.rank, CW * 0.08, CW * 0.06);
+    ctx.font = `${smallFont}px 'Segoe UI',system-ui,sans-serif`;
+    ctx.fillText(sym, CW * 0.1, CW * 0.06 + fontSize);
+    ctx.restore();
+
+    // Center suit symbol (large)
+    const bigFont = CW * 0.55;
+    ctx.fillStyle = color;
+    ctx.font = `${bigFont}px 'Segoe UI',system-ui,sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(sym, x + CW / 2, y + CH / 2);
+
+    // Special 8 indicator
+    if (card.rank === '8') {
+      ctx.fillStyle = 'rgba(255,215,0,0.15)';
+      drawRoundedRect(x + 2, y + 2, CW - 4, CH - 4, r);
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  function drawCardBack(x, y) {
+    drawCard(x, y, null, false, false, false);
+  }
+
+  function draw() {
+    if (gameOver && !playerHand) return;
+    ctx.clearRect(0, 0, W, H);
+
+    // AI hand (face-down, centered)
+    const aiY = 10;
+    if (aiHand) {
+      const aiSpacing = Math.min(CW * 0.3, (W - 40 - CW) / Math.max(1, aiHand.length - 1));
+      const aiTotalW = CW + aiSpacing * (aiHand.length - 1);
+      const aiStartX = (W - aiTotalW) / 2;
+      for (let i = 0; i < aiHand.length; i++) {
+        drawCardBack(aiStartX + i * aiSpacing, aiY);
+      }
+      // Card count
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.font = 'bold 14px system-ui,sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText('AI: ' + aiHand.length + ' card' + (aiHand.length !== 1 ? 's' : ''), W / 2, aiY + CH + 4);
+    }
+
+    // Center area: discard pile + draw pile + current suit
+    const centerY = aiY + CH + 24;
+    const pileGap = CW * 0.6;
+    const discardX = W / 2 - CW - pileGap / 2;
+    const drawPileX = W / 2 + pileGap / 2;
+
+    // Draw pile
+    if (deck && deck.length > 0) {
+      drawCardBack(drawPileX, centerY);
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.font = 'bold 12px system-ui,sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(deck.length, drawPileX + CW / 2, centerY + CH + 4);
+    }
+
+    // Discard pile
+    if (discard && discard.length > 0) {
+      const topCard = discard[discard.length - 1];
+      drawCard(discardX, centerY, topCard, true, false, false);
+    }
+
+    // Current suit indicator
+    if (currentSuit) {
+      const indX = discardX + CW / 2;
+      const indY = centerY + CH + 6;
+      const suitColor = (currentSuit === 'hearts' || currentSuit === 'diamonds') ? '#e74c3c' : '#fff';
+      ctx.fillStyle = suitColor;
+      ctx.font = 'bold 18px system-ui,sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(SUIT_SYMBOLS[currentSuit], indX, indY);
+    }
+
+    // Player hand
+    if (playerHand) {
+      const handY = H - CH - 16;
+      const spacing = Math.min(CW * 0.55, (W - 40 - CW) / Math.max(1, playerHand.length - 1));
+      updateScroll();
+      const totalW = CW + spacing * (playerHand.length - 1);
+      const startX = Math.max(20, (W - totalW) / 2) - scrollOffset;
+
+      for (let i = 0; i < playerHand.length; i++) {
+        const card = playerHand[i];
+        const cx = startX + i * spacing;
+        const cy = (i === selectedIndex) ? handY - 15 : handY;
+        const playable = canPlay(card);
+        drawCard(cx, cy, card, true, i === selectedIndex, !playable && playerTurn);
+      }
+    }
+
+    // Draw button area
+    if (playerTurn && !gameOver && !animating && playerHand) {
+      const hasPlayable = playerHand.some(c => canPlay(c));
+      if (!hasPlayable && deck.length > 0) {
+        const btnW = 100, btnH = 36;
+        const btnX = W / 2 - btnW / 2;
+        const btnY = H - CH - 60;
+        drawRoundedRect(btnX, btnY, btnW, btnH, 8);
+        ctx.fillStyle = '#3498db';
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 14px system-ui,sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('Draw Card', btnX + btnW / 2, btnY + btnH / 2);
+      }
+    }
+  }
+
+  function getCardAtPoint(px, py) {
+    if (!playerHand) return -1;
+    const handY = H - CH - 16;
+    const spacing = Math.min(CW * 0.55, (W - 40 - CW) / Math.max(1, playerHand.length - 1));
+    const totalW = CW + spacing * (playerHand.length - 1);
+    const startX = Math.max(20, (W - totalW) / 2) - scrollOffset;
+
+    // Check from right to left (top card first)
+    for (let i = playerHand.length - 1; i >= 0; i--) {
+      const cx = startX + i * spacing;
+      const cy = (i === selectedIndex) ? handY - 15 : handY;
+      if (px >= cx && px <= cx + CW && py >= cy && py <= cy + CH) return i;
+    }
+    return -1;
+  }
+
+  function isDrawButtonClick(px, py) {
+    if (!playerTurn || gameOver || animating) return false;
+    const hasPlayable = playerHand.some(c => canPlay(c));
+    if (hasPlayable || deck.length === 0) return false;
+    const btnW = 100, btnH = 36;
+    const btnX = W / 2 - btnW / 2;
+    const btnY = H - CH - 60;
+    return px >= btnX && px <= btnX + btnW && py >= btnY && py <= btnY + btnH;
+  }
+
+  function drawCardFromDeck() {
+    if (deck.length === 0) {
+      // Reshuffle discard pile (keep top card)
+      if (discard.length <= 1) return null;
+      const top = discard.pop();
+      deck = shuffle(discard);
+      discard = [top];
+    }
+    return deck.pop() || null;
+  }
+
+  function playCard(hand, index) {
+    const card = hand.splice(index, 1)[0];
+    discard.push(card);
+    currentRank = card.rank;
+    if (card.rank !== '8') currentSuit = card.suit;
+    return card;
+  }
+
+  function playerPlay(index) {
+    if (!playerTurn || gameOver || animating) return;
+    const card = playerHand[index];
+    if (!canPlay(card)) return;
+
+    if (card.rank === '8') {
+      // Store the card index and show suit picker
+      playCard(playerHand, index);
+      selectedIndex = -1;
+      draw();
+      if (playerHand.length === 0) { endGame(true); return; }
+      document.getElementById('suitPicker').classList.remove('hidden');
+      return;
+    }
+
+    playCard(playerHand, index);
+    selectedIndex = -1;
+    if (playerHand.length === 0) { endGame(true); return; }
+    playerTurn = false;
+    statusEl.textContent = 'AI is thinking...';
+    draw();
+    setTimeout(aiTurn, 800);
+  }
+
+  function playerDraw() {
+    if (!playerTurn || gameOver || animating) return;
+    const card = drawCardFromDeck();
+    if (!card) {
+      // No cards left, must pass
+      playerTurn = false;
+      statusEl.textContent = 'AI is thinking...';
+      draw();
+      setTimeout(aiTurn, 800);
+      return;
+    }
+    playerHand.push(card);
+    updateScroll();
+    // If the drawn card can be played, let the player decide
+    if (canPlay(card)) {
+      statusEl.textContent = 'You drew ' + card.rank + SUIT_SYMBOLS[card.suit] + ' - you can play it!';
+    } else {
+      statusEl.textContent = 'You drew ' + card.rank + SUIT_SYMBOLS[card.suit] + ' - can\'t play, AI\'s turn';
+      playerTurn = false;
+      draw();
+      setTimeout(aiTurn, 800);
+      return;
+    }
+    draw();
+  }
+
+  function aiTurn() {
+    if (gameOver) return;
+
+    // Find playable cards
+    let playable = [];
+    for (let i = 0; i < aiHand.length; i++) {
+      if (canPlay(aiHand[i])) playable.push(i);
+    }
+
+    // AI strategy: prefer non-8s first, save 8s
+    let choice = -1;
+    const nonEights = playable.filter(i => aiHand[i].rank !== '8');
+    if (nonEights.length > 0) {
+      // Prefer matching suit (to keep options open)
+      const suitMatches = nonEights.filter(i => aiHand[i].suit === currentSuit);
+      if (suitMatches.length > 0) {
+        choice = suitMatches[Math.floor(Math.random() * suitMatches.length)];
+      } else {
+        choice = nonEights[Math.floor(Math.random() * nonEights.length)];
+      }
+    } else if (playable.length > 0) {
+      choice = playable[0]; // Play an 8
+    }
+
+    if (choice >= 0) {
+      const card = playCard(aiHand, choice);
+      if (card.rank === '8') {
+        // AI picks suit it has most of
+        const suitCount = {};
+        for (const s of SUITS) suitCount[s] = 0;
+        for (const c of aiHand) suitCount[c.suit]++;
+        let bestSuit = SUITS[0], bestCount = 0;
+        for (const s of SUITS) {
+          if (suitCount[s] > bestCount) { bestCount = suitCount[s]; bestSuit = s; }
+        }
+        currentSuit = bestSuit;
+        statusEl.textContent = 'AI played 8 and chose ' + SUIT_SYMBOLS[currentSuit];
+      } else {
+        statusEl.textContent = 'AI played ' + card.rank + SUIT_SYMBOLS[card.suit];
+      }
+      if (aiHand.length === 0) { endGame(false); return; }
+    } else {
+      // AI draws
+      const drawn = drawCardFromDeck();
+      if (drawn) {
+        aiHand.push(drawn);
+        if (canPlay(drawn)) {
+          // Play it immediately
+          const idx = aiHand.length - 1;
+          const card = playCard(aiHand, idx);
+          if (card.rank === '8') {
+            const suitCount = {};
+            for (const s of SUITS) suitCount[s] = 0;
+            for (const c of aiHand) suitCount[c.suit]++;
+            let bestSuit = SUITS[0], bestCount = 0;
+            for (const s of SUITS) {
+              if (suitCount[s] > bestCount) { bestCount = suitCount[s]; bestSuit = s; }
+            }
+            currentSuit = bestSuit;
+            statusEl.textContent = 'AI drew and played 8, chose ' + SUIT_SYMBOLS[currentSuit];
+          } else {
+            statusEl.textContent = 'AI drew and played ' + card.rank + SUIT_SYMBOLS[card.suit];
+          }
+          if (aiHand.length === 0) { endGame(false); return; }
+        } else {
+          statusEl.textContent = 'AI drew a card';
+        }
+      } else {
+        statusEl.textContent = 'AI passed (no cards to draw)';
+      }
+    }
+
+    playerTurn = true;
+    infoEl.textContent = 'Your turn';
+    draw();
+
+    // Check if player has any moves
+    const hasPlayable = playerHand.some(c => canPlay(c));
+    if (!hasPlayable && deck.length === 0) {
+      statusEl.textContent = 'No playable cards and deck is empty - passing';
+      playerTurn = false;
+      setTimeout(aiTurn, 1000);
+    } else if (!hasPlayable) {
+      statusEl.textContent = 'No playable cards - draw from the deck';
+    } else {
+      statusEl.textContent = 'Your turn - tap a card to play';
+    }
+  }
+
+  function endGame(playerWon) {
+    gameOver = true;
+    const el = document.getElementById('endOverlay');
+    document.getElementById('endTitle').textContent = playerWon ? 'YOU WIN!' : 'AI WINS!';
+    document.getElementById('endMsg').textContent = playerWon
+      ? 'You played all your cards!'
+      : 'The AI played all its cards first.';
+    el.classList.remove('hidden');
+    draw();
+  }
+
+  function handleTap(px, py) {
+    if (gameOver || !playerTurn || animating) return;
+
+    if (isDrawButtonClick(px, py)) {
+      playerDraw();
+      return;
+    }
+
+    const idx = getCardAtPoint(px, py);
+    if (idx >= 0) {
+      if (idx === selectedIndex) {
+        // Try to play selected card
+        playerPlay(idx);
+      } else {
+        selectedIndex = idx;
+        draw();
+      }
+    } else {
+      selectedIndex = -1;
+      draw();
+    }
+  }
+
+  // Touch/mouse handling
+  canvas.addEventListener('pointerdown', e => {
+    const rect = canvas.getBoundingClientRect();
+    touchStartX = e.clientX - rect.left;
+    touchStartY = e.clientY - rect.top;
+    isDragging = false;
+  });
+
+  canvas.addEventListener('pointermove', e => {
+    if (e.buttons === 0) return;
+    const rect = canvas.getBoundingClientRect();
+    const dx = (e.clientX - rect.left) - touchStartX;
+    const dy = (e.clientY - rect.top) - touchStartY;
+    if (Math.abs(dx) > 8 || Math.abs(dy) > 8) isDragging = true;
+    if (isDragging && maxScroll > 0) {
+      scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset - dx));
+      touchStartX = e.clientX - rect.left;
+      draw();
+    }
+  });
+
+  canvas.addEventListener('pointerup', e => {
+    if (!isDragging) {
+      const rect = canvas.getBoundingClientRect();
+      handleTap(e.clientX - rect.left, e.clientY - rect.top);
+    }
+    isDragging = false;
+  });
+
+  window.addEventListener('resize', resize);
+
+  function pickSuit(suit) {
+    currentSuit = suit;
+    document.getElementById('suitPicker').classList.add('hidden');
+    statusEl.textContent = 'You chose ' + SUIT_SYMBOLS[suit];
+    playerTurn = false;
+    draw();
+    setTimeout(aiTurn, 800);
+  }
+
+  function start() {
+    document.getElementById('startOverlay').classList.add('hidden');
+    document.getElementById('endOverlay').classList.add('hidden');
+    document.getElementById('suitPicker').classList.add('hidden');
+
+    deck = shuffle(makeDeck());
+    playerHand = [];
+    aiHand = [];
+    discard = [];
+    selectedIndex = -1;
+    scrollOffset = 0;
+    gameOver = false;
+    animating = false;
+    playerTurn = true;
+
+    // Deal 7 cards each
+    for (let i = 0; i < 7; i++) {
+      playerHand.push(deck.pop());
+      aiHand.push(deck.pop());
+    }
+
+    // Flip first card to discard
+    let firstCard = deck.pop();
+    // If first card is an 8, put it back and try again
+    while (firstCard.rank === '8') {
+      deck.unshift(firstCard);
+      shuffle(deck);
+      firstCard = deck.pop();
+    }
+    discard.push(firstCard);
+    currentSuit = firstCard.suit;
+    currentRank = firstCard.rank;
+
+    statusEl.textContent = 'Your turn - tap a card to play';
+    infoEl.textContent = 'Your turn';
+    resize();
+  }
+
+  return { start, pickSuit };
+})();
+</script>
+</body>
+</html>

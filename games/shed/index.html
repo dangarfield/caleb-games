@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Shed - Caleb's Arcade</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      height: 100vh; width: 100vw;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      display: flex; flex-direction: column; align-items: center;
+      overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none;
+    }
+    .top-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      width: 100%; padding: 0.4rem 1rem; flex-shrink: 0;
+    }
+    .back-btn {
+      background: rgba(255,255,255,0.15); color: #fff; border: none;
+      border-radius: 0.75rem; padding: 0.4rem 0.8rem; font-size: 0.9rem;
+      cursor: pointer; text-decoration: none; display: inline-block;
+    }
+    .back-btn:active { transform: scale(0.95); }
+    h1 { font-size: 1.4rem; color: #fff; text-shadow: 0 0 20px rgba(139,92,246,0.5); text-align: center; flex: 1; }
+    canvas { display: block; flex: 1; width: 100%; min-height: 0; }
+    #msg {
+      position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.8); color: #fff; padding: 8px 18px;
+      border-radius: 12px; font-size: 1rem; pointer-events: none;
+      transition: opacity 0.3s; z-index: 10;
+    }
+    #msg.hidden { opacity: 0; }
+  </style>
+</head>
+<body>
+  <div class="top-bar">
+    <a href="../../index.html" id="backBtn" class="back-btn">← Back</a>
+    <h1>Shed</h1>
+    <div style="width:60px"></div>
+  </div>
+  <canvas id="c"></canvas>
+  <div id="msg" class="hidden"></div>
+<script>
+(() => {
+'use strict';
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const msgEl = document.getElementById('msg');
+
+// ── Constants ──
+const SUITS = ['♠','♥','♦','♣'];
+const RANK_NAMES = ['','','2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+const RANK_VALUES = { 2:2,3:3,4:4,5:5,6:6,7:7,8:8,9:9,10:10,11:11,12:12,13:13,14:14 };
+
+function Card(rank, suit) { return { rank, suit }; }
+function cardName(c) { return RANK_NAMES[c.rank] + c.suit; }
+function isRed(c) { return c.suit === '♥' || c.suit === '♦'; }
+
+// ── Deck ──
+function makeDeck() {
+  const d = [];
+  for (let r = 2; r <= 14; r++)
+    for (const s of SUITS) d.push(Card(r, s));
+  return d;
+}
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// ── Game State ──
+let state; // 'swap', 'play', 'gameover'
+let deck, discardPile;
+let player, ai; // { hand, faceUp, faceDown }
+let turn; // 'player' or 'ai'
+let selectedHandIdx = -1;
+let selectedCards = []; // indices of selected cards in current playable zone
+let playSource = ''; // 'hand', 'faceUp', 'faceDown'
+let mustPlayUnder7 = false;
+let message = '';
+let messageTimer = 0;
+let winner = '';
+let swapSelected = { hand: -1, faceUp: -1 };
+let animating = false;
+
+function showMsg(txt, duration) {
+  message = txt;
+  msgEl.textContent = txt;
+  msgEl.classList.remove('hidden');
+  clearTimeout(messageTimer);
+  if (duration) messageTimer = setTimeout(() => { msgEl.classList.add('hidden'); message = ''; }, duration);
+}
+
+function initGame() {
+  deck = shuffle(makeDeck());
+  discardPile = [];
+  player = { hand: [], faceUp: [], faceDown: [] };
+  ai = { hand: [], faceUp: [], faceDown: [] };
+  // Deal: 3 face-down, 3 face-up, 3 hand each
+  for (let i = 0; i < 3; i++) { player.faceDown.push(deck.pop()); ai.faceDown.push(deck.pop()); }
+  for (let i = 0; i < 3; i++) { player.faceUp.push(deck.pop()); ai.faceUp.push(deck.pop()); }
+  for (let i = 0; i < 3; i++) { player.hand.push(deck.pop()); ai.hand.push(deck.pop()); }
+  player.hand.sort((a,b) => a.rank - b.rank);
+  ai.hand.sort((a,b) => a.rank - b.rank);
+  state = 'swap';
+  turn = 'player';
+  selectedCards = [];
+  swapSelected = { hand: -1, faceUp: -1 };
+  winner = '';
+  mustPlayUnder7 = false;
+  showMsg('Tap a hand card then a face-up card to swap. Tap "Start" when ready.', 0);
+  draw();
+}
+
+// ── Rules Engine ──
+function getEffectiveTop() {
+  // Look through Jacks (glass cards) to find actual card to beat
+  for (let i = discardPile.length - 1; i >= 0; i--) {
+    if (discardPile[i].rank !== 11) return discardPile[i]; // Jack = 11
+  }
+  return null; // all jacks or empty
+}
+
+function canPlayCard(card) {
+  if (discardPile.length === 0) return true;
+  // 2 resets - always playable
+  if (card.rank === 2) return true;
+  // 10 burns - always playable
+  if (card.rank === 10) return true;
+  if (mustPlayUnder7) {
+    return card.rank <= 7;
+  }
+  const top = getEffectiveTop();
+  if (!top) return true; // pile is all jacks or empty
+  return card.rank >= top.rank;
+}
+
+function checkFourOfAKind() {
+  if (discardPile.length < 4) return false;
+  const topRank = discardPile[discardPile.length - 1].rank;
+  let count = 0;
+  for (let i = discardPile.length - 1; i >= 0 && discardPile[i].rank === topRank; i--) count++;
+  return count >= 4;
+}
+
+function afterPlay(who) {
+  // Check 10 burn
+  const lastPlayed = discardPile[discardPile.length - 1];
+  if (lastPlayed && lastPlayed.rank === 10) {
+    discardPile = [];
+    mustPlayUnder7 = false;
+    showMsg((who === 'player' ? 'You' : 'AI') + ' burned the pile with 10!', 1500);
+    return 'again'; // same player goes again
+  }
+  // Check four of a kind
+  if (checkFourOfAKind()) {
+    discardPile = [];
+    mustPlayUnder7 = false;
+    showMsg('Four of a kind! Pile burned!', 1500);
+    return 'again';
+  }
+  // 7 rule
+  if (lastPlayed && lastPlayed.rank === 7) {
+    mustPlayUnder7 = true;
+  } else {
+    mustPlayUnder7 = false;
+  }
+  return 'next';
+}
+
+function drawFromDeck(p) {
+  while (p.hand.length < 3 && deck.length > 0) {
+    p.hand.push(deck.pop());
+  }
+  p.hand.sort((a,b) => a.rank - b.rank);
+}
+
+function getPlayableZone(p) {
+  if (p.hand.length > 0) return 'hand';
+  if (p.faceUp.length > 0) return 'faceUp';
+  if (p.faceDown.length > 0) return 'faceDown';
+  return 'none';
+}
+
+function checkWin(p) {
+  return p.hand.length === 0 && p.faceUp.length === 0 && p.faceDown.length === 0;
+}
+
+function pickUpPile(p) {
+  p.hand = p.hand.concat(discardPile);
+  discardPile = [];
+  mustPlayUnder7 = false;
+  p.hand.sort((a,b) => a.rank - b.rank);
+}
+
+// ── Player Action ──
+function playerPlayCards(indices, zone) {
+  const p = player;
+  let source = zone === 'hand' ? p.hand : zone === 'faceUp' ? p.faceUp : p.faceDown;
+
+  if (zone === 'faceDown') {
+    // Play blind card
+    const card = source[indices[0]];
+    if (!canPlayCard(card)) {
+      // Can't play - pick up pile + this card
+      discardPile.push(card);
+      source.splice(indices[0], 1);
+      pickUpPile(p);
+      showMsg('Flipped ' + cardName(card) + ' - too low! Pick up pile.', 2000);
+      drawFromDeck(p);
+      turn = 'ai';
+      selectedCards = [];
+      draw();
+      setTimeout(aiTurn, 1200);
+      return;
+    }
+    discardPile.push(card);
+    source.splice(indices[0], 1);
+  } else {
+    // Validate all same rank
+    const cards = indices.map(i => source[i]);
+    const rank = cards[0].rank;
+    if (!cards.every(c => c.rank === rank)) return;
+    if (!canPlayCard(cards[0])) { showMsg("Can't play that!", 1000); return; }
+    // Play cards
+    for (const c of cards) discardPile.push(c);
+    // Remove from source (reverse order)
+    const sorted = [...indices].sort((a,b) => b - a);
+    for (const i of sorted) source.splice(i, 1);
+  }
+
+  drawFromDeck(p);
+  selectedCards = [];
+
+  if (checkWin(p)) {
+    state = 'gameover';
+    winner = 'player';
+    showMsg('You win!', 0);
+    draw();
+    return;
+  }
+
+  const result = afterPlay('player');
+  if (result === 'again') {
+    turn = 'player';
+    draw();
+  } else {
+    turn = 'ai';
+    draw();
+    setTimeout(aiTurn, 800);
+  }
+}
+
+// ── AI ──
+function aiTurn() {
+  if (state !== 'play' || turn !== 'ai') return;
+  const p = ai;
+  const zone = getPlayableZone(p);
+
+  if (zone === 'none') return;
+
+  if (zone === 'faceDown') {
+    const idx = Math.floor(Math.random() * p.faceDown.length);
+    const card = p.faceDown[idx];
+    if (!canPlayCard(card)) {
+      discardPile.push(card);
+      p.faceDown.splice(idx, 1);
+      pickUpPile(p);
+      showMsg('AI flipped ' + cardName(card) + ' - too low! Picks up pile.', 2000);
+      drawFromDeck(p);
+      turn = 'player';
+      draw();
+      return;
+    }
+    discardPile.push(card);
+    p.faceDown.splice(idx, 1);
+    showMsg('AI plays ' + cardName(card), 1200);
+  } else {
+    const source = zone === 'hand' ? p.hand : p.faceUp;
+    // Find playable cards, prefer lowest
+    let bestRank = -1;
+    let playable = [];
+    for (let i = 0; i < source.length; i++) {
+      if (canPlayCard(source[i])) {
+        if (bestRank === -1 || source[i].rank < bestRank) {
+          bestRank = source[i].rank;
+          playable = [i];
+        } else if (source[i].rank === bestRank) {
+          playable.push(i);
+        }
+      }
+    }
+
+    if (playable.length === 0) {
+      // Can't play, pick up
+      pickUpPile(p);
+      showMsg('AI picks up the pile!', 1500);
+      turn = 'player';
+      draw();
+      return;
+    }
+
+    // AI strategy: play all of the lowest playable rank
+    // But prefer 2/10 strategically - save them unless needed
+    // Simple: just play lowest, all copies
+    const cards = playable.map(i => source[i]);
+    const sorted = [...playable].sort((a,b) => b - a);
+    for (const i of sorted) source.splice(i, 1);
+    for (const c of cards) discardPile.push(c);
+    const names = cards.map(cardName).join(', ');
+    showMsg('AI plays ' + names, 1200);
+  }
+
+  drawFromDeck(p);
+
+  if (checkWin(p)) {
+    state = 'gameover';
+    winner = 'ai';
+    showMsg('AI wins! Better luck next time.', 0);
+    draw();
+    return;
+  }
+
+  const result = afterPlay('ai');
+  if (result === 'again') {
+    turn = 'ai';
+    draw();
+    setTimeout(aiTurn, 1000);
+  } else {
+    turn = 'player';
+    draw();
+  }
+}
+
+// ── Determine who starts ──
+function determineFirstPlayer() {
+  const pMin = player.hand.length > 0 ? Math.min(...player.hand.map(c => c.rank)) : 99;
+  const aMin = ai.hand.length > 0 ? Math.min(...ai.hand.map(c => c.rank)) : 99;
+  if (pMin <= aMin) {
+    turn = 'player';
+    showMsg('You start! (lowest card: ' + RANK_NAMES[pMin] + ')', 2000);
+  } else {
+    turn = 'ai';
+    showMsg('AI starts! (lowest card: ' + RANK_NAMES[aMin] + ')', 2000);
+    setTimeout(aiTurn, 1500);
+  }
+}
+
+// ── Drawing ──
+let W, H, CW, CH, scale;
+
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  W = rect.width;
+  H = rect.height;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  CW = Math.min(90, W / 6);
+  CH = CW * 1.45;
+  scale = CW / 65;
+  draw();
+}
+
+function drawRoundedRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function drawCard(x, y, card, faceDown, selected, small) {
+  const w = small ? CW * 0.85 : CW;
+  const h = small ? CH * 0.85 : CH;
+  const r = w * 0.08;
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.4)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetY = 3;
+  drawRoundedRect(x, y, w, h, r);
+
+  if (faceDown) {
+    ctx.fillStyle = '#2c3e7a';
+    ctx.fill();
+    ctx.strokeStyle = '#1a2550';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.shadowColor = 'transparent';
+    const inset = w * 0.1;
+    drawRoundedRect(x + inset, y + inset, w - inset * 2, h - inset * 2, r * 0.6);
+    ctx.fillStyle = '#3b5998';
+    ctx.fill();
+    ctx.strokeStyle = '#4a6cb3';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+  if (selected) {
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 3;
+  } else {
+    ctx.strokeStyle = '#ccc';
+    ctx.lineWidth = 1;
+  }
+  ctx.stroke();
+  ctx.shadowColor = 'transparent';
+
+  const color = isRed(card) ? '#e74c3c' : '#1a1a2e';
+  const sym = card.suit;
+  const name = RANK_NAMES[card.rank];
+  const fontSize = w * 0.28;
+  const smallFont = w * 0.2;
+
+  // Top-left rank + suit
+  ctx.fillStyle = color;
+  ctx.font = `bold ${fontSize}px 'Segoe UI',system-ui,sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText(name, x + w * 0.08, y + w * 0.06);
+  ctx.font = `${smallFont}px 'Segoe UI',system-ui,sans-serif`;
+  ctx.fillText(sym, x + w * 0.1, y + w * 0.06 + fontSize);
+
+  // Bottom-right rank + suit (inverted)
+  ctx.save();
+  ctx.translate(x + w, y + h);
+  ctx.rotate(Math.PI);
+  ctx.fillStyle = color;
+  ctx.font = `bold ${fontSize}px 'Segoe UI',system-ui,sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText(name, w * 0.08, w * 0.06);
+  ctx.font = `${smallFont}px 'Segoe UI',system-ui,sans-serif`;
+  ctx.fillText(sym, w * 0.1, w * 0.06 + fontSize);
+  ctx.restore();
+
+  // Center suit symbol (large)
+  const bigFont = w * 0.55;
+  ctx.fillStyle = color;
+  ctx.font = `${bigFont}px 'Segoe UI',system-ui,sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(sym, x + w / 2, y + h / 2);
+
+  // Special card indicators (RESET, ≤7, BURN, GLASS)
+  if (card.rank === 2 || card.rank === 7 || card.rank === 10 || card.rank === 11) {
+    ctx.font = `bold ${w * 0.12}px 'Segoe UI',system-ui,sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(139,92,246,0.7)';
+    let label = '';
+    if (card.rank === 2) label = 'RESET';
+    else if (card.rank === 7) label = '≤7';
+    else if (card.rank === 10) label = 'BURN';
+    else if (card.rank === 11) label = 'GLASS';
+    ctx.fillText(label, x + w / 2, y + h - w * 0.1);
+  }
+
+  ctx.restore();
+}
+
+function drawCardStack(x, y, count) {
+  const sw = CW * 0.85, sh = CH * 0.85, r = sw * 0.08;
+  for (let i = 0; i < Math.min(count, 3); i++) {
+    const ox = i * 2, oy = -i * 2;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.3)';
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetY = 2;
+    drawRoundedRect(x + ox, y + oy, sw, sh, r);
+    ctx.fillStyle = '#2c3e7a';
+    ctx.fill();
+    ctx.strokeStyle = '#1a2550';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  }
+  if (count > 0) {
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${12 * scale}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(count, x + sw / 2 + 2, y + sh / 2 - 2);
+  }
+}
+
+// Layout regions (computed in draw)
+let regions = {};
+
+function draw() {
+  if (!W) return;
+  ctx.clearRect(0, 0, W, H);
+
+  regions = {};
+  const pad = 8;
+  const gap = 6;
+
+  if (state === 'swap') {
+    drawSwapPhase(pad, gap);
+  } else if (state === 'play' || state === 'gameover') {
+    drawPlayPhase(pad, gap);
+  }
+}
+
+function drawSwapPhase(pad, gap) {
+  // Title
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${16 * scale}px 'Segoe UI', sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.fillText('Swap Phase - Arrange Your Cards', W/2, 25);
+
+  // Face-up cards
+  ctx.font = `${12 * scale}px 'Segoe UI', sans-serif`;
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.fillText('Face-Up Cards (visible to all)', W/2, 55);
+
+  const faceUpY = 65;
+  const faceUpX = W/2 - (3 * (CW + gap)) / 2 + gap/2;
+  regions.faceUp = [];
+  for (let i = 0; i < player.faceUp.length; i++) {
+    const x = faceUpX + i * (CW + gap);
+    const sel = swapSelected.faceUp === i;
+    drawCard(x, faceUpY, player.faceUp[i], false, sel);
+    regions.faceUp.push({ x, y: faceUpY, w: CW, h: CH, idx: i });
+  }
+
+  // Face-down cards (shown as backs)
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.fillText('Face-Down Cards (hidden)', W/2, faceUpY + CH + 25);
+  const faceDownY = faceUpY + CH + 35;
+  for (let i = 0; i < 3; i++) {
+    const x = faceUpX + i * (CW + gap);
+    drawCard(x, faceDownY, null, true);
+  }
+
+  // Hand
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.fillText('Your Hand', W/2, faceDownY + CH + 25);
+  const handY = faceDownY + CH + 35;
+  const handX = W/2 - (player.hand.length * (CW + gap)) / 2 + gap/2;
+  regions.hand = [];
+  for (let i = 0; i < player.hand.length; i++) {
+    const x = handX + i * (CW + gap);
+    const sel = swapSelected.hand === i;
+    drawCard(x, handY, player.hand[i], false, sel);
+    regions.hand.push({ x, y: handY, w: CW, h: CH, idx: i });
+  }
+
+  // Start button
+  const btnW = 140, btnH = 44;
+  const btnX = W/2 - btnW/2, btnY = handY + CH + 20;
+  ctx.fillStyle = '#8b5cf6';
+  ctx.beginPath();
+  ctx.roundRect(btnX, btnY, btnW, btnH, 10);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${16 * scale}px 'Segoe UI', sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Start Game', W/2, btnY + btnH/2);
+  regions.startBtn = { x: btnX, y: btnY, w: btnW, h: btnH };
+}
+
+function drawPlayPhase(pad, gap) {
+  const smallGap = 4;
+
+  // ── AI area (top) ──
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = `${10 * scale}px 'Segoe UI', sans-serif`;
+  ctx.textAlign = 'center';
+
+  // AI face-down
+  let aiY = 8;
+  const aiZoneW = 3 * (CW * 0.6 + smallGap);
+  let aiX = pad;
+
+  ctx.fillText('AI Face-Down', aiX + aiZoneW/2, aiY - 1);
+  for (let i = 0; i < ai.faceDown.length; i++) {
+    drawCard(aiX + i * (CW * 0.6 + smallGap), aiY + 8, null, true, false, true);
+  }
+  // Empty slots
+  for (let i = ai.faceDown.length; i < 3; i++) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1;
+    drawRoundedRect(aiX + i * (CW * 0.6 + smallGap), aiY + 8, CW * 0.85, CH * 0.85, 5);
+    ctx.stroke();
+  }
+
+  // AI face-up
+  let aiFuX = W/2 - aiZoneW/2;
+  ctx.fillText('AI Face-Up', aiFuX + aiZoneW/2, aiY - 1);
+  for (let i = 0; i < ai.faceUp.length; i++) {
+    drawCard(aiFuX + i * (CW * 0.6 + smallGap), aiY + 8, ai.faceUp[i], false, false, true);
+  }
+  for (let i = ai.faceUp.length; i < 3; i++) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1;
+    drawRoundedRect(aiFuX + i * (CW * 0.6 + smallGap), aiY + 8, CW * 0.85, CH * 0.85, 5);
+    ctx.stroke();
+  }
+
+  // AI hand count
+  let aiHandX = W - pad - aiZoneW;
+  ctx.fillText('AI Hand: ' + ai.hand.length, aiHandX + aiZoneW/2, aiY - 1);
+  if (ai.hand.length > 0) {
+    drawCardStack(aiHandX, aiY + 8, ai.hand.length);
+  }
+
+  // ── Middle area: discard + deck (centered) ──
+  const midY = H / 2 - CH / 2;
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${12 * scale}px 'Segoe UI', sans-serif`;
+  ctx.textAlign = 'center';
+
+  // Deck (left of center)
+  const deckCenterX = W / 2 - CW * 0.7;
+  if (deck.length > 0) {
+    drawCardStack(deckCenterX - CW * 0.85 / 2, midY, deck.length);
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = `${10 * scale}px sans-serif`;
+    ctx.fillText('Deck: ' + deck.length, deckCenterX, midY + CH * 0.85 + 14);
+  }
+
+  // Discard pile (right of center)
+  const discCenterX = W / 2 + CW * 0.7;
+  if (discardPile.length > 0) {
+    const top = discardPile[discardPile.length - 1];
+    drawCard(discCenterX - CW / 2, midY, top, false, false);
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = `${10 * scale}px sans-serif`;
+    ctx.fillText('Pile: ' + discardPile.length, discCenterX, midY + CH + 14);
+  } else {
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4,4]);
+    drawRoundedRect(discCenterX - CW / 2, midY, CW, CH, CW * 0.08);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.font = `${10 * scale}px sans-serif`;
+    ctx.fillText('Empty', discCenterX, midY + CH / 2);
+  }
+
+  // Must play ≤7 indicator
+  if (mustPlayUnder7) {
+    ctx.fillStyle = '#f59e0b';
+    ctx.font = `bold ${12 * scale}px sans-serif`;
+    ctx.fillText('Must play 7 or lower!', W / 2, midY + CH + 30);
+  }
+
+  // Turn indicator
+  if (state === 'play') {
+    ctx.fillStyle = turn === 'player' ? '#4ade80' : '#f87171';
+    ctx.font = `bold ${12 * scale}px sans-serif`;
+    ctx.fillText(turn === 'player' ? 'YOUR TURN' : 'AI THINKING...', W / 2, midY - 14);
+  }
+
+  // ── Player area (bottom) ──
+  const playerZoneY = midY + CH + 45;
+
+  // Player face-down + face-up
+  const pZoneW = 3 * (CW + gap);
+  const pFdX = pad + 4;
+  const pFuX = pad + 4;
+
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = `${10 * scale}px 'Segoe UI', sans-serif`;
+  ctx.textAlign = 'left';
+
+  // Face-down
+  ctx.fillText('Face-Down', pFdX, playerZoneY);
+  regions.playerFaceDown = [];
+  for (let i = 0; i < player.faceDown.length; i++) {
+    const x = pFdX + i * (CW * 0.7 + smallGap);
+    const y = playerZoneY + 10;
+    drawCard(x, y, null, true, selectedCards.includes(i) && playSource === 'faceDown', true);
+    regions.playerFaceDown.push({ x, y, w: CW * 0.85, h: CH * 0.85, idx: i });
+  }
+
+  // Face-up
+  const fuLabelY = playerZoneY + CH * 0.85 + 22;
+  ctx.fillText('Face-Up', pFuX, fuLabelY);
+  regions.playerFaceUp = [];
+  for (let i = 0; i < player.faceUp.length; i++) {
+    const x = pFuX + i * (CW * 0.7 + smallGap);
+    const y = fuLabelY + 10;
+    drawCard(x, y, player.faceUp[i], false, selectedCards.includes(i) && playSource === 'faceUp', true);
+    regions.playerFaceUp.push({ x, y, w: CW * 0.85, h: CH * 0.85, idx: i });
+  }
+
+  // Hand
+  const handY = H - CH - 18;
+  const maxHandW = W - pad * 2;
+  const handCardW = player.hand.length > 0 ? Math.min(CW + gap, (maxHandW) / player.hand.length) : CW + gap;
+  const handTotalW = player.hand.length * handCardW;
+  const handStartX = (W - handTotalW) / 2;
+
+  regions.playerHand = [];
+  for (let i = 0; i < player.hand.length; i++) {
+    const x = handStartX + i * handCardW;
+    const sel = selectedCards.includes(i) && playSource === 'hand';
+    const y = sel ? handY - 10 : handY;
+    drawCard(x, y, player.hand[i], false, sel);
+    regions.playerHand.push({ x, y: handY, w: CW, h: CH, idx: i });
+  }
+
+  // Play button (when cards selected)
+  if (selectedCards.length > 0 && state === 'play' && turn === 'player') {
+    const btnW = 100, btnH = 36;
+    const btnX = W/2 - btnW/2;
+    const btnY = handY - 50;
+    ctx.fillStyle = '#22c55e';
+    ctx.beginPath();
+    ctx.roundRect(btnX, btnY, btnW, btnH, 8);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${14 * scale}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Play', W/2, btnY + btnH/2);
+    regions.playBtn = { x: btnX, y: btnY, w: btnW, h: btnH };
+  }
+
+  // Pick up button (always available during player turn)
+  if (state === 'play' && turn === 'player' && discardPile.length > 0) {
+    const btnW = 110, btnH = 32;
+    const btnX = W - btnW - pad;
+    const btnY = midY + CH / 2 - btnH / 2;
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.roundRect(btnX, btnY, btnW, btnH, 8);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${11 * scale}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Pick Up Pile', btnX + btnW/2, btnY + btnH/2);
+    regions.pickUpBtn = { x: btnX, y: btnY, w: btnW, h: btnH };
+  }
+
+  // Game over
+  if (state === 'gameover') {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${28 * scale}px 'Segoe UI', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(winner === 'player' ? 'You Win!' : 'AI Wins!', W/2, H/2 - 30);
+    const btnW = 150, btnH = 44;
+    const btnX = W/2 - btnW/2, btnY = H/2 + 10;
+    ctx.fillStyle = '#8b5cf6';
+    ctx.beginPath();
+    ctx.roundRect(btnX, btnY, btnW, btnH, 10);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${16 * scale}px sans-serif`;
+    ctx.fillText('Play Again', W/2, btnY + btnH/2);
+    regions.restartBtn = { x: btnX, y: btnY, w: btnW, h: btnH };
+  }
+}
+
+// ── Input ──
+function hitTest(px, py, r) {
+  return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
+}
+
+function handleTap(px, py) {
+  if (state === 'swap') {
+    // Check start button
+    if (regions.startBtn && hitTest(px, py, regions.startBtn)) {
+      state = 'play';
+      swapSelected = { hand: -1, faceUp: -1 };
+      // AI does simple swaps
+      aiDoSwaps();
+      determineFirstPlayer();
+      draw();
+      return;
+    }
+    // Check hand cards
+    if (regions.hand) {
+      for (let i = regions.hand.length - 1; i >= 0; i--) {
+        if (hitTest(px, py, regions.hand[i])) {
+          if (swapSelected.faceUp >= 0) {
+            // Perform swap
+            const fi = swapSelected.faceUp;
+            const tmp = player.hand[i];
+            player.hand[i] = player.faceUp[fi];
+            player.faceUp[fi] = tmp;
+            player.hand.sort((a,b) => a.rank - b.rank);
+            swapSelected = { hand: -1, faceUp: -1 };
+            showMsg('Swapped!', 800);
+          } else {
+            swapSelected.hand = i;
+            if (swapSelected.faceUp >= 0) {
+              // do swap
+            }
+          }
+          draw();
+          return;
+        }
+      }
+    }
+    // Check face-up cards
+    if (regions.faceUp) {
+      for (let i = regions.faceUp.length - 1; i >= 0; i--) {
+        if (hitTest(px, py, regions.faceUp[i])) {
+          if (swapSelected.hand >= 0) {
+            // Perform swap
+            const hi = swapSelected.hand;
+            const tmp = player.faceUp[i];
+            player.faceUp[i] = player.hand[hi];
+            player.hand[hi] = tmp;
+            player.hand.sort((a,b) => a.rank - b.rank);
+            swapSelected = { hand: -1, faceUp: -1 };
+            showMsg('Swapped!', 800);
+          } else {
+            swapSelected.faceUp = i;
+          }
+          draw();
+          return;
+        }
+      }
+    }
+    return;
+  }
+
+  if (state === 'gameover') {
+    if (regions.restartBtn && hitTest(px, py, regions.restartBtn)) {
+      initGame();
+    }
+    return;
+  }
+
+  if (state === 'play' && turn !== 'player') return;
+
+  // Play button
+  if (regions.playBtn && hitTest(px, py, regions.playBtn)) {
+    playerPlayCards(selectedCards, playSource);
+    return;
+  }
+
+  // Pick up pile
+  if (regions.pickUpBtn && hitTest(px, py, regions.pickUpBtn)) {
+    pickUpPile(player);
+    selectedCards = [];
+    showMsg('You picked up the pile!', 1500);
+    turn = 'ai';
+    draw();
+    setTimeout(aiTurn, 800);
+    return;
+  }
+
+  const zone = getPlayableZone(player);
+
+  // Hand cards
+  if (zone === 'hand' && regions.playerHand) {
+    for (let i = regions.playerHand.length - 1; i >= 0; i--) {
+      if (hitTest(px, py, regions.playerHand[i])) {
+        handleCardSelection(i, 'hand', player.hand);
+        draw();
+        return;
+      }
+    }
+  }
+
+  // Face-up cards
+  if (zone === 'faceUp' && regions.playerFaceUp) {
+    for (let i = regions.playerFaceUp.length - 1; i >= 0; i--) {
+      if (hitTest(px, py, regions.playerFaceUp[i])) {
+        handleCardSelection(i, 'faceUp', player.faceUp);
+        draw();
+        return;
+      }
+    }
+  }
+
+  // Face-down cards
+  if (zone === 'faceDown' && regions.playerFaceDown) {
+    for (let i = regions.playerFaceDown.length - 1; i >= 0; i--) {
+      if (hitTest(px, py, regions.playerFaceDown[i])) {
+        // Play immediately (blind)
+        selectedCards = [i];
+        playSource = 'faceDown';
+        playerPlayCards([i], 'faceDown');
+        return;
+      }
+    }
+  }
+
+  // Tapping empty area deselects
+  selectedCards = [];
+  playSource = '';
+  draw();
+}
+
+function handleCardSelection(idx, zone, source) {
+  if (playSource !== zone) {
+    selectedCards = [idx];
+    playSource = zone;
+    return;
+  }
+  if (selectedCards.includes(idx)) {
+    // Deselect
+    selectedCards = selectedCards.filter(i => i !== idx);
+    if (selectedCards.length === 0) playSource = '';
+    return;
+  }
+  // Only allow same rank
+  if (selectedCards.length > 0 && source[idx].rank !== source[selectedCards[0]].rank) {
+    // Switch selection
+    selectedCards = [idx];
+    return;
+  }
+  selectedCards.push(idx);
+}
+
+function aiDoSwaps() {
+  // AI swaps high cards to face-up
+  for (let pass = 0; pass < 3; pass++) {
+    for (let hi = 0; hi < ai.hand.length; hi++) {
+      for (let fi = 0; fi < ai.faceUp.length; fi++) {
+        // Prefer 2, 10, A, K on face-up
+        const handVal = aiCardValue(ai.hand[hi]);
+        const faceVal = aiCardValue(ai.faceUp[fi]);
+        if (handVal > faceVal) {
+          const tmp = ai.hand[hi];
+          ai.hand[hi] = ai.faceUp[fi];
+          ai.faceUp[fi] = tmp;
+        }
+      }
+    }
+  }
+  ai.hand.sort((a,b) => a.rank - b.rank);
+}
+
+function aiCardValue(c) {
+  // Special cards are more valuable face-up
+  if (c.rank === 2) return 20;
+  if (c.rank === 10) return 19;
+  if (c.rank === 14) return 18; // Ace
+  if (c.rank === 13) return 17; // King
+  return c.rank;
+}
+
+// Event listeners
+canvas.addEventListener('pointerdown', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  handleTap(e.clientX - rect.left, e.clientY - rect.top);
+});
+
+window.addEventListener('resize', resize);
+
+// Double-tap to play shortcut
+let lastTapTime = 0;
+canvas.addEventListener('pointerup', (e) => {
+  const now = Date.now();
+  if (now - lastTapTime < 300 && selectedCards.length > 0 && state === 'play' && turn === 'player') {
+    playerPlayCards(selectedCards, playSource);
+  }
+  lastTapTime = now;
+});
+
+// Init
+resize();
+initGame();
+
+})();
+</script>
+</body>
+</html>
