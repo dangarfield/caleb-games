@@ -219,7 +219,7 @@
                         remaining--;
                         if (remaining === 0) { carsLoaded = true; if (callback) callback(); }
                     };
-                    img.src = 'research/cars/car-' + String(idx+1).padStart(2,'0') + '.png';
+                    img.src = 'drift/cars/car-' + String(idx+1).padStart(2,'0') + '.png';
                 })(i);
             }
         }
@@ -381,27 +381,34 @@
         // Pre-configured PNG tracks to load on startup
         // Format: { path: 'relative/path.png', name: 'Display Name', dir: 'u'|'d'|'l'|'r' }
         var PNG_TRACK_MANIFEST = [
-            { path: 'research/builtin-01-Midnight Start.png', name: 'Midnight Start', series: 'Builtin' },
-            { path: 'research/builtin-02-Neon Serpent.png', name: 'Neon Serpent', series: 'Builtin' },
-            { path: 'research/builtin-03-Dusty Corner.png', name: 'Dusty Corner', series: 'Builtin' },
-            { path: 'research/builtin-04-Frozen Drift.png', name: 'Frozen Drift', series: 'Builtin' },
-            { path: 'research/builtin-05-Midnight Roadride.png', name: 'Midnight Roadride', series: 'Builtin' },
-            { path: 'research/builtin-06-The Gauntlet.png', name: 'The Gauntlet', series: 'Builtin' },
-            { path: 'research/builtin-07-Zigzag Alley.png', name: 'Zigzag Alley', series: 'Builtin' },
-            { path: 'research/builtin-08-Highway Midnight.png', name: 'Highway Midnight', series: 'Builtin' },
-            { path: 'research/ddbm-01-Right Wing.png', name: 'Right Wing', series: 'DDBM' },
-            { path: 'research/ddbm-02-Left Wing.png', name: 'Left Wing', series: 'DDBM' },
-            { path: "research/ddbm-03-Wally's Tunnel.png", name: "Wally's Tunnel", series: 'DDBM' },
-            { path: 'research/ddbm-04-Spiral Swirl.png', name: 'Spiral Swirl', series: 'DDBM' },
-            { path: 'research/ddbm-05-Big Back Bounce.png', name: 'Big Back Bounce', series: 'DDBM' },
-            { path: 'research/ddbm-06-Declined Sympathy.png', name: 'Declined Sympathy', series: 'DDBM' },
-            { path: "research/ddbm-07-Shelly's Shortcut.png", name: "Shelly's Shortcut", series: 'DDBM' },
-            { path: 'research/ddbm-08-Frosty Downstairs.png', name: 'Frosty Downstairs', series: 'DDBM' },
-            { path: 'research/ddbm-09-Tight Slide.png', name: 'Tight Slide', series: 'DDBM' },
-            { path: 'research/ddbm-10-Offtrack Bouncer.png', name: 'Offtrack Bouncer', series: 'DDBM' },
-            { path: 'research/ddbm-11-Polar Passage.png', name: 'Polar Passage', series: 'DDBM' },
-            { path: 'research/ddbm-12-Arctic Alley.png', name: 'Arctic Alley', series: 'DDBM' },
-            { path: 'research/ddbm-13-Permafrost Pathway.png', name: 'Permafrost Pathway', series: 'DDBM' }
+            { path: 'drift/tracks/builtin-01-Midnight Start.png', name: 'Midnight Start', series: 'Drift' },
+            { path: 'drift/tracks/builtin-02-Neon Serpent.png', name: 'Neon Serpent', series: 'Drift' },
+            { path: 'drift/tracks/builtin-03-Dusty Corner.png', name: 'Dusty Corner', series: 'Drift' },
+            { path: 'drift/tracks/builtin-04-Frozen Drift.png', name: 'Frozen Drift', series: 'Drift' },
+            { path: 'drift/tracks/builtin-05-Midnight Roadride.png', name: 'Midnight Roadride', series: 'Drift' },
+            { path: 'drift/tracks/builtin-06-The Gauntlet.png', name: 'The Gauntlet', series: 'Drift' },
+            { path: 'drift/tracks/builtin-07-Zigzag Alley.png', name: 'Zigzag Alley', series: 'Drift' },
+            { path: 'drift/tracks/builtin-08-Highway Midnight.png', name: 'Highway Midnight', series: 'Drift' },
+            { path: 'drift/tracks/ddb-01.png', name: "Don't Break 1", series: "Don't Break" },
+            { path: 'drift/tracks/ddb-02.png', name: "Don't Break 2", series: "Don't Break" },
+            { path: 'drift/tracks/ddb-03.png', name: "Don't Break 3", series: "Don't Break" },
+            { path: 'drift/tracks/ddb-04.png', name: "Don't Break 4", series: "Don't Break" },
+            { path: 'drift/tracks/ddb-05.png', name: "Don't Break 5", series: "Don't Break" },
+            { path: 'drift/tracks/ddb-06.png', name: "Don't Break 6", series: "Don't Break" },
+            { path: 'drift/tracks/ddb-07.png', name: "Don't Break 7", series: "Don't Break" },
+            { path: 'drift/tracks/ddbm-01-Right Wing.png', name: 'Right Wing', series: 'Midnight' },
+            { path: 'drift/tracks/ddbm-02-Left Wing.png', name: 'Left Wing', series: 'Midnight' },
+            { path: 'drift/tracks/ddbm-03-Wallys Tunnel.png', name: "Wally's Tunnel", series: 'Midnight' },
+            { path: 'drift/tracks/ddbm-04-Spiral Swirl.png', name: 'Spiral Swirl', series: 'Midnight' },
+            { path: 'drift/tracks/ddbm-05-Big Back Bounce.png', name: 'Big Back Bounce', series: 'Midnight' },
+            { path: 'drift/tracks/ddbm-06-Declined Sympathy.png', name: 'Declined Sympathy', series: 'Midnight' },
+            { path: 'drift/tracks/ddbm-07-Shellys Shortcut.png', name: "Shelly's Shortcut", series: 'Midnight' },
+            { path: 'drift/tracks/ddbm-08-Frosty Downstairs.png', name: 'Frosty Downstairs', series: 'Midnight' },
+            { path: 'drift/tracks/ddbm-09-Tight Slide.png', name: 'Tight Slide', series: 'Midnight' },
+            { path: 'drift/tracks/ddbm-10-Offtrack Bouncer.png', name: 'Offtrack Bouncer', series: 'Midnight' },
+            { path: 'drift/tracks/ddbm-11-Polar Passage.png', name: 'Polar Passage', series: 'Midnight' },
+            { path: 'drift/tracks/ddbm-12-Arctic Alley.png', name: 'Arctic Alley', series: 'Midnight' },
+            { path: 'drift/tracks/ddbm-13-Permafrost Pathway.png', name: 'Permafrost Pathway', series: 'Midnight' }
         ];
 
         var pngTracksLoaded = false;
@@ -457,6 +464,7 @@
         }
         function getTopTimes(id) { return getTrackData(id).bestLaps||[]; }
         function getTopGhosts(id) { var d=getDriftData(); return d.drift.tracks[id] ? d.drift.tracks[id].top3Ghost||[] : []; }
+        function trackKey(stageData) { return (stageData.series || 'Other') + ':' + stageData.name; }
 
         // ---- ANGLE HELPERS ----
         function normalizeAngle(a) { while(a>Math.PI) a-=Math.PI*2; while(a<-Math.PI) a+=Math.PI*2; return a; }
@@ -472,6 +480,7 @@
             init(data) {
                 this.stageIndex = (data && data.stageIndex) || 0;
                 this.stageData = STAGES[this.stageIndex];
+                this.trackId = trackKey(this.stageData);
             }
 
             create() {
@@ -490,7 +499,7 @@
                 this.particles = [];
                 this.currentZoom = physics.baseZoom;
                 this.failedAttempts = _failedAttempts;
-                this.sessionGhost = _sessionGhosts['stage' + this.stageIndex] || null;
+                this.sessionGhost = _sessionGhosts[this.trackId] || null;
 
                 // Per-stage tile size (PNG tracks use CAR_W, built-in stages use TILE)
                 var sd = this.stageData;
@@ -503,7 +512,7 @@
                 this.car.velX = 0; this.car.velY = 0; this.car.speed = 0;
 
                 // Load ghosts
-                this.storedGhosts = getTopGhosts('stage' + this.stageIndex).slice(0, 3);
+                this.storedGhosts = getTopGhosts(this.trackId).slice(0, 3);
 
                 this.createTileLayer();
                 this.createTireMarks();
@@ -1128,7 +1137,7 @@
                 this.gameOver = true;
                 this.gameRunning = false;
                 if (this.currentGhostRecording.length > 10) {
-                    var tk = 'stage' + this.stageIndex;
+                    var tk = this.trackId;
                     if (!this.failedAttempts[tk]) this.failedAttempts[tk] = [];
                     this.failedAttempts[tk].push({ frames: this.currentGhostRecording.slice() });
                     if (this.failedAttempts[tk].length > 7) this.failedAttempts[tk].shift();
@@ -1142,9 +1151,9 @@
                 this.gameRunning = false;
                 if (this.currentGhostRecording.length > 10) {
                     this.sessionGhost = this.currentGhostRecording.slice();
-                    _sessionGhosts['stage' + this.stageIndex] = this.sessionGhost;
+                    _sessionGhosts[this.trackId] = this.sessionGhost;
                 }
-                saveTrackLap('stage' + this.stageIndex, this.timer, this.currentGhostRecording);
+                saveTrackLap(this.trackId, this.timer, this.currentGhostRecording);
 
                 var mins = Math.floor(this.timer / 60);
                 var secs = Math.floor(this.timer % 60);
@@ -1153,7 +1162,7 @@
 
                 var subtitle = 'Time: ' + timeStr;
                 // Check new best
-                var topNow = getTopTimes('stage' + this.stageIndex);
+                var topNow = getTopTimes(this.trackId);
                 var extra = (topNow.length > 0 && topNow[0].time >= this.timer) ? 'New Best!' : '';
 
                 this.showOverlay('STAGE CLEAR!', '#44ff88', subtitle, '', extra);
@@ -1349,14 +1358,14 @@
                 var medalTints = [0xffd700, 0x50a0ff, 0xcd7f32];
 
                 // Failed attempt ghosts
-                var tk = 'stage' + this.stageIndex;
+                var tk = this.trackId;
                 var fails = this.failedAttempts[tk] || [];
                 for (var fi = 0; fi < fails.length && idx < this.ghostPool.length; fi++) {
                     var ghost = fails[fi];
                     if (ghost.frames && this.ghostFrame < ghost.frames.length) {
                         var gf = ghost.frames[this.ghostFrame];
                         var gs = this.ghostPool[idx++];
-                        gs.setPosition(gf.x, gf.y).setRotation(gf.angle + Math.PI/2).setAlpha(0.25).setTint(0xb4b4c8).setVisible(true);
+                        gs.setPosition(gf.x, gf.y).setRotation(gf.angle + Math.PI/2).setAlpha(0.35).setTint(0xb4b4c8).setVisible(true);
                     }
                 }
 
@@ -1439,7 +1448,7 @@
                 }
 
                 // Top times
-                var topTimes = getTopTimes('stage' + this.stageIndex);
+                var topTimes = getTopTimes(this.trackId);
                 this.hudTimesBg.clear();
                 if (topTimes.length > 0) {
                     this.hudTimesBg.fillStyle(0x000000, 0.5);
@@ -1556,7 +1565,7 @@
 
                 var best = document.createElement('div');
                 best.className = 'ls-best';
-                var times = getTopTimes('stage' + i);
+                var times = getTopTimes(trackKey(stage));
                 if (times.length > 0) {
                     var bt = times[0].time;
                     var bm = Math.floor(bt/60), bs = Math.floor(bt%60), bms = Math.floor((bt*1000)%1000);
@@ -1988,7 +1997,7 @@
         }
 
         function editorEditLevel() {
-            var builtInCount = 8;
+            var builtInCount = PNG_TRACK_MANIFEST.length;
             var list = 'Select level to edit:\n';
             for (var i = 0; i < builtInCount && i < STAGES.length; i++) list += (i+1) + '. ' + STAGES[i].name + '\n';
             var data = getDriftData();
@@ -2294,8 +2303,8 @@
             if (editorTool === 'bgimage' && editorBgImg) {
                 // Scale BG image around its center
                 var step = e.shiftKey ? 0.02 : 0.005;
-                var dir = e.shiftKey ? -1 : 1;
-                var factor = e.deltaY * dir > 0 ? 1 - step : 1 + step;
+                var delta = e.deltaY || e.deltaX;
+                var factor = delta > 0 ? 1 + step : 1 - step;
                 var cx = editorBgX + editorBgImg.naturalWidth * editorBgScale / 2;
                 var cy = editorBgY + editorBgImg.naturalHeight * editorBgScale / 2;
                 editorBgScale *= factor;
@@ -2303,7 +2312,8 @@
                 editorBgY = cy - editorBgImg.naturalHeight * editorBgScale / 2;
                 return;
             }
-            editorZoom = Math.max(0.2, Math.min(5, editorZoom * (e.deltaY > 0 ? 0.9 : 1.1)));
+            var zf = e.shiftKey ? 0.8 : 0.9;
+            editorZoom = Math.max(0.2, Math.min(5, editorZoom * (e.deltaY > 0 ? zf : 1 / zf)));
         }, { passive: false });
 
         // UI handlers
