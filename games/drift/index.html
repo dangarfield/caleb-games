@@ -47,6 +47,20 @@
         }
         #instructions button:hover { box-shadow: 0 0 30px rgba(200,100,255,0.5); }
         #instructions .btn-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+        #bouncyToggleWrap {
+            position: fixed; top: 12px; z-index: 180;
+            display: none; align-items: center; gap: 6px;
+            background: rgba(0,0,0,0.45); padding: 4px 10px; border-radius: 14px;
+            backdrop-filter: blur(4px);
+        }
+        #bouncyToggleWrap label { font-size: 20px; cursor: pointer; user-select: none; opacity: 0.4; }
+        #bouncyToggleWrap label.active { opacity: 1; }
+        .toggle-switch { position: relative; width: 32px; height: 18px; cursor: pointer; }
+        .toggle-switch input { display: none; }
+        .toggle-switch .slider { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.15); border-radius: 9px; transition: background 0.2s; }
+        .toggle-switch .slider::after { content: ''; position: absolute; width: 12px; height: 12px; left: 3px; top: 3px; background: #888; border-radius: 50%; transition: transform 0.2s, background 0.2s; }
+        .toggle-switch input:checked + .slider { background: rgba(100,220,100,0.35); }
+        .toggle-switch input:checked + .slider::after { transform: translateX(14px); background: #6de06d; }
         #levelSelect {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.92); display: none; align-items: flex-start; justify-content: center;
@@ -129,6 +143,11 @@
     <a id="backBtn" href="../../index.html">Back</a>
     <div id="game-container"></div>
     <button id="menuBtn">Menu</button>
+    <div id="bouncyToggleWrap">
+        <label id="bouncyLabelOff" for="bouncyToggle">💥</label>
+        <label class="toggle-switch"><input type="checkbox" id="bouncyToggle"><span class="slider"></span></label>
+        <label id="bouncyLabelOn" for="bouncyToggle">🛡️</label>
+    </div>
     <div id="overlayActions">
         <button id="overlayNextBtn">Next Stage</button>
         <button id="overlayRepeatBtn">Repeat</button>
@@ -201,6 +220,7 @@
         // ---- CAR SELECT ----
         const NUM_CARS = 25;
         var selectedCarIndex = parseInt(localStorage.getItem('driftSelectedCar') || '0');
+        var bouncyWalls = localStorage.getItem('driftBouncyWalls') === 'true';
         var carImages = []; // loaded Image elements, index 0..24 = car-01..car-25
         var carsLoaded = false;
 
@@ -396,6 +416,9 @@
             { path: 'drift/tracks/ddb-05.png', name: "Don't Break 5", series: "Don't Break" },
             { path: 'drift/tracks/ddb-06.png', name: "Don't Break 6", series: "Don't Break" },
             { path: 'drift/tracks/ddb-07.png', name: "Don't Break 7", series: "Don't Break" },
+            { path: 'drift/tracks/ddb-08.png', name: "Don't Break 8", series: "Don't Break" },
+            { path: 'drift/tracks/ddb-09.png', name: "Don't Break 9", series: "Don't Break" },
+            { path: 'drift/tracks/ddb-10.png', name: "Don't Break 10", series: "Don't Break" },
             { path: 'drift/tracks/ddbm-01-Right Wing.png', name: 'Right Wing', series: 'Midnight' },
             { path: 'drift/tracks/ddbm-02-Left Wing.png', name: 'Left Wing', series: 'Midnight' },
             { path: 'drift/tracks/ddbm-03-Wallys Tunnel.png', name: "Wally's Tunnel", series: 'Midnight' },
@@ -451,19 +474,39 @@
         }
 
         // ---- LOCALSTORAGE ----
-        function loadArcadeData() { try { return JSON.parse(localStorage.getItem('calebArcadeData')) || {}; } catch(e) { return {}; } }
-        function saveArcadeData(d) { localStorage.setItem('calebArcadeData', JSON.stringify(d)); }
-        function getDriftData() { var d = loadArcadeData(); if(!d.drift) d.drift={tracks:{},customTracks:[]}; if(!d.drift.tracks) d.drift.tracks={}; return d; }
-        function getTrackData(id) { var d=getDriftData(); if(!d.drift.tracks[id]) d.drift.tracks[id]={bestLaps:[],top3Ghost:[]}; return d.drift.tracks[id]; }
+        var GHOST_SAMPLE = 3; // record every Nth frame
+        function loadDriftData() { try { return JSON.parse(localStorage.getItem('driftRacerData')) || {tracks:{},customTracks:[]}; } catch(e) { return {tracks:{},customTracks:[]}; } }
+        function saveDriftData(d) {
+            try { localStorage.setItem('driftRacerData', JSON.stringify(d)); }
+            catch(e) { console.warn('Storage quota exceeded, ghost data not saved'); }
+        }
+        function getDriftData() { var d = loadDriftData(); if(!d.tracks) d.tracks={}; if(!d.customTracks) d.customTracks=[]; return d; }
+        function getTrackData(id) { var d=loadDriftData(); if(!d.tracks[id]) d.tracks[id]={bestLaps:[],top3Ghost:[]}; return d.tracks[id]; }
+        function compressGhost(frames) {
+            var out = [];
+            for (var i = 0; i < frames.length; i += GHOST_SAMPLE) {
+                var f = frames[i];
+                out.push({ x: Math.round(f.x*10)/10, y: Math.round(f.y*10)/10, angle: Math.round(f.angle*100)/100 });
+            }
+            return out;
+        }
+        function getGhostFrame(ghost, frame) {
+            var t = frame / GHOST_SAMPLE;
+            var i = Math.floor(t);
+            var frac = t - i;
+            if (i >= ghost.length - 1) return ghost[ghost.length - 1] || null;
+            var a = ghost[i], b = ghost[i + 1];
+            return { x: a.x + (b.x - a.x) * frac, y: a.y + (b.y - a.y) * frac, angle: a.angle + (b.angle - a.angle) * frac };
+        }
         function saveTrackLap(id, time, ghost) {
-            var d=getDriftData(); if(!d.drift.tracks[id]) d.drift.tracks[id]={bestLaps:[],top3Ghost:[]};
-            var t=d.drift.tracks[id];
+            var d=loadDriftData(); if(!d.tracks[id]) d.tracks[id]={bestLaps:[],top3Ghost:[]};
+            var t=d.tracks[id];
             t.bestLaps.push({time:time,date:Date.now()}); t.bestLaps.sort(function(a,b){return a.time-b.time;}); t.bestLaps=t.bestLaps.slice(0,3);
-            if(ghost&&ghost.length>0){t.top3Ghost.push({time:time,frames:ghost});t.top3Ghost.sort(function(a,b){return a.time-b.time;});t.top3Ghost=t.top3Ghost.slice(0,3);}
-            saveArcadeData(d);
+            if(ghost&&ghost.length>0){var cg=compressGhost(ghost);t.top3Ghost.push({time:time,frames:cg});t.top3Ghost.sort(function(a,b){return a.time-b.time;});t.top3Ghost=t.top3Ghost.slice(0,3);}
+            saveDriftData(d);
         }
         function getTopTimes(id) { return getTrackData(id).bestLaps||[]; }
-        function getTopGhosts(id) { var d=getDriftData(); return d.drift.tracks[id] ? d.drift.tracks[id].top3Ghost||[] : []; }
+        function getTopGhosts(id) { var d=loadDriftData(); return d.tracks[id] ? d.tracks[id].top3Ghost||[] : []; }
         function trackKey(stageData) { return (stageData.series || 'Other') + ':' + stageData.name; }
 
         // ---- ANGLE HELPERS ----
@@ -526,7 +569,7 @@
                 this.setupCamera();
                 this.setupInput();
 
-                document.getElementById('menuBtn').style.display = 'block';
+                document.getElementById('menuBtn').style.display = 'block'; bouncyWrap.style.display = 'flex';
             }
 
             // ---- TILE LAYER (pre-rendered) ----
@@ -797,6 +840,10 @@
                 this.mmScale = mmScale;
                 this.mmW = mmW;
                 this.mmH = mmH;
+
+                // Position bouncy toggle to right of minimap
+                var bw = document.getElementById('bouncyToggleWrap');
+                if (bw) bw.style.left = Math.round(this.cameras.main.width / 2 + mmW / 2 + 10) + 'px';
             }
 
             // ---- CAMERA ----
@@ -1065,8 +1112,80 @@
                     [newX - cosA*halfH - sinA*halfW, newY - sinA*halfH + cosA*halfW],
                     [newX - cosA*halfH + sinA*halfW, newY - sinA*halfH - cosA*halfW]
                 ];
+                var hitVoid = false;
                 for (var ci = 0; ci < 4; ci++) {
                     if (this.getTileAtWorld(corners[ci][0], corners[ci][1]) === T_VOID) {
+                        hitVoid = true;
+                        break;
+                    }
+                }
+                if (hitVoid) {
+                    if (bouncyWalls) {
+                        // Determine which axis caused the collision
+                        var bCosA = Math.cos(car.angle), bSinA = Math.sin(car.angle);
+                        var hitX = false, hitY = false;
+                        var bx = car.x + car.velX * dt, by = car.y;
+                        var bc = [
+                            [bx + bCosA*halfH - bSinA*halfW, by + bSinA*halfH + bCosA*halfW],
+                            [bx + bCosA*halfH + bSinA*halfW, by + bSinA*halfH - bCosA*halfW],
+                            [bx - bCosA*halfH - bSinA*halfW, by - bSinA*halfH + bCosA*halfW],
+                            [bx - bCosA*halfH + bSinA*halfW, by - bSinA*halfH - bCosA*halfW]
+                        ];
+                        for (var ci = 0; ci < 4; ci++) {
+                            if (this.getTileAtWorld(bc[ci][0], bc[ci][1]) === T_VOID) { hitX = true; break; }
+                        }
+                        bx = car.x; by = car.y + car.velY * dt;
+                        bc = [
+                            [bx + bCosA*halfH - bSinA*halfW, by + bSinA*halfH + bCosA*halfW],
+                            [bx + bCosA*halfH + bSinA*halfW, by + bSinA*halfH - bCosA*halfW],
+                            [bx - bCosA*halfH - bSinA*halfW, by - bSinA*halfH + bCosA*halfW],
+                            [bx - bCosA*halfH + bSinA*halfW, by - bSinA*halfH - bCosA*halfW]
+                        ];
+                        for (var ci = 0; ci < 4; ci++) {
+                            if (this.getTileAtWorld(bc[ci][0], bc[ci][1]) === T_VOID) { hitY = true; break; }
+                        }
+                        var bounce = 0.6;
+                        if (hitX) car.velX *= -bounce;
+                        if (hitY) car.velY *= -bounce;
+                        if (!hitX && !hitY) { car.velX *= -bounce; car.velY *= -bounce; }
+                        // Ensure minimum bounce-back speed so car escapes the wall
+                        var minBounce = 1.5;
+                        var bSpeed = Math.sqrt(car.velX * car.velX + car.velY * car.velY);
+                        if (bSpeed < minBounce && bSpeed > 0) {
+                            var scale = minBounce / bSpeed;
+                            car.velX *= scale;
+                            car.velY *= scale;
+                        } else if (bSpeed === 0) {
+                            // Dead stop at wall — push back along car's rear direction
+                            car.velX = -fwdX * minBounce;
+                            car.velY = -fwdY * minBounce;
+                        }
+                        car.speed = Math.sqrt(car.velX * car.velX + car.velY * car.velY);
+                        // Push car inward away from the void
+                        var T = this.T;
+                        var pushX = 0, pushY = 0, pushN = 0;
+                        for (var ci = 0; ci < 4; ci++) {
+                            var cx = corners[ci][0], cy = corners[ci][1];
+                            if (this.getTileAtWorld(cx, cy) === T_VOID) {
+                                pushX += (car.x - cx);
+                                pushY += (car.y - cy);
+                                pushN++;
+                            }
+                        }
+                        if (pushN > 0) {
+                            var pLen = Math.sqrt(pushX * pushX + pushY * pushY);
+                            if (pLen > 0) {
+                                newX = car.x + (pushX / pLen) * 2;
+                                newY = car.y + (pushY / pLen) * 2;
+                            } else {
+                                newX = car.x;
+                                newY = car.y;
+                            }
+                        } else {
+                            newX = car.x;
+                            newY = car.y;
+                        }
+                    } else {
                         this.triggerGameOver();
                         this.spawnCrashParticles();
                         return;
@@ -1176,11 +1295,11 @@
                 this.overlayBg.fillRect(0, 0, W, H);
                 this.overlayBg.setVisible(true);
 
-                this.overlayTitle.setText(title).setColor(color).setPosition(W/2, H/2 - 40).setVisible(true);
-                this.overlaySubtitle.setText(subtitle || '').setPosition(W/2, H/2 + 10).setVisible(true);
-                this.overlayHint.setText(hint || '').setPosition(W/2, H/2 + 50).setVisible(true);
+                this.overlayTitle.setText(title).setColor(color).setPosition(W/2, H/2 - 80).setVisible(true);
+                this.overlaySubtitle.setText(subtitle || '').setPosition(W/2, H/2 - 40).setVisible(true);
+                this.overlayHint.setText(hint || '').setPosition(W/2, H/2 - 5).setVisible(true);
                 if (extra) {
-                    this.overlayExtra.setText(extra).setPosition(W/2, H/2 + 80).setVisible(true);
+                    this.overlayExtra.setText(extra).setPosition(W/2, H/2 + 20).setVisible(true);
                 } else {
                     this.overlayExtra.setVisible(false);
                 }
@@ -1369,13 +1488,15 @@
                     }
                 }
 
-                // Stored ghosts (top 3)
+                // Stored ghosts (top 3) — downsampled, interpolate on playback
                 for (var gi = 0; gi < this.storedGhosts.length && gi < 3 && idx < this.ghostPool.length; gi++) {
                     var sg = this.storedGhosts[gi];
-                    if (sg.frames && this.ghostFrame < sg.frames.length) {
-                        var sgf = sg.frames[this.ghostFrame];
-                        var sgs = this.ghostPool[idx++];
-                        sgs.setPosition(sgf.x, sgf.y).setRotation(sgf.angle + Math.PI/2).setAlpha(0.4).setTint(medalTints[gi]).setVisible(true);
+                    if (sg.frames && sg.frames.length > 0 && this.ghostFrame < sg.frames.length * GHOST_SAMPLE) {
+                        var sgf = getGhostFrame(sg.frames, this.ghostFrame);
+                        if (sgf) {
+                            var sgs = this.ghostPool[idx++];
+                            sgs.setPosition(sgf.x, sgf.y).setRotation(sgf.angle + Math.PI/2).setAlpha(0.4).setTint(medalTints[gi]).setVisible(true);
+                        }
                     }
                 }
 
@@ -1426,7 +1547,7 @@
 
                 // Progress bar
                 this.hudBarGfx.clear();
-                var barX = 20, barY = H - 15, barW = 200, barH = 6;
+                var barX = 20, barY = H - 6, barW = 200, barH = 4;
                 this.hudBarGfx.fillStyle(0xffffff, 0.15);
                 this.hudBarGfx.fillRect(barX, barY, barW, barH);
 
@@ -1588,7 +1709,7 @@
         }
 
         function showLevelSelect() {
-            document.getElementById('menuBtn').style.display = 'none';
+            document.getElementById('menuBtn').style.display = 'none'; bouncyWrap.style.display = 'none';
             document.getElementById('levelSelect').style.display = 'flex';
             renderLevelSelect();
         }
@@ -1634,7 +1755,7 @@
         function startGame(stageIndex) {
             document.getElementById('instructions').style.display = 'none';
             document.getElementById('levelSelect').style.display = 'none';
-            document.getElementById('menuBtn').style.display = 'block';
+            document.getElementById('menuBtn').style.display = 'block'; bouncyWrap.style.display = 'flex';
             if (!gameSceneAdded) {
                 game.scene.add('Game', GameScene);
                 gameSceneAdded = true;
@@ -1944,8 +2065,8 @@
             // Save the trimmed grid from editorBuildStage
             var trimStarts = stage.startTiles.map(function(t) { return t.r + ',' + t.c; });
             var saveObj = { name:name, w:stage.w, h:stage.h, grid:stage.grid, starts:trimStarts };
-            data.drift.customTracks.push(saveObj);
-            saveArcadeData(data);
+            data.customTracks.push(saveObj);
+            saveDriftData(data);
             alert('Track "' + name + '" saved!');
         }
 
@@ -2001,7 +2122,7 @@
             var list = 'Select level to edit:\n';
             for (var i = 0; i < builtInCount && i < STAGES.length; i++) list += (i+1) + '. ' + STAGES[i].name + '\n';
             var data = getDriftData();
-            var custom = data.drift.customTracks || [];
+            var custom = data.customTracks || [];
             for (var i = 0; i < custom.length; i++) list += (builtInCount+i+1) + '. [Custom] ' + custom[i].name + '\n';
             var choice = prompt(list);
             if (!choice) return;
@@ -2385,7 +2506,7 @@
             hideOverlayButtons();
             var scene = game.scene.getScene('Game');
             if (scene) scene.gameRunning = false;
-            document.getElementById('menuBtn').style.display = 'none';
+            document.getElementById('menuBtn').style.display = 'none'; bouncyWrap.style.display = 'none';
             if (launchedFromEditor) {
                 launchedFromEditor = false;
                 document.getElementById('menuBtn').textContent = 'Menu';
@@ -2394,6 +2515,22 @@
             } else {
                 showLevelSelect();
             }
+        });
+
+        var bouncyToggle = document.getElementById('bouncyToggle');
+        var bouncyWrap = document.getElementById('bouncyToggleWrap');
+        var bouncyLabelOff = document.getElementById('bouncyLabelOff');
+        var bouncyLabelOn = document.getElementById('bouncyLabelOn');
+        bouncyToggle.checked = bouncyWalls;
+        function updateBouncyLabels() {
+            bouncyLabelOff.className = bouncyWalls ? '' : 'active';
+            bouncyLabelOn.className = bouncyWalls ? 'active' : '';
+        }
+        updateBouncyLabels();
+        bouncyToggle.addEventListener('change', function() {
+            bouncyWalls = this.checked;
+            localStorage.setItem('driftBouncyWalls', bouncyWalls);
+            updateBouncyLabels();
         });
 
         document.getElementById('editorBtn').addEventListener('click', function() {
@@ -2486,9 +2623,9 @@
 
             gui.add({ resetScores: function() {
                 if (!confirm('Reset all drift scores and ghost data?')) return;
-                var d = loadArcadeData();
-                if (d.drift) { d.drift.tracks = {}; }
-                saveArcadeData(d);
+                var d = loadDriftData();
+                d.tracks = {};
+                saveDriftData(d);
                 _failedAttempts = {};
                 _sessionGhosts = {};
                 alert('All scores and ghosts cleared!');
