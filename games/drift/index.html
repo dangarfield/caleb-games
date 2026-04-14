@@ -213,6 +213,13 @@
     (function() {
         'use strict';
 
+        // ---- ASSET BASE (works with and without trailing slash) ----
+        var ASSET_BASE = (function() {
+            var p = window.location.pathname;
+            if (p.endsWith('/') || p.endsWith('/index.html')) return '';
+            return p.substring(p.lastIndexOf('/') + 1) + '/';
+        })();
+
         // ---- CONSTANTS ----
         const TILE = 60;
         const CAR_W = 20, CAR_H = 36;
@@ -239,7 +246,7 @@
                         remaining--;
                         if (remaining === 0) { carsLoaded = true; if (callback) callback(); }
                     };
-                    img.src = 'drift/cars/car-' + String(idx+1).padStart(2,'0') + '.png';
+                    img.src = ASSET_BASE + 'cars/car-' + String(idx+1).padStart(2,'0') + '.png';
                 })(i);
             }
         }
@@ -401,37 +408,37 @@
         // Pre-configured PNG tracks to load on startup
         // Format: { path: 'relative/path.png', name: 'Display Name', dir: 'u'|'d'|'l'|'r' }
         var PNG_TRACK_MANIFEST = [
-            { path: 'drift/tracks/builtin-01-Midnight Start.png', name: 'Midnight Start', series: 'Drift' },
-            { path: 'drift/tracks/builtin-02-Neon Serpent.png', name: 'Neon Serpent', series: 'Drift' },
-            { path: 'drift/tracks/builtin-03-Dusty Corner.png', name: 'Dusty Corner', series: 'Drift' },
-            { path: 'drift/tracks/builtin-04-Frozen Drift.png', name: 'Frozen Drift', series: 'Drift' },
-            { path: 'drift/tracks/builtin-05-Midnight Roadride.png', name: 'Midnight Roadride', series: 'Drift' },
-            { path: 'drift/tracks/builtin-06-The Gauntlet.png', name: 'The Gauntlet', series: 'Drift' },
-            { path: 'drift/tracks/builtin-07-Zigzag Alley.png', name: 'Zigzag Alley', series: 'Drift' },
-            { path: 'drift/tracks/builtin-08-Highway Midnight.png', name: 'Highway Midnight', series: 'Drift' },
-            { path: 'drift/tracks/ddb-01.png', name: "Don't Break 1", series: "Don't Break" },
-            { path: 'drift/tracks/ddb-02.png', name: "Don't Break 2", series: "Don't Break" },
-            { path: 'drift/tracks/ddb-03.png', name: "Don't Break 3", series: "Don't Break" },
-            { path: 'drift/tracks/ddb-04.png', name: "Don't Break 4", series: "Don't Break" },
-            { path: 'drift/tracks/ddb-05.png', name: "Don't Break 5", series: "Don't Break" },
-            { path: 'drift/tracks/ddb-06.png', name: "Don't Break 6", series: "Don't Break" },
-            { path: 'drift/tracks/ddb-07.png', name: "Don't Break 7", series: "Don't Break" },
-            { path: 'drift/tracks/ddb-08.png', name: "Don't Break 8", series: "Don't Break" },
-            { path: 'drift/tracks/ddb-09.png', name: "Don't Break 9", series: "Don't Break" },
-            { path: 'drift/tracks/ddb-10.png', name: "Don't Break 10", series: "Don't Break" },
-            { path: 'drift/tracks/ddbm-01-Right Wing.png', name: 'Right Wing', series: 'Midnight' },
-            { path: 'drift/tracks/ddbm-02-Left Wing.png', name: 'Left Wing', series: 'Midnight' },
-            { path: 'drift/tracks/ddbm-03-Wallys Tunnel.png', name: "Wally's Tunnel", series: 'Midnight' },
-            { path: 'drift/tracks/ddbm-04-Spiral Swirl.png', name: 'Spiral Swirl', series: 'Midnight' },
-            { path: 'drift/tracks/ddbm-05-Big Back Bounce.png', name: 'Big Back Bounce', series: 'Midnight' },
-            { path: 'drift/tracks/ddbm-06-Declined Sympathy.png', name: 'Declined Sympathy', series: 'Midnight' },
-            { path: 'drift/tracks/ddbm-07-Shellys Shortcut.png', name: "Shelly's Shortcut", series: 'Midnight' },
-            { path: 'drift/tracks/ddbm-08-Frosty Downstairs.png', name: 'Frosty Downstairs', series: 'Midnight' },
-            { path: 'drift/tracks/ddbm-09-Tight Slide.png', name: 'Tight Slide', series: 'Midnight' },
-            { path: 'drift/tracks/ddbm-10-Offtrack Bouncer.png', name: 'Offtrack Bouncer', series: 'Midnight' },
-            { path: 'drift/tracks/ddbm-11-Polar Passage.png', name: 'Polar Passage', series: 'Midnight' },
-            { path: 'drift/tracks/ddbm-12-Arctic Alley.png', name: 'Arctic Alley', series: 'Midnight' },
-            { path: 'drift/tracks/ddbm-13-Permafrost Pathway.png', name: 'Permafrost Pathway', series: 'Midnight' }
+            { path: 'tracks/builtin-01-Midnight Start.png', name: 'Midnight Start', series: 'Drift' },
+            { path: 'tracks/builtin-02-Neon Serpent.png', name: 'Neon Serpent', series: 'Drift' },
+            { path: 'tracks/builtin-03-Dusty Corner.png', name: 'Dusty Corner', series: 'Drift' },
+            { path: 'tracks/builtin-04-Frozen Drift.png', name: 'Frozen Drift', series: 'Drift' },
+            { path: 'tracks/builtin-05-Midnight Roadride.png', name: 'Midnight Roadride', series: 'Drift' },
+            { path: 'tracks/builtin-06-The Gauntlet.png', name: 'The Gauntlet', series: 'Drift' },
+            { path: 'tracks/builtin-07-Zigzag Alley.png', name: 'Zigzag Alley', series: 'Drift' },
+            { path: 'tracks/builtin-08-Highway Midnight.png', name: 'Highway Midnight', series: 'Drift' },
+            { path: 'tracks/ddb-01.png', name: "Don't Break 1", series: "Don't Break" },
+            { path: 'tracks/ddb-02.png', name: "Don't Break 2", series: "Don't Break" },
+            { path: 'tracks/ddb-03.png', name: "Don't Break 3", series: "Don't Break" },
+            { path: 'tracks/ddb-04.png', name: "Don't Break 4", series: "Don't Break" },
+            { path: 'tracks/ddb-05.png', name: "Don't Break 5", series: "Don't Break" },
+            { path: 'tracks/ddb-06.png', name: "Don't Break 6", series: "Don't Break" },
+            { path: 'tracks/ddb-07.png', name: "Don't Break 7", series: "Don't Break" },
+            { path: 'tracks/ddb-08.png', name: "Don't Break 8", series: "Don't Break" },
+            { path: 'tracks/ddb-09.png', name: "Don't Break 9", series: "Don't Break" },
+            { path: 'tracks/ddb-10.png', name: "Don't Break 10", series: "Don't Break" },
+            { path: 'tracks/ddbm-01-Right Wing.png', name: 'Right Wing', series: 'Midnight' },
+            { path: 'tracks/ddbm-02-Left Wing.png', name: 'Left Wing', series: 'Midnight' },
+            { path: 'tracks/ddbm-03-Wallys Tunnel.png', name: "Wally's Tunnel", series: 'Midnight' },
+            { path: 'tracks/ddbm-04-Spiral Swirl.png', name: 'Spiral Swirl', series: 'Midnight' },
+            { path: 'tracks/ddbm-05-Big Back Bounce.png', name: 'Big Back Bounce', series: 'Midnight' },
+            { path: 'tracks/ddbm-06-Declined Sympathy.png', name: 'Declined Sympathy', series: 'Midnight' },
+            { path: 'tracks/ddbm-07-Shellys Shortcut.png', name: "Shelly's Shortcut", series: 'Midnight' },
+            { path: 'tracks/ddbm-08-Frosty Downstairs.png', name: 'Frosty Downstairs', series: 'Midnight' },
+            { path: 'tracks/ddbm-09-Tight Slide.png', name: 'Tight Slide', series: 'Midnight' },
+            { path: 'tracks/ddbm-10-Offtrack Bouncer.png', name: 'Offtrack Bouncer', series: 'Midnight' },
+            { path: 'tracks/ddbm-11-Polar Passage.png', name: 'Polar Passage', series: 'Midnight' },
+            { path: 'tracks/ddbm-12-Arctic Alley.png', name: 'Arctic Alley', series: 'Midnight' },
+            { path: 'tracks/ddbm-13-Permafrost Pathway.png', name: 'Permafrost Pathway', series: 'Midnight' }
         ];
 
         var pngTracksLoaded = false;
@@ -453,7 +460,7 @@
                     remaining--;
                     if (remaining === 0) { pngTracksLoaded = true; if (callback) callback(); }
                 };
-                img.src = entry.path;
+                img.src = ASSET_BASE + entry.path;
             });
         }
 
