@@ -1,0 +1,1649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Snail - Caleb's Arcade</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0a0a2e; overflow:hidden; touch-action:none; font-family:'Segoe UI',system-ui,sans-serif; }
+canvas { display:block; width:100%; height:100%; }
+#backBtn{position:fixed;top:12px;left:12px;z-index:9999;background:rgba(0,0,0,0.55);color:#fff;text-decoration:none;padding:6px 18px;border-radius:20px;font:bold 15px/1.4 'Segoe UI',system-ui,sans-serif;border:1px solid rgba(255,255,255,0.18);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:background 0.2s}
+#backBtn:hover{background:rgba(0,0,0,0.75)}
+#overlay { position:fixed; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(0,0,0,0.7); color:#fff; text-align:center; }
+#overlay h1 { font-size:clamp(2rem,8vw,4rem); margin-bottom:0.5rem; }
+#overlay .sub { font-size:clamp(1rem,3vw,1.4rem); color:#a0c4ff; margin-bottom:1.5rem; }
+#overlay .info { font-size:clamp(0.85rem,2.5vw,1.1rem); color:rgba(255,255,255,0.7); margin-bottom:2rem; max-width:500px; padding:0 1rem; line-height:1.5; }
+#overlay button { padding:14px 40px; font-size:1.3rem; border:none; border-radius:12px; background:linear-gradient(135deg,#6c5ce7,#a29bfe); color:#fff; cursor:pointer; font-weight:700; box-shadow:0 4px 20px rgba(108,92,231,0.4); transition:transform 0.15s; }
+#overlay button:hover { transform:scale(1.05); }
+#overlay button:active { transform:scale(0.95); }
+.hidden { display:none !important; }
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+<canvas id="c"></canvas>
+<div id="overlay">
+  <h1>Snail</h1>
+  <div class="sub">Stretch & dodge!</div>
+  <div class="info">Hold to stretch the snail forward over obstacles. Release to snap the tail up — points count when the shell catches up! Watch out for swooping birds! Reach score thresholds to unlock new worlds.</div>
+  <button id="startBtn">Play</button>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const startBtn = document.getElementById('startBtn');
+
+let W, H;
+function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+resize();
+window.addEventListener('resize', resize);
+
+// --- Audio ---
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playStretch() {
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type = 'sine'; o.frequency.value = 300;
+    o.frequency.linearRampToValueAtTime(500, audioCtx.currentTime + 0.1);
+    g.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+    o.start(); o.stop(audioCtx.currentTime + 0.15);
+}
+function playSnap() {
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type = 'sine'; o.frequency.value = 600;
+    o.frequency.linearRampToValueAtTime(400, audioCtx.currentTime + 0.12);
+    g.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+    o.start(); o.stop(audioCtx.currentTime + 0.12);
+}
+function playCrash() {
+    const n = audioCtx.sampleRate * 0.3, buf = audioCtx.createBuffer(1, n, audioCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const s = audioCtx.createBufferSource(), g = audioCtx.createGain();
+    s.buffer = buf; s.connect(g); g.connect(audioCtx.destination);
+    g.gain.setValueAtTime(0.25, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+    s.start();
+}
+function playCoin() {
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type = 'sine'; o.frequency.value = 900;
+    o.frequency.linearRampToValueAtTime(1400, audioCtx.currentTime + 0.08);
+    g.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+    o.start(); o.stop(audioCtx.currentTime + 0.12);
+}
+function playVictory() {
+    const notes = [523, 659, 784, 1047]; // C5 E5 G5 C6
+    notes.forEach((freq, i) => {
+        const t = audioCtx.currentTime + i * 0.15;
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.type = 'sine'; o.frequency.value = freq;
+        g.gain.setValueAtTime(0.12, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+        o.start(t); o.stop(t + 0.4);
+    });
+}
+
+// --- localStorage ---
+function loadArcadeData() {
+    try { return JSON.parse(localStorage.getItem('calebArcadeData')) || {}; } catch(e) { return {}; }
+}
+function getHighScore() {
+    const data = loadArcadeData();
+    return (data.snail && data.snail.highScore) || 0;
+}
+function setHighScore(val) {
+    const data = loadArcadeData();
+    if (!data.snail) data.snail = {};
+    data.snail.highScore = val;
+    localStorage.setItem('calebArcadeData', JSON.stringify(data));
+}
+let highScore = getHighScore();
+
+// --- Levels ---
+const LEVELS = [
+    { threshold: 0, name: 'Twilight Meadow',
+      bg: ['#0a0a2e','#141452','#1a1a6e'], ground: '#2d1f6e', accent: '#6c5ce7', glow: '#a29bfe',
+      birdColor: '#2c3e50', birdHead: '#34495e', birdWing: '#4a6274', birdTail: '#3d566e',
+      obsColor: '#3a2870', obsStroke: 'rgba(108,92,231,0.5)', obsHighlight: 'rgba(162,155,254,0.1)',
+      obsStyle: 'rounded' },
+    { threshold: 80, name: 'Emerald Forest',
+      bg: ['#0a1e0a','#0f3518','#1a4a2a'], ground: '#1a4a1a', accent: '#4ae74a', glow: '#7aff7a',
+      birdColor: '#1a3a1a', birdHead: '#2a4a2a', birdWing: '#3a6a3a', birdTail: '#2a5a2a',
+      obsColor: '#1a4028', obsStroke: 'rgba(74,231,74,0.5)', obsHighlight: 'rgba(120,255,120,0.1)',
+      obsStyle: 'jagged' },
+    { threshold: 250, name: 'Amber Desert',
+      bg: ['#2e1a0a','#4a2e10','#6e4a1a'], ground: '#5a3a10', accent: '#e7a85c', glow: '#ffd080',
+      birdColor: '#5a3a1a', birdHead: '#6a4a2a', birdWing: '#7a5a3a', birdTail: '#6a4a20',
+      obsColor: '#6e4820', obsStroke: 'rgba(231,168,92,0.5)', obsHighlight: 'rgba(255,208,128,0.1)',
+      obsStyle: 'mesa' },
+    { threshold: 500, name: 'Frozen Tundra',
+      bg: ['#0a1a2e','#143a52','#1a5a6e'], ground: '#1a3a5a', accent: '#5cc4e7', glow: '#a0e8ff',
+      birdColor: '#3a5a6a', birdHead: '#4a6a7a', birdWing: '#5a7a8a', birdTail: '#4a6a78',
+      obsColor: '#2a4a6a', obsStroke: 'rgba(92,196,231,0.5)', obsHighlight: 'rgba(160,232,255,0.15)',
+      obsStyle: 'ice' },
+    { threshold: 800, name: 'Molten Core',
+      bg: ['#2e0a0a','#521414','#6e1a0a'], ground: '#5a1a1a', accent: '#e75c3c', glow: '#ff8060',
+      birdColor: '#5a1a1a', birdHead: '#6a2a1a', birdWing: '#8a3a2a', birdTail: '#6a2a18',
+      obsColor: '#6e2010', obsStroke: 'rgba(231,92,60,0.5)', obsHighlight: 'rgba(255,128,96,0.15)',
+      obsStyle: 'lava' },
+    { threshold: 1200, name: 'Coral Reef',
+      bg: ['#0a1a2a','#0e3048','#1a5068'], ground: '#1a4858', accent: '#00bcd4', glow: '#80deea',
+      birdColor: '#1a4a5a', birdHead: '#2a5a6a', birdWing: '#3a7a8a', birdTail: '#2a6a78',
+      obsColor: '#1a5060', obsStroke: 'rgba(0,188,212,0.5)', obsHighlight: 'rgba(128,222,234,0.12)',
+      obsStyle: 'rounded' },
+    { threshold: 1700, name: 'Mystic Swamp',
+      bg: ['#0a1a0a','#1a2e14','#2a4420'], ground: '#2a3a1a', accent: '#8bc34a', glow: '#c5e1a5',
+      birdColor: '#2a3a1a', birdHead: '#3a4a2a', birdWing: '#4a5a3a', birdTail: '#3a5028',
+      obsColor: '#2a4018', obsStroke: 'rgba(139,195,74,0.5)', obsHighlight: 'rgba(197,225,165,0.1)',
+      obsStyle: 'jagged' },
+    { threshold: 2300, name: 'Crystal Cavern',
+      bg: ['#1a0a2e','#2e1452','#441a6e'], ground: '#3a1a5a', accent: '#ce93d8', glow: '#e1bee7',
+      birdColor: '#3a1a4a', birdHead: '#4a2a5a', birdWing: '#5a3a6a', birdTail: '#4a2a58',
+      obsColor: '#3a1860', obsStroke: 'rgba(206,147,216,0.5)', obsHighlight: 'rgba(225,190,231,0.12)',
+      obsStyle: 'ice' },
+    { threshold: 3000, name: 'Golden Sands',
+      bg: ['#2e2a0a','#4a4410','#6e6420'], ground: '#5a5010', accent: '#ffd740', glow: '#ffecb3',
+      birdColor: '#5a4a1a', birdHead: '#6a5a2a', birdWing: '#7a6a3a', birdTail: '#6a5820',
+      obsColor: '#6e5a10', obsStroke: 'rgba(255,215,64,0.5)', obsHighlight: 'rgba(255,236,179,0.1)',
+      obsStyle: 'mesa' },
+    { threshold: 3800, name: 'Storm Peaks',
+      bg: ['#14141e','#282838','#3c3c52'], ground: '#2a2a40', accent: '#78909c', glow: '#b0bec5',
+      birdColor: '#3a3a4a', birdHead: '#4a4a5a', birdWing: '#5a5a6a', birdTail: '#4a4a58',
+      obsColor: '#2e2e48', obsStroke: 'rgba(120,144,156,0.5)', obsHighlight: 'rgba(176,190,197,0.1)',
+      obsStyle: 'jagged' },
+    { threshold: 4800, name: 'Neon City',
+      bg: ['#0a0a1e','#14102e','#1e1640'], ground: '#1a1435', accent: '#e040fb', glow: '#ea80fc',
+      birdColor: '#2a1a3a', birdHead: '#3a2a4a', birdWing: '#5a3a6a', birdTail: '#4a2a58',
+      obsColor: '#2a1445', obsStroke: 'rgba(224,64,251,0.5)', obsHighlight: 'rgba(234,128,252,0.12)',
+      obsStyle: 'rounded' },
+    { threshold: 5800, name: 'Sunken Ruins',
+      bg: ['#0a1a1a','#103030','#1a4a48'], ground: '#1a3a38', accent: '#26a69a', glow: '#80cbc4',
+      birdColor: '#1a3a38', birdHead: '#2a4a48', birdWing: '#3a5a58', birdTail: '#2a4a46',
+      obsColor: '#1a4038', obsStroke: 'rgba(38,166,154,0.5)', obsHighlight: 'rgba(128,203,196,0.1)',
+      obsStyle: 'mesa' },
+    { threshold: 7000, name: 'Cherry Blossom',
+      bg: ['#2e1420','#481e30','#622840'], ground: '#4a1a30', accent: '#f06292', glow: '#f8bbd0',
+      birdColor: '#4a1a30', birdHead: '#5a2a40', birdWing: '#6a3a50', birdTail: '#5a2a48',
+      obsColor: '#5a1838', obsStroke: 'rgba(240,98,146,0.5)', obsHighlight: 'rgba(248,187,208,0.12)',
+      obsStyle: 'rounded' },
+    { threshold: 8500, name: 'Shadow Realm',
+      bg: ['#080808','#121218','#1a1a24'], ground: '#141418', accent: '#616161', glow: '#9e9e9e',
+      birdColor: '#1a1a1a', birdHead: '#2a2a2a', birdWing: '#3a3a3a', birdTail: '#282828',
+      obsColor: '#1a1a20', obsStroke: 'rgba(97,97,97,0.5)', obsHighlight: 'rgba(158,158,158,0.08)',
+      obsStyle: 'lava' },
+    { threshold: 10000, name: 'Aurora Sky',
+      bg: ['#0a102e','#142048','#1e3060'], ground: '#1a2a50', accent: '#64ffda', glow: '#a7ffeb',
+      birdColor: '#1a3a4a', birdHead: '#2a4a5a', birdWing: '#3a6a7a', birdTail: '#2a5a68',
+      obsColor: '#1a3858', obsStroke: 'rgba(100,255,218,0.5)', obsHighlight: 'rgba(167,255,235,0.12)',
+      obsStyle: 'ice' },
+    { threshold: 12000, name: 'Rust Wastes',
+      bg: ['#1e0e0a','#3a1a10','#582a18'], ground: '#4a2010', accent: '#ff6e40', glow: '#ffab91',
+      birdColor: '#4a2010', birdHead: '#5a3020', birdWing: '#6a4030', birdTail: '#5a3028',
+      obsColor: '#582818', obsStroke: 'rgba(255,110,64,0.5)', obsHighlight: 'rgba(255,171,145,0.1)',
+      obsStyle: 'mesa' },
+    { threshold: 14500, name: 'Void Rift',
+      bg: ['#0a0014','#140028','#20003e'], ground: '#18002e', accent: '#b388ff', glow: '#d1c4e9',
+      birdColor: '#20003a', birdHead: '#30004a', birdWing: '#40105a', birdTail: '#30004a',
+      obsColor: '#200038', obsStroke: 'rgba(179,136,255,0.5)', obsHighlight: 'rgba(209,196,233,0.12)',
+      obsStyle: 'jagged' },
+    { threshold: 17000, name: 'Solar Flare',
+      bg: ['#2e1400','#4a2800','#683e00'], ground: '#5a3000', accent: '#ffab00', glow: '#ffd54f',
+      birdColor: '#5a3a00', birdHead: '#6a4a10', birdWing: '#7a5a20', birdTail: '#6a4a10',
+      obsColor: '#6a4000', obsStroke: 'rgba(255,171,0,0.5)', obsHighlight: 'rgba(255,213,79,0.12)',
+      obsStyle: 'lava' },
+    { threshold: 20000, name: 'Infinite Garden',
+      bg: ['#0a140a','#142814','#1e401e'], ground: '#183818', accent: '#69f0ae', glow: '#b9f6ca',
+      birdColor: '#1a3a1a', birdHead: '#2a5a2a', birdWing: '#3a7a3a', birdTail: '#2a6a28',
+      obsColor: '#1a4a1a', obsStroke: 'rgba(105,240,174,0.5)', obsHighlight: 'rgba(185,246,202,0.1)',
+      obsStyle: 'ice' },
+    { threshold: 25000, name: 'Cosmic End',
+      bg: ['#000008','#04041e','#0a0a38'], ground: '#08082a', accent: '#eeff41', glow: '#f4ff81',
+      birdColor: '#1a1a30', birdHead: '#2a2a40', birdWing: '#3a3a60', birdTail: '#2a2a50',
+      obsColor: '#0e0e30', obsStroke: 'rgba(238,255,65,0.5)', obsHighlight: 'rgba(244,255,129,0.12)',
+      obsStyle: 'jagged' },
+];
+
+function getLevelIndex(s) {
+    for (let i = LEVELS.length - 1; i >= 0; i--) {
+        if (s >= LEVELS[i].threshold) return i;
+    }
+    return 0;
+}
+
+function lerpColor(hex1, hex2, t) {
+    const h = s => parseInt(s.slice(1), 16);
+    const c1 = h(hex1), c2 = h(hex2);
+    const r = Math.round(((c1 >> 16) & 255) * (1 - t) + ((c2 >> 16) & 255) * t);
+    const g = Math.round(((c1 >> 8) & 255) * (1 - t) + ((c2 >> 8) & 255) * t);
+    const b = Math.round((c1 & 255) * (1 - t) + (c2 & 255) * t);
+    return `#${((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1)}`;
+}
+
+function getTheme(s) {
+    const idx = getLevelIndex(s);
+    const lvl = LEVELS[idx];
+    const next = LEVELS[idx + 1];
+    if (!next) return lvl;
+    const t = Math.min((s - lvl.threshold) / (next.threshold - lvl.threshold), 1);
+    if (t < 0.7) return lvl;
+    const lt = (t - 0.7) / 0.3;
+    return {
+        ...lvl,
+        bg: lvl.bg.map((c, i) => lerpColor(c, next.bg[i], lt)),
+        ground: lerpColor(lvl.ground, next.ground, lt),
+        accent: lerpColor(lvl.accent, next.accent, lt),
+        glow: lerpColor(lvl.glow, next.glow, lt),
+    };
+}
+
+// Helper: interpolate 'rgba(r,g,b,a)' strings
+function lerpRgba(s1, s2, t) {
+    const parse = s => {
+        const m = s.match(/[\d.]+/g);
+        return m ? m.map(Number) : [0,0,0,0.5];
+    };
+    const a = parse(s1), b = parse(s2);
+    const r = a.map((v, i) => v + (b[i] - v) * t);
+    return `rgba(${Math.round(r[0])},${Math.round(r[1])},${Math.round(r[2])},${r[3] != null ? r[3].toFixed(2) : 0.5})`;
+}
+
+// --- Constants ---
+const GROUND_Y = 0.82; // ratio of H — lower ground = more zoomed in feel
+const SNAIL_R = 28; // shell/head draw radius — bigger snail
+
+// --- Game State ---
+let gameRunning = false, gameOver = false, gameOverAlpha = 0, gameWon = false;
+let score = 0, dist = 0;
+let pendingBonus = 0; // score earned on release, awarded when tail catches up
+let currentLevel = 0;
+let levelUpTimer = 0, levelUpName = '';
+let screenShake = 0, screenShakeX = 0, screenShakeY = 0;
+let hitFlashAlpha = 0;
+let particles = [];
+let frameCount = 0;
+let holding = false;
+
+// Ground Y in world pixels (set on reset)
+let groundY = 0;
+
+// Obstacles: {x, w, h} sitting on groundY
+let obstacles = [];
+let nextObstDist = 0;
+
+// Head position and state (like TAPE J)
+// head.to = current head position, head.from = start of current segment
+// type: "ground" | "up" | "top" | "down"
+let head = { from: {x:0,y:0}, to: {x:0,y:0}, type: 'ground', obs: null };
+
+// Trail segments the tail must follow: [{from:{x,y}, to:{x,y}}]
+let segments = [];
+
+// Birds: {x, y, vx, vy, wingPhase, size}
+let birds = [];
+let nextBirdTimer = 0;
+let difficulty = 0;
+
+// Camera
+let camX = 0;
+
+function vec(a, b) {
+    if (typeof a === 'object') return {x: a.x, y: a.y};
+    return {x: a, y: b};
+}
+
+function resetGame() {
+    groundY = H * GROUND_Y;
+    score = 0; dist = 0; frameCount = 0;
+    holding = false;
+    difficulty = 0;
+    pendingBonus = 0;
+    currentLevel = 0;
+    levelUpTimer = 0; levelUpName = '';
+
+    head = {
+        from: vec(100, groundY),
+        to: vec(100, groundY),
+        type: 'ground',
+        obs: null
+    };
+    segments = [];
+    obstacles = [];
+    nextObstDist = 200;
+    birds = [];
+    nextBirdTimer = 120;
+    particles = [];
+    screenShake = 0; screenShakeX = 0; screenShakeY = 0;
+    hitFlashAlpha = 0;
+    gameOver = false; gameOverAlpha = 0; gameWon = false;
+    gameRunning = true;
+    camX = head.to.x - W * 0.35;
+}
+
+// --- Obstacle spawning ---
+function spawnObstacle() {
+    const w = 40 + Math.random() * 60;
+    const h = 40 + Math.random() * 80;
+    // Place after the last obstacle with a guaranteed gap
+    let x;
+    if (obstacles.length > 0) {
+        const last = obstacles[obstacles.length - 1];
+        const gap = 80 + Math.random() * 150 - difficulty * 10;
+        x = Math.max(head.to.x + W * 0.5, last.x + last.w + Math.max(60, gap));
+    } else {
+        x = head.to.x + W * 0.6 + Math.random() * W * 0.3;
+    }
+    obstacles.push({ x, w, h, level: currentLevel });
+}
+
+// --- Bird spawning ---
+// Birds swoop in from the right in a curve down toward the ground
+function spawnBird() {
+    const lvl = LEVELS[currentLevel];
+    // Bird size/speed varies by level
+    // Bird size/speed scales with level
+    const sizeBonus = Math.min(currentLevel * 1.2, 14);
+    const speedBonus = Math.min(currentLevel * 0.25, 4);
+    const size = 20 + Math.random() * 16 + sizeBonus;
+    const speed = 3.5 + difficulty * 0.9 + Math.random() * 2 + speedBonus;
+    // Start off-screen right, somewhere in the upper portion
+    const startX = camX + W + 30 + Math.random() * 80;
+    const startY = groundY * (0.1 + Math.random() * 0.3);
+    // Target a point on the ground near the snail
+    const targetX = camX + W * 0.05 + Math.random() * W * 0.5;
+    const targetY = groundY - 5;
+    birds.push({
+        x: startX,
+        y: startY,
+        targetX,
+        targetY,
+        speed,
+        progress: 0,
+        wingPhase: Math.random() * Math.PI * 2,
+        size,
+        landed: false,
+        cpX: startX - (startX - targetX) * (0.3 + Math.random() * 0.3),
+        cpY: startY - 40 - Math.random() * 80,
+        startX, startY,
+        prevX: startX, prevY: startY,
+        level: currentLevel,
+    });
+}
+
+// --- Particles ---
+function spawnParticles(x, y, color, count) {
+    for (let i = 0; i < count; i++) {
+        particles.push({
+            x, y,
+            vx: (Math.random() - 0.5) * 8,
+            vy: (Math.random() - 0.5) * 8 - 2,
+            life: 30 + Math.random() * 20, maxLife: 50,
+            color, size: 2 + Math.random() * 3
+        });
+    }
+}
+
+function spawnFeathers(x, y, birdLevel) {
+    const lvl = LEVELS[birdLevel || 0];
+    const colors = [lvl.glow, lvl.accent, '#fff', '#ddd'];
+    for (let i = 0; i < 8; i++) {
+        particles.push({
+            x, y,
+            vx: (Math.random() - 0.5) * 5,
+            vy: (Math.random() - 1) * 4,
+            life: 30 + Math.random() * 20, maxLife: 50,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            size: 2 + Math.random() * 3
+        });
+    }
+}
+
+// --- Body segments as polyline for collision ---
+function getBodyPoints() {
+    // Full path: all completed segments + current head segment
+    const pts = [];
+    for (const s of segments) {
+        pts.push(s.from);
+    }
+    if (segments.length > 0) {
+        pts.push(segments[segments.length - 1].to);
+    }
+    pts.push(head.from);
+    pts.push(head.to);
+    return pts;
+}
+
+// Get the tail position (first point of first segment, or head.from)
+function getTailPos() {
+    if (segments.length > 0) return segments[0].from;
+    return head.from;
+}
+
+// Check if a circle at (cx, cy, r) hits any segment of the body polyline
+function bodyCircleHit(cx, cy, r) {
+    const pts = getBodyPoints();
+    for (let i = 0; i < pts.length - 1; i++) {
+        const ax = pts[i].x, ay = pts[i].y;
+        const bx = pts[i+1].x, by = pts[i+1].y;
+        // Point-to-segment distance
+        const dx = bx - ax, dy = by - ay;
+        const len2 = dx * dx + dy * dy;
+        let t = 0;
+        if (len2 > 0) t = Math.max(0, Math.min(1, ((cx - ax) * dx + (cy - ay) * dy) / len2));
+        const px = ax + t * dx, py = ay + t * dy;
+        const dist = Math.hypot(cx - px, cy - py);
+        if (dist < r + 8) return true; // 8 = body half-thickness
+    }
+    return false;
+}
+
+// --- Obstacle path waypoints ---
+// Returns array of {x,y} points the snail follows over an obstacle
+function getObsWaypoints(obs) {
+    const style = LEVELS[obs.transTo != null ? obs.transTo : (obs.level || 0)].obsStyle;
+    const x = obs.x, w = obs.w, h = obs.h;
+    switch (style) {
+        case 'jagged':
+            return [
+                {x: x + w * 0.15, y: groundY - h * 0.7},
+                {x: x + w * 0.35, y: groundY - h * 0.4},
+                {x: x + w * 0.5,  y: groundY - h},
+                {x: x + w * 0.7,  y: groundY - h * 0.5},
+                {x: x + w * 0.85, y: groundY - h * 0.8},
+                {x: x + w, y: groundY},
+            ];
+        case 'mesa':
+            return [
+                {x: x + w * 0.1, y: groundY - h},
+                {x: x + w * 0.9, y: groundY - h},
+                {x: x + w, y: groundY},
+            ];
+        case 'ice':
+            return [
+                {x: x + w * 0.3, y: groundY - h},
+                {x: x + w * 0.7, y: groundY - h * 0.85},
+                {x: x + w - 2, y: groundY},
+            ];
+        default: // 'rounded', 'lava'
+            return [
+                {x: x, y: groundY - h},
+                {x: x + w, y: groundY - h},
+                {x: x + w, y: groundY},
+            ];
+    }
+}
+
+// --- Update ---
+function update(dt) {
+    if (!gameRunning) return;
+    frameCount++;
+
+    difficulty = Math.min(head.to.x / 1500, 6);
+    const spd = 2.8 + difficulty * 0.5;
+
+    if (holding) {
+        dist += spd * dt;
+        if (head.type === 'ground') {
+            head.to.x += spd * dt;
+            // Check if we hit an obstacle
+            for (const obs of obstacles) {
+                if (head.to.x >= obs.x && head.to.x <= obs.x + obs.w + 1 && head.obs !== obs) {
+                    head.to.x = obs.x;
+                    segments.push({ from: vec(head.from), to: vec(head.to) });
+                    head.from = vec(head.to);
+                    head.type = 'climbing';
+                    head.obs = obs;
+                    head.waypoints = getObsWaypoints(obs);
+                    head.wpIdx = 0;
+                    playCoin();
+                    break;
+                }
+            }
+        } else if (head.type === 'climbing') {
+            // Follow waypoints over the obstacle shape
+            let remaining = spd * dt;
+            while (remaining > 0 && head.wpIdx < head.waypoints.length) {
+                const wp = head.waypoints[head.wpIdx];
+                const dx = wp.x - head.to.x;
+                const dy = wp.y - head.to.y;
+                const d = Math.hypot(dx, dy);
+                if (d <= remaining) {
+                    // Reached this waypoint
+                    head.to.x = wp.x;
+                    head.to.y = wp.y;
+                    segments.push({ from: vec(head.from), to: vec(head.to) });
+                    head.from = vec(head.to);
+                    remaining -= d;
+                    head.wpIdx++;
+                    playCoin();
+                } else {
+                    const ratio = remaining / d;
+                    head.to.x += dx * ratio;
+                    head.to.y += dy * ratio;
+                    remaining = 0;
+                }
+            }
+            // All waypoints done — back to ground
+            if (head.wpIdx >= head.waypoints.length) {
+                head.type = 'ground';
+                head.obs = null;
+                head.to.x += 3;
+            }
+        }
+    } else {
+        // Tail catches up — consume segments
+        if (dist > 0) {
+            playSnap();
+            // Bonus based only on THIS stretch distance, not total body length
+            pendingBonus += Math.floor(dist * dist * 0.001 + 1);
+            dist = 0;
+        }
+    }
+
+    // Tail catches up at walk speed — only when not holding
+    if (!holding) {
+        const catchUpSpd = spd;
+        let remaining = catchUpSpd * dt;
+        while (remaining > 0) {
+            if (segments.length > 0) {
+                const s = segments[0];
+                const dx = s.to.x - s.from.x;
+                const dy = s.to.y - s.from.y;
+                const d = Math.hypot(dx, dy);
+                if (d <= remaining) {
+                    remaining -= d;
+                    segments.shift();
+                } else {
+                    const ratio = remaining / d;
+                    s.from.x += dx * ratio;
+                    s.from.y += dy * ratio;
+                    remaining = 0;
+                }
+            } else {
+                const dx = head.to.x - head.from.x;
+                const dy = head.to.y - head.from.y;
+                const d = Math.hypot(dx, dy);
+                if (d <= remaining) {
+                    head.from.x = head.to.x;
+                    head.from.y = head.to.y;
+                    remaining = 0;
+                } else {
+                    const ratio = remaining / d;
+                    head.from.x += dx * ratio;
+                    head.from.y += dy * ratio;
+                    remaining = 0;
+                }
+            }
+        }
+        // Award pending bonus when tail has fully caught up
+        if (pendingBonus > 0 && segments.length === 0) {
+            const gap = Math.hypot(head.to.x - head.from.x, head.to.y - head.from.y);
+            if (gap < 3) {
+                score += pendingBonus;
+                playCoin();
+                spawnParticles(head.to.x, head.to.y, '#ffd32a', 8);
+                pendingBonus = 0;
+            }
+        }
+    }
+
+    // Small base score from distance traveled
+    const distScore = Math.floor(head.to.x / 50);
+    if (distScore > score) score = distScore;
+
+    // Level-up check
+    const newLevel = getLevelIndex(score);
+    if (newLevel > currentLevel) {
+        // Mark existing obstacles to transition (except the one snail is on)
+        for (const obs of obstacles) {
+            if (obs !== head.obs && obs.level !== newLevel) {
+                obs.transFrom = obs.level;
+                obs.transTo = newLevel;
+                obs.transT = 0;
+            }
+        }
+        currentLevel = newLevel;
+        levelUpTimer = 120;
+        levelUpName = LEVELS[currentLevel].name;
+        // Victory on reaching the final level
+        if (currentLevel >= LEVELS.length - 1) {
+            winGame();
+            return;
+        }
+    }
+    if (levelUpTimer > 0) levelUpTimer -= dt;
+
+    // Advance obstacle transitions
+    for (const obs of obstacles) {
+        if (obs.transT != null && obs.transT < 1) {
+            obs.transT = Math.min(1, obs.transT + 0.012 * dt);
+            if (obs.transT >= 1) {
+                obs.level = obs.transTo;
+                obs.transT = null;
+                obs.transFrom = null;
+                obs.transTo = null;
+            }
+        }
+    }
+
+    // Camera follows head — tighter framing
+    const targetCamX = head.to.x - W * 0.35;
+    camX += (targetCamX - camX) * 0.12 * dt;
+
+    // Spawn obstacles ahead
+    if (head.to.x + W > nextObstDist) {
+        spawnObstacle();
+        nextObstDist += 150 + Math.random() * 200;
+    }
+
+    // Remove old obstacles far behind
+    obstacles = obstacles.filter(o => o.x + o.w > camX - 200);
+
+    // Spawn birds
+    nextBirdTimer -= dt;
+    if (nextBirdTimer <= 0) {
+        spawnBird();
+        nextBirdTimer = (40 + Math.random() * 50) / (1 + difficulty * 0.4);
+    }
+
+    // Update birds — they swoop along a bezier curve
+    for (let i = birds.length - 1; i >= 0; i--) {
+        const b = birds[i];
+        if (!b.landed) {
+            // Advance along curve
+            const totalDist = Math.hypot(b.targetX - b.startX, b.targetY - b.startY);
+            b.progress += (b.speed * dt) / totalDist;
+            b.wingPhase += 0.25 * dt;
+
+            b.prevX = b.x;
+            b.prevY = b.y;
+
+            if (b.progress >= 1) {
+                b.x = b.targetX;
+                b.y = b.targetY;
+            } else {
+                // Quadratic bezier: B(t) = (1-t)^2*P0 + 2(1-t)t*CP + t^2*P1
+                const t = b.progress;
+                const mt = 1 - t;
+                b.x = mt * mt * b.startX + 2 * mt * t * b.cpX + t * t * b.targetX;
+                b.y = mt * mt * b.startY + 2 * mt * t * b.cpY + t * t * b.targetY;
+            }
+
+            // Collision with snail body — only when stretched
+            const isStretched = segments.length > 0 || Math.hypot(head.to.x - head.from.x, head.to.y - head.from.y) > 5;
+            if (isStretched && bodyCircleHit(b.x, b.y, b.size * 0.5)) {
+                playCrash();
+                spawnFeathers(b.x, b.y, b.level);
+                screenShake = 15;
+                hitFlashAlpha = 0.4;
+                endGame();
+                return;
+            }
+
+            // Hit the ground — land and fade
+            if (b.y >= groundY - 5 || b.progress >= 1) {
+                b.y = Math.min(b.y, groundY - 5);
+                b.landed = true;
+                b.fadeTimer = 40;
+                spawnFeathers(b.x, b.y, b.level);
+            }
+        } else {
+            b.fadeTimer -= dt;
+            if (b.fadeTimer <= 0) {
+                birds.splice(i, 1);
+                continue;
+            }
+        }
+
+        // Remove if way off screen
+        if (b.x < camX - 200 || b.x > camX + W + 400) {
+            birds.splice(i, 1);
+        }
+    }
+
+    // Tail pushed off screen = game over
+    const tail = getTailPos();
+    if (tail.x < camX - 50) {
+        playCrash();
+        endGame();
+        return;
+    }
+
+    // Update particles
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 0.15 * dt; p.life -= dt;
+        if (p.life <= 0) particles.splice(i, 1);
+    }
+
+    // Screen shake
+    if (screenShake > 0) {
+        screenShake = Math.max(0, screenShake - dt);
+        screenShakeX = (Math.random() - 0.5) * screenShake * 1.5;
+        screenShakeY = (Math.random() - 0.5) * screenShake * 1.5;
+    } else { screenShakeX = 0; screenShakeY = 0; }
+    if (hitFlashAlpha > 0) hitFlashAlpha = Math.max(0, hitFlashAlpha - 0.015 * dt);
+}
+
+function endGame() {
+    gameOver = true;
+    gameRunning = false;
+    gameOverAlpha = 0;
+    if (score > highScore) {
+        highScore = score;
+        setHighScore(highScore);
+    }
+}
+
+function winGame() {
+    gameWon = true;
+    gameOver = true;
+    gameRunning = false;
+    gameOverAlpha = 0;
+    playVictory();
+    // Burst of celebration particles
+    for (let i = 0; i < 60; i++) {
+        const colors = ['#ffd32a','#ff6b6b','#54a0ff','#5f27cd','#01a3a4','#f368e0','#ff9f43','#69f0ae','#ea80fc'];
+        particles.push({
+            x: head.to.x - 40 + Math.random() * 80,
+            y: groundY - 20 - Math.random() * 100,
+            vx: (Math.random() - 0.5) * 12,
+            vy: -Math.random() * 10 - 2,
+            life: 50 + Math.random() * 40, maxLife: 90,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            size: 3 + Math.random() * 4
+        });
+    }
+    if (score > highScore) {
+        highScore = score;
+        setHighScore(highScore);
+    }
+}
+
+// --- Draw helpers ---
+function worldToScreen(wx, wy) {
+    return { x: wx - camX, y: wy };
+}
+
+function drawBird(b) {
+    const sx = b.x - camX;
+    const sy = b.y;
+    const sz = b.size;
+    const wing = Math.sin(b.wingPhase) * 0.6;
+    const lvl = LEVELS[b.level || 0];
+
+    if (b.landed) {
+        ctx.globalAlpha = Math.max(0, b.fadeTimer / 40);
+    }
+
+    ctx.save();
+    ctx.translate(sx, sy);
+    if (!b.landed) {
+        const dx = b.x - b.prevX;
+        const dy = b.y - b.prevY;
+        if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) {
+            const angle = Math.atan2(dy, dx) + Math.PI;
+            ctx.rotate(angle);
+        }
+    }
+
+    // Body
+    ctx.fillStyle = lvl.birdColor;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, sz * 0.7, sz * 0.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Head
+    ctx.fillStyle = lvl.birdHead;
+    ctx.beginPath();
+    ctx.arc(-sz * 0.5, -sz * 0.15, sz * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Eye
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(-sz * 0.55, -sz * 0.22, sz * 0.1, 0, Math.PI * 2);
+    ctx.fill();
+    const dangerLevels = [4,13,17,19]; // red eyes on lava/shadow/solar/cosmic
+    ctx.fillStyle = dangerLevels.includes(b.level || 0) ? '#e00' : '#111';
+    ctx.beginPath();
+    ctx.arc(-sz * 0.57, -sz * 0.22, sz * 0.05, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Beak — color cycles through a palette
+    const beakColors = ['#e67e22','#2ecc71','#e67e22','#5dade2','#e74c3c','#00bcd4','#8bc34a','#ce93d8','#ffd740','#78909c','#e040fb','#26a69a','#f06292','#616161','#64ffda','#ff6e40','#b388ff','#ffab00','#69f0ae','#eeff41'];
+    ctx.fillStyle = beakColors[b.level || 0] || '#e67e22';
+    ctx.beginPath();
+    ctx.moveTo(-sz * 0.75, -sz * 0.1);
+    ctx.lineTo(-sz * 0.95, -sz * 0.05);
+    ctx.lineTo(-sz * 0.75, sz * 0.05);
+    ctx.closePath();
+    ctx.fill();
+
+    // Wings
+    ctx.fillStyle = lvl.birdWing;
+    ctx.beginPath();
+    ctx.moveTo(-sz * 0.2, -sz * 0.1);
+    ctx.quadraticCurveTo(0, -sz * (0.8 + wing * 0.5), sz * 0.3, -sz * 0.15);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-sz * 0.2, sz * 0.1);
+    ctx.quadraticCurveTo(0, sz * (0.8 - wing * 0.5), sz * 0.3, sz * 0.15);
+    ctx.closePath();
+    ctx.fill();
+
+    // Tail feathers
+    ctx.fillStyle = lvl.birdTail;
+    ctx.beginPath();
+    ctx.moveTo(sz * 0.5, -sz * 0.05);
+    ctx.lineTo(sz * 0.9, -sz * 0.2);
+    ctx.lineTo(sz * 0.85, 0);
+    ctx.lineTo(sz * 0.9, sz * 0.2);
+    ctx.lineTo(sz * 0.5, sz * 0.05);
+    ctx.closePath();
+    ctx.fill();
+
+    // Fire trail glow on lava-style levels
+    const lavaLevels = [4,13,17];
+    if (lavaLevels.includes(b.level || 0) && !b.landed) {
+        ctx.globalAlpha = 0.3 + Math.sin(b.wingPhase * 2) * 0.15;
+        ctx.fillStyle = '#ff4400';
+        ctx.beginPath();
+        ctx.ellipse(sz * 0.6, 0, sz * 0.4, sz * 0.25, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = b.landed ? Math.max(0, b.fadeTimer / 40) : 1;
+    }
+
+    ctx.restore();
+    ctx.globalAlpha = 1;
+}
+
+function drawSnailShell(sx, sy) {
+    const r = SNAIL_R;
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.beginPath();
+    ctx.ellipse(sx, sy + 3, r * 0.8, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Shell
+    const shellY = sy - r * 0.5;
+    const grad = ctx.createRadialGradient(sx - r * 0.2, shellY - r * 0.2, 0, sx, shellY, r);
+    grad.addColorStop(0, '#c49a6c');
+    grad.addColorStop(0.5, '#8B6914');
+    grad.addColorStop(1, '#5a4010');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(sx, shellY, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Spiral
+    ctx.strokeStyle = 'rgba(90, 60, 20, 0.5)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let a = 0; a < Math.PI * 4; a += 0.1) {
+        const sr = (a / (Math.PI * 4)) * r * 0.7;
+        const px = sx + Math.cos(a) * sr;
+        const py = shellY + Math.sin(a) * sr;
+        if (a === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    // Highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.beginPath();
+    ctx.arc(sx - r * 0.25, shellY - r * 0.3, r * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+
+}
+
+function drawSnailHead(sx, sy, stretchFactor) {
+    const headR = SNAIL_R * 0.5;
+
+    // Head body
+    ctx.fillStyle = '#7ab648';
+    ctx.beginPath();
+    ctx.arc(sx, sy - headR * 0.5, headR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Eye stalks
+    const stalkH = SNAIL_R * 0.5;
+    const eyeR = 4;
+    for (let side = -1; side <= 1; side += 2) {
+        const ex = sx + side * headR * 0.5;
+        const ey = sy - headR * 0.5 - stalkH;
+
+        ctx.strokeStyle = '#7ab648';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(ex, sy - headR * 0.8);
+        ctx.quadraticCurveTo(ex + side * 2, sy - headR * 0.5 - stalkH * 0.5, ex, ey);
+        ctx.stroke();
+
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(ex, ey, eyeR, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#111';
+        ctx.beginPath();
+        ctx.arc(ex + 1.5, ey + 0.5, eyeR * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // Mouth
+    if (stretchFactor > 0.3) {
+        ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(sx, sy - headR * 0.5 + headR * 0.4, headR * 0.2, 0.2 * Math.PI, 0.8 * Math.PI);
+        ctx.stroke();
+    } else {
+        ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(sx, sy - headR * 0.5 + headR * 0.25, headR * 0.18, 0, Math.PI);
+        ctx.stroke();
+    }
+}
+
+function draw(time) {
+    ctx.clearRect(0, 0, W, H);
+    ctx.save();
+    ctx.translate(screenShakeX, screenShakeY);
+
+    // Background — theme-aware
+    const theme = getTheme(score);
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, theme.bg[0]);
+    grad.addColorStop(0.5, theme.bg[1]);
+    grad.addColorStop(1, theme.bg[2]);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Background dots parallax
+    ctx.fillStyle = theme.accent + '10';
+    for (let i = 0; i < 30; i++) {
+        const bx = ((i * 137 + 50) % (W + 100)) - (camX * 0.1) % (W + 100);
+        const by = (i * 73 + 30) % (groundY * 0.8);
+        ctx.beginPath();
+        ctx.arc(((bx % (W + 100)) + W + 100) % (W + 100) - 50, by, 2, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // Ground
+    const gY = groundY;
+    const gGrad = ctx.createLinearGradient(0, gY, 0, H);
+    gGrad.addColorStop(0, theme.ground);
+    gGrad.addColorStop(1, theme.bg[2]);
+    ctx.fillStyle = gGrad;
+    ctx.fillRect(0, gY, W, H - gY);
+
+    // Ground line
+    ctx.save();
+    ctx.shadowColor = theme.accent;
+    ctx.shadowBlur = 12;
+    ctx.strokeStyle = theme.accent;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, gY);
+    ctx.lineTo(W, gY);
+    ctx.stroke();
+    ctx.restore();
+
+    // Ground dots
+    ctx.fillStyle = theme.accent + '14';
+    for (let dx = 0; dx < W + 40; dx += 40) {
+        const dotX = ((dx - camX * 0.8) % (W + 40) + W + 40) % (W + 40) - 20;
+        ctx.beginPath();
+        ctx.arc(dotX, gY + 15, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // --- Obstacles ---
+    // Draw a single obstacle in a given style with given colors
+    function drawObsStyle(style, ox, w, h, fillC, strokeC, highlightC, alpha) {
+        ctx.globalAlpha = alpha;
+        if (style === 'jagged') {
+            ctx.fillStyle = fillC;
+            ctx.beginPath();
+            ctx.moveTo(ox, gY);
+            ctx.lineTo(ox + w * 0.15, gY - h * 0.7);
+            ctx.lineTo(ox + w * 0.35, gY - h * 0.4);
+            ctx.lineTo(ox + w * 0.5, gY - h);
+            ctx.lineTo(ox + w * 0.7, gY - h * 0.5);
+            ctx.lineTo(ox + w * 0.85, gY - h * 0.8);
+            ctx.lineTo(ox + w, gY);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = strokeC;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        } else if (style === 'mesa') {
+            ctx.fillStyle = fillC;
+            ctx.beginPath();
+            ctx.moveTo(ox, gY);
+            ctx.lineTo(ox + w * 0.1, gY - h);
+            ctx.lineTo(ox + w * 0.9, gY - h);
+            ctx.lineTo(ox + w, gY);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = strokeC;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.strokeStyle = highlightC;
+            ctx.lineWidth = 1;
+            for (let s = 0.2; s < 1; s += 0.2) {
+                const sy2 = gY - h * (1 - s);
+                const inset = w * 0.1 * (1 - s);
+                ctx.beginPath();
+                ctx.moveTo(ox + inset, sy2);
+                ctx.lineTo(ox + w - inset, sy2);
+                ctx.stroke();
+            }
+        } else if (style === 'ice') {
+            ctx.fillStyle = fillC;
+            ctx.beginPath();
+            ctx.moveTo(ox + 2, gY);
+            ctx.lineTo(ox + w * 0.3, gY - h);
+            ctx.lineTo(ox + w * 0.7, gY - h * 0.85);
+            ctx.lineTo(ox + w - 2, gY);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = 'rgba(160,232,255,0.15)';
+            ctx.beginPath();
+            ctx.moveTo(ox + w * 0.3, gY - h);
+            ctx.lineTo(ox + w * 0.45, gY - h * 0.3);
+            ctx.lineTo(ox + w * 0.35, gY);
+            ctx.lineTo(ox + 2, gY);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = strokeC;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(ox + 2, gY);
+            ctx.lineTo(ox + w * 0.3, gY - h);
+            ctx.lineTo(ox + w * 0.7, gY - h * 0.85);
+            ctx.lineTo(ox + w - 2, gY);
+            ctx.closePath();
+            ctx.stroke();
+        } else if (style === 'lava') {
+            ctx.fillStyle = fillC;
+            ctx.beginPath();
+            ctx.roundRect(ox, gY - h, w, h, 4);
+            ctx.fill();
+            ctx.strokeStyle = '#ff4400';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(ox + w * 0.2, gY);
+            ctx.lineTo(ox + w * 0.35, gY - h * 0.5);
+            ctx.lineTo(ox + w * 0.6, gY - h * 0.3);
+            ctx.lineTo(ox + w * 0.8, gY - h * 0.7);
+            ctx.stroke();
+            ctx.save();
+            ctx.shadowColor = '#ff4400';
+            ctx.shadowBlur = 8;
+            ctx.strokeStyle = 'rgba(255,68,0,0.4)';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            ctx.restore();
+            ctx.strokeStyle = strokeC;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(ox, gY - h, w, h, 4);
+            ctx.stroke();
+        } else {
+            // Default (rounded)
+            ctx.fillStyle = fillC;
+            ctx.beginPath();
+            ctx.roundRect(ox, gY - h, w, h, 6);
+            ctx.fill();
+            ctx.strokeStyle = strokeC;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(ox, gY - h, w, h, 6);
+            ctx.stroke();
+            ctx.fillStyle = highlightC;
+            ctx.fillRect(ox + 3, gY - h + 3, w - 6, 6);
+        }
+        ctx.globalAlpha = 1;
+    }
+
+    for (const obs of obstacles) {
+        const ox = obs.x - camX;
+        if (ox + obs.w < -20 || ox > W + 20) continue;
+
+        // Per-obstacle transition: crossfade shape and colors
+        if (obs.transT != null && obs.transT < 1) {
+            const fromLvl = LEVELS[obs.transFrom || 0];
+            const toLvl = LEVELS[obs.transTo || 0];
+            const t = obs.transT;
+            const tweenFill = lerpColor(fromLvl.obsColor, toLvl.obsColor, t);
+            const tweenStroke = lerpRgba(fromLvl.obsStroke, toLvl.obsStroke, t);
+            const tweenHL = lerpRgba(fromLvl.obsHighlight, toLvl.obsHighlight, t);
+            // Old shape fades out
+            drawObsStyle(fromLvl.obsStyle, ox, obs.w, obs.h, tweenFill, tweenStroke, tweenHL, 1 - t);
+            // New shape fades in
+            drawObsStyle(toLvl.obsStyle, ox, obs.w, obs.h, tweenFill, tweenStroke, tweenHL, t);
+        } else {
+            const olv = LEVELS[obs.level || 0];
+            drawObsStyle(olv.obsStyle, ox, obs.w, obs.h, olv.obsColor, olv.obsStroke, olv.obsHighlight, 1);
+        }
+    }
+
+    // --- Snail body (segments + head segment) ---
+    // Draw body line
+    const bodyPts = getBodyPoints();
+    if (bodyPts.length >= 2) {
+        // Calculate total stretch for color
+        let totalStretch = 0;
+        for (let i = 0; i < bodyPts.length - 1; i++) {
+            totalStretch += Math.hypot(bodyPts[i+1].x - bodyPts[i].x, bodyPts[i+1].y - bodyPts[i].y);
+        }
+        const maxStretch = 300;
+        const stretchFactor = Math.min(totalStretch / maxStretch, 1);
+
+        const r = Math.floor(100 + stretchFactor * 155);
+        const g = Math.floor(180 - stretchFactor * 130);
+        const b = Math.floor(80 - stretchFactor * 60);
+
+        // Compute head offset direction for extending body line
+        const headOffset = SNAIL_R * 0.7;
+        let hdx = 1, hdy = 0;
+        if (bodyPts.length >= 2) {
+            const prev = bodyPts[bodyPts.length - 2];
+            const last = bodyPts[bodyPts.length - 1];
+            const dx2 = last.x - prev.x, dy2 = last.y - prev.y;
+            const dl = Math.hypot(dx2, dy2);
+            if (dl > 0.1) { hdx = dx2 / dl; hdy = dy2 / dl; }
+        }
+        const headEndScreen = worldToScreen(
+            bodyPts[bodyPts.length - 1].x + hdx * headOffset,
+            bodyPts[bodyPts.length - 1].y + hdy * headOffset
+        );
+
+        ctx.strokeStyle = `rgb(${r},${g},${b})`;
+        ctx.lineWidth = SNAIL_R * 0.55;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        for (let i = 0; i < bodyPts.length; i++) {
+            const p = worldToScreen(bodyPts[i].x, bodyPts[i].y);
+            if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+        }
+        ctx.lineTo(headEndScreen.x, headEndScreen.y);
+        ctx.stroke();
+
+        // Danger pulse
+        if (stretchFactor > 0.5) {
+            const pulse = 0.3 * (stretchFactor - 0.5) * 2 * (0.5 + 0.5 * Math.sin(frameCount * 0.15));
+            ctx.strokeStyle = `rgba(255, 50, 50, ${pulse})`;
+            ctx.lineWidth = SNAIL_R * 0.55;
+            ctx.beginPath();
+            for (let i = 0; i < bodyPts.length; i++) {
+                const p = worldToScreen(bodyPts[i].x, bodyPts[i].y);
+                if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+            }
+            ctx.lineTo(headEndScreen.x, headEndScreen.y);
+            ctx.stroke();
+        }
+
+        // Tail (behind shell)
+        const tail = bodyPts[0];
+        const ts = worldToScreen(tail.x, tail.y);
+        const tailLen = SNAIL_R * 1.3;
+        const tipX = ts.x - tailLen;
+        const tipY = ts.y;
+        ctx.fillStyle = '#7ab648';
+        ctx.beginPath();
+        ctx.moveTo(ts.x - SNAIL_R * 0.3, ts.y - 10);
+        ctx.quadraticCurveTo(tipX + tailLen * 0.3, tipY - 8, tipX, tipY);
+        ctx.quadraticCurveTo(tipX + tailLen * 0.3, tipY + 8, ts.x - SNAIL_R * 0.3, ts.y + 10);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(tipX, tipY, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Shell on tail
+        drawSnailShell(ts.x, ts.y);
+
+
+        // Head — drawn at the offset position (already computed above)
+        drawSnailHead(headEndScreen.x, headEndScreen.y, stretchFactor);
+    }
+
+    // --- Birds ---
+    for (const b of birds) {
+        drawBird(b);
+    }
+
+    // --- Particles ---
+    for (const p of particles) {
+        const alpha = p.life / p.maxLife;
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x - camX, p.y, p.size * alpha, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Red flash
+    if (hitFlashAlpha > 0) {
+        ctx.fillStyle = `rgba(255, 0, 0, ${hitFlashAlpha})`;
+        ctx.fillRect(-20, -20, W + 40, H + 40);
+    }
+
+    ctx.restore(); // end shake
+
+    // --- HUD ---
+    if (gameRunning || gameOver) {
+        ctx.save();
+        const hudX = W / 2;
+        const hudY = 14;
+        const tinyFont = 'bold 11px "Segoe UI", system-ui, sans-serif';
+        const smallFont = 'bold 14px "Segoe UI", system-ui, sans-serif';
+        const bigFont = 'bold 24px "Segoe UI", system-ui, sans-serif';
+
+        const lvlName = LEVELS[currentLevel].name;
+        const scoreText = `${score}`;
+        const bestText = `Best: ${highScore}`;
+
+        ctx.font = bigFont;
+        const scoreW = ctx.measureText(scoreText).width;
+        ctx.font = smallFont;
+        const bestW = ctx.measureText(bestText).width;
+
+        const gap = 20;
+        const contentW = scoreW + gap + bestW;
+        const pillW = Math.max(contentW + 40, 160);
+        const pillH = 54;
+
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.beginPath();
+        ctx.roundRect(hudX - pillW / 2, hudY, pillW, pillH, 14);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = 'rgba(0,0,0,0.4)';
+        ctx.shadowBlur = 4;
+
+        // Level indicator at top of pill
+        ctx.font = tinyFont;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = theme.accent;
+        ctx.fillText(`Lv.${currentLevel + 1}  ${lvlName}`, hudX, hudY + 13);
+
+        const textY = hudY + pillH / 2 + 5;
+        const startX = hudX - contentW / 2;
+
+        ctx.font = bigFont;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#fff';
+        ctx.fillText(scoreText, startX, textY);
+
+        ctx.font = smallFont;
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.fillText(bestText, startX + scoreW + gap, textY);
+
+        // Level progress bar
+        const barW = pillW - 16;
+        const barH = 4;
+        const barX = hudX - barW / 2;
+        const barY = hudY + pillH + 6;
+        const nextThreshold = LEVELS[currentLevel + 1] ? LEVELS[currentLevel + 1].threshold : null;
+        const curThreshold = LEVELS[currentLevel].threshold;
+
+        ctx.fillStyle = 'rgba(255,255,255,0.1)';
+        ctx.beginPath();
+        ctx.roundRect(barX, barY, barW, barH, 2);
+        ctx.fill();
+
+        if (nextThreshold !== null) {
+            const prog = Math.min((score - curThreshold) / (nextThreshold - curThreshold), 1);
+            const barGrad = ctx.createLinearGradient(barX, 0, barX + barW * prog, 0);
+            barGrad.addColorStop(0, theme.accent);
+            barGrad.addColorStop(1, theme.glow);
+            ctx.fillStyle = barGrad;
+            ctx.beginPath();
+            ctx.roundRect(barX, barY, Math.max(barW * prog, 4), barH, 2);
+            ctx.fill();
+
+            // Next level label
+            ctx.shadowBlur = 0;
+            ctx.font = '9px "Segoe UI", system-ui, sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillStyle = 'rgba(255,255,255,0.35)';
+            ctx.fillText(`${nextThreshold}`, barX + barW, barY + barH + 10);
+            ctx.textAlign = 'left';
+            ctx.fillText(`${Math.floor(prog * 100)}%`, barX, barY + barH + 10);
+        } else {
+            // Max level — fill bar completely
+            ctx.fillStyle = theme.glow;
+            ctx.beginPath();
+            ctx.roundRect(barX, barY, barW, barH, 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.font = '9px "Segoe UI", system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'rgba(255,255,255,0.35)';
+            ctx.fillText('MAX', hudX, barY + barH + 10);
+        }
+
+        ctx.restore();
+
+        // Pending bonus indicator (shows while tail is catching up, even if holding again)
+        if (gameRunning && pendingBonus > 0 && !holding) {
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const catchUpPulse = 1 + Math.sin(frameCount * 0.3) * 0.08;
+            ctx.translate(W / 2, H - 40);
+            ctx.scale(catchUpPulse, catchUpPulse);
+            ctx.font = 'bold 22px "Segoe UI", system-ui, sans-serif';
+            ctx.fillStyle = '#ffd32a';
+            ctx.shadowColor = '#ffd32a';
+            ctx.shadowBlur = 12;
+            ctx.fillText(`+${pendingBonus}`, 0, 0);
+            ctx.shadowBlur = 0;
+            ctx.font = 'bold 12px "Segoe UI", system-ui, sans-serif';
+            ctx.fillStyle = 'rgba(255,211,42,0.7)';
+            ctx.fillText('catching up...', 0, 18);
+            ctx.restore();
+        }
+
+        // Level-up announcement
+        if (levelUpTimer > 0) {
+            ctx.save();
+            const prog = levelUpTimer / 120;
+            const scale = prog > 0.8 ? (1 - prog) / 0.2 * 0.5 + 1 : prog < 0.2 ? prog / 0.2 : 1;
+            ctx.globalAlpha = Math.min(1, prog * 3);
+            ctx.translate(W / 2, H * 0.3);
+            ctx.scale(scale, scale);
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = `bold ${Math.floor(Math.min(W * 0.08, 48))}px "Segoe UI", system-ui, sans-serif`;
+            ctx.fillStyle = theme.glow;
+            ctx.shadowColor = theme.accent;
+            ctx.shadowBlur = 30;
+            ctx.fillText(levelUpName, 0, 0);
+            ctx.shadowBlur = 0;
+            ctx.font = `bold ${Math.floor(Math.min(W * 0.04, 22))}px "Segoe UI", system-ui, sans-serif`;
+            ctx.fillStyle = 'rgba(255,255,255,0.7)';
+            ctx.fillText(`Level ${currentLevel + 1}`, 0, Math.min(W * 0.06, 36));
+            ctx.restore();
+        }
+
+        // Live stretch score indicator (shows pending + current stretch potential)
+        if (gameRunning && holding) {
+            const currentBonus = Math.floor(dist * dist * 0.001 + 1);
+            const totalPotential = pendingBonus + currentBonus;
+
+            // Scale based on total
+            const intensity = Math.min(totalPotential / 200, 1);
+            const fontSize = 20 + intensity * 28;
+            const pulse = 1 + Math.sin(frameCount * 0.2) * intensity * 0.15;
+
+            // Color ramp: blue -> green -> yellow -> orange -> red/gold
+            let r, g, b;
+            if (intensity < 0.25) {
+                const t = intensity / 0.25;
+                r = Math.floor(100 + t * 50); g = Math.floor(155 + t * 100); b = Math.floor(254 - t * 100);
+            } else if (intensity < 0.5) {
+                const t = (intensity - 0.25) / 0.25;
+                r = Math.floor(150 + t * 105); g = 255; b = Math.floor(154 - t * 154);
+            } else if (intensity < 0.75) {
+                const t = (intensity - 0.5) / 0.25;
+                r = 255; g = Math.floor(255 - t * 100); b = 0;
+            } else {
+                const t = (intensity - 0.75) / 0.25;
+                r = 255; g = Math.floor(155 - t * 55); b = Math.floor(t * 50);
+            }
+
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.translate(W / 2, H - 40);
+            ctx.scale(pulse, pulse);
+
+            ctx.shadowColor = `rgb(${r},${g},${b})`;
+            ctx.shadowBlur = 10 + intensity * 25;
+
+            ctx.font = `bold ${Math.floor(fontSize)}px "Segoe UI", system-ui, sans-serif`;
+            ctx.fillStyle = `rgb(${r},${g},${b})`;
+            ctx.fillText(`+${totalPotential}`, 0, 0);
+
+            ctx.shadowBlur = 0;
+            if (totalPotential >= 50) {
+                const exclSize = 14 + intensity * 8;
+                ctx.font = `bold ${Math.floor(exclSize)}px "Segoe UI", system-ui, sans-serif`;
+                ctx.fillStyle = `rgba(${r},${g},${b}, 0.7)`;
+                const label = totalPotential >= 200 ? 'INSANE!' : totalPotential >= 100 ? 'RISKY!' : 'NICE!';
+                ctx.fillText(label, 0, -fontSize * 0.6);
+            }
+
+            if (pendingBonus > 0) {
+                ctx.font = 'bold 12px "Segoe UI", system-ui, sans-serif';
+                ctx.fillStyle = 'rgba(255,211,42,0.6)';
+                ctx.fillText(`(${pendingBonus} banked)`, 0, fontSize * 0.45);
+            }
+
+            ctx.restore();
+        }
+    }
+
+    // --- Game Over / Victory ---
+    if (gameOver && gameOverAlpha > 0) {
+        ctx.save();
+        ctx.globalAlpha = gameOverAlpha * 0.6;
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+        ctx.globalAlpha = gameOverAlpha;
+
+        const cy = H * 0.32;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        if (gameWon) {
+            // Victory confetti particles (spawn continuously while screen is up)
+            if (Math.random() < 0.3 * gameOverAlpha) {
+                const colors = ['#ffd32a','#ff6b6b','#54a0ff','#5f27cd','#01a3a4','#f368e0','#ff9f43','#69f0ae'];
+                particles.push({
+                    x: camX + Math.random() * W,
+                    y: -10,
+                    vx: (Math.random() - 0.5) * 3,
+                    vy: Math.random() * 2 + 1,
+                    life: 60 + Math.random() * 30, maxLife: 90,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    size: 2 + Math.random() * 4
+                });
+            }
+
+            // Title
+            const titleSize = Math.floor(Math.min(W * 0.1, 60));
+            ctx.font = `bold ${titleSize}px "Segoe UI", system-ui, sans-serif`;
+            ctx.fillStyle = '#ffd32a';
+            ctx.shadowColor = '#ffd32a';
+            ctx.shadowBlur = 40;
+            ctx.fillText('You Win!', W / 2, cy);
+
+            ctx.shadowBlur = 0;
+            ctx.font = `bold ${Math.floor(Math.min(W * 0.05, 28))}px "Segoe UI", system-ui, sans-serif`;
+            ctx.fillStyle = '#fff';
+            ctx.fillText('All 20 worlds conquered!', W / 2, cy + Math.min(W * 0.08, 45));
+
+            ctx.font = `bold ${Math.floor(Math.min(W * 0.07, 42))}px "Segoe UI", system-ui, sans-serif`;
+            ctx.fillStyle = '#ffd32a';
+            ctx.fillText(`Score: ${score}`, W / 2, cy + Math.min(W * 0.16, 95));
+
+            ctx.font = `${Math.floor(Math.min(W * 0.04, 22))}px "Segoe UI", system-ui, sans-serif`;
+            ctx.fillStyle = 'rgba(255,255,255,0.6)';
+            ctx.fillText(`Best: ${highScore}`, W / 2, cy + Math.min(W * 0.22, 130));
+
+            // Snail emoji celebration
+            const emojiSize = Math.floor(Math.min(W * 0.08, 48));
+            ctx.font = `${emojiSize}px "Segoe UI", system-ui, sans-serif`;
+            const wobble = Math.sin(Date.now() * 0.003) * 8;
+            ctx.fillText('\u{1F40C}', W / 2 - 50 + wobble, cy + Math.min(W * 0.3, 175));
+            ctx.fillText('\u{1F451}', W / 2 + wobble, cy + Math.min(W * 0.3, 175) - emojiSize * 0.6);
+            ctx.fillText('\u{1F40C}', W / 2 + 50 + wobble, cy + Math.min(W * 0.3, 175));
+
+            const btnW = 200, btnH = 50;
+            const btnX = W / 2 - btnW / 2, btnY = cy + Math.min(W * 0.38, 220);
+            const btnGrad = ctx.createLinearGradient(btnX, btnY, btnX + btnW, btnY + btnH);
+            btnGrad.addColorStop(0, '#ffd32a');
+            btnGrad.addColorStop(1, '#ff9f43');
+            ctx.fillStyle = btnGrad;
+            ctx.beginPath();
+            ctx.roundRect(btnX, btnY, btnW, btnH, 12);
+            ctx.fill();
+            ctx.font = `bold 18px "Segoe UI", system-ui, sans-serif`;
+            ctx.fillStyle = '#000';
+            ctx.fillText('Play Again', W / 2, btnY + btnH / 2);
+            draw._retryBtn = { x: btnX, y: btnY, w: btnW, h: btnH };
+        } else {
+            ctx.font = `bold ${Math.floor(Math.min(W * 0.12, 72))}px "Segoe UI", system-ui, sans-serif`;
+            ctx.fillStyle = '#fff';
+            ctx.shadowColor = theme.accent;
+            ctx.shadowBlur = 30;
+            ctx.fillText('Squished!', W / 2, cy);
+
+            ctx.shadowBlur = 0;
+            ctx.font = `bold ${Math.floor(Math.min(W * 0.07, 42))}px "Segoe UI", system-ui, sans-serif`;
+            ctx.fillStyle = '#ffd32a';
+            ctx.fillText(`Score: ${score}`, W / 2, cy + Math.min(W * 0.1, 60));
+
+            ctx.font = `bold ${Math.floor(Math.min(W * 0.035, 20))}px "Segoe UI", system-ui, sans-serif`;
+            ctx.fillStyle = theme.glow;
+            ctx.fillText(`${LEVELS[currentLevel].name}`, W / 2, cy + Math.min(W * 0.145, 85));
+
+            ctx.font = `${Math.floor(Math.min(W * 0.04, 22))}px "Segoe UI", system-ui, sans-serif`;
+            ctx.fillStyle = 'rgba(255,255,255,0.6)';
+            ctx.fillText(`Best: ${highScore}`, W / 2, cy + Math.min(W * 0.19, 110));
+
+            const btnW = 200, btnH = 50;
+            const btnX = W / 2 - btnW / 2, btnY = cy + Math.min(W * 0.26, 150);
+            const btnGrad = ctx.createLinearGradient(btnX, btnY, btnX + btnW, btnY + btnH);
+            btnGrad.addColorStop(0, theme.accent);
+            btnGrad.addColorStop(1, theme.glow);
+            ctx.fillStyle = btnGrad;
+            ctx.beginPath();
+            ctx.roundRect(btnX, btnY, btnW, btnH, 12);
+            ctx.fill();
+            ctx.font = `bold 18px "Segoe UI", system-ui, sans-serif`;
+            ctx.fillStyle = '#fff';
+            ctx.fillText('Play Again', W / 2, btnY + btnH / 2);
+            draw._retryBtn = { x: btnX, y: btnY, w: btnW, h: btnH };
+        }
+
+        ctx.restore();
+    }
+}
+
+// --- Game Loop ---
+let lastTime = 0;
+function gameLoop(time) {
+    const dt = Math.min((time - lastTime) / 16.67, 3);
+    lastTime = time;
+
+    if (gameRunning) {
+        update(dt);
+    } else if (gameOver) {
+        gameOverAlpha = Math.min(1, gameOverAlpha + 0.02 * dt);
+        if (screenShake > 0) {
+            screenShake = Math.max(0, screenShake - dt);
+            screenShakeX = (Math.random() - 0.5) * screenShake * 1.5;
+            screenShakeY = (Math.random() - 0.5) * screenShake * 1.5;
+        } else { screenShakeX = 0; screenShakeY = 0; }
+        if (hitFlashAlpha > 0) hitFlashAlpha = Math.max(0, hitFlashAlpha - 0.015 * dt);
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i];
+            p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 0.15 * dt; p.life -= dt;
+            if (p.life <= 0) particles.splice(i, 1);
+        }
+    }
+
+    draw(time);
+    requestAnimationFrame(gameLoop);
+}
+
+// --- Input ---
+function onDown(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    audioCtx.resume();
+
+    if (gameOver && draw._retryBtn) {
+        const r = draw._retryBtn;
+        const px = e.clientX || (e.touches && e.touches[0].clientX);
+        const py = e.clientY || (e.touches && e.touches[0].clientY);
+        if (px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h) {
+            resetGame();
+            return;
+        }
+    }
+
+    if (!gameRunning) return;
+    if (!holding) {
+        holding = true;
+        playStretch();
+    }
+}
+
+function onUp(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!gameRunning) return;
+    holding = false;
+}
+
+canvas.addEventListener('pointerdown', onDown);
+canvas.addEventListener('pointerup', onUp);
+canvas.addEventListener('pointercancel', onUp);
+
+document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') {
+        e.preventDefault();
+        // Don't handle space if overlay (start screen) is still showing
+        if (!overlay.classList.contains('hidden')) return;
+        if (gameOver) { resetGame(); return; }
+        onDown(e);
+    }
+});
+document.addEventListener('keyup', (e) => {
+    if (e.code === 'Space') {
+        e.preventDefault();
+        onUp(e);
+    }
+});
+
+startBtn.addEventListener('click', () => {
+    audioCtx.resume();
+    overlay.classList.add('hidden');
+    resetGame();
+});
+
+// Init for pre-game preview
+groundY = H * GROUND_Y;
+head.from = vec(100, groundY);
+head.to = vec(100, groundY);
+camX = head.to.x - W * 0.35;
+
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>

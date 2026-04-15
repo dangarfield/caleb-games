@@ -1,0 +1,1315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Count Masters</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#87CEEB; overflow:hidden; touch-action:none; font-family:'Segoe UI',system-ui,sans-serif; }
+canvas { display:block; }
+#backBtn{position:fixed;top:12px;left:12px;z-index:9999;background:rgba(0,0,0,0.55);color:#fff;text-decoration:none;padding:6px 18px;border-radius:20px;font:bold 15px/1.4 'Segoe UI',system-ui,sans-serif;border:1px solid rgba(255,255,255,0.18);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:background 0.2s}
+#backBtn:hover{background:rgba(0,0,0,0.75)}
+#hud { position:fixed; top:60px; left:50%; transform:translateX(-50%); z-index:20;
+  background:rgba(0,0,0,0.5); color:#fff; padding:8px 28px; border-radius:20px;
+  font:bold 14px 'Segoe UI',system-ui,sans-serif; backdrop-filter:blur(6px);
+  pointer-events:none; text-align:center; min-width:180px;
+  display:flex; align-items:center; gap:20px; justify-content:center; }
+#hud .level { color:rgba(255,255,255,0.7); }
+#hud .score { font-size:22px; }
+#hud .best { font-size:11px; color:rgba(255,255,255,0.5); }
+#overlay { position:fixed; inset:0; z-index:30; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(0,0,0,0.65); color:#fff; text-align:center; backdrop-filter:blur(4px); }
+#overlay h1 { font-size:clamp(2rem,8vw,4rem); margin-bottom:0.3rem; text-shadow:0 2px 20px rgba(0,0,0,0.5); }
+#overlay .sub { font-size:clamp(1rem,3vw,1.4rem); color:#a0c4ff; margin-bottom:1rem; }
+#overlay .info { font-size:clamp(0.85rem,2.5vw,1.05rem); color:rgba(255,255,255,0.7); margin-bottom:1.5rem; max-width:460px; padding:0 1rem; line-height:1.5; }
+#overlay button { padding:14px 44px; font-size:1.3rem; border:none; border-radius:14px; background:linear-gradient(135deg,#00c0ff,#0080ff); color:#fff; cursor:pointer; font-weight:700; box-shadow:0 4px 24px rgba(0,128,255,0.4); transition:transform 0.15s; pointer-events:auto; }
+#overlay button:hover { transform:scale(1.05); }
+#overlay button:active { transform:scale(0.95); }
+#resultOverlay { position:fixed; inset:0; z-index:30; display:none; flex-direction:column; align-items:center; justify-content:center; background:rgba(0,0,0,0.6); color:#fff; text-align:center; backdrop-filter:blur(4px); padding:0 20px; }
+#resultOverlay h1 { font-size:clamp(2rem,8vw,3.5rem); margin-bottom:0.3rem; max-width:100%; word-wrap:break-word; }
+#resultOverlay .score { font-size:clamp(1.5rem,5vw,2.5rem); color:#ffd32a; margin-bottom:0.3rem; font-weight:700; max-width:100%; }
+#resultOverlay .detail { font-size:clamp(0.9rem,2.5vw,1.1rem); color:rgba(255,255,255,0.65); margin-bottom:1.5rem; max-width:100%; }
+#resultOverlay button { padding:14px 44px; font-size:1.3rem; border:none; border-radius:14px; background:linear-gradient(135deg,#00c0ff,#0080ff); color:#fff; cursor:pointer; font-weight:700; box-shadow:0 4px 24px rgba(0,128,255,0.4); transition:transform 0.15s; pointer-events:auto; }
+#resultOverlay button:hover { transform:scale(1.05); }
+#resultOverlay button:active { transform:scale(0.95); }
+.hidden { display:none !important; }
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+<div id="hud" class="hidden">
+  <span class="level">Level 1</span>
+  <span class="score">0</span>
+  <span class="best"></span>
+</div>
+<div id="overlay">
+  <h1>Count Masters</h1>
+  <div class="sub">Build your army, crush the enemy!</div>
+  <div class="info">Drag left and right to steer your crowd through gates. Pick wisely to grow your numbers, then clash against enemies!</div>
+  <button id="startBtn">Play</button>
+</div>
+<div id="resultOverlay">
+  <h1 id="resultTitle">Level Clear!</h1>
+  <div class="score" id="resultScore"></div>
+  <div class="detail" id="resultDetail"></div>
+  <button id="resultBtn">Continue</button>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+// ============================================================
+//  STORAGE
+// ============================================================
+function loadArcadeData() {
+    try { return JSON.parse(localStorage.getItem('calebArcadeData')) || {}; } catch { return {}; }
+}
+function saveArcadeData(d) { localStorage.setItem('calebArcadeData', JSON.stringify(d)); }
+function getHighScore() { const d = loadArcadeData(); return (d.countmaster && d.countmaster.highScore) || 0; }
+function setHighScore(v) { const d = loadArcadeData(); if (!d.countmaster) d.countmaster = {}; d.countmaster.highScore = v; saveArcadeData(d); }
+
+// ============================================================
+//  DOM REFS
+// ============================================================
+const overlay = document.getElementById('overlay');
+const startBtn = document.getElementById('startBtn');
+const hud = document.getElementById('hud');
+const resultOverlay = document.getElementById('resultOverlay');
+const resultTitle = document.getElementById('resultTitle');
+const resultScore = document.getElementById('resultScore');
+const resultDetail = document.getElementById('resultDetail');
+const resultBtn = document.getElementById('resultBtn');
+
+// ============================================================
+//  THREE.JS SETUP
+// ============================================================
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87CEEB);
+scene.fog = new THREE.Fog(0x87CEEB, 40, 120);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 200);
+
+window.addEventListener('resize', () => {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+});
+
+// ============================================================
+//  LIGHTING
+// ============================================================
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(5, 15, -5);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(1024, 1024);
+dirLight.shadow.camera.near = 0.5;
+dirLight.shadow.camera.far = 80;
+dirLight.shadow.camera.left = -20;
+dirLight.shadow.camera.right = 20;
+dirLight.shadow.camera.top = 20;
+dirLight.shadow.camera.bottom = -20;
+scene.add(dirLight);
+
+// ============================================================
+//  CONSTANTS  (from Unity PlayerData.asset / EnemyData.asset)
+// ============================================================
+const TRACK_WIDTH = 6;        // Unity default
+const HALF_TRACK = TRACK_WIDTH / 2;
+const PLAYER_SPEED = 6;       // Unity: speed=6
+const PLAYER_COLOR = 0x00C0FF;// Unity: r=0 g=0.753 b=1
+const ENEMY_COLOR = 0xFF0000; // Unity: r=1 g=0 b=0
+const GATE_GOOD_COLOR = 0x2196F3;
+const GATE_BAD_COLOR = 0xF44336;
+const GATHER_POWER = 8;       // loosely from Unity gatherPower=200
+
+const CAM_OFFSET = new THREE.Vector3(0, 7, -7); // Unity: (0,7,-7)
+const CAM_LERP = 3;
+
+// ============================================================
+//  SHARED GEOMETRIES & MATERIALS
+// ============================================================
+const playerGeo = new THREE.CapsuleGeometry(0.2, 0.4, 4, 8);
+const playerMat = new THREE.MeshLambertMaterial({ color: PLAYER_COLOR });
+const enemyMat = new THREE.MeshLambertMaterial({ color: ENEMY_COLOR });
+const floorMat = new THREE.MeshLambertMaterial({ color: 0xD0E8F0 });
+const edgeMat = new THREE.MeshLambertMaterial({ color: 0x90B8D0 });
+const gatePillarGeo = new THREE.BoxGeometry(0.15, 2.2, 0.15);
+const gatePillarMat = new THREE.MeshLambertMaterial({ color: 0x666666 });
+
+// ============================================================
+//  LEVEL DATA  (hand-crafted from Unity scene analysis +
+//  original gate operations: calculateMode 0=+, 1=-, 2=x, 3=÷)
+//
+//  Unity scene had 9 gates + 2 enemy groups on a 120-unit track.
+//  Extracted gate ops: +10/-10, ÷2/+5, x2/+15, +5/+10, ÷2/-15,
+//  ÷3/÷2, +N/+5, +N/+N  (some defaults not overridden in scene).
+//  EnemyManager_01: startCount=20. Player starts with 1.
+// ============================================================
+const LEVELS = [
+    // Level 1: Tutorial — learn the basics (optimal: finish with 6)
+    // 1 → +5=6 → +4=10 → x2=20 → fight 10=10 → +8=18 → fight 12=6
+    {
+        startCount: 1, trackLength: 90, trackWidth: 6,
+        gates: [
+            { z: 20, left: { op: '+', val: 5 }, right: { op: '+', val: 3 } },
+            { z: 30, left: { op: '-', val: 2 }, right: { op: '+', val: 4 } },
+            { z: 40, left: { op: 'x', val: 2 }, right: { op: '+', val: 3 } },
+        ],
+        enemies: [
+            { z: 55, count: 10 },
+        ],
+        gates2: [
+            { z: 65, left: { op: '+', val: 8 }, right: { op: '-', val: 3 } },
+        ],
+        enemies2: [
+            { z: 80, count: 12 },
+        ]
+    },
+    // Level 2: Multiply matters (optimal: finish with 9)
+    // 1 → +8=9 → x3=27 → +5=32 → fight 15=17 → x2=34 → +10=44 → fight 20=24 → fight 15=9
+    {
+        startCount: 1, trackLength: 110, trackWidth: 6,
+        gates: [
+            { z: 20, left: { op: '+', val: 8 }, right: { op: '+', val: 4 } },
+            { z: 30, left: { op: 'x', val: 3 }, right: { op: '+', val: 5 } },
+            { z: 40, left: { op: '+', val: 5 }, right: { op: '-', val: 4 } },
+        ],
+        enemies: [
+            { z: 52, count: 15 },
+        ],
+        gates2: [
+            { z: 62, left: { op: 'x', val: 2 }, right: { op: '÷', val: 2 } },
+            { z: 72, left: { op: '+', val: 10 }, right: { op: '-', val: 8 } },
+        ],
+        enemies2: [
+            { z: 86, count: 20 },
+            { z: 100, count: 15 },
+        ]
+    },
+    // Level 3: Traps appear (optimal: finish with 5)
+    // 1 → +10=11 → x3=33 → -2=31 → fight 15=16 → x2=32 → -3=29 → fight 18=11 → +15=26 → fight 21=5
+    {
+        startCount: 1, trackLength: 120, trackWidth: 6,
+        gates: [
+            { z: 20, left: { op: '+', val: 10 }, right: { op: '+', val: 5 } },
+            { z: 30, left: { op: 'x', val: 3 }, right: { op: '+', val: 8 } },
+            { z: 40, left: { op: '-', val: 2 }, right: { op: '-', val: 6 } },  // both bad
+        ],
+        enemies: [
+            { z: 52, count: 15 },
+        ],
+        gates2: [
+            { z: 62, left: { op: 'x', val: 2 }, right: { op: '+', val: 5 } },
+            { z: 72, left: { op: '-', val: 3 }, right: { op: '-', val: 8 } },  // both bad
+        ],
+        enemies2: [
+            { z: 84, count: 18 },
+        ],
+        gates3: [
+            { z: 94, left: { op: '+', val: 15 }, right: { op: '+', val: 8 } },
+        ],
+        enemies3: [
+            { z: 110, count: 21 },
+        ]
+    },
+    // Level 4: Divide dilemmas (optimal: finish with 8)
+    // 1 → +10=11 → x3=33 → +5=38 → fight 18=20 → x2=40 → -5=35 → fight 20=15
+    // → +20=35 → ÷2=17... or +20 better → fight 25=10 → +8=18 → fight 10=8
+    {
+        startCount: 1, trackLength: 140, trackWidth: 6,
+        gates: [
+            { z: 20, left: { op: '+', val: 10 }, right: { op: '+', val: 5 } },
+            { z: 30, left: { op: 'x', val: 3 }, right: { op: '+', val: 10 } },
+            { z: 40, left: { op: '+', val: 5 }, right: { op: '-', val: 3 } },
+        ],
+        enemies: [
+            { z: 52, count: 18 },
+        ],
+        gates2: [
+            { z: 62, left: { op: 'x', val: 2 }, right: { op: '÷', val: 2 } },
+            { z: 72, left: { op: '-', val: 5 }, right: { op: '-', val: 10 } },  // both bad
+        ],
+        enemies2: [
+            { z: 84, count: 20 },
+        ],
+        gates3: [
+            { z: 94, left: { op: '+', val: 20 }, right: { op: 'x', val: 2 } },
+        ],
+        enemies3: [
+            { z: 106, count: 25 },
+        ],
+        gates4: [
+            { z: 116, left: { op: '+', val: 8 }, right: { op: '÷', val: 3 } },
+        ],
+        enemies4: [
+            { z: 130, count: 10 },
+        ]
+    },
+    // Level 5: Gauntlet (optimal: finish with 3)
+    // 1 → +12=13 → x3=39 → +5=44 → fight 20=24 → -3=21 → x2=42 → fight 25=17
+    // → +15=32 → -5=27 → fight 18=9 → x3=27 → fight 20=7 → +10=17 → fight 14=3
+    {
+        startCount: 1, trackLength: 162, trackWidth: 6,
+        gates: [
+            { z: 20, left: { op: '+', val: 12 }, right: { op: '+', val: 5 } },
+            { z: 28, left: { op: 'x', val: 3 }, right: { op: '+', val: 8 } },
+            { z: 36, left: { op: '+', val: 5 }, right: { op: '-', val: 5 } },
+        ],
+        enemies: [
+            { z: 46, count: 20 },
+        ],
+        gates2: [
+            { z: 56, left: { op: '-', val: 3 }, right: { op: '-', val: 8 } },  // both bad
+            { z: 66, left: { op: 'x', val: 2 }, center: { op: '+', val: 10 }, right: { op: '-', val: 5 } },
+        ],
+        enemies2: [
+            { z: 78, count: 25 },
+        ],
+        gates3: [
+            { z: 88, left: { op: '+', val: 15 }, right: { op: '-', val: 5 } },
+            { z: 98, left: { op: '-', val: 5 }, right: { op: '÷', val: 2 } },  // both bad
+        ],
+        enemies3: [
+            { z: 110, count: 18 },
+        ],
+        gates4: [
+            { z: 120, left: { op: 'x', val: 3 }, right: { op: '+', val: 5 } },
+        ],
+        enemies4: [
+            { z: 132, count: 20 },
+        ],
+        gates5: [
+            { z: 140, left: { op: '+', val: 10 }, right: { op: '-', val: 3 } },
+        ],
+        enemies5: [
+            { z: 154, count: 14 },
+        ]
+    },
+];
+
+function getLevelData(lvl) {
+    let data;
+    if (lvl <= LEVELS.length) {
+        const raw = JSON.parse(JSON.stringify(LEVELS[lvl - 1]));
+        const gates = [...(raw.gates || [])];
+        const enemies = [...(raw.enemies || [])];
+        for (let i = 2; i <= 10; i++) {
+            if (raw['gates' + i]) gates.push(...raw['gates' + i]);
+            if (raw['enemies' + i]) enemies.push(...raw['enemies' + i]);
+        }
+        data = { startCount: raw.startCount, trackLength: raw.trackLength, trackWidth: raw.trackWidth, gates, enemies };
+    } else {
+        data = generateProceduralLevel(lvl);
+    }
+    // Randomize left/right positions on each gate
+    for (const g of data.gates) {
+        if (g.center) {
+            // Triple gate: shuffle all 3 options
+            const opts = [g.left, g.center, g.right];
+            for (let i = opts.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [opts[i], opts[j]] = [opts[j], opts[i]];
+            }
+            g.left = opts[0]; g.center = opts[1]; g.right = opts[2];
+        } else {
+            // Double gate: 50% chance to swap
+            if (Math.random() < 0.5) {
+                [g.left, g.right] = [g.right, g.left];
+            }
+        }
+    }
+    return data;
+}
+
+function generateProceduralLevel(lvl) {
+    const trackLength = 100 + lvl * 10;
+    const numGates = 6 + Math.floor(lvl * 0.8);
+    const numEnemies = 3 + Math.floor(lvl * 0.5);
+
+    // Generate and validate — simulate the level to ensure it's beatable
+    for (let attempt = 0; attempt < 20; attempt++) {
+        const gates = [];
+        const enemies = [];
+        const totalElements = numGates + numEnemies;
+        const spacing = (trackLength - 20) / (totalElements + 1);
+
+        let z = 20;
+        let enemyIdx = 0;
+        const enemyInterval = Math.floor(totalElements / (numEnemies + 1));
+
+        for (let i = 0; i < totalElements; i++) {
+            if ((i + 1) % enemyInterval === 0 && enemyIdx < numEnemies) {
+                const eCount = Math.floor(10 + lvl * 6 + enemyIdx * lvl * 2.5 + Math.random() * lvl * 4);
+                enemies.push({ z, count: eCount });
+                enemyIdx++;
+                z += spacing * 1.3;
+            } else {
+                const pair = generateBalancedGatePair(lvl);
+                gates.push({ z, left: pair[0], right: pair[1] });
+                z += spacing;
+            }
+        }
+
+        // Convert some gates to triple gates: 1 per 5 levels (level 5+ = 1, level 10+ = 2, etc.)
+        const numTriples = Math.min(Math.floor(lvl / 5), gates.length);
+        if (numTriples > 0) {
+            // Pick random gate indices to make triple
+            const indices = gates.map((_, i) => i);
+            for (let i = indices.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [indices[i], indices[j]] = [indices[j], indices[i]];
+            }
+            for (let t = 0; t < numTriples; t++) {
+                const gi = indices[t];
+                const g = gates[gi];
+                // Add a third option — generate one more gate option
+                const extra = generateTripleGateExtra(lvl);
+                g.center = extra;
+            }
+        }
+
+        const data = { startCount: 1, trackLength, trackWidth: 6, gates, enemies };
+
+        // Simulate: always pick best gate, check if player can survive all enemies
+        if (simulateLevel(data)) return data;
+    }
+
+    // Fallback: generate an easy level
+    return generateEasyFallback(lvl, trackLength);
+}
+
+function generateBalancedGatePair(lvl) {
+    const patterns = [
+        // One good, one bad
+        () => [
+            { op: '+', val: 3 + Math.floor(Math.random() * (5 + lvl)) },
+            { op: '-', val: 2 + Math.floor(Math.random() * (3 + lvl)) }
+        ],
+        // Both positive but different
+        () => [
+            { op: '+', val: 2 + Math.floor(Math.random() * 5) },
+            { op: '+', val: 5 + Math.floor(Math.random() * (5 + lvl)) }
+        ],
+        // Multiply vs add
+        () => [
+            { op: 'x', val: 2 },
+            { op: '+', val: 3 + Math.floor(Math.random() * 8) }
+        ],
+        // Divide vs subtract
+        () => [
+            { op: '÷', val: 2 },
+            { op: '-', val: 3 + Math.floor(Math.random() * (5 + lvl)) }
+        ],
+    ];
+
+    // Add harder patterns at higher levels
+    if (lvl >= 3) {
+        patterns.push(() => [
+            { op: '-', val: 2 + Math.floor(Math.random() * 4) },
+            { op: '-', val: 6 + Math.floor(Math.random() * (3 + lvl)) }
+        ]);
+    }
+    if (lvl >= 4) {
+        patterns.push(() => [
+            { op: 'x', val: Math.random() < 0.5 ? 2 : 3 },
+            { op: '÷', val: 2 }
+        ]);
+    }
+
+    const pair = patterns[Math.floor(Math.random() * patterns.length)]();
+    return Math.random() > 0.5 ? pair : [pair[1], pair[0]];
+}
+
+function generateTripleGateExtra(lvl) {
+    const options = [
+        { op: '+', val: 2 + Math.floor(Math.random() * (4 + lvl)) },
+        { op: '-', val: 2 + Math.floor(Math.random() * (3 + lvl)) },
+        { op: 'x', val: Math.random() < 0.5 ? 2 : 3 },
+        { op: '÷', val: 2 },
+    ];
+    return options[Math.floor(Math.random() * options.length)];
+}
+
+function simulateLevel(data) {
+    let simCount = data.startCount;
+    let gateIdx = 0;
+    let enemyIdx = 0;
+
+    // Process elements in order of z position
+    const allElements = [
+        ...data.gates.map(g => ({ type: 'gate', z: g.z, data: g })),
+        ...data.enemies.map(e => ({ type: 'enemy', z: e.z, data: e }))
+    ].sort((a, b) => a.z - b.z);
+
+    for (const el of allElements) {
+        if (el.type === 'gate') {
+            // Pick the best gate option
+            const g = el.data;
+            const countAfterLeft = applyGateSim(simCount, g.left);
+            const countAfterRight = applyGateSim(simCount, g.right);
+            const countAfterCenter = g.center ? applyGateSim(simCount, g.center) : -Infinity;
+            simCount = Math.max(countAfterLeft, countAfterRight, countAfterCenter);
+        } else {
+            // 1:1 fight: both sides lose equally until one is gone
+            simCount = Math.max(0, simCount - el.data.count);
+        }
+        if (simCount <= 0) return false;
+    }
+    return simCount > 0;
+}
+
+function applyGateSim(count, gate) {
+    switch (gate.op) {
+        case '+': return Math.min(count + gate.val, 999);
+        case '-': return Math.max(0, count - gate.val);
+        case 'x': return Math.min(count * gate.val, 999);
+        case '÷': return Math.max(1, Math.floor(count / gate.val));
+    }
+    return count;
+}
+
+function generateEasyFallback(lvl, trackLength) {
+    // Guaranteed beatable: all gates are positive, small enemies
+    const gates = [];
+    const enemies = [];
+    let z = 20;
+    const spacing = (trackLength - 28) / 10;
+    for (let i = 0; i < 7; i++) {
+        gates.push({ z, left: { op: '+', val: 5 + i * 2 }, right: { op: '+', val: 3 + i } });
+        z += spacing;
+    }
+    for (let i = 0; i < 3; i++) {
+        enemies.push({ z, count: 10 + lvl * 3 + i * 5 });
+        z += spacing;
+    }
+    return { startCount: 1, trackLength, trackWidth: 6, gates, enemies };
+}
+
+// ============================================================
+//  GAME STATE
+// ============================================================
+let state = 'menu'; // menu, play, fight, goal, clear, fail
+let level = 1;
+let score = 0;
+let highScore = getHighScore();
+let count = 1;
+let playerCenterX = 0;
+let playerCenterZ = 0;
+let targetX = 0;
+let trackLength = 80;
+
+let players = [];
+let enemyGroups = [];
+let gateObjects = [];
+let floorGroup = null;
+let particles = [];
+let floatingTexts3D = [];
+let currentFight = null;
+let playerCountSprite = null;
+
+const clock = new THREE.Clock();
+
+// ============================================================
+//  PARTICLE SYSTEM
+// ============================================================
+const particleGeo = new THREE.SphereGeometry(0.08, 4, 4);
+
+function spawnParticles3D(pos, color, n) {
+    for (let i = 0; i < n; i++) {
+        const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1 });
+        const mesh = new THREE.Mesh(particleGeo, mat);
+        mesh.position.copy(pos);
+        scene.add(mesh);
+        particles.push({
+            mesh,
+            vx: (Math.random() - 0.5) * 6,
+            vy: 2 + Math.random() * 5,
+            vz: (Math.random() - 0.5) * 6,
+            life: 0.6 + Math.random() * 0.4,
+            maxLife: 1,
+        });
+    }
+}
+
+function updateParticles(dt) {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.mesh.position.x += p.vx * dt;
+        p.mesh.position.y += p.vy * dt;
+        p.mesh.position.z += p.vz * dt;
+        p.vy -= 9.8 * dt;
+        p.life -= dt;
+        p.mesh.material.opacity = Math.max(0, p.life / p.maxLife);
+        if (p.life <= 0) {
+            scene.remove(p.mesh);
+            p.mesh.material.dispose();
+            particles.splice(i, 1);
+        }
+    }
+}
+
+// ============================================================
+//  FLOATING TEXT (3D sprite)
+// ============================================================
+function spawnFloatingText3D(pos, text, color) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 128;
+    const c = canvas.getContext('2d');
+    c.font = 'bold 64px "Segoe UI", system-ui, sans-serif';
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillStyle = color;
+    c.strokeStyle = '#000'; c.lineWidth = 4;
+    c.strokeText(text, 128, 64);
+    c.fillText(text, 128, 64);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+    const sprite = new THREE.Sprite(mat);
+    sprite.position.copy(pos);
+    sprite.position.y += 1.5;
+    sprite.scale.set(2.5, 1.25, 1);
+    scene.add(sprite);
+    floatingTexts3D.push({ sprite, life: 1.2, maxLife: 1.2 });
+}
+
+function updateFloatingTexts(dt) {
+    for (let i = floatingTexts3D.length - 1; i >= 0; i--) {
+        const f = floatingTexts3D[i];
+        f.sprite.position.y += 1.5 * dt;
+        f.life -= dt;
+        f.sprite.material.opacity = Math.max(0, f.life / f.maxLife);
+        if (f.life <= 0) {
+            scene.remove(f.sprite);
+            f.sprite.material.map.dispose();
+            f.sprite.material.dispose();
+            floatingTexts3D.splice(i, 1);
+        }
+    }
+}
+
+// ============================================================
+//  COUNT SPRITE (above player crowd)
+// ============================================================
+function makeCountSprite(num, color, bgColor) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 128;
+    const c = canvas.getContext('2d');
+
+    // Background pill
+    if (bgColor) {
+        c.fillStyle = bgColor;
+        c.beginPath();
+        c.roundRect(40, 20, 176, 88, 30);
+        c.fill();
+    }
+
+    c.font = 'bold 72px "Segoe UI", system-ui, sans-serif';
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillStyle = color;
+    c.strokeStyle = '#000'; c.lineWidth = 4;
+    c.strokeText(String(num), 128, 64);
+    c.fillText(String(num), 128, 64);
+    const tex = new THREE.CanvasTexture(canvas);
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+    return new THREE.Sprite(mat);
+}
+
+function updatePlayerCountSprite() {
+    if (playerCountSprite) {
+        scene.remove(playerCountSprite);
+        playerCountSprite.material.map.dispose();
+        playerCountSprite.material.dispose();
+    }
+    playerCountSprite = makeCountSprite(count, '#FFFFFF', 'rgba(0,192,255,0.7)');
+    playerCountSprite.position.set(playerCenterX, 1.2, playerCenterZ - 0.5);
+    playerCountSprite.scale.set(2, 1, 1);
+    scene.add(playerCountSprite);
+}
+
+function updateEnemyCountSprite(eg) {
+    if (eg.countSprite) {
+        scene.remove(eg.countSprite);
+        eg.countSprite.material.map.dispose();
+        eg.countSprite.material.dispose();
+    }
+    if (eg.count > 0) {
+        eg.countSprite = makeCountSprite(eg.count, '#FFFFFF', 'rgba(255,0,0,0.7)');
+        eg.countSprite.position.set(0, 2.2, eg.z);
+        eg.countSprite.scale.set(2, 1, 1);
+        scene.add(eg.countSprite);
+    } else {
+        eg.countSprite = null;
+    }
+}
+
+// ============================================================
+//  BUILD LEVEL
+// ============================================================
+function clearScene() {
+    for (const p of players) scene.remove(p.mesh);
+    for (const eg of enemyGroups) {
+        for (const e of eg.enemies) scene.remove(e.mesh);
+        if (eg.countSprite) { scene.remove(eg.countSprite); eg.countSprite.material.map.dispose(); eg.countSprite.material.dispose(); }
+    }
+    for (const g of gateObjects) scene.remove(g.group);
+    for (const p of particles) { scene.remove(p.mesh); p.mesh.material.dispose(); }
+    for (const f of floatingTexts3D) { scene.remove(f.sprite); f.sprite.material.map.dispose(); f.sprite.material.dispose(); }
+    if (floorGroup) scene.remove(floorGroup);
+    if (playerCountSprite) { scene.remove(playerCountSprite); playerCountSprite.material.map.dispose(); playerCountSprite.material.dispose(); playerCountSprite = null; }
+
+    players = [];
+    enemyGroups = [];
+    gateObjects = [];
+    particles = [];
+    floatingTexts3D = [];
+    floorGroup = null;
+    currentFight = null;
+}
+
+function buildLevel(lvl) {
+    clearScene();
+    const data = getLevelData(lvl);
+    count = data.startCount;
+    trackLength = data.trackLength;
+    playerCenterX = 0;
+    playerCenterZ = 0;
+    targetX = 0;
+
+    // Floor
+    floorGroup = new THREE.Group();
+    const floorLen = trackLength + 20;
+    const floorGeo = new THREE.PlaneGeometry(TRACK_WIDTH, floorLen);
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(0, 0, floorLen / 2 - 5);
+    floor.receiveShadow = true;
+    floorGroup.add(floor);
+
+    // Edge walls
+    const edgeGeo = new THREE.BoxGeometry(0.2, 0.3, floorLen);
+    const edgeL = new THREE.Mesh(edgeGeo, edgeMat);
+    edgeL.position.set(-HALF_TRACK - 0.1, 0.15, floorLen / 2 - 5);
+    floorGroup.add(edgeL);
+    const edgeR = new THREE.Mesh(edgeGeo, edgeMat);
+    edgeR.position.set(HALF_TRACK + 0.1, 0.15, floorLen / 2 - 5);
+    floorGroup.add(edgeR);
+
+    // Dashed center line
+    for (let cz = -5; cz < trackLength + 10; cz += 3) {
+        const dashGeo = new THREE.PlaneGeometry(0.1, 1.5);
+        const dashMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.15, side: THREE.DoubleSide });
+        const dash = new THREE.Mesh(dashGeo, dashMat);
+        dash.rotation.x = -Math.PI / 2;
+        dash.position.set(0, 0.005, cz);
+        floorGroup.add(dash);
+    }
+
+    // Finish line
+    const finGeo = new THREE.PlaneGeometry(TRACK_WIDTH, 1);
+    const finMat = new THREE.MeshBasicMaterial({ color: 0xFFD700, side: THREE.DoubleSide });
+    const finMesh = new THREE.Mesh(finGeo, finMat);
+    finMesh.rotation.x = -Math.PI / 2;
+    finMesh.position.set(0, 0.01, trackLength);
+    floorGroup.add(finMesh);
+
+    // Checkered finish
+    for (let i = 0; i < 12; i++) {
+        const checkGeo = new THREE.PlaneGeometry(TRACK_WIDTH / 12, 0.5);
+        const checkMat = new THREE.MeshBasicMaterial({ color: i % 2 === 0 ? 0x000000 : 0xFFFFFF, side: THREE.DoubleSide });
+        const checkMesh = new THREE.Mesh(checkGeo, checkMat);
+        checkMesh.rotation.x = -Math.PI / 2;
+        checkMesh.position.set(-HALF_TRACK + (i + 0.5) * (TRACK_WIDTH / 12), 0.02, trackLength + 0.6);
+        floorGroup.add(checkMesh);
+    }
+
+    scene.add(floorGroup);
+
+    // Build gates
+    for (const gd of data.gates) {
+        buildGate(gd);
+    }
+
+    // Build enemy groups
+    for (const ed of data.enemies) {
+        const eg = { z: ed.z, count: ed.count, originalCount: ed.count, enemies: [], passed: false, fighting: false, countSprite: null };
+        spawnEnemyGroup(eg);
+        enemyGroups.push(eg);
+    }
+
+    // Spawn player crowd
+    spawnPlayerCrowd();
+    updatePlayerCountSprite();
+    updateHUD();
+}
+
+function buildGate(gd) {
+    const gateGroup = new THREE.Group();
+    gateGroup.position.z = gd.z;
+    const isTriple = !!gd.center;
+
+    if (isTriple) {
+        // Triple gate: 3 panels across the track
+        const thirdW = TRACK_WIDTH / 3;
+        // Pillars at edges and two dividers
+        for (const px of [-HALF_TRACK, -HALF_TRACK + thirdW, HALF_TRACK - thirdW, HALF_TRACK]) {
+            const pillar = new THREE.Mesh(gatePillarGeo, gatePillarMat);
+            pillar.position.set(px, 1.1, 0);
+            gateGroup.add(pillar);
+        }
+        // Top bars
+        const barGeo = new THREE.BoxGeometry(thirdW - 0.1, 0.1, 0.1);
+        for (let i = 0; i < 3; i++) {
+            const bar = new THREE.Mesh(barGeo, gatePillarMat);
+            bar.position.set(-HALF_TRACK + thirdW * (i + 0.5), 2.2, 0);
+            gateGroup.add(bar);
+        }
+        // Panels and labels for left, center, right
+        const panelGeo = new THREE.PlaneGeometry(thirdW - 0.2, 2);
+        const options = [
+            { data: gd.left,   x: HALF_TRACK - thirdW / 2 },       // +X = screen-left
+            { data: gd.center, x: 0 },                               // center
+            { data: gd.right,  x: -(HALF_TRACK - thirdW / 2) },     // -X = screen-right
+        ];
+        for (const opt of options) {
+            const good = isGoodOp(opt.data);
+            const mat = new THREE.MeshBasicMaterial({
+                color: good ? GATE_GOOD_COLOR : GATE_BAD_COLOR,
+                transparent: true, opacity: 0.55, side: THREE.DoubleSide
+            });
+            const panel = new THREE.Mesh(panelGeo, mat);
+            panel.position.set(opt.x, 1.1, 0);
+            gateGroup.add(panel);
+
+            const sprite = makeTextSprite(gateLabel(opt.data), good ? '#4CAF50' : '#F44336');
+            sprite.position.set(opt.x, 1.3, 0.1);
+            sprite.scale.set(1.5, 0.75, 1);
+            gateGroup.add(sprite);
+        }
+    } else {
+        // Standard double gate
+        for (const px of [-HALF_TRACK, 0, HALF_TRACK]) {
+            const pillar = new THREE.Mesh(gatePillarGeo, gatePillarMat);
+            pillar.position.set(px, 1.1, 0);
+            gateGroup.add(pillar);
+        }
+        for (const sign of [-1, 1]) {
+            const barGeo = new THREE.BoxGeometry(HALF_TRACK - 0.1, 0.1, 0.1);
+            const bar = new THREE.Mesh(barGeo, gatePillarMat);
+            bar.position.set(sign * HALF_TRACK / 2, 2.2, 0);
+            gateGroup.add(bar);
+        }
+        const panelGeo = new THREE.PlaneGeometry(HALF_TRACK - 0.2, 2);
+        const isLeftGood = isGoodOp(gd.left);
+        const isRightGood = isGoodOp(gd.right);
+
+        const leftPanelMat = new THREE.MeshBasicMaterial({
+            color: isLeftGood ? GATE_GOOD_COLOR : GATE_BAD_COLOR,
+            transparent: true, opacity: 0.55, side: THREE.DoubleSide
+        });
+        const leftPanel = new THREE.Mesh(panelGeo, leftPanelMat);
+        leftPanel.position.set(HALF_TRACK / 2, 1.1, 0);
+        gateGroup.add(leftPanel);
+
+        const rightPanelMat = new THREE.MeshBasicMaterial({
+            color: isRightGood ? GATE_GOOD_COLOR : GATE_BAD_COLOR,
+            transparent: true, opacity: 0.55, side: THREE.DoubleSide
+        });
+        const rightPanel = new THREE.Mesh(panelGeo, rightPanelMat);
+        rightPanel.position.set(-HALF_TRACK / 2, 1.1, 0);
+        gateGroup.add(rightPanel);
+
+        const leftSprite = makeTextSprite(gateLabel(gd.left), isLeftGood ? '#4CAF50' : '#F44336');
+        leftSprite.position.set(HALF_TRACK / 2, 1.3, 0.1);
+        leftSprite.scale.set(2, 1, 1);
+        gateGroup.add(leftSprite);
+
+        const rightSprite = makeTextSprite(gateLabel(gd.right), isRightGood ? '#4CAF50' : '#F44336');
+        rightSprite.position.set(-HALF_TRACK / 2, 1.3, 0.1);
+        rightSprite.scale.set(2, 1, 1);
+        gateGroup.add(rightSprite);
+    }
+
+    scene.add(gateGroup);
+    gateObjects.push({
+        group: gateGroup,
+        z: gd.z,
+        left: gd.left,
+        center: gd.center || null,
+        right: gd.right,
+        passed: false
+    });
+}
+
+function makeTextSprite(text, color) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 128;
+    const c = canvas.getContext('2d');
+    c.font = 'bold 72px "Segoe UI", system-ui, sans-serif';
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillStyle = '#fff';
+    c.strokeStyle = 'rgba(0,0,0,0.5)'; c.lineWidth = 6;
+    c.strokeText(text, 128, 64);
+    c.fillText(text, 128, 64);
+    const tex = new THREE.CanvasTexture(canvas);
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+    return new THREE.Sprite(mat);
+}
+
+function spawnEnemyGroup(eg) {
+    const n = Math.min(eg.count, 100);
+    for (let i = 0; i < n; i++) {
+        const mesh = new THREE.Mesh(playerGeo, enemyMat.clone());
+        mesh.castShadow = true;
+        const angle = Math.random() * Math.PI * 2;
+        const r = Math.sqrt(Math.random()) * Math.min(Math.sqrt(eg.count) * 0.3, 2.5);
+        const ox = Math.cos(angle) * r;
+        const oz = Math.sin(angle) * r;
+        mesh.position.set(ox, 0.4, eg.z + oz);
+        mesh.userData = { ox, oz };
+        scene.add(mesh);
+        eg.enemies.push({ mesh, alive: true });
+    }
+    updateEnemyCountSprite(eg);
+}
+
+// ============================================================
+//  PLAYER CROWD
+// ============================================================
+function spawnPlayerCrowd() {
+    for (const p of players) scene.remove(p.mesh);
+    players = [];
+    const n = Math.min(count, 200);
+    for (let i = 0; i < n; i++) {
+        const mesh = new THREE.Mesh(playerGeo, playerMat);
+        mesh.castShadow = true;
+        // Random disc distribution (uniform area)
+        const angle = Math.random() * Math.PI * 2;
+        const r = Math.sqrt(Math.random()) * Math.min(Math.sqrt(count) * 0.25, 2);
+        const ox = Math.cos(angle) * r;
+        const oz = Math.sin(angle) * r;
+        mesh.position.set(playerCenterX + ox, 0.4, playerCenterZ + oz);
+        scene.add(mesh);
+        players.push({ mesh, ox, oz, phase: Math.random() * Math.PI * 2 });
+    }
+}
+
+function addPlayers(n) {
+    const before = count;
+    count = Math.min(count + n, 999);
+    syncCrowdSize();
+    return count - before;
+}
+
+function removePlayers(n) {
+    const before = count;
+    count = Math.max(0, count - n);
+    syncCrowdSize();
+    return before - count;
+}
+
+function multiplyPlayers(n) {
+    const before = count;
+    count = Math.min(count * n, 999);
+    syncCrowdSize();
+    return count - before;
+}
+
+function dividePlayers(n) {
+    const before = count;
+    count = Math.max(1, Math.floor(count / n));
+    syncCrowdSize();
+    return count - before;
+}
+
+function syncCrowdSize() {
+    const target = Math.min(count, 200);
+    while (players.length < target) {
+        const mesh = new THREE.Mesh(playerGeo, playerMat);
+        mesh.castShadow = true;
+        const angle = Math.random() * Math.PI * 2;
+        const r = Math.random() * 0.5;
+        mesh.position.set(playerCenterX + Math.cos(angle) * r, 0.4, playerCenterZ + Math.sin(angle) * r);
+        scene.add(mesh);
+        players.push({ mesh, ox: Math.cos(angle) * r, oz: Math.sin(angle) * r, phase: Math.random() * Math.PI * 2 });
+    }
+    while (players.length > target) {
+        const p = players.pop();
+        scene.remove(p.mesh);
+    }
+    updatePlayerCountSprite();
+    updateHUD();
+}
+
+// ============================================================
+//  GATE LOGIC
+// ============================================================
+function isGoodOp(gate) {
+    return gate.op === '+' || gate.op === 'x';
+}
+
+function gateLabel(gate) {
+    return `${gate.op}${gate.val}`;
+}
+
+function applyGate(gate) {
+    switch (gate.op) {
+        case '+': return addPlayers(gate.val);
+        case '-': return -removePlayers(gate.val);
+        case 'x': return multiplyPlayers(gate.val);
+        case '÷': return dividePlayers(gate.val);
+    }
+    return 0;
+}
+
+// ============================================================
+//  INPUT — use raycasting to determine which side we pick
+// ============================================================
+let touchActive = false;
+let touchStartX = 0;
+let touchPlayerStart = 0;
+
+renderer.domElement.addEventListener('pointerdown', (e) => {
+    if (state === 'menu' || state === 'clear' || state === 'fail') return;
+    touchActive = true;
+    touchStartX = e.clientX;
+    touchPlayerStart = targetX;
+});
+
+renderer.domElement.addEventListener('pointermove', (e) => {
+    if (!touchActive || (state !== 'play' && state !== 'fight')) return;
+    const dx = (e.clientX - touchStartX) / (window.innerWidth * 0.25);
+    // Negate dx: in Three.js with camera behind player looking +Z, world -X = screen right
+    targetX = Math.max(-HALF_TRACK + 0.5, Math.min(HALF_TRACK - 0.5, touchPlayerStart - dx * HALF_TRACK));
+});
+
+renderer.domElement.addEventListener('pointerup', () => { touchActive = false; });
+renderer.domElement.addEventListener('pointercancel', () => { touchActive = false; });
+
+// Track which keys are held
+const keysHeld = new Set();
+window.addEventListener('keydown', (e) => {
+    keysHeld.add(e.code);
+    if (e.code === 'Space') {
+        if (state === 'menu') startBtn.click();
+        else if (state === 'fail' || state === 'clear') resultBtn.click();
+    }
+});
+window.addEventListener('keyup', (e) => { keysHeld.delete(e.code); });
+
+function processKeyInput(dt) {
+    if (state !== 'play' && state !== 'fight') return;
+    const speed = 4 * dt;
+    // Inverted: world -X = screen right, world +X = screen left
+    if (keysHeld.has('ArrowLeft') || keysHeld.has('KeyA')) {
+        targetX = Math.min(HALF_TRACK - 0.5, targetX + speed);
+    }
+    if (keysHeld.has('ArrowRight') || keysHeld.has('KeyD')) {
+        targetX = Math.max(-HALF_TRACK + 0.5, targetX - speed);
+    }
+}
+
+// ============================================================
+//  HUD
+// ============================================================
+function updateHUD() {
+    hud.querySelector('.level').textContent = `Level ${level}`;
+    hud.querySelector('.score').textContent = score;
+    const hs = getHighScore();
+    hud.querySelector('.best').textContent = hs > 0 ? `Best: ${hs}` : '';
+}
+
+function showResult(title, scoreText, detail) {
+    resultTitle.textContent = title;
+    resultScore.textContent = scoreText;
+    resultDetail.textContent = detail;
+    resultOverlay.style.display = 'flex';
+}
+
+function hideResult() {
+    resultOverlay.style.display = 'none';
+}
+
+// ============================================================
+//  GAME FLOW
+// ============================================================
+function startGame() {
+    level = 1;
+    score = 0;
+    overlay.classList.add('hidden');
+    hud.classList.remove('hidden');
+    hideResult();
+    // Position camera high and far so level 1 gets the same sweep as later levels
+    camera.position.set(0, 12, -20);
+    startLevel();
+}
+
+function startLevel() {
+    state = 'play';
+    buildLevel(level);
+    hideResult();
+}
+
+function triggerGoal() {
+    state = 'goal';
+    goalCamT = 0;
+    score += count * 10;
+    if (score > highScore) { highScore = score; setHighScore(highScore); }
+    updateHUD();
+
+    spawnParticles3D(new THREE.Vector3(playerCenterX, 1, playerCenterZ), 0xFFD700, 30);
+    spawnParticles3D(new THREE.Vector3(playerCenterX, 1, playerCenterZ), 0x00C0FF, 20);
+
+    setTimeout(() => {
+        state = 'clear';
+        showResult('Level Clear!', `+${count * 10} pts`, `Score: ${score}  |  Best: ${highScore}`);
+        resultBtn.textContent = 'Next Level';
+    }, 1500);
+}
+
+function triggerFail() {
+    state = 'fail';
+    if (score > highScore) { highScore = score; setHighScore(highScore); }
+    updateHUD();
+    setTimeout(() => {
+        showResult('Try Again!', `Level ${level}`, `Score: ${score}  |  Best: ${highScore}`);
+        resultBtn.textContent = 'Restart Level';
+    }, 800);
+}
+
+startBtn.addEventListener('click', startGame);
+resultBtn.addEventListener('click', () => {
+    if (state === 'clear') {
+        level++;
+        startLevel();
+    } else if (state === 'fail') {
+        // Restart same level, keep score
+        startLevel();
+    }
+});
+
+// ============================================================
+//  UPDATE LOOP
+// ============================================================
+let fightTimer = 0;
+let goalCamT = 0;
+
+function update(dt) {
+    dt = Math.min(dt, 0.05);
+
+    processKeyInput(dt);
+    updateParticles(dt);
+    updateFloatingTexts(dt);
+
+    if (state === 'play') {
+        playerCenterZ += PLAYER_SPEED * dt;
+        playerCenterX += (targetX - playerCenterX) * 8 * dt;
+
+        // Update player meshes
+        const time = clock.elapsedTime;
+        const spread = Math.min(Math.sqrt(count) * 0.3, 2.2);
+        for (const p of players) {
+            const tpx = playerCenterX + p.ox * spread;
+            const tpz = playerCenterZ + p.oz * spread;
+            p.mesh.position.x += (tpx - p.mesh.position.x) * GATHER_POWER * dt;
+            p.mesh.position.z += (tpz - p.mesh.position.z) * GATHER_POWER * dt;
+            p.mesh.position.x = Math.max(-HALF_TRACK + 0.3, Math.min(HALF_TRACK - 0.3, p.mesh.position.x));
+            p.mesh.position.y = 0.4 + Math.sin(time * 5 + p.phase) * 0.04;
+        }
+
+        // Update player count sprite position
+        if (playerCountSprite) {
+            playerCountSprite.position.set(playerCenterX, 1.2, playerCenterZ - 0.5);
+        }
+
+        // Check gates
+        for (const g of gateObjects) {
+            if (g.passed) continue;
+            if (playerCenterZ >= g.z - 0.5 && playerCenterZ <= g.z + 0.5) {
+                g.passed = true;
+                let gate, gx;
+                if (g.center) {
+                    // Triple gate: left third (+X), center, right third (-X)
+                    const thirdW = TRACK_WIDTH / 3;
+                    if (playerCenterX > thirdW / 2) {
+                        gate = g.left; gx = HALF_TRACK - thirdW / 2;
+                    } else if (playerCenterX < -thirdW / 2) {
+                        gate = g.right; gx = -(HALF_TRACK - thirdW / 2);
+                    } else {
+                        gate = g.center; gx = 0;
+                    }
+                } else {
+                    gate = playerCenterX > 0 ? g.left : g.right;
+                    gx = playerCenterX > 0 ? HALF_TRACK / 2 : -HALF_TRACK / 2;
+                }
+                const diff = applyGate(gate);
+                const pos = new THREE.Vector3(gx, 1, g.z);
+
+                if (diff > 0) {
+                    spawnParticles3D(pos, 0x4CAF50, 12);
+                    spawnFloatingText3D(pos, `+${diff}`, '#4CAF50');
+                } else if (diff < 0) {
+                    spawnParticles3D(pos, 0xF44336, 10);
+                    spawnFloatingText3D(pos, `${diff}`, '#F44336');
+                }
+
+                // Fade gate
+                g.group.traverse(child => {
+                    if (child.material && !child.isSprite) {
+                        child.material.transparent = true;
+                        child.material.opacity = 0.15;
+                    }
+                });
+
+                if (count <= 0) { triggerFail(); return; }
+            }
+        }
+
+        // Check enemy encounters
+        for (const eg of enemyGroups) {
+            if (eg.passed || eg.fighting) continue;
+            if (playerCenterZ >= eg.z - 3) {
+                eg.fighting = true;
+                currentFight = eg;
+                state = 'fight';
+                fightTimer = 0;
+            }
+        }
+
+        // Check finish
+        if (playerCenterZ >= trackLength) {
+            triggerGoal();
+            return;
+        }
+    }
+
+    if (state === 'fight' && currentFight) {
+        const eg = currentFight;
+        fightTimer += dt;
+
+        playerCenterZ += PLAYER_SPEED * 0.15 * dt;
+        playerCenterX += (targetX - playerCenterX) * 4 * dt;
+
+        const spread = Math.min(Math.sqrt(count) * 0.3, 2.2);
+        for (const p of players) {
+            const tpx = playerCenterX + p.ox * spread;
+            const tpz = playerCenterZ + p.oz * spread * 0.5 + 0.5;
+            p.mesh.position.x += (tpx - p.mesh.position.x) * GATHER_POWER * dt;
+            p.mesh.position.z += (tpz - p.mesh.position.z) * GATHER_POWER * 0.5 * dt;
+            p.mesh.position.x = Math.max(-HALF_TRACK + 0.3, Math.min(HALF_TRACK - 0.3, p.mesh.position.x));
+        }
+
+        if (playerCountSprite) {
+            playerCountSprite.position.set(playerCenterX, 1.2, playerCenterZ - 0.5);
+        }
+
+        // Move enemies toward player
+        for (const e of eg.enemies) {
+            if (!e.alive) continue;
+            e.mesh.position.z += Math.sign(playerCenterZ - e.mesh.position.z) * 3 * dt;
+            e.mesh.position.x += (playerCenterX - e.mesh.position.x) * 1.5 * dt;
+        }
+
+        // 1:1 combat — each tick, one from each side eliminates the other
+        if (fightTimer >= 0.08) {
+            fightTimer = 0;
+
+            // Kill one enemy
+            for (const e of eg.enemies) {
+                if (!e.alive) continue;
+                e.alive = false;
+                spawnParticles3D(e.mesh.position.clone(), ENEMY_COLOR, 3);
+                scene.remove(e.mesh);
+                break;
+            }
+            eg.count = Math.max(0, eg.count - 1);
+
+            // Kill one player
+            if (players.length > 0) {
+                const idx = players.length - 1;
+                spawnParticles3D(players[idx].mesh.position.clone(), PLAYER_COLOR, 3);
+                scene.remove(players[idx].mesh);
+                players.splice(idx, 1);
+            }
+            count = Math.max(0, count - 1);
+            updatePlayerCountSprite();
+            updateEnemyCountSprite(eg);
+            updateHUD();
+
+            if (eg.count <= 0) {
+                eg.passed = true;
+                if (eg.countSprite) { scene.remove(eg.countSprite); eg.countSprite.material.map.dispose(); eg.countSprite.material.dispose(); eg.countSprite = null; }
+                spawnParticles3D(new THREE.Vector3(0, 1, eg.z), 0x4CAF50, 20);
+                spawnFloatingText3D(new THREE.Vector3(0, 2, eg.z), 'VICTORY!', '#4CAF50');
+                score += eg.originalCount * 5;
+                updateHUD();
+                currentFight = null;
+                state = 'play';
+                for (let i = 0; i < players.length; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const r = Math.sqrt(Math.random()) * Math.min(Math.sqrt(count) * 0.25, 2);
+                    players[i].ox = Math.cos(angle) * r;
+                    players[i].oz = Math.sin(angle) * r;
+                }
+            } else if (count <= 0) {
+                currentFight = null;
+                triggerFail();
+                return;
+            }
+        }
+    }
+
+    // Camera
+    if (state === 'play' || state === 'fight') {
+        const targetPos = new THREE.Vector3(
+            playerCenterX * 0.3,
+            CAM_OFFSET.y,
+            playerCenterZ + CAM_OFFSET.z
+        );
+        camera.position.lerp(targetPos, CAM_LERP * dt);
+        camera.lookAt(playerCenterX * 0.3, 0, playerCenterZ + 5);
+    } else if (state === 'goal') {
+        goalCamT += dt * 0.8;
+        const goalPos = new THREE.Vector3(0, 5, trackLength - 3);
+        camera.position.lerp(goalPos, Math.min(goalCamT, 1) * 2 * dt);
+        camera.lookAt(0, 1, trackLength);
+    }
+
+    // Move light with player
+    dirLight.position.set(playerCenterX + 5, 15, playerCenterZ - 5);
+    dirLight.target.position.set(playerCenterX, 0, playerCenterZ);
+    dirLight.target.updateMatrixWorld();
+}
+
+// ============================================================
+//  RENDER LOOP
+// ============================================================
+function animate() {
+    requestAnimationFrame(animate);
+    const dt = clock.getDelta();
+    if (state !== 'menu') update(dt);
+    renderer.render(scene, camera);
+}
+
+camera.position.set(0, CAM_OFFSET.y, CAM_OFFSET.z);
+camera.lookAt(0, 0, 5);
+animate();
+</script>
+</body>
+</html>
