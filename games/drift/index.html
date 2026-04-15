@@ -355,6 +355,9 @@
         }
 
         function stopEngine() {
+            if (engineGain) {
+                try { engineGain.gain.cancelScheduledValues(audioCtx.currentTime); engineGain.gain.setValueAtTime(0, audioCtx.currentTime); } catch(e) {}
+            }
             if (engineOsc) {
                 try { engineOsc.stop(); } catch(e) {}
                 engineOsc = null; engineGain = null;
@@ -436,8 +439,8 @@
                 osc.frequency.setValueAtTime(notes[i], t + i * 0.1);
                 var g = audioCtx.createGain();
                 g.gain.setValueAtTime(0, t);
-                g.gain.linearRampToValueAtTime(0.1, t + i * 0.1);
-                g.gain.linearRampToValueAtTime(0.1, t + i * 0.1 + 0.08);
+                g.gain.linearRampToValueAtTime(0.05, t + i * 0.1);
+                g.gain.linearRampToValueAtTime(0.05, t + i * 0.1 + 0.08);
                 g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.1 + 0.3);
                 osc.connect(g); g.connect(audioCtx.destination);
                 osc.start(t + i * 0.1); osc.stop(t + i * 0.1 + 0.35);
@@ -457,8 +460,8 @@
                 osc.frequency.setValueAtTime(notes[i], start);
                 var g = audioCtx.createGain();
                 g.gain.setValueAtTime(0, t);
-                g.gain.linearRampToValueAtTime(0.1, start);
-                g.gain.linearRampToValueAtTime(0.1, start + 0.12);
+                g.gain.linearRampToValueAtTime(0.05, start);
+                g.gain.linearRampToValueAtTime(0.05, start + 0.12);
                 g.gain.exponentialRampToValueAtTime(0.001, start + 0.5);
                 osc.connect(g); g.connect(audioCtx.destination);
                 osc.start(start); osc.stop(start + 0.55);
@@ -482,23 +485,6 @@
             g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
             osc.connect(f); f.connect(g); g.connect(audioCtx.destination);
             osc.start(t); osc.stop(t + 0.45);
-        }
-
-        // --- Countdown: beep sounds (low, low, low, high) ---
-        function playCountdownBeep(isGo) {
-            if (!audioCtx) return;
-            var t = audioCtx.currentTime;
-            var freq = isGo ? 880 : 440;
-            var dur = isGo ? 0.25 : 0.15;
-            var osc = audioCtx.createOscillator();
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(freq, t);
-            var g = audioCtx.createGain();
-            g.gain.setValueAtTime(0.08, t);
-            g.gain.linearRampToValueAtTime(0.08, t + dur * 0.7);
-            g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-            osc.connect(g); g.connect(audioCtx.destination);
-            osc.start(t); osc.stop(t + dur + 0.01);
         }
 
         // --- Crash sound ---
@@ -827,26 +813,11 @@
 
                 document.getElementById('menuBtn').style.display = 'block'; bouncyWrap.style.display = 'flex';
 
-                // Start engine sound and play countdown
+                // Start engine sound and begin immediately
                 initAudio();
                 stopDrift();
                 startEngine();
-                var self = this;
-                this.gameRunning = false; // pause until countdown finishes
-                this._countdownStep = 0;
-                this._countdownTimer = this.time.addEvent({
-                    delay: 700,
-                    repeat: 3,
-                    callback: function() {
-                        self._countdownStep++;
-                        if (self._countdownStep <= 3) {
-                            playCountdownBeep(false);
-                        } else {
-                            playCountdownBeep(true);
-                            self.gameRunning = true;
-                        }
-                    }
-                });
+                this.gameRunning = true;
             }
 
             // ---- TILE LAYER (pre-rendered) ----
