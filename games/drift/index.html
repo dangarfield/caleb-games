@@ -1271,6 +1271,8 @@
                     if (this.cursors.right.isDown || this.cursors.d.isDown || this.touchRight) this.steerInput = 1;
 
                     this.updateCar(dt);
+                }
+                if (this.gameRunning) {
                     updateEngine(this.car.speed, physics.maxSpeed);
                     // Drift sound management
                     if (this.car.drifting && this.car.speed > 0.8) {
