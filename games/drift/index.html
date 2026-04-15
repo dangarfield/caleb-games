@@ -226,8 +226,9 @@
 
         // ---- CAR SELECT ----
         const NUM_CARS = 25;
-        var selectedCarIndex = parseInt(localStorage.getItem('driftSelectedCar') || '0');
-        var bouncyWalls = localStorage.getItem('driftBouncyWalls') === 'true';
+        var _initData = (function() { try { return JSON.parse(localStorage.getItem('driftRacerData')) || {}; } catch(e) { return {}; } })();
+        var selectedCarIndex = _initData.selectedCar || 0;
+        var bouncyWalls = !!_initData.bouncyWalls;
         var carImages = []; // loaded Image elements, index 0..24 = car-01..car-25
         var carsLoaded = false;
 
@@ -446,19 +447,28 @@
             if (pngTracksLoaded) { if (callback) callback(); return; }
             var remaining = PNG_TRACK_MANIFEST.length;
             if (remaining === 0) { pngTracksLoaded = true; if (callback) callback(); return; }
-            PNG_TRACK_MANIFEST.forEach(function(entry) {
+            var loaded = new Array(remaining);
+            PNG_TRACK_MANIFEST.forEach(function(entry, idx) {
                 var img = new Image();
                 img.onload = function() {
                     var stage = parseTrackImage(img, entry.name);
                     stage.series = entry.series || 'Other';
-                    STAGES.push(stage);
+                    loaded[idx] = stage;
                     remaining--;
-                    if (remaining === 0) { pngTracksLoaded = true; if (callback) callback(); }
+                    if (remaining === 0) {
+                        for (var i = 0; i < loaded.length; i++) { if (loaded[i]) STAGES.push(loaded[i]); }
+                        pngTracksLoaded = true;
+                        if (callback) callback();
+                    }
                 };
                 img.onerror = function() {
                     console.warn('Failed to load PNG track: ' + entry.path);
                     remaining--;
-                    if (remaining === 0) { pngTracksLoaded = true; if (callback) callback(); }
+                    if (remaining === 0) {
+                        for (var i = 0; i < loaded.length; i++) { if (loaded[i]) STAGES.push(loaded[i]); }
+                        pngTracksLoaded = true;
+                        if (callback) callback();
+                    }
                 };
                 img.src = ASSET_BASE + entry.path;
             });
@@ -487,22 +497,27 @@
             try { localStorage.setItem('driftRacerData', JSON.stringify(d)); }
             catch(e) { console.warn('Storage quota exceeded, ghost data not saved'); }
         }
-        function getDriftData() { var d = loadDriftData(); if(!d.tracks) d.tracks={}; if(!d.customTracks) d.customTracks=[]; return d; }
+        function getDriftData() { var d = loadDriftData(); if(!d.tracks) d.tracks={}; if(!d.customTracks) d.customTracks=[]; if(!d.selectedCar) d.selectedCar=0; return d; }
         function getTrackData(id) { var d=loadDriftData(); if(!d.tracks[id]) d.tracks[id]={bestLaps:[],top3Ghost:[]}; return d.tracks[id]; }
         function compressGhost(frames) {
             var out = [];
             for (var i = 0; i < frames.length; i += GHOST_SAMPLE) {
                 var f = frames[i];
-                out.push({ x: Math.round(f.x*10)/10, y: Math.round(f.y*10)/10, angle: Math.round(f.angle*100)/100 });
+                out.push(f.x.toFixed(2) + ',' + f.y.toFixed(2) + ',' + f.angle.toFixed(2));
             }
             return out;
+        }
+        function parseGhostEntry(s) {
+            if (typeof s === 'object') return s; // legacy format
+            var p = s.split(',');
+            return { x: +p[0], y: +p[1], angle: +p[2] };
         }
         function getGhostFrame(ghost, frame) {
             var t = frame / GHOST_SAMPLE;
             var i = Math.floor(t);
             var frac = t - i;
-            if (i >= ghost.length - 1) return ghost[ghost.length - 1] || null;
-            var a = ghost[i], b = ghost[i + 1];
+            if (i >= ghost.length - 1) return parseGhostEntry(ghost[ghost.length - 1]) || null;
+            var a = parseGhostEntry(ghost[i]), b = parseGhostEntry(ghost[i + 1]);
             return { x: a.x + (b.x - a.x) * frac, y: a.y + (b.y - a.y) * frac, angle: a.angle + (b.angle - a.angle) * frac };
         }
         function saveTrackLap(id, time, ghost) {
@@ -540,8 +555,9 @@
                 this.timer = 0;
                 this.gameRunning = true;
                 this.gameOver = false;
+                document.body.style.cursor = 'none';
                 this.stageComplete = false;
-                this.ghostFrame = 0;
+                this.ghostTime = 0;
                 this.currentGhostRecording = [];
                 this.steerInput = 0;
                 this.touchLeft = false;
@@ -561,8 +577,9 @@
                 this.car.angle = sd.startAngle;
                 this.car.velX = 0; this.car.velY = 0; this.car.speed = 0;
 
-                // Load ghosts
+                // Load ghosts — stored ghosts supersede session ghost
                 this.storedGhosts = getTopGhosts(this.trackId).slice(0, 3);
+                if (this.storedGhosts.length > 0) this.sessionGhost = null;
 
                 this.createTileLayer();
                 this.createTireMarks();
@@ -686,7 +703,7 @@
                     var cvs = document.createElement('canvas');
                     cvs.width = rw; cvs.height = rh;
                     var ctx = cvs.getContext('2d');
-                    ctx.imageSmoothingEnabled = false;
+                    ctx.imageSmoothingEnabled = true;
                     ctx.drawImage(carImg, 0, 0, rw, rh);
 
                     var texKey = 'car_body';
@@ -697,7 +714,7 @@
                     var shadowCvs = document.createElement('canvas');
                     shadowCvs.width = rw; shadowCvs.height = rh;
                     var sctx = shadowCvs.getContext('2d');
-                    sctx.imageSmoothingEnabled = false;
+                    sctx.imageSmoothingEnabled = true;
                     sctx.drawImage(carImg, 0, 0, rw, rh);
                     sctx.globalCompositeOperation = 'source-in';
                     sctx.fillStyle = 'rgba(0,0,0,0.3)';
@@ -1029,7 +1046,7 @@
 
                     this.updateCar(dt);
                     this.updateParticles(dt);
-                    this.ghostFrame++;
+                    this.ghostTime += delta;
                 }
 
                 this.updateCarSprite();
@@ -1075,15 +1092,13 @@
 
                 // Accelerate in facing direction
                 var newFwd = forwardSpeed + physics.accel * dt;
-                newFwd *= (1.0 - physics.forwardDrag * dt);
+                newFwd *= Math.pow(1.0 - physics.forwardDrag, dt);
 
                 // Lateral drag (grip-based)
-                var latDrag = physics.lateralDrag * grip * dt;
-                var newLat = lateralSpeed * (1.0 - latDrag);
+                var newLat = lateralSpeed * Math.pow(1.0 - physics.lateralDrag * grip, dt);
 
                 // Grip blend
-                var blend = grip * physics.gripBlend * dt;
-                newLat *= (1.0 - blend);
+                newLat *= Math.pow(1.0 - grip * physics.gripBlend, dt);
 
                 // Drift detection
                 car.driftAngle = Math.abs(Math.atan2(newLat, Math.abs(newFwd)));
@@ -1091,14 +1106,14 @@
 
                 // Drift friction
                 if (car.drifting) {
-                    var driftMult = 1.0 - physics.driftFriction * dt * (car.driftAngle / Math.PI);
+                    var driftMult = Math.pow(1.0 - physics.driftFriction * (car.driftAngle / Math.PI), dt);
                     newFwd *= driftMult;
                     newLat *= driftMult;
                 }
 
                 // Clamp
                 if (newFwd > maxSpeed) newFwd = maxSpeed;
-                if (newFwd < 0) newFwd *= (1.0 - 0.05 * dt);
+                if (newFwd < 0) newFwd *= Math.pow(0.95, dt);
 
                 // Reconstruct velocity
                 car.velX = fwdX * newFwd + (-fwdY) * newLat;
@@ -1202,8 +1217,11 @@
                 car.x = newX;
                 car.y = newY;
 
-                // Record ghost
-                this.currentGhostRecording.push({ x: car.x, y: car.y, angle: car.angle });
+                // Record ghost (at ~60fps equivalent intervals)
+                var ghostIdx = Math.floor(this.ghostTime / 16.667);
+                if (ghostIdx > this.currentGhostRecording.length - 1) {
+                    this.currentGhostRecording.push({ x: car.x, y: car.y, angle: car.angle });
+                }
 
                 // Tire marks — stamp line segments onto RenderTexture
                 if (car.drifting && car.speed > 0.5) {
@@ -1262,11 +1280,16 @@
             triggerGameOver() {
                 this.gameOver = true;
                 this.gameRunning = false;
+                document.body.style.cursor = '';
                 if (this.currentGhostRecording.length > 10) {
                     var tk = this.trackId;
                     if (!this.failedAttempts[tk]) this.failedAttempts[tk] = [];
                     this.failedAttempts[tk].push({ frames: this.currentGhostRecording.slice() });
-                    if (this.failedAttempts[tk].length > 7) this.failedAttempts[tk].shift();
+                    if (this.failedAttempts[tk].length > 7) {
+                        // Keep the 7 longest attempts
+                        this.failedAttempts[tk].sort(function(a, b) { return b.frames.length - a.frames.length; });
+                        this.failedAttempts[tk] = this.failedAttempts[tk].slice(0, 7);
+                    }
                 }
                 this.showOverlay('CRASHED!', '#ff4060', '', '');
                 showOverlayButtons('crash');
@@ -1275,6 +1298,7 @@
             triggerStageComplete() {
                 this.stageComplete = true;
                 this.gameRunning = false;
+                document.body.style.cursor = '';
                 if (this.currentGhostRecording.length > 10) {
                     this.sessionGhost = this.currentGhostRecording.slice();
                     _sessionGhosts[this.trackId] = this.sessionGhost;
@@ -1482,14 +1506,15 @@
             updateGhostRendering() {
                 var idx = 0;
                 var medalTints = [0xffd700, 0x50a0ff, 0xcd7f32];
+                var gf60 = Math.floor(this.ghostTime / 16.667); // frame index at 60fps equivalent
 
-                // Failed attempt ghosts
+                // Failed attempt ghosts (recorded at 60fps-equivalent)
                 var tk = this.trackId;
                 var fails = this.failedAttempts[tk] || [];
                 for (var fi = 0; fi < fails.length && idx < this.ghostPool.length; fi++) {
                     var ghost = fails[fi];
-                    if (ghost.frames && this.ghostFrame < ghost.frames.length) {
-                        var gf = ghost.frames[this.ghostFrame];
+                    if (ghost.frames && gf60 < ghost.frames.length) {
+                        var gf = ghost.frames[gf60];
                         var gs = this.ghostPool[idx++];
                         gs.setPosition(gf.x, gf.y).setRotation(gf.angle + Math.PI/2).setAlpha(0.35).setTint(0xb4b4c8).setVisible(true);
                     }
@@ -1498,8 +1523,8 @@
                 // Stored ghosts (top 3) — downsampled, interpolate on playback
                 for (var gi = 0; gi < this.storedGhosts.length && gi < 3 && idx < this.ghostPool.length; gi++) {
                     var sg = this.storedGhosts[gi];
-                    if (sg.frames && sg.frames.length > 0 && this.ghostFrame < sg.frames.length * GHOST_SAMPLE) {
-                        var sgf = getGhostFrame(sg.frames, this.ghostFrame);
+                    if (sg.frames && sg.frames.length > 0 && gf60 < sg.frames.length * GHOST_SAMPLE) {
+                        var sgf = getGhostFrame(sg.frames, gf60);
                         if (sgf) {
                             var sgs = this.ghostPool[idx++];
                             sgs.setPosition(sgf.x, sgf.y).setRotation(sgf.angle + Math.PI/2).setAlpha(0.4).setTint(medalTints[gi]).setVisible(true);
@@ -1508,8 +1533,8 @@
                 }
 
                 // Session ghost
-                if (this.sessionGhost && this.ghostFrame < this.sessionGhost.length && idx < this.ghostPool.length) {
-                    var sf = this.sessionGhost[this.ghostFrame];
+                if (this.sessionGhost && gf60 < this.sessionGhost.length && idx < this.ghostPool.length) {
+                    var sf = this.sessionGhost[gf60];
                     var ss = this.ghostPool[idx++];
                     ss.setPosition(sf.x, sf.y).setRotation(sf.angle + Math.PI/2).setAlpha(0.35).setTint(0xffffff).setVisible(true);
                 }
@@ -2476,7 +2501,7 @@
                         }
                         card.addEventListener('click', function() {
                             selectedCarIndex = idx;
-                            localStorage.setItem('driftSelectedCar', String(idx));
+                            var sd = getDriftData(); sd.selectedCar = idx; saveDriftData(sd);
                             updateCarSelectHighlight();
                         });
                         grid.appendChild(card);
@@ -2509,6 +2534,16 @@
             document.getElementById('instructions').style.display = 'flex';
         });
 
+        var _cursorTimer = null;
+        document.addEventListener('mousemove', function() {
+            document.body.style.cursor = '';
+            clearTimeout(_cursorTimer);
+            var scene = game.scene.getScene('Game');
+            if (scene && scene.gameRunning) {
+                _cursorTimer = setTimeout(function() { document.body.style.cursor = 'none'; }, 1500);
+            }
+        });
+
         document.getElementById('menuBtn').addEventListener('click', function() {
             hideOverlayButtons();
             var scene = game.scene.getScene('Game');
@@ -2536,7 +2571,7 @@
         updateBouncyLabels();
         bouncyToggle.addEventListener('change', function() {
             bouncyWalls = this.checked;
-            localStorage.setItem('driftBouncyWalls', bouncyWalls);
+            var sd = getDriftData(); sd.bouncyWalls = bouncyWalls; saveDriftData(sd);
             updateBouncyLabels();
         });
 
