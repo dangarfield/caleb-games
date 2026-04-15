@@ -12,7 +12,6 @@
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{height:100vh;background:linear-gradient(135deg,#0a0e1a 0%,#0d1b2a 50%,#1b263b 100%);font-family:'Segoe UI',system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;overflow:hidden;touch-action:manipulation;user-select:none;-webkit-user-select:none;color:#fff}
 .top-bar{display:flex;align-items:center;justify-content:space-between;width:100%;max-width:960px;padding:0.4rem 0.8rem}
-.back-btn{background:rgba(255,255,255,0.12);color:#fff;border:none;border-radius:0.6rem;padding:0.35rem 0.7rem;font-size:0.85rem;cursor:pointer;text-decoration:none}
 h1{font-size:1.3rem;text-shadow:0 0 20px rgba(100,180,255,0.6);letter-spacing:0.05em}
 #scoreInfo{font-size:0.75rem;color:#ffd700}
 .status{font-size:0.85rem;color:#7eb8da;min-height:1.2em;text-align:center;padding:0.2rem;letter-spacing:0.02em}
@@ -32,11 +31,29 @@ canvas#boardCanvas{display:block}
 .overlay-box p{font-size:0.9rem;line-height:1.5;margin-bottom:0.4rem;color:#9bb}
 .btn-row{display:flex;flex-wrap:wrap;justify-content:center;gap:0.5rem;margin-top:1rem}
 #firingCanvas{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:5;display:none;background:#000}
-</style>
+  #backBtn {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    z-index: 9999;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: background 0.2s;
+  }
+  #backBtn:hover, #backBtn:active {
+    background: rgba(255,255,255,0.3);
+  }
+    </style>
 </head>
 <body>
 <div class="top-bar">
-  <a href="../../index.html" class="back-btn">Back</a>
+  <a id="backBtn" href="../../index.html">&larr; Games</a>
   <h1>BATTLESHIP</h1>
   <div id="scoreInfo"></div>
 </div>

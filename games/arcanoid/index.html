@@ -30,7 +30,7 @@
     border-radius: 4px;
   }
   #backBtn {
-    position: absolute;
+    position: fixed;
     top: 10px;
     left: 10px;
     background: rgba(255,255,255,0.15);
@@ -39,7 +39,7 @@
     padding: 8px 16px;
     border-radius: 20px;
     font-size: 14px;
-    z-index: 100;
+    z-index: 9999;
     backdrop-filter: blur(4px);
     border: 1px solid rgba(255,255,255,0.2);
     transition: background 0.2s;
@@ -47,11 +47,11 @@
   #backBtn:hover, #backBtn:active {
     background: rgba(255,255,255,0.3);
   }
-</style>
+    </style>
 </head>
 <body>
 <div id="gameContainer">
-  <a id="backBtn" href="../../index.html">Back to Games</a>
+  <a id="backBtn" href="../../index.html">&larr; Games</a>
   <canvas id="gameCanvas"></canvas>
 </div>
 <script>

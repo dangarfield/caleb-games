@@ -20,13 +20,6 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
         canvas { display: block; width: 100%; height: 100%; }
-        #backBtn {
-            position: fixed; top: 10px; left: 10px; z-index: 100;
-            background: rgba(255,255,255,0.15); border: 2px solid rgba(255,255,255,0.3);
-            color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 16px;
-            cursor: pointer; text-decoration: none; backdrop-filter: blur(4px);
-        }
-        #backBtn:hover { background: rgba(255,255,255,0.25); }
         #overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.75); display: flex; align-items: center;
@@ -46,10 +39,28 @@
             border: none; border-radius: 30px; cursor: pointer;
         }
         .overlay-box .start-btn:hover { filter: brightness(1.1); }
+      #backBtn {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    z-index: 9999;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: background 0.2s;
+  }
+  #backBtn:hover, #backBtn:active {
+    background: rgba(255,255,255,0.3);
+  }
     </style>
 </head>
 <body>
-    <a id="backBtn" href="../../index.html">Back</a>
+    <a id="backBtn" href="../../index.html">&larr; Games</a>
     <canvas id="game"></canvas>
     <div id="overlay">
         <div class="overlay-box" id="overlayContent">

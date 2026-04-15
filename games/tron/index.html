@@ -30,29 +30,26 @@
   }
   #backBtn {
     position: fixed;
-    top: 12px;
-    left: 12px;
-    z-index: 100;
-    background: transparent;
-    border: 1px solid rgba(0,255,255,0.4);
-    color: #0ff;
-    font-family: 'Courier New', monospace;
-    font-size: 14px;
-    padding: 6px 14px;
-    cursor: pointer;
+    top: 10px;
+    left: 10px;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
     text-decoration: none;
-    text-shadow: 0 0 8px #0ff;
-    transition: all 0.2s;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    z-index: 9999;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: background 0.2s;
   }
-  #backBtn:hover {
-    background: rgba(0,255,255,0.15);
-    border-color: #0ff;
-    box-shadow: 0 0 12px rgba(0,255,255,0.3);
+  #backBtn:hover, #backBtn:active {
+    background: rgba(255,255,255,0.3);
   }
-</style>
+    </style>
 </head>
 <body>
-<a id="backBtn" href="../../index.html">&#9664; BACK TO GAMES</a>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
 <canvas id="gc"></canvas>
 <script>
 (function() {

@@ -17,13 +17,6 @@
             min-height: 100vh; font-family: 'Segoe UI', sans-serif; color: #fff;
             overflow: hidden; touch-action: none;
         }
-        #back-btn {
-            position: fixed; top: 12px; left: 12px; z-index: 100;
-            background: rgba(255,255,255,0.15); border: none; color: #fff;
-            font-size: 20px; padding: 8px 14px; border-radius: 8px; cursor: pointer;
-            text-decoration: none; backdrop-filter: blur(4px);
-        }
-        #back-btn:hover { background: rgba(255,255,255,0.25); }
         #hud {
             position: fixed; top: 10px; right: 10px; z-index: 100;
             display: flex; gap: 16px; font-size: 16px; font-weight: bold;
@@ -101,10 +94,72 @@
             font-size: 12px; color: #aaa; background: rgba(0,0,0,0.3);
             padding: 4px 10px; border-radius: 6px;
         }
+        #pause-btn {
+            position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 100;
+            background: rgba(255,255,255,0.15); border: none; color: #fff;
+            font-size: 18px; padding: 8px 18px; border-radius: 8px; cursor: pointer;
+            backdrop-filter: blur(4px); display: none;
+        }
+        #pause-btn:hover { background: rgba(255,255,255,0.25); }
+        #send-wave-bar {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 150;
+            text-align: center; display: none;
+        }
+        #send-wave-bar .planning-msg {
+            font-size: 22px; font-weight: bold; color: #ffd700;
+            text-shadow: 0 0 15px rgba(255,215,0,0.5);
+            margin-bottom: 16px;
+        }
+        #send-wave-bar .planning-sub {
+            font-size: 14px; color: #ccc; margin-bottom: 20px;
+        }
+        #send-wave-btn {
+            padding: 14px 40px; font-size: 20px; font-weight: bold;
+            border: none; border-radius: 12px; cursor: pointer;
+            background: linear-gradient(135deg, #2ecc71, #27ae60); color: #fff;
+            box-shadow: 0 0 20px rgba(46,204,113,0.4);
+            animation: pulse-glow 1.5s ease-in-out infinite;
+        }
+        #send-wave-btn:hover { filter: brightness(1.15); }
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(46,204,113,0.4); }
+            50% { box-shadow: 0 0 35px rgba(46,204,113,0.7); }
+        }
+        #pause-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 140;
+            display: none; align-items: center; justify-content: center;
+            backdrop-filter: blur(2px);
+        }
+        #pause-overlay .pause-text {
+            font-size: 48px; font-weight: bold; color: #fff;
+            text-shadow: 0 0 20px rgba(255,255,255,0.3);
+        }
+        #pause-overlay .pause-hint {
+            font-size: 16px; color: #aaa; margin-top: 12px;
+        }
+      #backBtn {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    z-index: 9999;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: background 0.2s;
+  }
+  #backBtn:hover, #backBtn:active {
+    background: rgba(255,255,255,0.3);
+  }
     </style>
 </head>
 <body>
-    <a id="back-btn" href="../../index.html">&#9664; Back</a>
+    <a id="backBtn" href="../../index.html" onclick="return confirmBack()">&larr; Games</a>
+    <button id="pause-btn" onclick="togglePause()">&#9208; Pause</button>
     <div id="hud">
         <div class="hud-item"><span style="color:#ffd700">&#9733;</span> <span id="gold-display">100</span></div>
         <div class="hud-item"><span style="color:#e94560">&#9829;</span> <span id="lives-display">20</span></div>
@@ -122,6 +177,17 @@
         <button onclick="deselectPlaced()" style="background:#555;">Close</button>
     </div>
     <div id="path-label"></div>
+    <div id="send-wave-bar">
+        <div class="planning-msg" id="planning-msg">Set up your defenses!</div>
+        <div class="planning-sub" id="planning-sub">Place towers along the path, then send the wave when ready.</div>
+        <button id="send-wave-btn" onclick="sendWave()">I'm ready!</button>
+    </div>
+    <div id="pause-overlay" onclick="togglePause()">
+        <div style="text-align:center;">
+            <div class="pause-text">PAUSED</div>
+            <div class="pause-hint">Tap anywhere or press Escape to resume</div>
+        </div>
+    </div>
     <div id="overlay">
         <div class="overlay-box">
             <h2>Tower Defense</h2>
@@ -269,14 +335,16 @@ function getPathCells() {
 
 // --- Game State ---
 const settings = { damageModifier: 1.5 };
-const gui = new lil.GUI({ title: 'Settings' });
-gui.add(settings, 'damageModifier', 0.5, 5, 0.1).name('Damage Modifier');
-gui.close();
+try {
+    const gui = new lil.GUI({ title: 'Settings' });
+    gui.add(settings, 'damageModifier', 0.5, 5, 0.1).name('Damage Modifier');
+    gui.close();
+} catch(e) {}
 
 let gold = 100, lives = 20, score = 0, wave = 0;
 let towers = [], enemies = [], projectiles = [], particles = [];
 let selectedType = null, selectedTower = null;
-let gameRunning = false, gameOver = false;
+let gameRunning = false, gameOver = false, gamePaused = false, waitingForPlayer = false;
 let waveTimer = 0, spawnQueue = [], spawnInterval = 0, spawnCounter = 0;
 let pathPixels = [], pathCells = new Set();
 let hoveredCell = null;
@@ -379,13 +447,15 @@ function placeTower(gx, gy) {
         level: 1, cooldown: 0,
         cost: def.cost, range: def.range, damage: def.damage, fireRate: def.fireRate,
         color: def.color, name: def.name, projColor: def.projColor, projSpeed: def.projSpeed,
-        splash: def.splash, slow: def.slow || 0, chain: def.chain || 0
+        splash: def.splash, slow: def.slow || 0, chain: def.chain || 0,
+        rotation: -Math.PI / 2, targetRotation: -Math.PI / 2
     });
     updateHUD();
 }
 
 function upgradeTower() {
     if (!selectedTower) return;
+    if (selectedTower.level >= 5) return;
     const cost = Math.floor(selectedTower.cost * selectedTower.level * 0.75);
     if (gold < cost) return;
     gold -= cost;
@@ -412,14 +482,23 @@ function updateUpgradePanel() {
     const sell = Math.floor(selectedTower.cost * selectedTower.level * 0.5);
     document.getElementById('upgrade-info').innerHTML =
         `<b>${selectedTower.name} Lv${selectedTower.level}</b> | DMG: ${selectedTower.damage} | Range: ${selectedTower.range.toFixed(1)} | Rate: ${selectedTower.fireRate}`;
-    document.getElementById('upgrade-btn').textContent = `Upgrade (${cost}g)`;
+    const upgradeBtn = document.getElementById('upgrade-btn');
+    if (selectedTower.level >= 5) {
+        upgradeBtn.textContent = 'MAX';
+        upgradeBtn.disabled = true;
+        upgradeBtn.style.opacity = '0.5';
+    } else {
+        upgradeBtn.textContent = `Upgrade (${cost}g)`;
+        upgradeBtn.disabled = false;
+        upgradeBtn.style.opacity = '1';
+    }
     document.getElementById('sell-btn').textContent = `Sell (${sell}g)`;
     document.getElementById('upgrade-panel').style.display = 'block';
 }
 
 // --- Canvas events ---
 canvas.addEventListener('click', (e) => {
-    if (!gameRunning || gameOver) return;
+    if (!gameRunning || gameOver || gamePaused) return;
     const {x: gx, y: gy} = cellFromPos(e.clientX, e.clientY);
     const clicked = towers.find(t => t.gx === gx && t.gy === gy);
     if (clicked) {
@@ -438,7 +517,7 @@ canvas.addEventListener('click', (e) => {
 
 canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
-    if (!gameRunning || gameOver) return;
+    if (!gameRunning || gameOver || gamePaused) return;
     const t = e.touches[0];
     const {x: gx, y: gy} = cellFromPos(t.clientX, t.clientY);
     const clicked = towers.find(tw => tw.gx === gx && tw.gy === gy);
@@ -474,8 +553,20 @@ function startWave() {
         towers = [];
         pathPixels = getPathPixels();
         pathCells = getPathCells();
+        // Re-enter planning phase so player can rebuild on new path
         announceText(`New Path! Towers refunded.`);
-        setTimeout(() => announceWave(), 1600);
+        waitingForPlayer = true;
+        const bar = document.getElementById('send-wave-bar');
+        document.getElementById('planning-msg').textContent = 'New path! Rebuild your defenses!';
+        document.getElementById('planning-sub').textContent = 'Your towers were refunded. Place them on the new path.';
+        document.getElementById('send-wave-btn').textContent = `I'm ready!`;
+        document.getElementById('send-wave-btn').onclick = () => {
+            waitingForPlayer = false;
+            bar.style.display = 'none';
+            document.getElementById('send-wave-btn').onclick = sendWave;
+            announceWave();
+        };
+        bar.style.display = 'block';
     } else {
         announceWave();
     }
@@ -549,7 +640,7 @@ function spawnEnemy(def) {
 
 // --- Update logic ---
 function update() {
-    if (!gameRunning || gameOver) return;
+    if (!gameRunning || gameOver || gamePaused || waitingForPlayer) return;
 
     // Spawn enemies
     if (spawnQueue.length > 0) {
@@ -573,7 +664,7 @@ function update() {
             lives--;
             enemies.splice(i, 1);
             updateHUD();
-            if (lives <= 0) { endGame(); }
+            if (lives <= 0) { endGame(); return; }
             continue;
         }
         const dx = target.x - e.x, dy = target.y - e.y;
@@ -593,16 +684,27 @@ function update() {
         t.y = t.gy * cell + cell / 2;
     }
 
-    // Tower shooting
+    // Tower aiming and shooting
     for (const t of towers) {
-        if (t.cooldown > 0) { t.cooldown--; continue; }
         const rangePx = t.range * cell;
         let closest = null, bestPathIdx = -1;
         for (const e of enemies) {
             const d = Math.sqrt((e.x - t.x) ** 2 + (e.y - t.y) ** 2);
             if (d <= rangePx && e.pathIdx > bestPathIdx) { closest = e; bestPathIdx = e.pathIdx; }
         }
+        // Aim at target (even while on cooldown)
         if (closest) {
+            t.targetRotation = Math.atan2(closest.y - t.y, closest.x - t.x);
+        }
+        // Lerp rotation toward target
+        let diff = t.targetRotation - t.rotation;
+        // Normalize to [-PI, PI] for shortest-path rotation
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        t.rotation += diff * 0.15;
+        // Fire when ready
+        if (t.cooldown > 0) { t.cooldown--; }
+        else if (closest) {
             t.cooldown = t.fireRate;
             projectiles.push({
                 x: t.x, y: t.y, tx: closest.x, ty: closest.y,
@@ -692,13 +794,9 @@ function update() {
         if (p.life <= 0) particles.splice(i, 1);
     }
 
-    // Next wave
-    if (spawnQueue.length === 0 && enemies.length === 0 && waveTimer === 0) {
-        waveTimer = 90;
-    }
-    if (waveTimer > 0) {
-        waveTimer--;
-        if (waveTimer === 0) startWave();
+    // Next wave - enter planning phase
+    if (spawnQueue.length === 0 && enemies.length === 0 && !waitingForPlayer) {
+        enterPlanningPhase();
     }
 }
 
@@ -821,7 +919,7 @@ function draw() {
 
     // Draw towers
     for (const t of towers) {
-        drawTowerAt(t.x, t.y, t.color, cell, t.level, t.type);
+        drawTowerAt(t.x, t.y, t.color, cell, t.level, t.type, t.rotation);
         if (t.level > 1) {
             ctx.fillStyle = '#ffd700';
             ctx.font = `bold ${cell * 0.28}px sans-serif`;
@@ -968,162 +1066,159 @@ function draw() {
     ctx.globalAlpha = 1;
 }
 
-function drawTowerAt(x, y, color, cell, level, type) {
+function drawTowerAt(x, y, color, cell, level, type, rotation) {
     const r = cell * 0.38;
+    // rotation: 0 = facing right, -PI/2 = facing up (default)
+    const rot = rotation !== undefined ? rotation : -Math.PI / 2;
 
-    // Shadow
+    // Shadow (unrotated)
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
     ctx.beginPath();
     ctx.ellipse(x, y + r * 0.6, r * 0.9, r * 0.3, 0, 0, Math.PI * 2);
     ctx.fill();
 
+    // Rotated tower body
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rot + Math.PI / 2); // +PI/2 so 0 rotation = facing up (original orientation)
+
     switch(type) {
         case 'basic':
-            // Simple circle tower
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.arc(x, y, r, 0, Math.PI * 2);
+            ctx.arc(0, 0, r, 0, Math.PI * 2);
             ctx.fill();
             // Barrel
             ctx.fillStyle = '#2d3436';
-            ctx.fillRect(x - 2, y - r - 4, 4, r * 0.5);
+            ctx.fillRect(-2, -r - 4, 4, r * 0.5);
             break;
 
         case 'archer':
-            // Triangle top tower
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.moveTo(x, y - r * 1.1);
-            ctx.lineTo(x + r, y + r * 0.6);
-            ctx.lineTo(x - r, y + r * 0.6);
+            ctx.moveTo(0, -r * 1.1);
+            ctx.lineTo(r, r * 0.6);
+            ctx.lineTo(-r, r * 0.6);
             ctx.closePath();
             ctx.fill();
             break;
 
         case 'slow':
-            // Hexagonal tower with snowflake feel
             ctx.fillStyle = color;
             ctx.beginPath();
             for (let i = 0; i < 6; i++) {
                 const a = Math.PI / 3 * i - Math.PI / 6;
-                const px = x + Math.cos(a) * r;
-                const py = y + Math.sin(a) * r;
+                const px = Math.cos(a) * r;
+                const py = Math.sin(a) * r;
                 if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
             }
             ctx.closePath();
             ctx.fill();
-            // Inner cross
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.moveTo(x - r * 0.4, y); ctx.lineTo(x + r * 0.4, y);
-            ctx.moveTo(x, y - r * 0.4); ctx.lineTo(x, y + r * 0.4);
+            ctx.moveTo(-r * 0.4, 0); ctx.lineTo(r * 0.4, 0);
+            ctx.moveTo(0, -r * 0.4); ctx.lineTo(0, r * 0.4);
             ctx.stroke();
             break;
 
         case 'splash':
-            // Star shape
             ctx.fillStyle = color;
             ctx.beginPath();
             for (let i = 0; i < 5; i++) {
                 const a1 = (Math.PI * 2 / 5) * i - Math.PI / 2;
                 const a2 = a1 + Math.PI / 5;
-                ctx.lineTo(x + Math.cos(a1) * r, y + Math.sin(a1) * r);
-                ctx.lineTo(x + Math.cos(a2) * r * 0.5, y + Math.sin(a2) * r * 0.5);
+                ctx.lineTo(Math.cos(a1) * r, Math.sin(a1) * r);
+                ctx.lineTo(Math.cos(a2) * r * 0.5, Math.sin(a2) * r * 0.5);
             }
             ctx.closePath();
             ctx.fill();
             break;
 
-        case 'cannon':
-            // Square fortress
+        case 'cannon': {
             ctx.fillStyle = color;
             const s = r * 0.85;
-            ctx.fillRect(x - s, y - s, s * 2, s * 2);
-            // Cannon barrel
+            ctx.fillRect(-s, -s, s * 2, s * 2);
             ctx.fillStyle = '#2d3436';
-            ctx.fillRect(x - 3, y - r - 6, 6, r * 0.6);
-            // Battlements
+            ctx.fillRect(-3, -r - 6, 6, r * 0.6);
             ctx.fillStyle = color;
             const bw = s * 0.4;
-            ctx.fillRect(x - s - 2, y - s - 4, bw, 6);
-            ctx.fillRect(x + s - bw + 2, y - s - 4, bw, 6);
+            ctx.fillRect(-s - 2, -s - 4, bw, 6);
+            ctx.fillRect(s - bw + 2, -s - 4, bw, 6);
             break;
+        }
 
         case 'sniper':
-            // Diamond shape with crosshair
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.moveTo(x, y - r * 1.1);
-            ctx.lineTo(x + r * 0.8, y);
-            ctx.lineTo(x, y + r * 1.1);
-            ctx.lineTo(x - r * 0.8, y);
+            ctx.moveTo(0, -r * 1.1);
+            ctx.lineTo(r * 0.8, 0);
+            ctx.lineTo(0, r * 1.1);
+            ctx.lineTo(-r * 0.8, 0);
             ctx.closePath();
             ctx.fill();
-            // Crosshair
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.arc(x, y, r * 0.35, 0, Math.PI * 2);
-            ctx.moveTo(x - r * 0.5, y); ctx.lineTo(x + r * 0.5, y);
-            ctx.moveTo(x, y - r * 0.5); ctx.lineTo(x, y + r * 0.5);
+            ctx.arc(0, 0, r * 0.35, 0, Math.PI * 2);
+            ctx.moveTo(-r * 0.5, 0); ctx.lineTo(r * 0.5, 0);
+            ctx.moveTo(0, -r * 0.5); ctx.lineTo(0, r * 0.5);
             ctx.stroke();
             break;
 
         case 'tesla':
-            // Circle with lightning bolts
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.arc(x, y, r, 0, Math.PI * 2);
+            ctx.arc(0, 0, r, 0, Math.PI * 2);
             ctx.fill();
-            // Electricity arcs
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 2;
             for (let i = 0; i < 3; i++) {
                 const a = (Math.PI * 2 / 3) * i + (Date.now() / 200);
                 ctx.beginPath();
-                ctx.moveTo(x, y);
-                ctx.lineTo(x + Math.cos(a) * r * 0.9, y + Math.sin(a) * r * 0.9);
+                ctx.moveTo(0, 0);
+                ctx.lineTo(Math.cos(a) * r * 0.9, Math.sin(a) * r * 0.9);
                 ctx.stroke();
             }
             break;
 
-        case 'laser':
-            // Octagon with glowing center
+        case 'laser': {
             ctx.fillStyle = color;
             ctx.beginPath();
             for (let i = 0; i < 8; i++) {
                 const a = Math.PI / 4 * i;
-                const px = x + Math.cos(a) * r;
-                const py = y + Math.sin(a) * r;
+                const px = Math.cos(a) * r;
+                const py = Math.sin(a) * r;
                 if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
             }
             ctx.closePath();
             ctx.fill();
-            // Glowing center
-            const grad = ctx.createRadialGradient(x, y, 0, x, y, r * 0.5);
+            const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 0.5);
             grad.addColorStop(0, '#fff');
             grad.addColorStop(1, 'rgba(253,121,168,0)');
             ctx.fillStyle = grad;
             ctx.beginPath();
-            ctx.arc(x, y, r * 0.5, 0, Math.PI * 2);
+            ctx.arc(0, 0, r * 0.5, 0, Math.PI * 2);
             ctx.fill();
             break;
+        }
 
         default:
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.arc(x, y, r, 0, Math.PI * 2);
+            ctx.arc(0, 0, r, 0, Math.PI * 2);
             ctx.fill();
     }
 
-    // Highlight
+    ctx.restore();
+
+    // Highlight (unrotated)
     ctx.fillStyle = 'rgba(255,255,255,0.15)';
     ctx.beginPath();
     ctx.arc(x - r * 0.2, y - r * 0.2, r * 0.4, 0, Math.PI * 2);
     ctx.fill();
 
-    // Border
+    // Border (unrotated)
     ctx.strokeStyle = 'rgba(255,255,255,0.35)';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -1131,8 +1226,70 @@ function drawTowerAt(x, y, color, cell, level, type) {
     ctx.stroke();
 }
 
+// --- Planning Phase ---
+function enterPlanningPhase() {
+    waitingForPlayer = true;
+    const nextWave = wave + 1;
+    const bar = document.getElementById('send-wave-bar');
+    const msg = document.getElementById('planning-msg');
+    const sub = document.getElementById('planning-sub');
+    const btn = document.getElementById('send-wave-btn');
+
+    if (wave === 0) {
+        msg.textContent = 'Set up your defenses!';
+        sub.textContent = 'Place towers along the path, then send the wave when ready.';
+    } else {
+        msg.textContent = `Wave ${wave} cleared!`;
+        sub.textContent = 'Reposition towers or build new ones before the next assault.';
+    }
+    btn.textContent = `I'm ready!`;
+    bar.style.display = 'block';
+}
+
+function sendWave() {
+    waitingForPlayer = false;
+    document.getElementById('send-wave-bar').style.display = 'none';
+    startWave();
+}
+
+// --- Pause ---
+function togglePause() {
+    if (!gameRunning || gameOver || waitingForPlayer) return;
+    gamePaused = !gamePaused;
+    const btn = document.getElementById('pause-btn');
+    const overlay = document.getElementById('pause-overlay');
+    if (gamePaused) {
+        btn.innerHTML = '&#9654; Resume';
+        overlay.style.display = 'flex';
+    } else {
+        btn.innerHTML = '&#9208; Pause';
+        overlay.style.display = 'none';
+    }
+}
+
+// Escape key to pause/unpause
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && gameRunning && !gameOver) {
+        if (waitingForPlayer) return;
+        togglePause();
+    }
+});
+
+// --- Back button confirmation ---
+function confirmBack() {
+    if (gameRunning && !gameOver) {
+        return confirm('Leave the game? Your progress will be lost.');
+    }
+    return true;
+}
+
 function endGame() {
     gameOver = true;
+    gamePaused = false;
+    waitingForPlayer = false;
+    document.getElementById('pause-btn').style.display = 'none';
+    document.getElementById('pause-overlay').style.display = 'none';
+    document.getElementById('send-wave-bar').style.display = 'none';
     saveHighScore(wave);
     highScore = Math.max(highScore, wave);
     const overlay = document.getElementById('overlay');
@@ -1149,8 +1306,12 @@ function resetGame() {
     gold = 100; lives = 20; score = 0; wave = 0;
     towers = []; enemies = []; projectiles = []; particles = [];
     selectedType = null; selectedTower = null;
-    gameOver = false; waveTimer = 0; spawnQueue = [];
+    gameOver = false; gamePaused = false; waitingForPlayer = false;
+    waveTimer = 0; spawnQueue = [];
     currentPathLayout = 0;
+    document.getElementById('pause-overlay').style.display = 'none';
+    document.getElementById('send-wave-bar').style.display = 'none';
+    document.getElementById('pause-btn').innerHTML = '&#9208; Pause';
     deselectPlaced();
     buildTowerBar();
     updateHUD();
@@ -1159,13 +1320,12 @@ function resetGame() {
 
 function startGame() {
     document.getElementById('overlay').classList.add('hidden');
+    document.getElementById('pause-btn').style.display = 'block';
     pathPixels = getPathPixels();
     pathCells = getPathCells();
     gameRunning = true;
     buildTowerBar();
-    if (wave === 0) {
-        waveTimer = 60;
-    }
+    enterPlanningPhase();
     updateHUD();
 }
 

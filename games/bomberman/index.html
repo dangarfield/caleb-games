@@ -28,22 +28,6 @@
     flex-direction: column;
   }
   canvas { display: block; border-radius: 4px; }
-  #backBtn {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    background: rgba(255,255,255,0.15);
-    color: #fff;
-    text-decoration: none;
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-size: 14px;
-    z-index: 100;
-    backdrop-filter: blur(4px);
-    border: 1px solid rgba(255,255,255,0.2);
-    transition: background 0.2s;
-  }
-  #backBtn:hover, #backBtn:active { background: rgba(255,255,255,0.3); }
   #hud {
     position: absolute;
     top: 10px;
@@ -133,11 +117,29 @@
     font-weight: bold;
   }
   #hud .highscore { opacity: 0.7; font-size: 12px; }
-</style>
+  #backBtn {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    z-index: 9999;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: background 0.2s;
+  }
+  #backBtn:hover, #backBtn:active {
+    background: rgba(255,255,255,0.3);
+  }
+    </style>
 </head>
 <body>
 <div id="gameContainer">
-  <a id="backBtn" href="../../index.html">Back to Games</a>
+  <a id="backBtn" href="../../index.html">&larr; Games</a>
   <div id="hud">
     <div>Score: <span id="scoreDisplay">0</span></div>
     <div>Level: <span id="levelDisplay">1</span></div>

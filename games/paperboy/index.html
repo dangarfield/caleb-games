@@ -19,13 +19,6 @@ body {
     user-select: none;
 }
 canvas { display: block; }
-#backBtn {
-    position: fixed; top: 10px; left: 10px; z-index: 200;
-    background: rgba(0,0,0,.6); color: #fff; border: 2px solid #fff;
-    padding: 8px 16px; border-radius: 8px; font-size: 16px;
-    cursor: pointer; text-decoration: none; font-family: inherit;
-}
-#backBtn:hover { background: rgba(255,255,255,.2); }
 #hud {
     position: fixed; top: 10px; right: 10px; z-index: 100;
     background: rgba(0,0,0,.7); padding: 10px 18px; border-radius: 8px;
@@ -85,10 +78,28 @@ canvas { display: block; }
 }
 #touchLeft { left: 0; }
 #touchRight { right: 0; }
-</style>
+  #backBtn {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    z-index: 9999;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: background 0.2s;
+  }
+  #backBtn:hover, #backBtn:active {
+    background: rgba(255,255,255,0.3);
+  }
+    </style>
 </head>
 <body>
-<a id="backBtn" href="../../index.html">Back to Games</a>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
 
 <div id="hud" style="display:none;">
     <div><span class="label">Score: </span><span class="value" id="scoreVal">0</span></div>

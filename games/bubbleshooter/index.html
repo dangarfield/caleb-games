@@ -37,20 +37,6 @@
       flex-shrink: 0;
     }
 
-    .back-btn {
-      background: rgba(255,255,255,0.15);
-      color: #fff;
-      border: none;
-      border-radius: 0.75rem;
-      padding: 0.4rem 0.8rem;
-      font-size: 0.9rem;
-      cursor: pointer;
-      text-decoration: none;
-      display: inline-block;
-    }
-
-    .back-btn:active { transform: scale(0.95); }
-
     h1 {
       font-size: 1.2rem;
       color: #fff;
@@ -120,11 +106,29 @@
     .overlay-btn:active { transform: scale(0.95); }
 
     .hidden { display: none !important; }
-  </style>
+    #backBtn {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    z-index: 9999;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: background 0.2s;
+  }
+  #backBtn:hover, #backBtn:active {
+    background: rgba(255,255,255,0.3);
+  }
+    </style>
 </head>
 <body>
   <div class="top-bar">
-    <a href="../../index.html" class="back-btn">Back</a>
+    <a id="backBtn" href="../../index.html">&larr; Games</a>
     <h1>Bubble Shooter</h1>
     <div class="score-area">
       <div class="score-display" id="scoreDisplay">Score: 0</div>

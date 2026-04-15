@@ -11,14 +11,6 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { width: 100%; height: 100%; overflow: hidden; background: #000; touch-action: none; font-family: 'Segoe UI', system-ui, sans-serif; }
 canvas { display: block; position: absolute; top: 0; left: 0; }
-#backBtn {
-  position: fixed; top: 10px; left: 10px; z-index: 100;
-  background: rgba(0,0,0,0.55); color: #fff; border: 2px solid rgba(255,255,255,0.6);
-  padding: 6px 14px; border-radius: 8px; font-size: 14px; cursor: pointer;
-  text-decoration: none; font-family: inherit; backdrop-filter: blur(4px);
-  transition: background 0.2s;
-}
-#backBtn:hover { background: rgba(0,0,0,0.8); }
 #turnInfo {
   position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
   z-index: 100; background: rgba(0,0,0,0.55); color: #fff;
@@ -78,10 +70,28 @@ canvas { display: block; position: absolute; top: 0; left: 0; }
   color: #fff; cursor: pointer; font-family: inherit; transition: background 0.2s;
 }
 #gameOver button:hover { background: rgba(255,255,255,0.25); }
-</style>
+  #backBtn {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    z-index: 9999;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: background 0.2s;
+  }
+  #backBtn:hover, #backBtn:active {
+    background: rgba(255,255,255,0.3);
+  }
+    </style>
 </head>
 <body>
-<a id="backBtn" href="../../index.html">Back to Games</a>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
 <div id="turnInfo">Loading...</div>
 <div id="windBar"><span>WIND</span><span id="windArrow">&gt;</span><span id="windVal">0.0</span></div>
 <div id="weaponPanel"></div>

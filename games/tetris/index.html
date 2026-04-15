@@ -26,22 +26,6 @@
     position: relative;
   }
   canvas { display: block; }
-  #backBtn {
-    position: absolute;
-    top: 12px; left: 12px;
-    background: rgba(255,255,255,0.15);
-    color: #fff;
-    border: 1px solid rgba(255,255,255,0.3);
-    border-radius: 8px;
-    padding: 8px 16px;
-    font-size: 16px;
-    cursor: pointer;
-    z-index: 100;
-    text-decoration: none;
-    backdrop-filter: blur(4px);
-    transition: background 0.2s;
-  }
-  #backBtn:hover { background: rgba(255,255,255,0.25); }
   #overlay {
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
@@ -137,11 +121,29 @@
     letter-spacing: 1px;
     white-space: nowrap;
   }
-</style>
+  #backBtn {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    z-index: 9999;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: background 0.2s;
+  }
+  #backBtn:hover, #backBtn:active {
+    background: rgba(255,255,255,0.3);
+  }
+    </style>
 </head>
 <body>
 <div id="container">
-  <a id="backBtn" href="../../index.html">Back to Games</a>
+  <a id="backBtn" href="../../index.html">&larr; Games</a>
   <canvas id="gameCanvas"></canvas>
   <div class="touch-controls" id="touchControls">
     <div class="touch-group">

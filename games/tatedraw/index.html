@@ -11,20 +11,31 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { width: 100%; height: 100%; overflow: hidden; }
-        #backBtn {
-            position: fixed; top: 10px; left: 10px; z-index: 100;
-            background: rgba(255,255,255,0.15); border: 2px solid rgba(255,255,255,0.3);
-            color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 16px;
-            cursor: pointer; text-decoration: none; backdrop-filter: blur(4px);
-        }
-        #backBtn:hover { background: rgba(255,255,255,0.25); }
         iframe {
             width: 100%; height: 100%; border: none; display: block;
         }
+      #backBtn {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    z-index: 9999;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: background 0.2s;
+  }
+  #backBtn:hover, #backBtn:active {
+    background: rgba(255,255,255,0.3);
+  }
     </style>
 </head>
 <body>
-    <a id="backBtn" href="../../index.html">Back</a>
+    <a id="backBtn" href="../../index.html">&larr; Games</a>
     <iframe src="https://draw.tate.org.uk/" allow="fullscreen"></iframe>
 </body>
 </html>
