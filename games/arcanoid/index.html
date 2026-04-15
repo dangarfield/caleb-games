@@ -257,6 +257,21 @@
     };
   }
 
+  function createStuckBall() {
+    const ball = {
+      x: paddle.x,
+      y: paddle.y - 7,
+      r: 7,
+      vx: 0,
+      vy: 0,
+      speed: 5,
+      trail: [],
+      fireball: false
+    };
+    balls.push(ball);
+    magnetBalls.push({ ball: ball, offsetX: 0 });
+  }
+
   // --- Brick layout helpers ---
   // Wide landscape levels use more columns
   const BRICK_PAD = 3;
@@ -649,7 +664,7 @@
     paddleTargetX = paddle.x;
     prevPaddleX = paddle.x;
     paddleParticles = [];
-    balls.push(createBall());
+    createStuckBall();
     comboCount = 0;
     comboTimer = 0;
   }
@@ -1913,7 +1928,7 @@
             soundGameOver();
           } else {
             soundBallLost();
-            balls.push(createBall());
+            createStuckBall();
           }
         }
         continue;
@@ -2125,6 +2140,18 @@
 
     // Draw HUD
     drawHUD();
+
+    // "Tap to launch" hint when ball is stuck
+    if (state === STATE.PLAYING && magnetBalls.length > 0 && balls.length === magnetBalls.length) {
+      const pulse = Math.sin(gameTime * 3) * 0.15 + 0.55;
+      ctx.globalAlpha = pulse;
+      ctx.fillStyle = '#fff';
+      ctx.font = `bold ${s(14)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText('Tap to launch', W / 2, s(paddle.y - 30));
+      ctx.globalAlpha = 1;
+    }
 
     // Overlays
     if (showInstructions) {
