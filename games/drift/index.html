@@ -395,8 +395,10 @@
         }
 
         function stopDrift() {
-            if (!driftActive) return;
             driftActive = false;
+            if (driftGain) {
+                try { driftGain.gain.cancelScheduledValues(audioCtx.currentTime); driftGain.gain.setValueAtTime(0, audioCtx.currentTime); } catch(e) {}
+            }
             if (driftNoiseSource) {
                 try { driftNoiseSource.stop(); } catch(e) {}
                 driftNoiseSource = null; driftGain = null; driftFilter = null;
