@@ -25,10 +25,29 @@
         }
         .hud-item { display: flex; align-items: center; gap: 4px; }
         #game-canvas { border-radius: 8px; display: block; }
-        #tower-bar {
+        #tower-bar-wrap {
             position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); z-index: 100;
+        }
+        #tower-bar {
             display: flex; gap: 8px; background: rgba(0,0,0,0.5); padding: 8px 12px;
             border-radius: 14px; backdrop-filter: blur(6px);
+        }
+        #tower-tip {
+            position: absolute; bottom: 0; left: 100%; margin-left: 10px;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(6px);
+            border-radius: 12px; padding: 10px 14px; color: #fff;
+            width: 170px; font-size: 12px; line-height: 1.4;
+            border: 1px solid rgba(255,255,255,0.15);
+            display: none; pointer-events: none;
+        }
+        #tower-tip .tip-name {
+            font-weight: bold; font-size: 14px; margin-bottom: 4px;
+        }
+        #tower-tip .tip-stats {
+            color: #aaa; font-size: 11px; margin-bottom: 6px;
+        }
+        #tower-tip .tip-desc {
+            color: #ddd;
         }
         .tower-btn {
             width: 64px; height: 78px; border: 2px solid rgba(255,255,255,0.3);
@@ -168,7 +187,14 @@
         <div class="hud-item"><span style="color:#ff0">&#127942;</span> Best: <span id="highscore-display">0</span></div>
     </div>
     <canvas id="game-canvas"></canvas>
-    <div id="tower-bar"></div>
+    <div id="tower-bar-wrap">
+        <div id="tower-bar"></div>
+        <div id="tower-tip">
+            <div class="tip-name"></div>
+            <div class="tip-stats"></div>
+            <div class="tip-desc"></div>
+        </div>
+    </div>
     <div id="wave-announce"></div>
     <div id="upgrade-panel">
         <div id="upgrade-info" style="margin-bottom:8px;font-size:13px;"></div>
@@ -285,6 +311,50 @@ const PATH_LAYOUTS = [
             {x:13, y:q1}, {x:7, y:mid}, {x:13, y:q3},
             {x:13, y:rows-3}, {x:19, y:rows-3}, {x:23, y:mid}, {x:26, y:mid}
         ];
+    },
+    // Layout 4: Comb - tight horizontal lanes
+    function(rows) {
+        const r = rows;
+        return [
+            {x:0, y:1}, {x:20, y:1}, {x:20, y:3}, {x:2, y:3},
+            {x:2, y:5}, {x:20, y:5}, {x:20, y:7}, {x:2, y:7},
+            {x:2, y:Math.min(9, r-3)}, {x:26, y:Math.min(9, r-3)}
+        ];
+    },
+    // Layout 5: Perimeter loop
+    function(rows) {
+        return [
+            {x:0, y:1}, {x:24, y:1}, {x:24, y:rows-2},
+            {x:1, y:rows-2}, {x:1, y:Math.floor(rows/2)},
+            {x:26, y:Math.floor(rows/2)}
+        ];
+    },
+    // Layout 6: Cross hatch
+    function(rows) {
+        const mid = Math.floor(rows / 2);
+        return [
+            {x:0, y:mid}, {x:6, y:mid}, {x:6, y:2}, {x:12, y:2},
+            {x:12, y:rows-3}, {x:12, y:mid}, {x:18, y:mid},
+            {x:18, y:2}, {x:24, y:2}, {x:24, y:mid}, {x:26, y:mid}
+        ];
+    },
+    // Layout 7: Snake pit - tight switchbacks
+    function(rows) {
+        return [
+            {x:0, y:2}, {x:8, y:2}, {x:8, y:rows-3}, {x:3, y:rows-3},
+            {x:3, y:5}, {x:14, y:5}, {x:14, y:rows-3},
+            {x:20, y:rows-3}, {x:20, y:2}, {x:26, y:2}
+        ];
+    },
+    // Layout 8: Gauntlet - long straight with pockets
+    function(rows) {
+        const mid = Math.floor(rows / 2);
+        return [
+            {x:0, y:mid}, {x:4, y:mid}, {x:4, y:2}, {x:8, y:2},
+            {x:8, y:rows-3}, {x:12, y:rows-3}, {x:12, y:2},
+            {x:16, y:2}, {x:16, y:rows-3}, {x:20, y:rows-3},
+            {x:20, y:2}, {x:24, y:2}, {x:24, y:mid}, {x:26, y:mid}
+        ];
     }
 ];
 
@@ -334,7 +404,7 @@ function getPathCells() {
 }
 
 // --- Game State ---
-const settings = { damageModifier: 1.5 };
+const settings = { damageModifier: 1 };
 try {
     const gui = new lil.GUI({ title: 'Settings' });
     gui.add(settings, 'damageModifier', 0.5, 5, 0.1).name('Damage Modifier');
@@ -351,18 +421,34 @@ let hoveredCell = null;
 
 // --- Tower definitions with unlock waves ---
 const TOWER_DEFS = {
-    basic:   { cost: 25,  range: 3,   damage: 10, fireRate: 25, color: '#4ecdc4', name: 'Basic',   projColor: '#4ecdc4', projSpeed: 6,  splash: 0,   unlockWave: 0, icon: '&#9899;', desc: 'Fast firing' },
-    archer:  { cost: 30,  range: 4.5, damage: 12, fireRate: 35, color: '#a29bfe', name: 'Archer',  projColor: '#dfe6e9', projSpeed: 9,  splash: 0,   unlockWave: 0, icon: '&#127993;', desc: 'Long range' },
-    slow:    { cost: 40,  range: 2.5, damage: 5,  fireRate: 40, color: '#74b9ff', name: 'Freeze',  projColor: '#74b9ff', projSpeed: 5,  splash: 0,   slow: 0.4, unlockWave: 5,  icon: '&#10052;', desc: 'Wave 5' },
-    splash:  { cost: 55,  range: 2.5, damage: 18, fireRate: 50, color: '#fdcb6e', name: 'Splash',  projColor: '#fdcb6e', projSpeed: 4,  splash: 1.5, unlockWave: 5,  icon: '&#9733;', desc: 'Wave 5' },
-    cannon:  { cost: 65,  range: 3,   damage: 35, fireRate: 70, color: '#636e72', name: 'Cannon',  projColor: '#b2bec3', projSpeed: 5,  splash: 1.8, unlockWave: 8,  icon: '&#128163;', desc: 'Wave 8' },
-    sniper:  { cost: 75,  range: 6,   damage: 50, fireRate: 80, color: '#e17055', name: 'Sniper',  projColor: '#e17055', projSpeed: 12, splash: 0,   unlockWave: 10, icon: '&#10026;', desc: 'Wave 10' },
-    tesla:   { cost: 90,  range: 2.5, damage: 20, fireRate: 20, color: '#00cec9', name: 'Tesla',   projColor: '#81ecec', projSpeed: 15, splash: 0,   chain: 3, unlockWave: 12, icon: '&#9889;', desc: 'Wave 12' },
-    laser:   { cost: 100, range: 4,   damage: 8,  fireRate: 3,  color: '#fd79a8', name: 'Laser',   projColor: '#fd79a8', projSpeed: 20, splash: 0,   unlockWave: 15, icon: '&#9670;', desc: 'Wave 15' },
+    basic:   { cost: 25,  range: 3,   damage: 10, fireRate: 25, color: '#4ecdc4', name: 'Basic',   projColor: '#4ecdc4', projSpeed: 6,  splash: 0,   unlockWave: 0, icon: '&#9899;', unlockDesc: 'Fast firing', tip: 'Rapid fire, single target. Reliable all-rounder for early waves.' },
+    archer:  { cost: 30,  range: 4.5, damage: 12, fireRate: 35, color: '#a29bfe', name: 'Archer',  projColor: '#dfe6e9', projSpeed: 9,  splash: 0,   unlockWave: 0, icon: '&#127993;', unlockDesc: 'Long range', tip: 'Long range sniper. Picks off enemies before they get close.' },
+    slow:    { cost: 40,  range: 2.5, damage: 5,  fireRate: 40, color: '#74b9ff', name: 'Freeze',  projColor: '#74b9ff', projSpeed: 5,  splash: 0,   slow: 0.4, unlockWave: 5,  icon: '&#10052;', unlockDesc: 'Wave 5', tip: 'Slows enemies to a crawl. Low damage but gives other towers more time to fire.' },
+    splash:  { cost: 55,  range: 2.5, damage: 18, fireRate: 50, color: '#fdcb6e', name: 'Splash',  projColor: '#fdcb6e', projSpeed: 4,  splash: 1.5, unlockWave: 10, icon: '&#9733;', unlockDesc: 'Wave 10', tip: 'Area damage that hits all nearby enemies. Great against groups.' },
+    cannon:  { cost: 65,  range: 3,   damage: 35, fireRate: 70, color: '#636e72', name: 'Cannon',  projColor: '#b2bec3', projSpeed: 5,  splash: 1.8, unlockWave: 15, icon: '&#128163;', unlockDesc: 'Wave 15', tip: 'Heavy splash damage with a wide blast. Slow to reload but devastating.' },
+    sniper:  { cost: 75,  range: 6,   damage: 50, fireRate: 80, color: '#e17055', name: 'Sniper',  projColor: '#e17055', projSpeed: 12, splash: 0,   unlockWave: 20, icon: '&#10026;', unlockDesc: 'Wave 20', tip: 'Extreme range, huge single-target damage. Perfect for taking down tanks and bosses.' },
+    tesla:   { cost: 90,  range: 2.5, damage: 20, fireRate: 20, color: '#00cec9', name: 'Tesla',   projColor: '#81ecec', projSpeed: 15, splash: 0,   chain: 3, unlockWave: 25, icon: '&#9889;', unlockDesc: 'Wave 25', tip: 'Lightning chains through up to 3 enemies. Fast firing, great against swarms.' },
+    laser:   { cost: 100, range: 4,   damage: 8,  fireRate: 3,  color: '#fd79a8', name: 'Laser',   projColor: '#fd79a8', projSpeed: 20, splash: 0,   unlockWave: 30, icon: '&#9670;', unlockDesc: 'Wave 30', tip: 'Continuous beam that fires non-stop. Low damage per hit but melts enemies over time.' },
 };
 
 function isTowerUnlocked(type) {
     return wave >= TOWER_DEFS[type].unlockWave;
+}
+
+function showTowerTip(type) {
+    const def = TOWER_DEFS[type];
+    const tip = document.getElementById('tower-tip');
+    const unlocked = isTowerUnlocked(type);
+    tip.querySelector('.tip-name').innerHTML = `${def.icon} ${def.name}`;
+    tip.querySelector('.tip-stats').innerHTML = unlocked
+        ? `DMG: ${def.damage} | Range: ${def.range} | Rate: ${def.fireRate}<br>Cost: ${def.cost}g`
+        : `Unlocks at Wave ${def.unlockWave}`;
+    tip.querySelector('.tip-desc').textContent = def.tip;
+    tip.style.display = 'block';
+}
+
+function hideTowerTip() {
+    document.getElementById('tower-tip').style.display = 'none';
 }
 
 function buildTowerBar() {
@@ -380,8 +466,13 @@ function buildTowerBar() {
             btn.innerHTML = `<span class="icon">${def.icon}</span><span>${def.name}</span><span class="cost">${def.cost}g</span>`;
         } else {
             btn.onclick = () => {};
-            btn.innerHTML = `<span class="icon">${def.icon}</span><span>${def.name}</span><span class="unlock-info">${def.desc}</span><span class="lock-overlay">&#128274;</span>`;
+            btn.innerHTML = `<span class="icon">${def.icon}</span><span>${def.name}</span><span class="unlock-info">${def.unlockDesc}</span><span class="lock-overlay">&#128274;</span>`;
         }
+        // Desktop: hover to show tip
+        btn.addEventListener('mouseenter', () => showTowerTip(type));
+        btn.addEventListener('mouseleave', () => hideTowerTip());
+        // Tablet: long press or tap-hold shows tip (tap still selects)
+        btn.addEventListener('touchstart', () => showTowerTip(type));
         bar.appendChild(btn);
     }
 }
@@ -393,7 +484,7 @@ function updateHUD() {
     document.getElementById('score-display').textContent = score;
     document.getElementById('highscore-display').textContent = highScore;
     // Update path label
-    const pathNames = ['Classic S-Curve', 'Zigzag Valley', 'Spiral Fortress', 'Diamond Pass'];
+    const pathNames = ['Classic S-Curve', 'Zigzag Valley', 'Spiral Fortress', 'Diamond Pass', 'The Comb', 'Perimeter Loop', 'Cross Hatch', 'Snake Pit', 'The Gauntlet'];
     document.getElementById('path-label').textContent = 'Path: ' + pathNames[currentPathLayout % pathNames.length];
     // Update tower affordability
     document.querySelectorAll('.tower-btn').forEach(b => {
@@ -410,6 +501,11 @@ function selectTower(type) {
     deselectPlaced();
     selectedType = selectedType === type ? null : type;
     document.querySelectorAll('.tower-btn').forEach(b => b.classList.toggle('selected', b.dataset.type === selectedType));
+    if (selectedType) {
+        showTowerTip(selectedType);
+    } else {
+        hideTowerTip();
+    }
 }
 
 function deselectPlaced() {
@@ -542,8 +638,8 @@ canvas.addEventListener('mouseleave', () => { hoveredCell = null; });
 function startWave() {
     wave++;
 
-    // Change path layout every 4 waves
-    const newLayout = Math.floor((wave - 1) / 4) % PATH_LAYOUTS.length;
+    // Change path layout every 5 waves
+    const newLayout = Math.floor((wave - 1) / 5) % PATH_LAYOUTS.length;
     if (newLayout !== currentPathLayout) {
         currentPathLayout = newLayout;
         // Remove all towers when path changes (refund 75%)
@@ -580,11 +676,13 @@ function startWave() {
         saveHighScore(wave);
     }
 
-    // Build spawn queue with increasing difficulty
+    // Build spawn queue with exponential difficulty scaling
     const count = 6 + Math.floor(wave * 2.5);
-    const baseHp = 25 + wave * 22;
-    const speed = 0.8 + Math.min(wave * 0.08, 2.5);
-    const reward = 5 + Math.floor(wave * 1.2);
+    // HP scales exponentially: gentle early, steep late
+    const baseHp = Math.floor(20 * Math.pow(1.18, wave));
+    const speed = 0.8 + Math.min(wave * 0.06, 2.0);
+    // Rewards grow slowly — diminishing returns so gold doesn't snowball
+    const reward = 5 + Math.floor(wave * 0.8 / (1 + wave * 0.02));
     spawnQueue = [];
     for (let i = 0; i < count; i++) {
         let type = 'normal';
@@ -593,6 +691,10 @@ function startWave() {
         if (wave >= 7 && i % 10 === 9) type = 'shield';
         if (wave >= 10 && i === count - 1) type = 'boss';
         if (wave >= 15 && i % 12 === 11) type = 'swarm';
+        // Late game: more specials, fewer normals
+        if (wave >= 20 && type === 'normal' && i % 3 === 0) type = 'fast';
+        if (wave >= 25 && type === 'normal' && i % 4 === 1) type = 'shield';
+        if (wave >= 30 && i % 15 === 14) type = 'boss';
 
         let hpMult = 1, spdMult = 1, rMult = 1;
         switch(type) {
@@ -612,7 +714,8 @@ function startWave() {
             maxShield: type === 'shield' ? Math.floor(baseHp * 0.5) : 0
         });
     }
-    spawnInterval = Math.max(12, 35 - wave);
+    // Spawn interval tightens — enemies come faster in later waves
+    spawnInterval = Math.max(8, 35 - Math.floor(wave * 1.2));
     spawnCounter = 0;
     updateHUD();
 }

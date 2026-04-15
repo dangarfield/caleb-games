@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Fling!</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0a0a2e; overflow:hidden; touch-action:none; font-family:'Segoe UI',system-ui,sans-serif; }
+canvas { display:block; }
+#backBtn{position:fixed;top:12px;left:12px;z-index:9999;background:rgba(0,0,0,0.55);color:#fff;text-decoration:none;padding:6px 18px;border-radius:20px;font:bold 15px/1.4 'Segoe UI',system-ui,sans-serif;border:1px solid rgba(255,255,255,0.18);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:background 0.2s}
+#backBtn:hover{background:rgba(0,0,0,0.75)}
+#overlay { position:fixed; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(0,0,0,0.7); color:#fff; text-align:center; }
+#overlay h1 { font-size:clamp(2rem,8vw,4rem); margin-bottom:0.5rem; }
+#overlay .sub { font-size:clamp(1rem,3vw,1.4rem); color:#a0c4ff; margin-bottom:1.5rem; }
+#overlay .info { font-size:clamp(0.85rem,2.5vw,1.1rem); color:rgba(255,255,255,0.7); margin-bottom:2rem; max-width:500px; padding:0 1rem; line-height:1.5; }
+#overlay button { padding:14px 40px; font-size:1.3rem; border:none; border-radius:12px; background:linear-gradient(135deg,#6c5ce7,#a29bfe); color:#fff; cursor:pointer; font-weight:700; box-shadow:0 4px 20px rgba(108,92,231,0.4); transition:transform 0.15s; }
+#overlay button:hover { transform:scale(1.05); }
+#overlay button:active { transform:scale(0.95); }
+#finalScore { font-size:clamp(1.5rem,5vw,2.5rem); color:#ffd32a; margin-bottom:1rem; }
+.hidden { display:none !important; }
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+<canvas id="c"></canvas>
+<div id="overlay">
+  <h1>Fling!</h1>
+  <div class="sub">Fling the critters off your wave!</div>
+  <div class="info">Creatures walk along your wave from right to left. Tap or press Space to fling them off! Launch them into the ceiling to score points. Don't let them reach the left side!</div>
+  <button id="startBtn">Play</button>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const startBtn = document.getElementById('startBtn');
+
+let W, H;
+function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// --- Wave parameters ---
+// Composite wave: multiple sine layers with drifting frequencies
+const waveLayers = [
+    { amp: 35, freq: 0.007, phase: 0, phaseSpeed: 0.003, freqDrift: 0.002, freqDriftSpeed: 0.00015 },
+    { amp: 18, freq: 0.015, phase: 2.0, phaseSpeed: -0.002, freqDrift: 0.003, freqDriftSpeed: 0.0002 },
+    { amp: 10, freq: 0.025, phase: 4.5, phaseSpeed: 0.004, freqDrift: 0.005, freqDriftSpeed: 0.0001 },
+];
+const BASE_Y_RATIO = 0.75; // wave sits at 75% down the screen
+
+// Shake state
+let shaking = false;
+let shakeTimer = 0;
+const SHAKE_DURATION = 12;
+let shakeBoost = 0; // multiplier on amplitude during shake
+let shakeDecay = 0;
+
+// Game state
+let score = 0;
+let lives = 3;
+let waveNum = 1;
+let gameRunning = false;
+let gameOver = false;
+let creatures = [];
+let particles = [];
+let spawnTimer = 0;
+let spawnInterval = 120;
+let creaturesPerWave = 8;
+let creaturesSpawned = 0;
+let creaturesCleared = 0;
+let totalWaveCreatures = 0;
+// --- Shared localStorage under calebArcadeData ---
+function loadArcadeData() {
+    try { return JSON.parse(localStorage.getItem('calebArcadeData')) || {}; }
+    catch(e) { return {}; }
+}
+function saveArcadeData(data) {
+    localStorage.setItem('calebArcadeData', JSON.stringify(data));
+}
+function getHighScore() {
+    const data = loadArcadeData();
+    return (data.fling && data.fling.highScore) || 0;
+}
+function setHighScore(val) {
+    const data = loadArcadeData();
+    if (!data.fling) data.fling = {};
+    data.fling.highScore = val;
+    saveArcadeData(data);
+}
+let highScore = getHighScore();
+
+// --- Color themes per wave (cycle through) ---
+const THEMES = [
+    { bg1: '#0a0a2e', bg2: '#141452', bg3: '#1a1a6e', wave: '#6c5ce7', waveGlow: '#a29bfe', waveFill: [108,92,231] },
+    { bg1: '#1a0a2e', bg2: '#2a1452', bg3: '#3a1a6e', wave: '#e74c3c', waveGlow: '#ff6b6b', waveFill: [231,76,60] },
+    { bg1: '#0a1a2e', bg2: '#0a2a42', bg3: '#0a3a5e', wave: '#00b894', waveGlow: '#55efc4', waveFill: [0,184,148] },
+    { bg1: '#2e1a0a', bg2: '#3e2a14', bg3: '#4e3a1a', wave: '#f39c12', waveGlow: '#ffd32a', waveFill: [243,156,18] },
+    { bg1: '#1a0a1e', bg2: '#2a1430', bg3: '#3a1a42', wave: '#e91e63', waveGlow: '#f48fb1', waveFill: [233,30,99] },
+    { bg1: '#0a2e1a', bg2: '#143e2a', bg3: '#1a4e3a', wave: '#1abc9c', waveGlow: '#76d7c4', waveFill: [26,188,156] },
+    { bg1: '#0a1a30', bg2: '#0a2a4a', bg3: '#0a3a6a', wave: '#3498db', waveGlow: '#74b9ff', waveFill: [52,152,219] },
+    { bg1: '#2e0a2e', bg2: '#4a1450', bg3: '#6a1a6a', wave: '#9b59b6', waveGlow: '#c39bd3', waveFill: [155,89,182] },
+    { bg1: '#2e2e0a', bg2: '#3e3e14', bg3: '#4e4e1a', wave: '#f1c40f', waveGlow: '#f9e154', waveFill: [241,196,15] },
+    { bg1: '#0a2e2e', bg2: '#0a4040', bg3: '#0a5555', wave: '#00cec9', waveGlow: '#81ecec', waveFill: [0,206,201] },
+];
+
+// Current and target theme for tweening
+let currentTheme = { ...THEMES[0], waveFill: [...THEMES[0].waveFill] };
+let targetTheme = THEMES[0];
+let themeTween = 1; // 0..1, 1 = fully arrived
+
+// Wave announcement
+let announcement = '';
+let announceAlpha = 0; // 0 = invisible, 1 = fully visible
+let announcePhase = ''; // 'in', 'hold', 'out', ''
+let announceTimer = 0;
+
+// Fling guide line timing
+let waveElapsed = 0; // seconds elapsed in current wave
+let flingLineDash = 0; // dash offset for animation
+
+// --- Wave math ---
+// Returns the sum of all wave layers (raw displacement from center, -totalAmp to +totalAmp)
+function getWaveDisplacement(x, time) {
+    let y = 0;
+    const ampMult = (1 + shakeBoost) * (H / REF_H); // scale amplitude with screen height
+    for (const l of waveLayers) {
+        const freq = l.freq + Math.sin(time * l.freqDriftSpeed) * l.freqDrift;
+        y += (l.amp * ampMult) * Math.sin(freq * x + l.phase);
+    }
+    return y;
+}
+
+// Max possible amplitude (sum of all layer amps)
+function getMaxAmplitude() {
+    let total = 0;
+    for (const l of waveLayers) total += l.amp;
+    return total * (1 + shakeBoost) * (H / REF_H);
+}
+
+function getWaveY(x, time) {
+    const baseY = H * BASE_Y_RATIO;
+    return baseY + getWaveDisplacement(x, time);
+}
+
+// Normalized height: 1.0 = absolute peak, 0.0 = center, -1.0 = trough
+function getWaveNormalized(x, time) {
+    const maxAmp = getMaxAmplitude();
+    if (maxAmp === 0) return 0;
+    return -getWaveDisplacement(x, time) / maxAmp; // negative because screen Y is inverted
+}
+
+// --- Creature ---
+function spawnCreature() {
+    const types = ['normal'];
+    if (waveNum >= 3) types.push('fast');
+    if (waveNum >= 5) types.push('heavy');
+    const type = types[Math.floor(Math.random() * types.length)];
+
+    let speed, size, hp, color, points;
+    switch(type) {
+        case 'fast':
+            speed = 1.8 + Math.random() * 0.6 + waveNum * 0.04;
+            size = 12;
+            hp = 1;
+            color = '#ffd32a';
+            points = 15;
+            break;
+        case 'heavy':
+            speed = 0.6 + Math.random() * 0.3 + waveNum * 0.02;
+            size = 22;
+            hp = 10;
+            color = '#e74c3c';
+            points = 25;
+            break;
+        default:
+            speed = 1.0 + Math.random() * 0.4 + waveNum * 0.03;
+            size = 16;
+            hp = 1;
+            color = '#2ecc71';
+            points = 10;
+    }
+
+    creatures.push({
+        x: W + 20,
+        y: 0,
+        vx: 0,
+        vy: 0,
+        speed,
+        size,
+        hp,
+        color,
+        points,
+        type,
+        onWave: true,
+        airborne: false,
+        eyeOffset: 0,
+        legPhase: Math.random() * Math.PI * 2,
+        squash: 1,
+        hitCeiling: false
+    });
+}
+
+// --- Particles ---
+function spawnParticles(x, y, color, count) {
+    for (let i = 0; i < count; i++) {
+        particles.push({
+            x, y,
+            vx: (Math.random() - 0.5) * 8,
+            vy: (Math.random() - 0.5) * 8 - 3,
+            life: 30 + Math.random() * 20,
+            maxLife: 50,
+            color,
+            size: 2 + Math.random() * 3
+        });
+    }
+}
+
+function spawnCeilingBurst(x) {
+    for (let i = 0; i < 15; i++) {
+        particles.push({
+            x: x + (Math.random() - 0.5) * 30,
+            y: 5,
+            vx: (Math.random() - 0.5) * 6,
+            vy: Math.random() * 4 + 1,
+            life: 25 + Math.random() * 15,
+            maxLife: 40,
+            color: `hsl(${50 + Math.random() * 30}, 100%, ${60 + Math.random() * 30}%)`,
+            size: 3 + Math.random() * 4
+        });
+    }
+}
+
+// --- Shake ---
+// Fling power tuned for REF_H, then scaled by sqrt(H/REF_H) so difficulty is screen-independent.
+// At factor=0.7 (top 30%), fling should just reach the ceiling.
+const REF_H = 700;
+const MIN_FLING = 5;   // barely a hop at reference height
+const MAX_FLING = 35;  // reaches ceiling at reference height
+
+function triggerShake() {
+    if (shaking) return;
+    shaking = true;
+    shakeTimer = SHAKE_DURATION;
+    shakeBoost = 2.5;
+    shakeDecay = shakeBoost / SHAKE_DURATION;
+
+    const now = performance.now();
+
+    for (const c of creatures) {
+        if (!c.onWave) continue;
+
+        // norm: -1 (trough) to +1 (peak). Remap to 0..1 for fling factor.
+        const norm = getWaveNormalized(c.x, now);
+        const factor = (norm + 1) / 2; // 0 = deepest trough, 1 = highest peak
+
+        c.onWave = false;
+        c.airborne = true;
+
+        const basePower = MIN_FLING + factor * (MAX_FLING - MIN_FLING);
+        const flingPower = basePower * (H / REF_H); // scale with screen height
+        const heavyMult = c.type === 'heavy' ? 0.6 : 1.0;
+
+        // Pure vertical fling — no horizontal movement while airborne
+        c.vy = -flingPower * heavyMult;
+        c.vx = 0;
+        c.squash = 0.6;
+
+        spawnParticles(c.x, c.y, c.color, 5);
+    }
+}
+
+// --- Color helpers ---
+function parseColor(c) {
+    if (c.startsWith('#')) {
+        return [parseInt(c.slice(1,3),16), parseInt(c.slice(3,5),16), parseInt(c.slice(5,7),16)];
+    }
+    const m = c.match(/(\d+)/g);
+    return m ? [+m[0], +m[1], +m[2]] : [0,0,0];
+}
+
+function lerpColor(a, b, t) {
+    const ac = parseColor(a), bc = parseColor(b);
+    const r = Math.round(ac[0] + (bc[0] - ac[0]) * t);
+    const g = Math.round(ac[1] + (bc[1] - ac[1]) * t);
+    const bl = Math.round(ac[2] + (bc[2] - ac[2]) * t);
+    return `rgb(${r},${g},${bl})`;
+}
+
+function lerpRGB(a, b, t) {
+    return [
+        Math.round(a[0] + (b[0] - a[0]) * t),
+        Math.round(a[1] + (b[1] - a[1]) * t),
+        Math.round(a[2] + (b[2] - a[2]) * t)
+    ];
+}
+
+function showAnnouncement(text) {
+    announcement = text;
+    announceAlpha = 0;
+    announcePhase = 'in';
+    announceTimer = 0;
+}
+
+// --- Game flow ---
+function startGame() {
+    score = 0;
+    lives = 3;
+    waveNum = 1;
+    gameRunning = true;
+    gameOver = false;
+    creatures = [];
+    particles = [];
+    gameOverAlpha = 0;
+    screenShake = 0; screenShakeX = 0; screenShakeY = 0;
+    hitFlashAlpha = 0;
+    creaturesSpawned = 0;
+    creaturesCleared = 0;
+    spawnInterval = 120;
+    creaturesPerWave = 8;
+    totalWaveCreatures = creaturesPerWave;
+    spawnTimer = 60;
+    shakeBoost = 0;
+    // Reset wave layers
+    waveLayers[0].phase = 0;
+    waveLayers[1].phase = 2.0;
+    waveLayers[2].phase = 4.5;
+    // Reset theme
+    targetTheme = THEMES[0];
+    currentTheme = { ...THEMES[0], waveFill: [...THEMES[0].waveFill] };
+    themeTween = 1;
+    overlay.classList.add('hidden');
+    updateUI();
+    waveElapsed = 0;
+    flingLineDash = 0;
+    showAnnouncement('Wave 1');
+}
+
+function nextWave() {
+    waveNum++;
+    creaturesSpawned = 0;
+    creaturesCleared = 0;
+    creaturesPerWave = Math.min(8 + waveNum * 2, 40);
+    totalWaveCreatures = creaturesPerWave;
+    spawnInterval = Math.max(40, 120 - waveNum * 5);
+    spawnTimer = 120; // brief pause before spawning — lets announcement show
+
+    // Evolve wave layers each wave — shift speeds and drift rates
+    for (const l of waveLayers) {
+        l.phaseSpeed += (Math.random() - 0.5) * 0.002;
+        l.phaseSpeed = Math.max(-0.015, Math.min(0.015, l.phaseSpeed));
+    }
+
+    // Tween to new color theme — snapshot current as "from"
+    currentTheme._bg1 = currentTheme.bg1;
+    currentTheme._bg2 = currentTheme.bg2;
+    currentTheme._bg3 = currentTheme.bg3;
+    currentTheme._wave = currentTheme.wave;
+    currentTheme._waveGlow = currentTheme.waveGlow;
+    currentTheme._waveFill = [...currentTheme.waveFill];
+    targetTheme = THEMES[(waveNum - 1) % THEMES.length];
+    themeTween = 0;
+
+    updateUI();
+    waveElapsed = 0;
+    showAnnouncement(`Wave ${waveNum}`);
+}
+
+function loseLife() {
+    lives--;
+    screenShake = 15;
+    hitFlashAlpha = 0.4;
+    updateUI();
+    if (lives <= 0) {
+        endGame();
+    }
+}
+
+let gameOverAlpha = 0; // fade in the game over screen
+let screenShake = 0;   // screen shake intensity (decays to 0)
+let screenShakeX = 0;
+let screenShakeY = 0;
+let hitFlashAlpha = 0; // red flash on life loss
+
+function endGame() {
+    gameOver = true;
+    gameRunning = false;
+    gameOverAlpha = 0;
+    if (score > highScore) {
+        highScore = score;
+        setHighScore(highScore);
+    }
+    // Spawn some creatures for the background animation
+    for (let i = 0; i < 6; i++) {
+        const c = { x: Math.random() * W, y: 0, vx: 0, vy: 0,
+            speed: 0.6 + Math.random() * 0.8, size: 14 + Math.random() * 6,
+            hp: 1, color: ['#2ecc71','#ffd32a','#e74c3c','#a29bfe'][Math.floor(Math.random()*4)],
+            points: 0, type: 'normal', onWave: true, airborne: false,
+            eyeOffset: 0, legPhase: Math.random() * Math.PI * 2, squash: 1, hitCeiling: false };
+        creatures.push(c);
+    }
+}
+
+function updateUI() {
+    // HUD is drawn on canvas now — this just exists as a hook
+}
+
+// --- Update ---
+let lastTime = 0;
+function update(time) {
+    const dt = Math.min((time - lastTime) / 16.67, 3);
+    lastTime = time;
+
+    // Always animate wave layers (even on game over / before start)
+    for (const l of waveLayers) {
+        l.phase += l.phaseSpeed * dt;
+    }
+
+    // Always tween color theme
+    if (themeTween < 1) {
+        themeTween = Math.min(1, themeTween + 0.008 * dt);
+        const t = themeTween;
+        currentTheme.bg1 = lerpColor(currentTheme._bg1, targetTheme.bg1, t);
+        currentTheme.bg2 = lerpColor(currentTheme._bg2, targetTheme.bg2, t);
+        currentTheme.bg3 = lerpColor(currentTheme._bg3, targetTheme.bg3, t);
+        currentTheme.wave = lerpColor(currentTheme._wave, targetTheme.wave, t);
+        currentTheme.waveGlow = lerpColor(currentTheme._waveGlow, targetTheme.waveGlow, t);
+        currentTheme.waveFill = lerpRGB(currentTheme._waveFill, targetTheme.waveFill, t);
+        if (themeTween >= 1) {
+            currentTheme.bg1 = targetTheme.bg1;
+            currentTheme.bg2 = targetTheme.bg2;
+            currentTheme.bg3 = targetTheme.bg3;
+            currentTheme.wave = targetTheme.wave;
+            currentTheme.waveGlow = targetTheme.waveGlow;
+            currentTheme.waveFill = [...targetTheme.waveFill];
+        }
+    }
+
+    // Always tween announcements
+    if (announcePhase === 'in') {
+        announceAlpha = Math.min(1, announceAlpha + 0.04 * dt);
+        if (announceAlpha >= 1) { announcePhase = 'hold'; announceTimer = 60; }
+    } else if (announcePhase === 'hold') {
+        announceTimer -= dt;
+        if (announceTimer <= 0) { announcePhase = 'out'; }
+    } else if (announcePhase === 'out') {
+        announceAlpha = Math.max(0, announceAlpha - 0.025 * dt);
+        if (announceAlpha <= 0) { announcePhase = ''; }
+    }
+
+    // Game over: keep creatures walking, fade in overlay
+    if (gameOver) {
+        gameOverAlpha = Math.min(1, gameOverAlpha + 0.015 * dt);
+        // Decay screen shake / flash during game over too
+        if (screenShake > 0) {
+            screenShake = Math.max(0, screenShake - dt);
+            screenShakeX = (Math.random() - 0.5) * screenShake * 1.2;
+            screenShakeY = (Math.random() - 0.5) * screenShake * 1.2;
+        } else { screenShakeX = 0; screenShakeY = 0; }
+        if (hitFlashAlpha > 0) hitFlashAlpha = Math.max(0, hitFlashAlpha - 0.015 * dt);
+        // Animate creatures on wave (walk + wrap around)
+        for (let i = creatures.length - 1; i >= 0; i--) {
+            const c = creatures[i];
+            c.squash += (1 - c.squash) * 0.1 * dt;
+            if (c.onWave) {
+                c.x -= c.speed * dt;
+                c.y = getWaveY(c.x, time) - c.size;
+                c.legPhase += c.speed * 0.15 * dt;
+                if (c.x < -c.size) c.x = W + c.size; // wrap around
+            }
+        }
+        // Particles
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i];
+            p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 0.15 * dt; p.life -= dt;
+            if (p.life <= 0) particles.splice(i, 1);
+        }
+        return;
+    }
+
+    if (!gameRunning) return;
+
+    // Fling guide line timing
+    waveElapsed += dt / 60; // dt is in frames (~60fps), convert to seconds
+    flingLineDash += 0.15 * dt; // slow rightward scroll
+
+    // Shake decay
+    if (shaking) {
+        shakeTimer -= dt;
+        shakeBoost = Math.max(0, shakeBoost - shakeDecay * dt);
+        if (shakeTimer <= 0) {
+            shaking = false;
+            shakeBoost = 0;
+        }
+    }
+
+    // Screen shake (life loss)
+    if (screenShake > 0) {
+        screenShake = Math.max(0, screenShake - dt);
+        const intensity = screenShake * 1.2;
+        screenShakeX = (Math.random() - 0.5) * intensity;
+        screenShakeY = (Math.random() - 0.5) * intensity;
+    } else {
+        screenShakeX = 0;
+        screenShakeY = 0;
+    }
+    if (hitFlashAlpha > 0) {
+        hitFlashAlpha = Math.max(0, hitFlashAlpha - 0.015 * dt);
+    }
+
+    // Spawn creatures
+    if (creaturesSpawned < creaturesPerWave) {
+        spawnTimer -= dt;
+        if (spawnTimer <= 0) {
+            spawnCreature();
+            creaturesSpawned++;
+            spawnTimer = spawnInterval;
+        }
+    }
+
+    // Update creatures
+    for (let i = creatures.length - 1; i >= 0; i--) {
+        const c = creatures[i];
+
+        // Squash recovery
+        c.squash += (1 - c.squash) * 0.1 * dt;
+
+        if (c.onWave) {
+            // Walk along wave from right to left
+            c.x -= c.speed * dt;
+            c.y = getWaveY(c.x, time) - c.size;
+            c.legPhase += c.speed * 0.15 * dt;
+
+            // Reached left side - lose a life
+            if (c.x < -c.size) {
+                creatures.splice(i, 1);
+                creaturesCleared++;
+                loseLife();
+                spawnParticles(0, c.y, '#ff0000', 10);
+                if (gameOver) return;
+                continue;
+            }
+        } else if (c.airborne) {
+            // Apply gravity — keep walking left at same speed
+            c.vy += 0.45 * (H / REF_H) * dt; // gravity scales with screen height
+            c.x -= c.speed * dt;
+            c.y += c.vy * dt;
+
+            // Hit ceiling - score!
+            if (c.y < 0) {
+                c.hitCeiling = true;
+                score += c.points;
+                creaturesCleared++;
+                spawnCeilingBurst(c.x);
+                updateUI();
+                creatures.splice(i, 1);
+                continue;
+            }
+
+            // Land back on wave
+            const waveY = getWaveY(c.x, time);
+            if (c.vy > 0 && c.y + c.size >= waveY) {
+                c.y = waveY - c.size;
+                c.vy = 0;
+                c.vx = 0;
+                c.onWave = true;
+                c.airborne = false;
+                c.squash = 0.7;
+
+                // Heavy creatures lose HP on landing
+                if (c.type === 'heavy') {
+                    c.hp--;
+                    if (c.hp <= 0) {
+                        score += Math.floor(c.points / 2);
+                        creaturesCleared++;
+                        spawnParticles(c.x, c.y, c.color, 8);
+                        updateUI();
+                        creatures.splice(i, 1);
+                        continue;
+                    }
+                }
+            }
+
+            // Off screen sides - wrap or remove
+            if (c.x < -50 || c.x > W + 50) {
+                creatures.splice(i, 1);
+                creaturesCleared++;
+                continue;
+            }
+        }
+    }
+
+    // Check wave complete
+    if (creaturesSpawned >= creaturesPerWave && creaturesCleared >= creaturesPerWave && creatures.length === 0) {
+        nextWave();
+    }
+
+    // Update particles
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vy += 0.15 * dt;
+        p.life -= dt;
+        if (p.life <= 0) {
+            particles.splice(i, 1);
+        }
+    }
+}
+
+// --- Draw ---
+function draw(time) {
+    ctx.clearRect(0, 0, W, H);
+
+    // Apply screen shake offset
+    ctx.save();
+    ctx.translate(screenShakeX, screenShakeY);
+
+    // Background gradient — themed
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, currentTheme.bg1);
+    grad.addColorStop(0.5, currentTheme.bg2);
+    grad.addColorStop(1, currentTheme.bg3);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    if (shaking) {
+        ctx.fillStyle = `rgba(255, 215, 42, ${0.3 * (shakeBoost / 2.5)})`;
+        ctx.fillRect(0, 0, W, 4);
+    }
+
+    // Draw wave glow — themed
+    const wf = currentTheme.waveFill;
+    ctx.save();
+    ctx.shadowColor = currentTheme.wave;
+    ctx.shadowBlur = 20;
+
+    // Draw wave fill
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    for (let x = 0; x <= W; x += 3) {
+        ctx.lineTo(x, getWaveY(x, time));
+    }
+    ctx.lineTo(W, H);
+    ctx.closePath();
+
+    const waveGrad = ctx.createLinearGradient(0, H * 0.5, 0, H);
+    waveGrad.addColorStop(0, `rgba(${wf[0]},${wf[1]},${wf[2]},0.6)`);
+    waveGrad.addColorStop(0.5, `rgba(${Math.floor(wf[0]*0.7)},${Math.floor(wf[1]*0.7)},${Math.floor(wf[2]*0.7)},0.3)`);
+    waveGrad.addColorStop(1, `rgba(${Math.floor(wf[0]*0.3)},${Math.floor(wf[1]*0.3)},${Math.floor(wf[2]*0.3)},0.1)`);
+    ctx.fillStyle = waveGrad;
+    ctx.fill();
+
+    // Wave line
+    ctx.beginPath();
+    for (let x = 0; x <= W; x += 2) {
+        const y = getWaveY(x, time);
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = shaking ? currentTheme.waveGlow : currentTheme.wave;
+    ctx.lineWidth = shaking ? 4 : 3;
+    ctx.stroke();
+    ctx.restore();
+
+    // Fling zone line — waves 1-3 only, 5s fade in, 30s visible, 5s fade out
+    let flingLineAlpha = 0;
+    if (waveNum <= 3) {
+        if (waveElapsed <= 5) {
+            flingLineAlpha = 0.25 * (waveElapsed / 5);
+        } else if (waveElapsed <= 30) {
+            flingLineAlpha = 0.25;
+        } else if (waveElapsed <= 35) {
+            flingLineAlpha = 0.25 * (1 - (waveElapsed - 30) / 5);
+        }
+    }
+    if (flingLineAlpha > 0.001) {
+        const restingMaxAmp = (35 + 18 + 10) * (H / REF_H);
+        const flingLineY = H * BASE_Y_RATIO - 0.2 * restingMaxAmp;
+        ctx.save();
+        // Clip to area above the wave
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(W, 0);
+        ctx.lineTo(W, H);
+        ctx.lineTo(0, H);
+        ctx.closePath();
+        // Cut out the wave fill area
+        ctx.moveTo(0, H);
+        for (let x = 0; x <= W; x += 4) {
+            ctx.lineTo(x, getWaveY(x, time));
+        }
+        ctx.lineTo(W, H);
+        ctx.closePath();
+        ctx.clip('evenodd');
+        // Draw line only where wave isn't
+        ctx.strokeStyle = `rgba(255, 215, 42, ${flingLineAlpha})`;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([6, 8]);
+        ctx.lineDashOffset = -flingLineDash; // negative = moves right
+        ctx.beginPath();
+        ctx.moveTo(0, flingLineY);
+        ctx.lineTo(W, flingLineY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.lineDashOffset = 0;
+        ctx.restore();
+    }
+
+    // Draw creatures
+    for (const c of creatures) {
+        ctx.save();
+        ctx.translate(c.x, c.y);
+
+        const sw = c.squash;
+        const sh = 2 - sw;
+        ctx.scale(sw, sh);
+
+        // Body
+        ctx.fillStyle = c.color;
+        ctx.beginPath();
+        ctx.arc(0, 0, c.size, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Eyes
+        const eyeSize = c.size * 0.3;
+        const eyeY = -c.size * 0.15;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(-c.size * 0.3, eyeY, eyeSize, 0, Math.PI * 2);
+        ctx.arc(c.size * 0.3, eyeY, eyeSize, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Pupils - look in direction of movement
+        const pupilDir = c.airborne ? (c.vy < 0 ? -1 : 1) : 0;
+        ctx.fillStyle = '#111';
+        ctx.beginPath();
+        ctx.arc(-c.size * 0.3 - 1, eyeY + pupilDir * 2, eyeSize * 0.5, 0, Math.PI * 2);
+        ctx.arc(c.size * 0.3 - 1, eyeY + pupilDir * 2, eyeSize * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Legs (when on wave)
+        if (c.onWave) {
+            const legY = c.size * 0.7;
+            const legSwing = Math.sin(c.legPhase) * 4;
+            ctx.strokeStyle = c.color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-c.size * 0.4, legY);
+            ctx.lineTo(-c.size * 0.4 + legSwing, legY + c.size * 0.5);
+            ctx.moveTo(c.size * 0.4, legY);
+            ctx.lineTo(c.size * 0.4 - legSwing, legY + c.size * 0.5);
+            ctx.stroke();
+        }
+
+        // Airborne expression
+        if (c.airborne && c.vy < -3) {
+            // Scared mouth
+            ctx.fillStyle = '#111';
+            ctx.beginPath();
+            ctx.arc(0, c.size * 0.35, c.size * 0.2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Type indicator for heavy
+        if (c.type === 'heavy') {
+            ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(0, 0, c.size * 0.7, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        ctx.restore();
+    }
+
+    // Draw particles
+    for (const p of particles) {
+        const alpha = p.life / p.maxLife;
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Left edge danger zone
+    ctx.fillStyle = 'rgba(255, 0, 0, 0.05)';
+    ctx.fillRect(0, 0, 30, H);
+
+    // Red flash on life loss
+    if (hitFlashAlpha > 0) {
+        ctx.fillStyle = `rgba(255, 0, 0, ${hitFlashAlpha})`;
+        ctx.fillRect(-20, -20, W + 40, H + 40);
+    }
+
+    // End screen shake — HUD and overlays draw without shake
+    ctx.restore();
+
+    // Wave announcement text
+    if (announcePhase && announceAlpha > 0) {
+        ctx.save();
+        ctx.globalAlpha = announceAlpha;
+        ctx.font = `bold ${Math.floor(H * 0.08)}px 'Segoe UI', system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        // Slight scale pop on fade-in
+        const scale = announcePhase === 'in' ? 0.8 + announceAlpha * 0.2 : 1;
+        ctx.translate(W / 2, H * 0.35);
+        ctx.scale(scale, scale);
+        ctx.fillStyle = currentTheme.waveGlow;
+        ctx.shadowColor = currentTheme.wave;
+        ctx.shadowBlur = 30;
+        ctx.fillText(announcement, 0, 0);
+        ctx.restore();
+    }
+
+    // --- HUD: top center ---
+    if (gameRunning || gameOver) {
+        ctx.save();
+        const hudX = W / 2;
+        const hudY = 14;
+        const smallFont = 'bold 14px "Segoe UI", system-ui, sans-serif';
+        const bigFont = 'bold 24px "Segoe UI", system-ui, sans-serif';
+
+        // Measure pieces to size the pill
+        const waveText = `Wave ${waveNum}`;
+        const scoreText = `${score}`;
+        const livesStr = '\u2764'.repeat(Math.max(0, lives));
+        const gap = 20;
+
+        ctx.font = smallFont;
+        const waveW = ctx.measureText(waveText).width;
+        const livesW = ctx.measureText(livesStr).width;
+        ctx.font = bigFont;
+        const scoreW = ctx.measureText(scoreText).width;
+
+        const contentW = waveW + gap + scoreW + gap + livesW;
+        const pillW = contentW + 40;
+        const pillH = 52;
+
+        // Background pill
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.beginPath();
+        ctx.roundRect(hudX - pillW/2, hudY, pillW, pillH, 14);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = 'rgba(0,0,0,0.4)';
+        ctx.shadowBlur = 4;
+        const textY = hudY + (pillH - 8) / 2;
+        const startX = hudX - contentW / 2;
+
+        // Wave (small)
+        ctx.font = smallFont;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.fillText(waveText, startX, textY);
+
+        // Score (big, bright)
+        ctx.font = bigFont;
+        ctx.fillStyle = '#fff';
+        ctx.fillText(scoreText, startX + waveW + gap, textY);
+
+        // Hearts (small)
+        ctx.font = smallFont;
+        ctx.fillStyle = lives <= 1 ? '#e74c3c' : 'rgba(255,255,255,0.7)';
+        ctx.fillText(livesStr, startX + waveW + gap + scoreW + gap, textY);
+
+        // Progress bar — inside pill, with margin below
+        if (!gameOver) {
+            const progress = totalWaveCreatures > 0 ? creaturesCleared / totalWaveCreatures : 0;
+            const barW = pillW - 24;
+            const barH = 3;
+            const barX = hudX - barW/2;
+            const barY = hudY + pillH - 12;
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(255,255,255,0.1)';
+            ctx.beginPath();
+            ctx.roundRect(barX, barY, barW, barH, 2);
+            ctx.fill();
+            ctx.fillStyle = currentTheme.waveGlow;
+            ctx.beginPath();
+            ctx.roundRect(barX, barY, barW * progress, barH, 2);
+            ctx.fill();
+        }
+
+        ctx.restore();
+    }
+
+    // --- Game Over overlay ---
+    if (gameOver && gameOverAlpha > 0) {
+        ctx.save();
+        ctx.globalAlpha = gameOverAlpha * 0.6;
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+        ctx.globalAlpha = gameOverAlpha;
+
+        const cy = H * 0.38;
+
+        // Title
+        ctx.font = `bold ${Math.floor(Math.min(W * 0.12, 72))}px "Segoe UI", system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#fff';
+        ctx.shadowColor = currentTheme.wave;
+        ctx.shadowBlur = 30;
+        ctx.fillText('Game Over', W/2, cy);
+
+        // Score
+        ctx.shadowBlur = 0;
+        ctx.font = `bold ${Math.floor(Math.min(W * 0.07, 42))}px "Segoe UI", system-ui, sans-serif`;
+        ctx.fillStyle = '#ffd32a';
+        ctx.fillText(`Score: ${score}`, W/2, cy + Math.min(W * 0.1, 60));
+
+        // Subtitle
+        ctx.font = `${Math.floor(Math.min(W * 0.04, 22))}px "Segoe UI", system-ui, sans-serif`;
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.fillText(`Wave ${waveNum}  |  Best: ${highScore}`, W/2, cy + Math.min(W * 0.17, 100));
+
+        // Play again button (drawn, clickable area tracked separately)
+        const btnW = 200, btnH = 50;
+        const btnX = W/2 - btnW/2, btnY = cy + Math.min(W * 0.24, 140);
+        const btnGrad = ctx.createLinearGradient(btnX, btnY, btnX + btnW, btnY + btnH);
+        btnGrad.addColorStop(0, currentTheme.wave);
+        btnGrad.addColorStop(1, currentTheme.waveGlow);
+        ctx.fillStyle = btnGrad;
+        ctx.beginPath();
+        ctx.roundRect(btnX, btnY, btnW, btnH, 12);
+        ctx.fill();
+        ctx.font = `bold 18px "Segoe UI", system-ui, sans-serif`;
+        ctx.fillStyle = '#fff';
+        ctx.fillText('Play Again', W/2, btnY + btnH/2);
+
+        // Store button bounds for click detection
+        draw._retryBtn = { x: btnX, y: btnY, w: btnW, h: btnH };
+
+        ctx.restore();
+    }
+}
+
+// --- Game loop ---
+function gameLoop(time) {
+    update(time);
+    draw(time);
+    requestAnimationFrame(gameLoop);
+}
+
+// --- Input ---
+function handleShake() {
+    if (!gameRunning || gameOver) return;
+    triggerShake();
+}
+
+window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') {
+        e.preventDefault();
+        if (gameOver) { startGame(); return; }
+        handleShake();
+    }
+});
+
+canvas.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    // Check retry button on game over
+    if (gameOver && draw._retryBtn) {
+        const r = draw._retryBtn;
+        const px = e.clientX, py = e.clientY;
+        if (px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h) {
+            startGame();
+            return;
+        }
+    }
+    handleShake();
+});
+
+startBtn.addEventListener('click', () => {
+    startGame();
+});
+
+// Start loop
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
