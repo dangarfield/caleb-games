@@ -230,20 +230,18 @@ function lerpColor(hex1, hex2, t) {
     return `#${((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1)}`;
 }
 
-function getTheme(s) {
-    const idx = getLevelIndex(s);
-    const lvl = LEVELS[idx];
-    const next = LEVELS[idx + 1];
-    if (!next) return lvl;
-    const t = Math.min((s - lvl.threshold) / (next.threshold - lvl.threshold), 1);
-    if (t < 0.7) return lvl;
-    const lt = (t - 0.7) / 0.3;
+function getTheme() {
+    const lvl = LEVELS[currentLevel];
+    if (bgTransT >= 1) return lvl;
+    // Tween from old level to current level
+    const from = LEVELS[bgFromLevel];
+    const t = bgTransT;
     return {
         ...lvl,
-        bg: lvl.bg.map((c, i) => lerpColor(c, next.bg[i], lt)),
-        ground: lerpColor(lvl.ground, next.ground, lt),
-        accent: lerpColor(lvl.accent, next.accent, lt),
-        glow: lerpColor(lvl.glow, next.glow, lt),
+        bg: from.bg.map((c, i) => lerpColor(c, lvl.bg[i], t)),
+        ground: lerpColor(from.ground, lvl.ground, t),
+        accent: lerpColor(from.accent, lvl.accent, t),
+        glow: lerpColor(from.glow, lvl.glow, t),
     };
 }
 
@@ -268,6 +266,7 @@ let score = 0, dist = 0;
 let pendingBonus = 0; // score earned on release, awarded when tail catches up
 let currentLevel = 0;
 let levelUpTimer = 0, levelUpName = '';
+let bgTransT = 1, bgFromLevel = 0; // background tween: 0→1 from old to new level
 let screenShake = 0, screenShakeX = 0, screenShakeY = 0;
 let hitFlashAlpha = 0;
 let particles = [];
@@ -310,6 +309,7 @@ function resetGame() {
     pendingBonus = 0;
     currentLevel = 0;
     levelUpTimer = 0; levelUpName = '';
+    bgTransT = 1; bgFromLevel = 0;
 
     head = {
         from: vec(100, groundY),
@@ -612,6 +612,8 @@ function update(dt) {
                 obs.transT = 0;
             }
         }
+        bgFromLevel = currentLevel;
+        bgTransT = 0;
         currentLevel = newLevel;
         levelUpTimer = 120;
         levelUpName = LEVELS[currentLevel].name;
@@ -622,6 +624,7 @@ function update(dt) {
         }
     }
     if (levelUpTimer > 0) levelUpTimer -= dt;
+    if (bgTransT < 1) bgTransT = Math.min(1, bgTransT + 0.008 * dt);
 
     // Advance obstacle transitions
     for (const obs of obstacles) {
@@ -965,7 +968,7 @@ function draw(time) {
     ctx.translate(screenShakeX, screenShakeY);
 
     // Background — theme-aware
-    const theme = getTheme(score);
+    const theme = getTheme();
     const grad = ctx.createLinearGradient(0, 0, 0, H);
     grad.addColorStop(0, theme.bg[0]);
     grad.addColorStop(0.5, theme.bg[1]);
@@ -1260,16 +1263,11 @@ function draw(time) {
 
         const lvlName = LEVELS[currentLevel].name;
         const scoreText = `${score}`;
-        const bestText = `Best: ${highScore}`;
 
         ctx.font = bigFont;
         const scoreW = ctx.measureText(scoreText).width;
-        ctx.font = smallFont;
-        const bestW = ctx.measureText(bestText).width;
 
-        const gap = 20;
-        const contentW = scoreW + gap + bestW;
-        const pillW = Math.max(contentW + 40, 160);
+        const pillW = Math.max(scoreW + 40, 160);
         const pillH = 54;
 
         ctx.fillStyle = 'rgba(0,0,0,0.4)';
@@ -1291,16 +1289,11 @@ function draw(time) {
         ctx.fillText(`Lv.${currentLevel + 1}  ${lvlName}`, hudX, hudY + 13);
 
         const textY = hudY + pillH / 2 + 5;
-        const startX = hudX - contentW / 2;
 
         ctx.font = bigFont;
-        ctx.textAlign = 'left';
+        ctx.textAlign = 'center';
         ctx.fillStyle = '#fff';
-        ctx.fillText(scoreText, startX, textY);
-
-        ctx.font = smallFont;
-        ctx.fillStyle = 'rgba(255,255,255,0.5)';
-        ctx.fillText(bestText, startX + scoreW + gap, textY);
+        ctx.fillText(scoreText, hudX, textY);
 
         // Level progress bar
         const barW = pillW - 16;
@@ -1344,6 +1337,15 @@ function draw(time) {
             ctx.textAlign = 'center';
             ctx.fillStyle = 'rgba(255,255,255,0.35)';
             ctx.fillText('MAX', hudX, barY + barH + 10);
+        }
+
+        // Best score below progress bar
+        if (highScore > 0) {
+            ctx.shadowBlur = 0;
+            ctx.font = '11px "Segoe UI", system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'rgba(255,255,255,0.35)';
+            ctx.fillText(`Best: ${highScore}`, hudX, barY + barH + 22);
         }
 
         ctx.restore();
@@ -1531,14 +1533,14 @@ function draw(time) {
 
             ctx.font = `bold ${Math.floor(Math.min(W * 0.035, 20))}px "Segoe UI", system-ui, sans-serif`;
             ctx.fillStyle = theme.glow;
-            ctx.fillText(`${LEVELS[currentLevel].name}`, W / 2, cy + Math.min(W * 0.145, 85));
+            ctx.fillText(`Lv.${currentLevel + 1}  ${LEVELS[currentLevel].name}`, W / 2, cy + Math.min(W * 0.16, 95));
 
             ctx.font = `${Math.floor(Math.min(W * 0.04, 22))}px "Segoe UI", system-ui, sans-serif`;
             ctx.fillStyle = 'rgba(255,255,255,0.6)';
-            ctx.fillText(`Best: ${highScore}`, W / 2, cy + Math.min(W * 0.19, 110));
+            ctx.fillText(`Best: ${highScore}`, W / 2, cy + Math.min(W * 0.22, 125));
 
             const btnW = 200, btnH = 50;
-            const btnX = W / 2 - btnW / 2, btnY = cy + Math.min(W * 0.26, 150);
+            const btnX = W / 2 - btnW / 2, btnY = cy + Math.min(W * 0.3, 170);
             const btnGrad = ctx.createLinearGradient(btnX, btnY, btnX + btnW, btnY + btnH);
             btnGrad.addColorStop(0, theme.accent);
             btnGrad.addColorStop(1, theme.glow);

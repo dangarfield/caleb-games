@@ -174,6 +174,150 @@
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
+// ===== Web Audio API Sound System =====
+let audioCtx = null;
+let audioResumed = false;
+let wakkaToggle = false; // alternates between two tones for wakka
+
+function ensureAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+}
+
+// Resume audio on first interaction
+['click','touchstart','keydown'].forEach(evt => {
+  document.addEventListener(evt, function resumeOnce() {
+    ensureAudio();
+    if (!audioResumed) { audioResumed = true; }
+  }, { once: false });
+});
+
+// Helper: play a tone at given freq, duration, volume, with optional type
+function playTone(freq, duration, volume, type, startTime) {
+  if (!audioCtx) return;
+  const t = startTime || audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.setValueAtTime(freq, t);
+  gain.gain.setValueAtTime(volume, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + duration);
+}
+
+// Helper: frequency sweep
+function playSweep(startFreq, endFreq, duration, volume, type, startTime) {
+  if (!audioCtx) return;
+  const t = startTime || audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.setValueAtTime(startFreq, t);
+  osc.frequency.linearRampToValueAtTime(endFreq, t + duration);
+  gain.gain.setValueAtTime(volume, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + duration);
+}
+
+// Helper: noise burst (for texture)
+function playNoise(duration, volume, startTime) {
+  if (!audioCtx) return;
+  const t = startTime || audioCtx.currentTime;
+  const sampleRate = audioCtx.sampleRate;
+  const length = sampleRate * duration;
+  const buffer = audioCtx.createBuffer(1, length, sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < length; i++) {
+    data[i] = (Math.random() * 2 - 1);
+  }
+  const src = audioCtx.createBufferSource();
+  const gain = audioCtx.createGain();
+  src.buffer = buffer;
+  gain.gain.setValueAtTime(volume, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+  src.connect(gain);
+  gain.connect(audioCtx.destination);
+  src.start(t);
+  src.stop(t + duration);
+}
+
+// --- Sound effects ---
+
+function sfxDotEaten() {
+  if (!audioCtx) return;
+  // Classic wakka: alternating between two short tones
+  wakkaToggle = !wakkaToggle;
+  const freq = wakkaToggle ? 260 : 330;
+  playTone(freq, 0.07, 0.08, 'sine');
+}
+
+function sfxPowerPellet() {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  // Deep tone + upward sweep
+  playTone(100, 0.2, 0.12, 'sine', t);
+  playSweep(150, 500, 0.3, 0.10, 'sine', t + 0.05);
+  playTone(80, 0.15, 0.08, 'triangle', t);
+}
+
+function sfxGhostEaten() {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  // Ascending sweep
+  playSweep(200, 1200, 0.25, 0.12, 'square', t);
+  playSweep(300, 1500, 0.2, 0.08, 'sine', t + 0.05);
+}
+
+function sfxDeath() {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  // Descending warble: several quick descending tones
+  for (let i = 0; i < 6; i++) {
+    const startF = 600 - i * 80;
+    const endF = startF - 60;
+    playSweep(startF, endF, 0.12, 0.12, 'sine', t + i * 0.12);
+  }
+  // Low thud at end
+  playTone(80, 0.3, 0.10, 'sine', t + 0.72);
+  playNoise(0.15, 0.04, t + 0.72);
+}
+
+function sfxLevelComplete() {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  // Short victory jingle: ascending notes
+  const notes = [392, 440, 494, 523, 587, 659, 784]; // G4 A4 B4 C5 D5 E5 G5
+  notes.forEach((freq, i) => {
+    playTone(freq, 0.12, 0.10, 'sine', t + i * 0.1);
+    playTone(freq * 0.5, 0.12, 0.06, 'triangle', t + i * 0.1);
+  });
+  // Final sustained chord
+  playTone(784, 0.4, 0.12, 'sine', t + 0.7);
+  playTone(523, 0.4, 0.08, 'triangle', t + 0.7);
+}
+
+function sfxFruitCollected() {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  // Bonus chime: bright two-note chime
+  playTone(880, 0.1, 0.10, 'sine', t);
+  playTone(1108, 0.15, 0.12, 'sine', t + 0.08);
+  playTone(1320, 0.2, 0.10, 'sine', t + 0.15);
+  playTone(660, 0.12, 0.06, 'triangle', t + 0.08);
+}
+
+// ===== End Sound System =====
+
 // --- localStorage helper ---
 function loadArcadeData() {
   try {
@@ -238,6 +382,9 @@ const MAZE_TEMPLATE = [
 let maze, score, lives, level, pacman, ghosts, frightTimer, gameRunning, animFrame, mouthAngle, mouthDir;
 let totalDots;
 let ghostMoveAccum; // fractional accumulator for ghost sub-tick movement
+let fruit; // { r, c, timer } or null - bonus fruit that appears mid-level
+let fruitSpawned; // whether a fruit has already been spawned this level
+const FRUIT_SCORE = 100;
 
 const GHOST_COLORS = ['#FF0000', '#FFB8FF', '#00FFFF', '#FFB852'];
 const GHOST_NAMES = ['Blinky', 'Pinky', 'Inky', 'Clyde'];
@@ -263,6 +410,8 @@ function initMaze() {
   for (let r = 0; r < ROWS; r++)
     for (let c = 0; c < COLS; c++)
       if (maze[r][c] === 2 || maze[r][c] === 3) totalDots++;
+  fruit = null;
+  fruitSpawned = false;
 }
 
 function isWalkable(r, c) {
@@ -343,17 +492,46 @@ function tick() {
     maze[pacman.r][pacman.c] = 0;
     score += 10;
     totalDots--;
+    sfxDotEaten();
   } else if (cell === 3) {
     maze[pacman.r][pacman.c] = 0;
     score += 50;
     totalDots--;
     frightTimer = getFrightDuration();
+    sfxPowerPellet();
+  }
+
+  // Fruit spawn: appears when roughly half the dots are eaten
+  if (!fruitSpawned && !fruit) {
+    // Count initial dots from template to know when half are gone
+    let initDots = 0;
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++)
+        if (MAZE_TEMPLATE[r][c] === 2 || MAZE_TEMPLATE[r][c] === 3) initDots++;
+    if (totalDots <= Math.floor(initDots / 2)) {
+      fruit = { r: 13, c: 10, timer: 400 }; // appears near center, lasts ~400 ticks
+      fruitSpawned = true;
+    }
+  }
+
+  // Fruit collection
+  if (fruit && pacman.r === fruit.r && pacman.c === fruit.c) {
+    score += FRUIT_SCORE;
+    sfxFruitCollected();
+    fruit = null;
+  }
+
+  // Fruit timeout
+  if (fruit) {
+    fruit.timer--;
+    if (fruit.timer <= 0) fruit = null;
   }
 
   // Check level complete
   if (totalDots <= 0) {
     gameRunning = false;
     checkAndSaveHighScore();
+    sfxLevelComplete();
     document.getElementById('levelScore').textContent = score;
     document.getElementById('levelup').classList.remove('hidden');
     return;
@@ -467,9 +645,11 @@ function checkCollision() {
         g.c = 10;
         g.inHouse = true;
         g.releaseTimer = 60;
+        sfxGhostEaten();
       } else {
         // Lose life
         lives--;
+        sfxDeath();
         if (lives <= 0) {
           gameRunning = false;
           checkAndSaveHighScore();
@@ -542,6 +722,37 @@ function draw() {
         }
       }
     }
+  }
+
+  // Draw fruit
+  if (fruit) {
+    const fx = fruit.c * CELL + CELL / 2;
+    const fy = fruit.r * CELL + CELL / 2;
+    const fr = CELL * 0.35;
+    // Cherry-like fruit
+    ctx.fillStyle = '#FF2020';
+    ctx.beginPath();
+    ctx.arc(fx - fr * 0.3, fy + fr * 0.1, fr * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(fx + fr * 0.3, fy + fr * 0.1, fr * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+    // Stems
+    ctx.strokeStyle = '#00AA00';
+    ctx.lineWidth = Math.max(1, CELL * 0.06);
+    ctx.beginPath();
+    ctx.moveTo(fx - fr * 0.15, fy - fr * 0.2);
+    ctx.quadraticCurveTo(fx, fy - fr * 0.8, fx + fr * 0.2, fy - fr * 0.6);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(fx + fr * 0.15, fy - fr * 0.2);
+    ctx.quadraticCurveTo(fx + fr * 0.3, fy - fr * 0.7, fx + fr * 0.5, fy - fr * 0.5);
+    ctx.stroke();
+    // Highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.beginPath();
+    ctx.arc(fx - fr * 0.4, fy - fr * 0.05, fr * 0.15, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   // Draw Pac-Man (smoothly interpolated)
@@ -718,6 +929,7 @@ document.addEventListener('touchend', e => {
 });
 
 function startGame() {
+  ensureAudio();
   document.getElementById('instructions').classList.add('hidden');
   score = 0;
   lives = 3;

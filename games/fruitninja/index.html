@@ -134,6 +134,118 @@ let frameCount = 0; // for animations
 let easyMode = false;
 let lifeLossFlash = 0; // screen flash timer when losing a life
 
+// === Web Audio API Sound System ===
+let audioCtx = null;
+function ensureAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+}
+
+function playTone(freq, duration, vol, type, rampDown) {
+    const ctx = ensureAudio();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    if (rampDown !== false) gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration);
+    return { osc, gain };
+}
+
+function playSweep(startFreq, endFreq, duration, vol, type) {
+    const ctx = ensureAudio();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(startFreq, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(endFreq, ctx.currentTime + duration);
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration);
+}
+
+function playNoise(duration, vol) {
+    const ctx = ensureAudio();
+    const bufferSize = ctx.sampleRate * duration;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    // Low-pass for rumble
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(400, ctx.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + duration);
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    source.start(ctx.currentTime);
+    source.stop(ctx.currentTime + duration);
+}
+
+function soundSlice() {
+    // Satisfying swoosh: quick frequency sweep
+    playSweep(1200, 400, 0.15, 0.10, 'sine');
+    playSweep(800, 300, 0.12, 0.06, 'triangle');
+}
+
+function soundBombHit() {
+    // Explosion: low noise burst + bass tone
+    playNoise(0.4, 0.12);
+    playTone(60, 0.3, 0.10, 'sine');
+    playTone(90, 0.2, 0.08, 'square');
+}
+
+function soundCombo(comboCount) {
+    // Rising pitch pops for each combo step
+    const baseFreq = 400;
+    for (let i = 0; i < Math.min(comboCount, 6); i++) {
+        setTimeout(() => {
+            playTone(baseFreq + i * 80, 0.1, 0.09, 'sine');
+        }, i * 60);
+    }
+}
+
+function soundMiss() {
+    // Subtle low disappointed tone
+    playTone(150, 0.25, 0.08, 'triangle');
+    playTone(120, 0.3, 0.06, 'sine');
+}
+
+function soundGameOver() {
+    // Dramatic descending notes
+    const notes = [440, 370, 311, 233, 175];
+    notes.forEach((freq, i) => {
+        setTimeout(() => {
+            playTone(freq, 0.35, 0.10, 'sawtooth');
+            playTone(freq * 0.5, 0.4, 0.06, 'sine');
+        }, i * 180);
+    });
+}
+
+function soundNewHighScore() {
+    // Celebratory ascending notes
+    const notes = [523, 587, 659, 784, 880, 1047];
+    notes.forEach((freq, i) => {
+        setTimeout(() => {
+            playTone(freq, 0.2, 0.09, 'sine');
+            playTone(freq * 1.5, 0.15, 0.05, 'triangle');
+        }, i * 100);
+    });
+}
+
 // Fruit types - bright colors only, no dark fruits that could be confused with bombs
 const FRUIT_TYPES = [
     { name: 'watermelon', radius: 52, color1: '#2ecc71', color2: '#27ae60', inner: '#e74c3c', seeds: '#555' },
@@ -436,6 +548,7 @@ function sliceFruit(fruit) {
         createBombExplosion(fruit.x, fruit.y);
         lives--;
         lifeLossFlash = 30;
+        soundBombHit();
         missDisplay.push({ x: fruit.x, y: fruit.y - 30, text: 'BOMB! -1', life: 50 });
         if (lives <= 0) {
             gameOver = true;
@@ -450,10 +563,12 @@ function sliceFruit(fruit) {
     score += 1;
     combo++;
     comboTimer = 45;
+    soundSlice();
 
     if (combo >= 3) {
         score += combo;
         comboDisplay.push({ x: fruit.x, y: fruit.y - 30, text: `${combo}x Combo! +${combo}`, life: 60 });
+        soundCombo(combo);
     }
 
     // Create halves
@@ -653,6 +768,7 @@ function update() {
                 if (!f.isBomb) {
                     lives--;
                     lifeLossFlash = 30;
+                    soundMiss();
                     missDisplay.push({ x: f.x, y: H - 80, text: 'MISSED!', life: 50 });
                     if (lives <= 0) {
                         gameOver = true;
@@ -780,6 +896,11 @@ function showGameOver() {
     ctx.fillText(`Score: ${score}`, W / 2, H / 2 + 10);
 
     const isNewBest = score >= highScore && score > 0;
+    if (isNewBest) {
+        soundNewHighScore();
+    } else {
+        soundGameOver();
+    }
     ctx.font = '22px Segoe UI, sans-serif';
     ctx.fillStyle = isNewBest ? '#ffd700' : 'rgba(255,215,0,0.9)';
     ctx.fillText(isNewBest ? `NEW BEST: ${highScore}!` : `Best: ${highScore}`, W / 2, H / 2 + 45);
@@ -820,6 +941,7 @@ function resetGame() {
 }
 
 startBtn.addEventListener('click', () => {
+    ensureAudio(); // Resume AudioContext on user gesture
     easyMode = document.getElementById('easyMode').checked;
     overlay.classList.add('hidden');
     gameStarted = true;

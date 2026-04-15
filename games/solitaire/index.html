@@ -98,6 +98,211 @@
 (function() {
   "use strict";
 
+  // === Web Audio API Sound System ===
+  let audioCtx = null;
+  let audioResumed = false;
+
+  function ensureAudio() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (!audioResumed && audioCtx.state === 'suspended') {
+      audioCtx.resume();
+      audioResumed = true;
+    }
+    return audioCtx;
+  }
+
+  // Resume audio on first user interaction
+  ['mousedown','touchstart','keydown'].forEach(evt => {
+    document.addEventListener(evt, ensureAudio, { once: false, passive: true });
+  });
+
+  function playTone(freq, duration, vol, type, rampDown) {
+    const ctx = ensureAudio();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    if (rampDown !== false) {
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    }
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration);
+    return { osc, gain, ctx };
+  }
+
+  function playNoise(duration, vol) {
+    const ctx = ensureAudio();
+    const bufferSize = Math.floor(ctx.sampleRate * duration);
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1);
+    }
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    // Bandpass for shaping
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 2000;
+    filter.Q.value = 0.5;
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    source.start(ctx.currentTime);
+    source.stop(ctx.currentTime + duration);
+  }
+
+  function sndCardFlip() {
+    // Soft paper-like flip: short noise burst with high-pass
+    const ctx = ensureAudio();
+    const duration = 0.08;
+    const bufferSize = Math.floor(ctx.sampleRate * duration);
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1);
+    }
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = 3000;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    source.start(ctx.currentTime);
+    source.stop(ctx.currentTime + duration);
+  }
+
+  function sndCardPlace() {
+    // Gentle thud: low frequency short burst
+    playTone(80, 0.1, 0.1, 'sine');
+    playNoise(0.05, 0.06);
+  }
+
+  function sndCardToFoundation() {
+    // Satisfying click + ascending tone
+    playTone(1200, 0.05, 0.08, 'square');
+    const ctx = ensureAudio();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(400, ctx.currentTime + 0.03);
+    osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.18);
+    gain.gain.setValueAtTime(0.1, ctx.currentTime + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime + 0.03);
+    osc.stop(ctx.currentTime + 0.25);
+  }
+
+  function sndInvalidMove() {
+    // Low subtle buzz
+    playTone(90, 0.15, 0.08, 'sawtooth');
+  }
+
+  function sndAutoComplete() {
+    // Rapid ascending cascade of tones
+    const ctx = ensureAudio();
+    const notes = [262, 330, 392, 494, 587, 659, 784, 880, 988, 1047];
+    notes.forEach((freq, i) => {
+      const t = ctx.currentTime + i * 0.06;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(0.1, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.15);
+    });
+  }
+
+  function sndGameWon() {
+    // Triumphant celebratory fanfare
+    const ctx = ensureAudio();
+    // First: rapid ascending cascade
+    sndAutoComplete();
+    // Then: fanfare chord sequence
+    const chords = [
+      { notes: [523, 659, 784], time: 0.7 },
+      { notes: [587, 740, 880], time: 1.0 },
+      { notes: [659, 784, 988], time: 1.3 },
+      { notes: [784, 988, 1175], time: 1.6 }
+    ];
+    chords.forEach(chord => {
+      chord.notes.forEach(freq => {
+        const t = ctx.currentTime + chord.time;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0.08, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.45);
+      });
+    });
+    // Final big chord
+    const finalT = ctx.currentTime + 2.1;
+    [523, 659, 784, 1047].forEach(freq => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, finalT);
+      gain.gain.setValueAtTime(0.12, finalT);
+      gain.gain.exponentialRampToValueAtTime(0.001, finalT + 1.0);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(finalT);
+      osc.stop(finalT + 1.1);
+    });
+  }
+
+  function sndDrawFromStock() {
+    // Swoosh: filtered noise sweep
+    const ctx = ensureAudio();
+    const duration = 0.12;
+    const bufferSize = Math.floor(ctx.sampleRate * duration);
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1);
+    }
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(800, ctx.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(4000, ctx.currentTime + duration);
+    filter.Q.value = 1.5;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    source.start(ctx.currentTime);
+    source.stop(ctx.currentTime + duration);
+  }
+  // === End Sound System ===
+
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
   const container = document.getElementById('gameContainer');
@@ -586,12 +791,15 @@
         saveState();
         sourcePile.pop();
         foundations[i].push(card);
+        sndCardToFoundation();
         // Flip new top card
         if (sourceLabel === 'tableau' && sourcePile.length > 0 && !sourcePile[sourcePile.length - 1].faceUp) {
           sourcePile[sourcePile.length - 1].faceUp = true;
+          sndCardFlip();
         }
         if (checkWin()) {
           won = true;
+          sndGameWon();
           animateWin();
         }
         draw();
@@ -683,6 +891,7 @@
         if (hit.row === pile.length - 1) {
           saveState();
           card.faceUp = true;
+          sndCardFlip();
           draw();
           pointerDown = false;
         }
@@ -764,6 +973,7 @@
           const card = stock.pop();
           card.faceUp = true;
           waste.push(card);
+          sndDrawFromStock();
         } else {
           // Recycle waste to stock
           while (waste.length > 0) {
@@ -771,6 +981,7 @@
             card.faceUp = false;
             stock.push(card);
           }
+          sndDrawFromStock();
         }
         draw();
       }
@@ -791,16 +1002,19 @@
           if (canPlaceOnFoundation(dragging.cards[0], i)) {
             saveState();
             foundations[i].push(dragging.cards[0]);
+            sndCardToFoundation();
             placed = true;
             // Flip new top of source tableau
             if (dragging.fromPile === 'tableau') {
               const src = tableau[dragging.fromIndex];
               if (src.length > 0 && !src[src.length - 1].faceUp) {
                 src[src.length - 1].faceUp = true;
+                sndCardFlip();
               }
             }
             if (checkWin()) {
               won = true;
+              sndGameWon();
               animateWin();
             }
             break;
@@ -828,11 +1042,13 @@
             for (const card of dragging.cards) {
               pile.push(card);
             }
+            sndCardPlace();
             placed = true;
             if (dragging.fromPile === 'tableau') {
               const src = tableau[dragging.fromIndex];
               if (src.length > 0 && !src[src.length - 1].faceUp) {
                 src[src.length - 1].faceUp = true;
+                sndCardFlip();
               }
             }
             break;
@@ -864,6 +1080,7 @@
 
     // Return cards to source if not placed
     if (!placed) {
+      if (hasMoved) sndInvalidMove();
       if (dragging.fromPile === 'waste') {
         waste.push(...dragging.cards);
       } else if (dragging.fromPile === 'tableau') {

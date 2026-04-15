@@ -170,6 +170,116 @@ const G = {
     steerInput: 0
 };
 
+// ====== WEB AUDIO API SOUNDS ======
+let audioCtx = null;
+function ensureAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+}
+
+// Helper: play a tone with frequency sweep
+function playTone(freq, duration, vol, type, endFreq) {
+    const ctx = ensureAudio();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    if (endFreq) osc.frequency.exponentialRampToValueAtTime(endFreq, ctx.currentTime + duration);
+    gain.gain.setValueAtTime(vol || 0.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(); osc.stop(ctx.currentTime + duration);
+}
+
+// Helper: play noise burst (for whoosh, crash, shatter)
+function playNoise(duration, vol, highpass, lowpass) {
+    const ctx = ensureAudio();
+    const bufSize = ctx.sampleRate * duration;
+    const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(vol || 0.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    let node = src;
+    if (highpass) {
+        const hp = ctx.createBiquadFilter();
+        hp.type = 'highpass'; hp.frequency.value = highpass;
+        node.connect(hp); node = hp;
+    }
+    if (lowpass) {
+        const lp = ctx.createBiquadFilter();
+        lp.type = 'lowpass'; lp.frequency.value = lowpass;
+        node.connect(lp); node = lp;
+    }
+    node.connect(gain).connect(ctx.destination);
+    src.start(); src.stop(ctx.currentTime + duration);
+}
+
+// Paper thrown: whoosh
+function sfxThrow() {
+    playNoise(0.2, 0.1, 800, 4000);
+    playTone(600, 0.15, 0.08, 'sine', 200);
+}
+
+// Paper lands on subscriber mailbox: thud + ding
+function sfxDelivery() {
+    playNoise(0.1, 0.1, 50, 300);
+    playTone(880, 0.3, 0.1, 'sine');
+    setTimeout(() => playTone(1320, 0.25, 0.08, 'sine'), 100);
+}
+
+// Paper misses or hits non-subscriber: dull thump
+function sfxMiss() {
+    playNoise(0.15, 0.08, 30, 250);
+    playTone(120, 0.2, 0.08, 'sine', 60);
+}
+
+// Paper lands on ground (no mailbox): soft thud
+function sfxPaperLand() {
+    playNoise(0.1, 0.06, 40, 200);
+}
+
+// Hit obstacle: crash noise
+function sfxCrash() {
+    playNoise(0.3, 0.12, 200, 3000);
+    playTone(200, 0.2, 0.1, 'sawtooth', 80);
+    playTone(150, 0.25, 0.08, 'square', 50);
+}
+
+// Window break: glass shatter (high frequency noise)
+function sfxWindowBreak() {
+    playNoise(0.4, 0.1, 3000, 12000);
+    playNoise(0.2, 0.08, 5000, 15000);
+    playTone(4000, 0.15, 0.08, 'sine', 8000);
+}
+
+// Level complete: ascending newspaper boy jingle
+function sfxLevelComplete() {
+    const notes = [523, 659, 784, 880, 1047]; // C5 E5 G5 A5 C6
+    notes.forEach((f, i) => {
+        setTimeout(() => playTone(f, 0.25, 0.1, 'square'), i * 120);
+    });
+    setTimeout(() => playTone(1047, 0.5, 0.12, 'sine'), notes.length * 120);
+}
+
+// Game over: descending tones
+function sfxGameOver() {
+    const notes = [523, 440, 349, 262, 196]; // C5 A4 F4 C4 G3
+    notes.forEach((f, i) => {
+        setTimeout(() => playTone(f, 0.35, 0.1, 'sawtooth', f * 0.7), i * 200);
+    });
+}
+
+// Target hit in training course: satisfying ding
+function sfxTargetHit() {
+    playTone(1047, 0.2, 0.1, 'sine');
+    setTimeout(() => playTone(1319, 0.3, 0.1, 'sine'), 80);
+}
+
 // ====== PANORAMA-ACCURATE LEVEL DATA ======
 // House types: A=YellowSubscriber, B=BlueRoofSubscriber, C=GrayNonSubscriber, D=LargeYellow, E=StainedGlass
 const LEVEL_DATA = {
@@ -1774,6 +1884,8 @@ function throwNewspaper(direction) {
         spinSpeed: 8 + Math.random() * 4
     });
 
+    sfxThrow();
+
     // Show indicator
     const ind = document.getElementById('throwIndicator');
     ind.textContent = direction < 0 ? 'Threw LEFT!' : 'Threw RIGHT!';
@@ -1981,6 +2093,7 @@ function updateNewspapers(dt) {
                     G.deliveries.hit++;
                     G.score += 100;
                     delivered = true;
+                    sfxDelivery();
                     showDeliveryFeedback(np.x, np.z, true);
                     // Mark the corresponding house as delivered
                     if (G.houses[mb.houseIdx]) {
@@ -1988,6 +2101,7 @@ function updateNewspapers(dt) {
                     }
                 } else if (dist < 2.5 && !mb.isSubscriber) {
                     G.score -= 25;
+                    sfxWindowBreak();
                     showDeliveryFeedback(np.x, np.z, false);
                 }
             });
@@ -2001,11 +2115,15 @@ function updateNewspapers(dt) {
                 if (dist < 1.5) {
                     obs.active = false;
                     G.score += 200;
+                    sfxTargetHit();
                     showDeliveryFeedback(np.x, np.z, true);
                     // Hide the target
                     obs.group.visible = false;
                 }
             });
+
+            // Sound for paper landing (miss if not delivered)
+            if (!delivered) sfxMiss();
 
             // Remove after short delay
             setTimeout(() => {
@@ -2077,6 +2195,7 @@ function checkCollisions() {
 }
 
 function hitPlayer() {
+    sfxCrash();
     G.lives--;
     G.invulnerable = 2.0;
     flashTimer = 0;
@@ -2090,6 +2209,7 @@ function hitPlayer() {
 // ====== STREET END ======
 function endStreet() {
     G.gameRunning = false;
+    sfxLevelComplete();
 
     // Count missed subscribers
     const missed = G.deliveries.total - G.deliveries.hit;
@@ -2125,6 +2245,7 @@ function nextStreet() {
 
 function gameOver() {
     G.gameRunning = false;
+    sfxGameOver();
     document.getElementById('finalScore').textContent = G.score;
     document.getElementById('finalStreets').textContent = G.street - 1;
     document.getElementById('gameOverScreen').style.display = 'flex';
@@ -2239,6 +2360,7 @@ function init() {
     setupInput();
 
     document.getElementById('startBtn').addEventListener('click', () => {
+        ensureAudio();
         document.getElementById('startScreen').style.display = 'none';
         document.getElementById('hud').style.display = 'block';
         document.getElementById('progressBar').style.display = 'block';

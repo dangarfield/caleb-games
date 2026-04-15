@@ -96,6 +96,154 @@ function setHighScore(val) {
 }
 let highScore = getHighScore();
 
+// --- Web Audio API Sound System ---
+let audioCtx = null;
+let audioResumed = false;
+
+function ensureAudio() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (!audioResumed && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+        audioResumed = true;
+    }
+    return audioCtx;
+}
+
+// Helper: play a tone with optional frequency sweep
+function playTone(freq, duration, type, vol, endFreq) {
+    const ctx = ensureAudio();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    if (endFreq !== undefined) {
+        osc.frequency.exponentialRampToValueAtTime(Math.max(endFreq, 20), ctx.currentTime + duration);
+    }
+    gain.gain.setValueAtTime(vol || 0.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration);
+}
+
+// Helper: play noise burst (for whoosh effects)
+function playNoise(duration, vol) {
+    const ctx = ensureAudio();
+    const bufferSize = ctx.sampleRate * duration;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1);
+    }
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(vol || 0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    // Bandpass filter for shaped noise
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(800, ctx.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(2000, ctx.currentTime + duration * 0.3);
+    filter.Q.value = 1.0;
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    source.start(ctx.currentTime);
+    source.stop(ctx.currentTime + duration);
+}
+
+// Sound: Fling/launch whoosh sweep upward
+function sfxFling() {
+    playTone(200, 0.25, 'sawtooth', 0.08, 800);
+    playNoise(0.2, 0.1);
+}
+
+// Sound: Bounce/hit platform - bouncy boing
+function sfxBounce() {
+    playTone(300, 0.15, 'sine', 0.1, 150);
+    playTone(450, 0.1, 'sine', 0.06, 200);
+}
+
+// Sound: Collect star/hit ceiling - sparkly chime
+let lastChimePitch = 0;
+function sfxCollect() {
+    const pitches = [523, 659, 784, 880, 1047]; // C5, E5, G5, A5, C6
+    let idx = Math.floor(Math.random() * pitches.length);
+    if (idx === lastChimePitch) idx = (idx + 1) % pitches.length;
+    lastChimePitch = idx;
+    const freq = pitches[idx];
+    playTone(freq, 0.2, 'sine', 0.1);
+    playTone(freq * 1.5, 0.15, 'sine', 0.06);
+    playTone(freq * 2, 0.12, 'triangle', 0.04);
+}
+
+// Sound: Fall/miss - descending whoosh
+function sfxFall() {
+    playTone(400, 0.35, 'sawtooth', 0.08, 80);
+    playNoise(0.3, 0.08);
+}
+
+// Sound: Game over - sad descending notes
+function sfxGameOver() {
+    const ctx = ensureAudio();
+    const notes = [440, 392, 349, 262]; // A4, G4, F4, C4
+    notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.2);
+        gain.gain.setValueAtTime(0, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.12, ctx.currentTime + i * 0.2);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.2 + 0.3);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + i * 0.2);
+        osc.stop(ctx.currentTime + i * 0.2 + 0.35);
+    });
+}
+
+// Sound: New high score - celebratory ascending notes
+function sfxHighScore() {
+    const ctx = ensureAudio();
+    const notes = [523, 659, 784, 1047, 1319]; // C5, E5, G5, C6, E6
+    notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.12);
+        gain.gain.setValueAtTime(0, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.1, ctx.currentTime + i * 0.12);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.12 + 0.25);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + i * 0.12);
+        osc.stop(ctx.currentTime + i * 0.12 + 0.3);
+    });
+}
+
+// Sound: Next wave / combo - rising pitch pops
+function sfxNextWave() {
+    const ctx = ensureAudio();
+    const freqs = [330, 440, 554, 660]; // E4, A4, C#5, E5
+    freqs.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.08);
+        gain.gain.setValueAtTime(0, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.08, ctx.currentTime + i * 0.08);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.08 + 0.1);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + i * 0.08);
+        osc.stop(ctx.currentTime + i * 0.08 + 0.12);
+    });
+}
+
 // --- Color themes per wave (cycle through) ---
 const THEMES = [
     { bg1: '#0a0a2e', bg2: '#141452', bg3: '#1a1a6e', wave: '#6c5ce7', waveGlow: '#a29bfe', waveFill: [108,92,231] },
@@ -274,6 +422,8 @@ function triggerShake() {
 
         spawnParticles(c.x, c.y, c.color, 5);
     }
+
+    sfxFling();
 }
 
 // --- Color helpers ---
@@ -343,6 +493,7 @@ function startGame() {
 }
 
 function nextWave() {
+    sfxNextWave();
     waveNum++;
     creaturesSpawned = 0;
     creaturesCleared = 0;
@@ -392,9 +543,14 @@ function endGame() {
     gameOver = true;
     gameRunning = false;
     gameOverAlpha = 0;
-    if (score > highScore) {
+    const isNewHighScore = score > highScore;
+    if (isNewHighScore) {
         highScore = score;
         setHighScore(highScore);
+    }
+    sfxGameOver();
+    if (isNewHighScore) {
+        setTimeout(sfxHighScore, 900);
     }
     // Spawn some creatures for the background animation
     for (let i = 0; i < 6; i++) {
@@ -541,6 +697,7 @@ function update(time) {
             if (c.x < -c.size) {
                 creatures.splice(i, 1);
                 creaturesCleared++;
+                sfxFall();
                 loseLife();
                 spawnParticles(0, c.y, '#ff0000', 10);
                 if (gameOver) return;
@@ -558,6 +715,7 @@ function update(time) {
                 score += c.points;
                 creaturesCleared++;
                 spawnCeilingBurst(c.x);
+                sfxCollect();
                 updateUI();
                 creatures.splice(i, 1);
                 continue;
@@ -572,6 +730,7 @@ function update(time) {
                 c.onWave = true;
                 c.airborne = false;
                 c.squash = 0.7;
+                sfxBounce();
 
                 // Heavy creatures lose HP on landing
                 if (c.type === 'heavy') {
@@ -833,12 +992,14 @@ function draw(time) {
         // Measure pieces to size the pill
         const waveText = `Wave ${waveNum}`;
         const scoreText = `${score}`;
+        const bestText = `Best: ${highScore}`;
         const livesStr = '\u2764'.repeat(Math.max(0, lives));
         const gap = 20;
 
         ctx.font = smallFont;
         const waveW = ctx.measureText(waveText).width;
         const livesW = ctx.measureText(livesStr).width;
+        const bestW = ctx.measureText(bestText).width;
         ctx.font = bigFont;
         const scoreW = ctx.measureText(scoreText).width;
 
@@ -876,6 +1037,15 @@ function draw(time) {
         ctx.font = smallFont;
         ctx.fillStyle = lives <= 1 ? '#e74c3c' : 'rgba(255,255,255,0.7)';
         ctx.fillText(livesStr, startX + waveW + gap + scoreW + gap, textY);
+
+        // Best score (below pill)
+        if (highScore > 0) {
+            ctx.shadowBlur = 0;
+            ctx.font = '11px "Segoe UI", system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'rgba(255,255,255,0.35)';
+            ctx.fillText(bestText, hudX, hudY + pillH + 14);
+        }
 
         // Progress bar — inside pill, with margin below
         if (!gameOver) {
@@ -985,6 +1155,7 @@ canvas.addEventListener('pointerdown', (e) => {
 });
 
 startBtn.addEventListener('click', () => {
+    ensureAudio();
     startGame();
 });
 

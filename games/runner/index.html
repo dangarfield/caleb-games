@@ -75,6 +75,86 @@
         const instructions = document.getElementById('instructions');
         const startBtn = document.getElementById('startBtn');
 
+        // --- Web Audio API Sound System ---
+        let audioCtx = null;
+        function ensureAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            return audioCtx;
+        }
+
+        function playTone(freq, duration, vol, type, rampEnd) {
+            const ctx = ensureAudio();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = type || 'sine';
+            osc.frequency.setValueAtTime(freq, ctx.currentTime);
+            if (rampEnd !== undefined) {
+                osc.frequency.linearRampToValueAtTime(rampEnd, ctx.currentTime + duration);
+            }
+            gain.gain.setValueAtTime(vol || 0.1, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + duration);
+        }
+
+        function playNoise(duration, vol) {
+            const ctx = ensureAudio();
+            const bufferSize = ctx.sampleRate * duration;
+            const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1);
+            const source = ctx.createBufferSource();
+            source.buffer = buffer;
+            const gain = ctx.createGain();
+            gain.gain.setValueAtTime(vol || 0.08, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+            source.connect(gain);
+            gain.connect(ctx.destination);
+            source.start();
+        }
+
+        function soundJump() {
+            playTone(250, 0.2, 0.1, 'sine', 500);
+            playTone(300, 0.15, 0.06, 'triangle', 600);
+        }
+
+        function soundLand() {
+            playNoise(0.1, 0.08);
+            playTone(80, 0.12, 0.08, 'sine', 50);
+        }
+
+        function soundHit() {
+            playNoise(0.25, 0.12);
+            playTone(200, 0.2, 0.1, 'sawtooth', 60);
+        }
+
+        function soundGameOver() {
+            const ctx = ensureAudio();
+            const notes = [440, 370, 311, 233];
+            notes.forEach((freq, i) => {
+                setTimeout(() => playTone(freq, 0.35, 0.1, 'triangle', freq * 0.7), i * 180);
+            });
+        }
+
+        function soundHighScore() {
+            const ctx = ensureAudio();
+            const notes = [523, 659, 784, 1047];
+            notes.forEach((freq, i) => {
+                setTimeout(() => {
+                    playTone(freq, 0.25, 0.1, 'sine');
+                    playTone(freq * 1.5, 0.2, 0.06, 'triangle');
+                }, i * 120);
+            });
+        }
+
+        function soundMilestone() {
+            playTone(800, 0.1, 0.1, 'sine', 1200);
+            setTimeout(() => playTone(1000, 0.12, 0.08, 'sine', 1400), 80);
+        }
+
         // --- Shared localStorage helper ---
         function loadArcadeData() {
             try { return JSON.parse(localStorage.getItem('calebArcadeData')) || {}; } catch(e) { return {}; }
@@ -117,7 +197,7 @@
         let speed = BASE_SPEED, distance = 0;
         let player, obstacles, particles, stars, bgLayers;
         let lastObstacle = 0, obstacleInterval = 100;
-        let animFrame = 0;
+        let animFrame = 0, lastMilestone = 0;
 
         // --- Player ---
         function createPlayer() {
@@ -166,7 +246,7 @@
             bgLayers = createBgLayers();
             score = 0; speed = BASE_SPEED; distance = 0;
             lastObstacle = 0; gameOver = false;
-            animFrame = 0;
+            animFrame = 0; lastMilestone = 0;
         }
 
         // --- Obstacles ---
@@ -509,6 +589,13 @@
             distance += speed * 0.1;
             score = distance;
 
+            // Milestone sound every 100 points
+            const currentMilestone = Math.floor(score / 100);
+            if (currentMilestone > lastMilestone) {
+                lastMilestone = currentMilestone;
+                soundMilestone();
+            }
+
             // Update parallax
             for (const layer of bgLayers) {
                 layer.offset += speed * layer.speed;
@@ -530,6 +617,7 @@
                     p.vy = 0;
                     p.grounded = true;
                     p.jumps = 0;
+                    soundLand();
                     spawnParticles(p.x + 16, gy, 'rgba(79,195,247,1)', 5);
                 }
             }
@@ -586,11 +674,15 @@
                 }
                 if (px < ox + ow && px + pw > ox && py < oy + oh && py + ph > oy) {
                     // Hit!
+                    soundHit();
                     gameOver = true;
                     gameRunning = false;
                     if (Math.floor(score) > highScore) {
                         highScore = Math.floor(score);
                         saveHighScore(highScore);
+                        setTimeout(soundHighScore, 400);
+                    } else {
+                        setTimeout(soundGameOver, 300);
                     }
                     spawnParticles(p.x + 16, py + ph / 2, 'rgba(255,82,82,1)', 15);
                     spawnParticles(p.x + 16, py + ph / 2, 'rgba(255,215,64,1)', 10);
@@ -627,6 +719,7 @@
                 p.vy = JUMP_FORCE;
                 p.grounded = false;
                 p.jumps++;
+                soundJump();
                 spawnParticles(p.x + 16, p.y + p.h, 'rgba(255,215,64,1)', 4);
             }
         }
@@ -680,6 +773,7 @@
 
         // --- Start ---
         startBtn.addEventListener('click', () => {
+            ensureAudio();
             instructions.style.display = 'none';
             init();
             gameRunning = true;
@@ -687,6 +781,7 @@
         startBtn.addEventListener('touchend', (e) => {
             e.preventDefault();
             e.stopPropagation();
+            ensureAudio();
             instructions.style.display = 'none';
             init();
             gameRunning = true;

@@ -62,6 +62,142 @@
 (() => {
 'use strict';
 
+// ── Web Audio API Sound System ──
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function playTone(freq, duration, vol, type, rampDown) {
+  const ctx = ensureAudio();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(vol, ctx.currentTime);
+  if (rampDown !== false) gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + duration);
+}
+
+function playNoise(duration, vol) {
+  const ctx = ensureAudio();
+  const bufSize = ctx.sampleRate * duration;
+  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1);
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(vol, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 800;
+  src.connect(filter);
+  filter.connect(gain);
+  gain.connect(ctx.destination);
+  src.start();
+  src.stop(ctx.currentTime + duration);
+}
+
+function playSweep(startFreq, endFreq, duration, vol, type) {
+  const ctx = ensureAudio();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.setValueAtTime(startFreq, ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(endFreq, ctx.currentTime + duration);
+  gain.gain.setValueAtTime(vol, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + duration);
+}
+
+// Sound effects
+function sndCardPlayed() {
+  // Soft slap/thud - low noise burst + muted tone
+  playNoise(0.08, 0.1);
+  playTone(120, 0.1, 0.08, 'sine');
+}
+
+function sndCardDrawn() {
+  // Swoosh - noise sweep
+  const ctx = ensureAudio();
+  const bufSize = ctx.sampleRate * 0.15;
+  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1);
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0, ctx.currentTime);
+  gain.gain.linearRampToValueAtTime(0.1, ctx.currentTime + 0.03);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.setValueAtTime(2000, ctx.currentTime);
+  filter.frequency.exponentialRampToValueAtTime(500, ctx.currentTime + 0.15);
+  filter.Q.value = 0.5;
+  src.connect(filter);
+  filter.connect(gain);
+  gain.connect(ctx.destination);
+  src.start();
+  src.stop(ctx.currentTime + 0.15);
+}
+
+function sndPileCleared() {
+  // Whoosh with ascending tone
+  playSweep(200, 800, 0.4, 0.1, 'sine');
+  playNoise(0.3, 0.08);
+  setTimeout(() => playTone(600, 0.15, 0.08, 'triangle'), 100);
+}
+
+function sndInvalidPlay() {
+  // Low buzz
+  playTone(90, 0.25, 0.1, 'sawtooth');
+  playTone(85, 0.25, 0.08, 'square');
+}
+
+function sndPlayerWins() {
+  // Triumphant ascending notes
+  const notes = [523, 659, 784, 1047]; // C5, E5, G5, C6
+  notes.forEach((f, i) => {
+    setTimeout(() => playTone(f, 0.3, 0.12, 'triangle'), i * 150);
+  });
+}
+
+function sndPlayerLoses() {
+  // Gentle descending tones
+  const notes = [440, 370, 311, 262]; // A4, F#4, Eb4, C4
+  notes.forEach((f, i) => {
+    setTimeout(() => playTone(f, 0.35, 0.1, 'sine'), i * 180);
+  });
+}
+
+function sndTurnChange() {
+  // Subtle click
+  playTone(1200, 0.04, 0.08, 'sine');
+}
+
+function sndSwap() {
+  // Two quick soft tones
+  playTone(500, 0.06, 0.08, 'sine');
+  setTimeout(() => playTone(600, 0.06, 0.08, 'sine'), 60);
+}
+
+function sndPickUpPile() {
+  // Descending swoosh
+  playSweep(600, 150, 0.3, 0.1, 'triangle');
+  playNoise(0.2, 0.06);
+}
+
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 const msgEl = document.getElementById('msg');
@@ -171,6 +307,7 @@ function afterPlay(who) {
   if (lastPlayed && lastPlayed.rank === 10) {
     discardPile = [];
     mustPlayUnder7 = false;
+    sndPileCleared();
     showMsg((who === 'player' ? 'You' : 'AI') + ' burned the pile with 10!', 1500);
     return 'again'; // same player goes again
   }
@@ -178,6 +315,7 @@ function afterPlay(who) {
   if (checkFourOfAKind()) {
     discardPile = [];
     mustPlayUnder7 = false;
+    sndPileCleared();
     showMsg('Four of a kind! Pile burned!', 1500);
     return 'again';
   }
@@ -191,9 +329,11 @@ function afterPlay(who) {
 }
 
 function drawFromDeck(p) {
+  const before = p.hand.length;
   while (p.hand.length < 3 && deck.length > 0) {
     p.hand.push(deck.pop());
   }
+  if (p.hand.length > before) sndCardDrawn();
   p.hand.sort((a,b) => a.rank - b.rank);
 }
 
@@ -228,6 +368,7 @@ function playerPlayCards(indices, zone) {
       discardPile.push(card);
       source.splice(indices[0], 1);
       pickUpPile(p);
+      sndInvalidPlay();
       showMsg('Flipped ' + cardName(card) + ' - too low! Pick up pile.', 2000);
       drawFromDeck(p);
       turn = 'ai';
@@ -238,17 +379,19 @@ function playerPlayCards(indices, zone) {
     }
     discardPile.push(card);
     source.splice(indices[0], 1);
+    sndCardPlayed();
   } else {
     // Validate all same rank
     const cards = indices.map(i => source[i]);
     const rank = cards[0].rank;
     if (!cards.every(c => c.rank === rank)) return;
-    if (!canPlayCard(cards[0])) { showMsg("Can't play that!", 1000); return; }
+    if (!canPlayCard(cards[0])) { sndInvalidPlay(); showMsg("Can't play that!", 1000); return; }
     // Play cards
     for (const c of cards) discardPile.push(c);
     // Remove from source (reverse order)
     const sorted = [...indices].sort((a,b) => b - a);
     for (const i of sorted) source.splice(i, 1);
+    sndCardPlayed();
   }
 
   drawFromDeck(p);
@@ -257,6 +400,7 @@ function playerPlayCards(indices, zone) {
   if (checkWin(p)) {
     state = 'gameover';
     winner = 'player';
+    sndPlayerWins();
     showMsg('You win!', 0);
     draw();
     return;
@@ -268,6 +412,7 @@ function playerPlayCards(indices, zone) {
     draw();
   } else {
     turn = 'ai';
+    sndTurnChange();
     draw();
     setTimeout(aiTurn, 800);
   }
@@ -288,6 +433,7 @@ function aiTurn() {
       discardPile.push(card);
       p.faceDown.splice(idx, 1);
       pickUpPile(p);
+      sndInvalidPlay();
       showMsg('AI flipped ' + cardName(card) + ' - too low! Picks up pile.', 2000);
       drawFromDeck(p);
       turn = 'player';
@@ -296,6 +442,7 @@ function aiTurn() {
     }
     discardPile.push(card);
     p.faceDown.splice(idx, 1);
+    sndCardPlayed();
     showMsg('AI plays ' + cardName(card), 1200);
   } else {
     const source = zone === 'hand' ? p.hand : p.faceUp;
@@ -316,6 +463,7 @@ function aiTurn() {
     if (playable.length === 0) {
       // Can't play, pick up
       pickUpPile(p);
+      sndPickUpPile();
       showMsg('AI picks up the pile!', 1500);
       turn = 'player';
       draw();
@@ -329,6 +477,7 @@ function aiTurn() {
     const sorted = [...playable].sort((a,b) => b - a);
     for (const i of sorted) source.splice(i, 1);
     for (const c of cards) discardPile.push(c);
+    sndCardPlayed();
     const names = cards.map(cardName).join(', ');
     showMsg('AI plays ' + names, 1200);
   }
@@ -338,6 +487,7 @@ function aiTurn() {
   if (checkWin(p)) {
     state = 'gameover';
     winner = 'ai';
+    sndPlayerLoses();
     showMsg('AI wins! Better luck next time.', 0);
     draw();
     return;
@@ -350,6 +500,7 @@ function aiTurn() {
     setTimeout(aiTurn, 1000);
   } else {
     turn = 'player';
+    sndTurnChange();
     draw();
   }
 }
@@ -821,6 +972,7 @@ function handleTap(px, py) {
             player.faceUp[fi] = tmp;
             player.hand.sort((a,b) => a.rank - b.rank);
             swapSelected = { hand: -1, faceUp: -1 };
+            sndSwap();
             showMsg('Swapped!', 800);
           } else {
             swapSelected.hand = i;
@@ -845,6 +997,7 @@ function handleTap(px, py) {
             player.hand[hi] = tmp;
             player.hand.sort((a,b) => a.rank - b.rank);
             swapSelected = { hand: -1, faceUp: -1 };
+            sndSwap();
             showMsg('Swapped!', 800);
           } else {
             swapSelected.faceUp = i;
@@ -875,6 +1028,7 @@ function handleTap(px, py) {
   // Pick up pile
   if (regions.pickUpBtn && hitTest(px, py, regions.pickUpBtn)) {
     pickUpPile(player);
+    sndPickUpPile();
     selectedCards = [];
     showMsg('You picked up the pile!', 1500);
     turn = 'ai';
@@ -977,6 +1131,7 @@ function aiCardValue(c) {
 
 // Event listeners
 canvas.addEventListener('pointerdown', (e) => {
+  ensureAudio();
   const rect = canvas.getBoundingClientRect();
   handleTap(e.clientX - rect.left, e.clientY - rect.top);
 });

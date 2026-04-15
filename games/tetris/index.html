@@ -320,6 +320,146 @@
   var bag = [];
   var startingGame = false;
 
+  // --- Web Audio API Sound System ---
+  var audioCtx = null;
+  var audioResumed = false;
+
+  function ensureAudio() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (!audioResumed && audioCtx.state === 'suspended') {
+      audioCtx.resume();
+      audioResumed = true;
+    }
+    return audioCtx;
+  }
+
+  function playTone(freq, duration, vol, type, rampDown) {
+    var ctx = ensureAudio();
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    gain.gain.setValueAtTime(vol || 0.1, ctx.currentTime);
+    if (rampDown !== false) {
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (duration || 0.1));
+    }
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + (duration || 0.1));
+  }
+
+  function playSweep(startFreq, endFreq, duration, vol, type) {
+    var ctx = ensureAudio();
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(startFreq, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(endFreq, ctx.currentTime + duration);
+    gain.gain.setValueAtTime(vol || 0.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration);
+  }
+
+  function playNoise(duration, vol) {
+    var ctx = ensureAudio();
+    var bufferSize = ctx.sampleRate * duration;
+    var buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    var data = buffer.getChannelData(0);
+    for (var i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1);
+    }
+    var source = ctx.createBufferSource();
+    source.buffer = buffer;
+    var gain = ctx.createGain();
+    gain.gain.setValueAtTime(vol || 0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    source.start(ctx.currentTime);
+    source.stop(ctx.currentTime + duration);
+  }
+
+  function sndMove() {
+    playTone(600, 0.05, 0.08, 'square');
+  }
+
+  function sndRotate() {
+    playSweep(400, 800, 0.08, 0.08, 'sine');
+    playNoise(0.06, 0.04);
+  }
+
+  function sndHardDrop() {
+    playNoise(0.15, 0.12);
+    playTone(80, 0.2, 0.12, 'sine');
+    playTone(60, 0.25, 0.1, 'triangle');
+  }
+
+  function sndLand() {
+    playNoise(0.08, 0.06);
+    playTone(120, 0.12, 0.08, 'sine');
+  }
+
+  function sndLineClear(count) {
+    var ctx = ensureAudio();
+    if (count >= 4) {
+      // Tetris - dramatic sweep
+      playSweep(300, 1200, 0.35, 0.12, 'sawtooth');
+      playSweep(400, 1600, 0.4, 0.1, 'sine');
+      playTone(800, 0.3, 0.08, 'triangle');
+    } else {
+      // Normal line clear
+      playSweep(250, 900, 0.25, 0.1, 'sine');
+      playSweep(300, 700, 0.2, 0.08, 'triangle');
+    }
+  }
+
+  function sndLevelUp() {
+    var ctx = ensureAudio();
+    var notes = [523, 659, 784, 1047]; // C5, E5, G5, C6
+    for (var i = 0; i < notes.length; i++) {
+      (function(idx) {
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = 'sine';
+        var t = ctx.currentTime + idx * 0.1;
+        osc.frequency.setValueAtTime(notes[idx], t);
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.1, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.2);
+      })(i);
+    }
+  }
+
+  function sndGameOver() {
+    var ctx = ensureAudio();
+    var notes = [440, 370, 311, 261]; // A4, F#4, D#4, C4 descending
+    for (var i = 0; i < notes.length; i++) {
+      (function(idx) {
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = 'triangle';
+        var t = ctx.currentTime + idx * 0.2;
+        osc.frequency.setValueAtTime(notes[idx], t);
+        gain.gain.setValueAtTime(0.12, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.4);
+      })(i);
+    }
+  }
+
   function initBoard() {
     board = [];
     for (var r = 0; r < TOTAL_ROWS; r++) {
@@ -377,6 +517,7 @@
     if (!isValid(currentPiece.cells, currentPiece.x, currentPiece.y)) {
       gameOver = true;
       updateHighScore();
+      sndGameOver();
     }
   }
 
@@ -430,6 +571,7 @@
     }
     if (fullRows.length > 0) {
       lineClearAnim = { rows: fullRows, timer: 0, duration: 0.35 };
+      sndLineClear(fullRows.length);
     }
   }
 
@@ -445,7 +587,11 @@
     var pts = [0, 100, 300, 500, 800];
     score += (pts[count] || 800) * level;
     lines += count;
+    var oldLevel = level;
     level = Math.floor(lines / 10) + 1;
+    if (level > oldLevel) {
+      sndLevelUp();
+    }
     updateHighScore();
   }
 
@@ -495,6 +641,7 @@
           p.x += kx;
           p.y -= ky;
           p.rotation = newRot;
+          sndRotate();
           return;
         }
       }
@@ -502,6 +649,7 @@
       if (isValid(newCells, p.x, p.y)) {
         p.cells = newCells;
         p.rotation = newRot;
+        sndRotate();
       }
     }
   }
@@ -510,6 +658,7 @@
     if (!currentPiece) return;
     if (isValid(currentPiece.cells, currentPiece.x + dx, currentPiece.y)) {
       currentPiece.x += dx;
+      sndMove();
     }
   }
 
@@ -520,6 +669,7 @@
       score += 1;
       dropTimer = 0;
     } else {
+      sndLand();
       lockPiece();
     }
   }
@@ -532,6 +682,7 @@
     }
     currentPiece.y += dist;
     score += dist * 2;
+    sndHardDrop();
     lockPiece();
     dropTimer = 0;
   }
@@ -802,6 +953,7 @@
       if (isValid(currentPiece.cells, currentPiece.x, currentPiece.y + 1)) {
         currentPiece.y += 1;
       } else {
+        sndLand();
         lockPiece();
       }
     }
@@ -821,6 +973,7 @@
   function startGame() {
     if (startingGame) return;
     startingGame = true;
+    ensureAudio();
 
     initBoard();
     score = 0;

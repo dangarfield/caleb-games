@@ -78,6 +78,205 @@
     const overlay = document.getElementById('overlay');
     const startBtn = document.getElementById('startBtn');
 
+    // === Web Audio API Sound System ===
+    let audioCtx = null;
+    function ensureAudio() {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        return audioCtx;
+    }
+
+    function playTone(freq, duration, vol, type, rampDown) {
+        const ctx = ensureAudio();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type || 'sine';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        gain.gain.setValueAtTime(vol, ctx.currentTime);
+        if (rampDown !== false) {
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+        }
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + duration);
+        return { osc, gain, ctx };
+    }
+
+    function playNoiseBurst(duration, vol) {
+        const ctx = ensureAudio();
+        const bufferSize = ctx.sampleRate * duration;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1);
+        }
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(vol, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+        source.connect(gain);
+        gain.connect(ctx.destination);
+        source.start(ctx.currentTime);
+        return { source, gain, ctx };
+    }
+
+    function sfxKick() {
+        // Sharp thud/impact sound
+        const ctx = ensureAudio();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(160, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.12, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.15);
+        // Add a click layer
+        playNoiseBurst(0.04, 0.08);
+    }
+
+    function sfxGoal() {
+        // Crowd cheer (filtered noise burst)
+        const ctx = ensureAudio();
+        const bufLen = ctx.sampleRate * 1.2;
+        const buffer = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufLen; i++) {
+            data[i] = (Math.random() * 2 - 1);
+        }
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        const bandpass = ctx.createBiquadFilter();
+        bandpass.type = 'bandpass';
+        bandpass.frequency.setValueAtTime(1200, ctx.currentTime);
+        bandpass.Q.setValueAtTime(0.5, ctx.currentTime);
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.0, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.12, ctx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.12, ctx.currentTime + 0.5);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2);
+        source.connect(bandpass);
+        bandpass.connect(gain);
+        gain.connect(ctx.destination);
+        source.start(ctx.currentTime);
+        // Triumphant rising tone
+        const osc = ctx.createOscillator();
+        const tGain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(400, ctx.currentTime + 0.05);
+        osc.frequency.linearRampToValueAtTime(600, ctx.currentTime + 0.2);
+        osc.frequency.setValueAtTime(600, ctx.currentTime + 0.25);
+        osc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.45);
+        tGain.gain.setValueAtTime(0.1, ctx.currentTime + 0.05);
+        tGain.gain.setValueAtTime(0.1, ctx.currentTime + 0.6);
+        tGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.0);
+        osc.connect(tGain);
+        tGain.connect(ctx.destination);
+        osc.start(ctx.currentTime + 0.05);
+        osc.stop(ctx.currentTime + 1.0);
+    }
+
+    function sfxSaved() {
+        // Dull thump
+        const ctx = ensureAudio();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(100, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.2);
+        // Soft noise layer
+        playNoiseBurst(0.06, 0.05);
+    }
+
+    function sfxMiss() {
+        // Whoosh sound - filtered noise sweep
+        const ctx = ensureAudio();
+        const bufLen = ctx.sampleRate * 0.35;
+        const buffer = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufLen; i++) {
+            data[i] = (Math.random() * 2 - 1);
+        }
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(500, ctx.currentTime);
+        filter.frequency.exponentialRampToValueAtTime(2000, ctx.currentTime + 0.15);
+        filter.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.35);
+        filter.Q.setValueAtTime(2, ctx.currentTime);
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.0, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.1, ctx.currentTime + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+        source.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+        source.start(ctx.currentTime);
+    }
+
+    function sfxWhistle() {
+        // High sine whistle
+        const ctx = ensureAudio();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.setValueAtTime(0.1, ctx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.001, ctx.currentTime + 0.18);
+        gain.gain.setValueAtTime(0.1, ctx.currentTime + 0.25);
+        gain.gain.setValueAtTime(0.1, ctx.currentTime + 0.6);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.0);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 1.0);
+        // Second harmonic for realism
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(1760, ctx.currentTime);
+        gain2.gain.setValueAtTime(0.04, ctx.currentTime);
+        gain2.gain.setValueAtTime(0.04, ctx.currentTime + 0.15);
+        gain2.gain.setValueAtTime(0.001, ctx.currentTime + 0.18);
+        gain2.gain.setValueAtTime(0.04, ctx.currentTime + 0.25);
+        gain2.gain.setValueAtTime(0.04, ctx.currentTime + 0.6);
+        gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.0);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start(ctx.currentTime);
+        osc2.stop(ctx.currentTime + 1.0);
+    }
+
+    function sfxBlocked() {
+        // Dull thump for wall block
+        const ctx = ensureAudio();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(120, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(35, ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.15);
+    }
+    // === End Sound System ===
+
     let W, H;
     function resize() {
         W = canvas.width = window.innerWidth;
@@ -292,6 +491,7 @@
 
         state = STATE.FLYING;
         kicks++;
+        sfxKick();
     }
 
     function spawnParticles(x, y, z, color, count) {
@@ -342,6 +542,7 @@
                     ballVel.x += (Math.random() - 0.5) * 2;
                     ballVel.y = Math.abs(ballVel.y) * 0.5 + 1;
                     spawnParticles(ball.x, ball.y, ball.z, '#fff', 8);
+                    sfxBlocked();
                     break;
                 }
             }
@@ -372,11 +573,13 @@
 
             // Ball went too far or stopped
             if (ball.z > GOAL_DIST + 50 || (ball.z > 10 && Math.abs(ballVel.z) < 0.1 && ball.y < ballRadius + 1)) {
+                sfxMiss();
                 showResult('Miss!', false);
             }
 
             // Ball came back (blocked)
             if (ball.z < -20) {
+                sfxBlocked();
                 showResult('Blocked!', false);
             }
         }
@@ -410,6 +613,7 @@
         const inGoalY = ball.y > 0 && ball.y < GOAL_HEIGHT;
 
         if (!inGoalX || !inGoalY) {
+            sfxMiss();
             showResult('Wide!', false);
             return;
         }
@@ -422,11 +626,13 @@
 
         if (keeperDx < saveReachX && keeperDy < saveReachY) {
             spawnParticles(ball.x, ball.y, ball.z, '#ff0', 15);
+            sfxSaved();
             showResult('Saved!', false);
         } else {
             score++;
             spawnParticles(ball.x, ball.y, ball.z, '#0f0', 25);
             spawnParticles(ball.x, ball.y, ball.z, '#fff', 15);
+            sfxGoal();
             showResult('GOAL!', true);
             if (kicks % 3 === 0) level++;
         }
@@ -442,6 +648,7 @@
     let gameOverShown = false;
     function showGameOver() {
         gameOverShown = true;
+        sfxWhistle();
         overlay.classList.remove('hidden');
         overlay.innerHTML = `
             <div class="overlay-box">
@@ -816,6 +1023,7 @@
 
     // Start
     startBtn.addEventListener('click', () => {
+        ensureAudio();
         overlay.classList.add('hidden');
         setupRound();
         requestAnimationFrame(loop);

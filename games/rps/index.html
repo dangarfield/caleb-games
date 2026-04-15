@@ -427,6 +427,114 @@
 </div>
 
 <script>
+// ── Web Audio API Sound System ──
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function playTone(freq, duration, vol = 0.1, type = 'sine', startTime = 0) {
+  const ctx = ensureAudio();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(vol, ctx.currentTime + startTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startTime + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(ctx.currentTime + startTime);
+  osc.stop(ctx.currentTime + startTime + duration);
+}
+
+function playSweep(startFreq, endFreq, duration, vol = 0.1, type = 'sine', startTime = 0) {
+  const ctx = ensureAudio();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(startFreq, ctx.currentTime + startTime);
+  osc.frequency.exponentialRampToValueAtTime(endFreq, ctx.currentTime + startTime + duration);
+  gain.gain.setValueAtTime(vol, ctx.currentTime + startTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startTime + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(ctx.currentTime + startTime);
+  osc.stop(ctx.currentTime + startTime + duration);
+}
+
+function playNoise(duration, vol = 0.08, startTime = 0) {
+  const ctx = ensureAudio();
+  const bufferSize = ctx.sampleRate * duration;
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+  const src = ctx.createBufferSource();
+  const gain = ctx.createGain();
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 300;
+  src.buffer = buffer;
+  gain.gain.setValueAtTime(vol, ctx.currentTime + startTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startTime + duration);
+  src.connect(filter);
+  filter.connect(gain);
+  gain.connect(ctx.destination);
+  src.start(ctx.currentTime + startTime);
+  src.stop(ctx.currentTime + startTime + duration);
+}
+
+// Sound effects
+function sfxClick() {
+  playTone(800, 0.06, 0.1, 'square');
+  playTone(600, 0.04, 0.08, 'square', 0.02);
+}
+
+function sfxThud(delay = 0) {
+  playNoise(0.08, 0.12, delay);
+  playTone(80, 0.1, 0.1, 'sine', delay);
+}
+
+function sfxCountdown() {
+  sfxThud(0);
+  sfxThud(0.18);
+  sfxThud(0.36);
+}
+
+function sfxWinRound() {
+  playTone(523, 0.12, 0.1, 'sine');
+  playTone(659, 0.12, 0.1, 'sine', 0.1);
+  playTone(784, 0.2, 0.12, 'sine', 0.2);
+}
+
+function sfxLoseRound() {
+  playSweep(400, 200, 0.3, 0.1, 'sawtooth');
+  playTone(180, 0.2, 0.08, 'sine', 0.15);
+}
+
+function sfxDraw() {
+  playTone(440, 0.15, 0.08, 'triangle');
+  playTone(440, 0.15, 0.08, 'triangle', 0.15);
+}
+
+function sfxGameWin() {
+  playTone(523, 0.15, 0.12, 'square');
+  playTone(659, 0.15, 0.12, 'square', 0.12);
+  playTone(784, 0.15, 0.12, 'square', 0.24);
+  playTone(1047, 0.3, 0.15, 'square', 0.36);
+  playTone(784, 0.1, 0.08, 'sine', 0.36);
+  playTone(1047, 0.1, 0.08, 'sine', 0.5);
+}
+
+function sfxGameLose() {
+  playTone(440, 0.2, 0.1, 'sawtooth');
+  playTone(370, 0.2, 0.1, 'sawtooth', 0.2);
+  playTone(311, 0.2, 0.1, 'sawtooth', 0.4);
+  playTone(261, 0.4, 0.12, 'sawtooth', 0.6);
+}
+// ── End Sound System ──
+
 const CLASSIC_SET = {
   name: 'Classic',
   items: [
@@ -526,6 +634,10 @@ function playRound(playerIdx) {
   const cpuEl = document.getElementById('cpu-display');
   const resultEl = document.getElementById('result-text');
 
+  // Sound: choice click + countdown thuds
+  sfxClick();
+  sfxCountdown();
+
   // Shake animation
   playerEl.innerHTML = '?';
   cpuEl.innerHTML = '?';
@@ -549,18 +661,29 @@ function playRound(playerIdx) {
       result = 'draw';
       resultEl.textContent = "It's a draw!";
       resultEl.className = 'result-text draw';
+      sfxDraw();
     } else if (playerItem.beats.includes(cpuItem.name)) {
       result = 'win';
       playerScore++;
       resultEl.textContent = `${playerItem.name} beats ${cpuItem.name}!`;
       resultEl.className = 'result-text win';
       playerEl.classList.add('bounce');
+      if (playerScore === 5) {
+        sfxGameWin();
+      } else {
+        sfxWinRound();
+      }
     } else {
       result = 'lose';
       cpuScore++;
       resultEl.textContent = `${cpuItem.name} beats ${playerItem.name}!`;
       resultEl.className = 'result-text lose';
       cpuEl.classList.add('bounce');
+      if (cpuScore === 5) {
+        sfxGameLose();
+      } else {
+        sfxLoseRound();
+      }
     }
 
     updateScores();

@@ -161,6 +161,159 @@
 (function() {
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
+
+  // === Web Audio API Sound System ===
+  let audioCtx = null;
+  let audioResumed = false;
+
+  function ensureAudio() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (!audioResumed && audioCtx.state === 'suspended') {
+      audioCtx.resume();
+      audioResumed = true;
+    }
+    return audioCtx;
+  }
+
+  // Resume audio on first user interaction
+  ['click', 'touchstart', 'keydown'].forEach(evt => {
+    document.addEventListener(evt, ensureAudio, { once: false, passive: true });
+  });
+
+  // Helper: play a tone with attack/release envelope
+  function playTone(freq, duration, vol, type, startTime) {
+    const ctx = ensureAudio();
+    const t = startTime || ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, t);
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(vol, t + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + duration);
+  }
+
+  // Helper: frequency sweep
+  function playSweep(startFreq, endFreq, duration, vol, type, startTime) {
+    const ctx = ensureAudio();
+    const t = startTime || ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(startFreq, t);
+    osc.frequency.exponentialRampToValueAtTime(endFreq, t + duration);
+    gain.gain.setValueAtTime(vol, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + duration);
+  }
+
+  // Helper: noise burst (for whoosh/click sounds)
+  function playNoise(duration, vol, startTime) {
+    const ctx = ensureAudio();
+    const t = startTime || ctx.currentTime;
+    const bufferSize = ctx.sampleRate * duration;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1);
+    }
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(vol, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    source.start(t);
+    source.stop(t + duration);
+  }
+
+  // Sound: Bubble launch (whoosh + pop)
+  function soundLaunch() {
+    try {
+      const ctx = ensureAudio();
+      const t = ctx.currentTime;
+      playNoise(0.08, 0.08, t);
+      playSweep(600, 1200, 0.1, 0.1, 'sine', t);
+    } catch(e) {}
+  }
+
+  // Sound: Bubble attach (soft click)
+  function soundAttach() {
+    try {
+      const ctx = ensureAudio();
+      const t = ctx.currentTime;
+      playTone(800, 0.06, 0.1, 'sine', t);
+      playNoise(0.03, 0.05, t);
+    } catch(e) {}
+  }
+
+  // Sound: Bubbles pop (chain of pops with rising pitch)
+  function soundPop(count) {
+    try {
+      const ctx = ensureAudio();
+      const t = ctx.currentTime;
+      const num = Math.min(count, 12);
+      for (let i = 0; i < num; i++) {
+        const delay = i * 0.06;
+        const freq = 400 + i * 80;
+        playTone(freq, 0.1, 0.1, 'sine', t + delay);
+        playNoise(0.04, 0.06, t + delay);
+      }
+    } catch(e) {}
+  }
+
+  // Sound: Bubbles fall (cascading tones)
+  function soundFall(count) {
+    try {
+      const ctx = ensureAudio();
+      const t = ctx.currentTime;
+      const num = Math.min(count, 8);
+      for (let i = 0; i < num; i++) {
+        const delay = i * 0.07;
+        const freq = 600 - i * 50;
+        playSweep(freq, freq * 0.4, 0.2, 0.08, 'triangle', t + delay);
+      }
+    } catch(e) {}
+  }
+
+  // Sound: Game over (descending sad tones)
+  function soundGameOver() {
+    try {
+      const ctx = ensureAudio();
+      const t = ctx.currentTime;
+      const notes = [440, 392, 349, 311, 262];
+      for (let i = 0; i < notes.length; i++) {
+        playTone(notes[i], 0.3, 0.12, 'sine', t + i * 0.25);
+        playTone(notes[i] * 0.5, 0.4, 0.08, 'triangle', t + i * 0.25);
+      }
+    } catch(e) {}
+  }
+
+  // Sound: Level complete (cheerful ascending notes)
+  function soundLevelComplete() {
+    try {
+      const ctx = ensureAudio();
+      const t = ctx.currentTime;
+      const notes = [523, 587, 659, 784, 880, 1047];
+      for (let i = 0; i < notes.length; i++) {
+        playTone(notes[i], 0.15, 0.1, 'sine', t + i * 0.1);
+        playTone(notes[i] * 0.5, 0.2, 0.08, 'triangle', t + i * 0.1);
+      }
+      // Final sparkle
+      playTone(1319, 0.4, 0.12, 'sine', t + 0.6);
+    } catch(e) {}
+  }
+  // === End Sound System ===
   const scoreDisplay = document.getElementById('scoreDisplay');
   const highScoreDisplay = document.getElementById('highScoreDisplay');
   const instructionsOverlay = document.getElementById('instructionsOverlay');
@@ -645,6 +798,7 @@
       color: shooter.color,
     };
 
+    soundLaunch();
     shooter.color = nextColor;
     nextColor = pickColor();
   }
@@ -685,11 +839,13 @@
     const slot = findSlot(flying.x, flying.y);
     placeBubble(slot.row, slot.col, flying.color);
     flying = null;
+    soundAttach();
 
     // Check for matches
     const cluster = findCluster(slot.row, slot.col, grid[slot.row][slot.col]);
 
     if (cluster.length >= 3) {
+      soundPop(cluster.length);
       animating = true;
 
       // Start pop animation
@@ -709,6 +865,7 @@
       const connected = findConnected();
       const key = (r, c) => `${r},${c}`;
 
+      let fallCount = 0;
       for (let r = 0; r < grid.length; r++) {
         for (let c = 0; c < grid[r].length; c++) {
           if (grid[r][c] !== -1 && !connected.has(key(r, c))) {
@@ -720,9 +877,11 @@
             });
             grid[r][c] = -1;
             score += 15;
+            fallCount++;
           }
         }
       }
+      if (fallCount > 0) soundFall(fallCount);
 
       // Clean trailing empty rows
       while (grid.length > 0 && grid[grid.length - 1].every(v => v === -1)) {
@@ -766,6 +925,7 @@
     if (!hasBubbles) {
       score += 100;
       updateScoreDisplay();
+      soundLevelComplete();
       // Reinitialize with new bubbles
       initGrid();
     }
@@ -773,6 +933,7 @@
 
   function endGame() {
     gameRunning = false;
+    soundGameOver();
     // Save high score
     if (score > getHighScore()) {
       saveHighScore(score);

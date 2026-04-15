@@ -94,6 +94,116 @@ canvas{display:block}
 
 <script>
 const G = (() => {
+  // --- Web Audio API Sound System ---
+  let audioCtx = null;
+  function ensureAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  function playTone(freq, duration, vol = 0.1, type = 'sine', fadeOut = true) {
+    const ctx = ensureAudio();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    if (fadeOut) gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration);
+  }
+
+  function playNoise(duration, vol = 0.08) {
+    const ctx = ensureAudio();
+    const bufferSize = ctx.sampleRate * duration;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    // Bandpass to shape the noise
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(800, ctx.currentTime);
+    filter.Q.setValueAtTime(0.5, ctx.currentTime);
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    source.start(ctx.currentTime);
+    source.stop(ctx.currentTime + duration);
+  }
+
+  function playSweep(startFreq, endFreq, duration, vol = 0.1, type = 'sine') {
+    const ctx = ensureAudio();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(startFreq, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(endFreq, ctx.currentTime + duration);
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration);
+  }
+
+  // Sound effects
+  function sndCardPlayed() {
+    // Soft thud: low tone + short noise burst
+    playTone(120, 0.12, 0.10, 'sine');
+    playNoise(0.06, 0.08);
+  }
+
+  function sndCardDrawn() {
+    // Light swoosh: quick frequency sweep
+    playSweep(600, 1200, 0.15, 0.08, 'sine');
+    playNoise(0.08, 0.04);
+  }
+
+  function sndEightPlayed() {
+    // Sparkle/chime: multiple short high tones
+    const ctx = ensureAudio();
+    const freqs = [880, 1108, 1320, 1760];
+    freqs.forEach((f, i) => {
+      setTimeout(() => playTone(f, 0.25, 0.10, 'sine'), i * 60);
+    });
+  }
+
+  function sndInvalidMove() {
+    // Low buzz
+    playTone(90, 0.25, 0.10, 'sawtooth');
+    playTone(85, 0.25, 0.08, 'square');
+  }
+
+  function sndWin() {
+    // Triumphant ascending notes
+    const notes = [523, 659, 784, 1047];
+    notes.forEach((f, i) => {
+      setTimeout(() => playTone(f, 0.3, 0.12, 'sine'), i * 120);
+    });
+  }
+
+  function sndLose() {
+    // Gentle descending tones
+    const notes = [440, 392, 330, 262];
+    notes.forEach((f, i) => {
+      setTimeout(() => playTone(f, 0.35, 0.10, 'sine'), i * 150);
+    });
+  }
+
+  function sndSuitChosen() {
+    // Confirmation blip: two quick ascending tones
+    playTone(660, 0.1, 0.10, 'sine');
+    setTimeout(() => playTone(880, 0.15, 0.10, 'sine'), 80);
+  }
+
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
   const statusEl = document.getElementById('status');
@@ -393,11 +503,12 @@ const G = (() => {
   function playerPlay(index) {
     if (!playerTurn || gameOver || animating) return;
     const card = playerHand[index];
-    if (!canPlay(card)) return;
+    if (!canPlay(card)) { sndInvalidMove(); return; }
 
     if (card.rank === '8') {
       // Store the card index and show suit picker
       playCard(playerHand, index);
+      sndEightPlayed();
       selectedIndex = -1;
       draw();
       if (playerHand.length === 0) { endGame(true); return; }
@@ -406,6 +517,7 @@ const G = (() => {
     }
 
     playCard(playerHand, index);
+    sndCardPlayed();
     selectedIndex = -1;
     if (playerHand.length === 0) { endGame(true); return; }
     playerTurn = false;
@@ -426,6 +538,7 @@ const G = (() => {
       return;
     }
     playerHand.push(card);
+    sndCardDrawn();
     updateScroll();
     // If the drawn card can be played, let the player decide
     if (canPlay(card)) {
@@ -531,6 +644,7 @@ const G = (() => {
 
   function endGame(playerWon) {
     gameOver = true;
+    if (playerWon) sndWin(); else sndLose();
     const el = document.getElementById('endOverlay');
     document.getElementById('endTitle').textContent = playerWon ? 'YOU WIN!' : 'AI WINS!';
     document.getElementById('endMsg').textContent = playerWon
@@ -596,6 +710,7 @@ const G = (() => {
 
   function pickSuit(suit) {
     currentSuit = suit;
+    sndSuitChosen();
     document.getElementById('suitPicker').classList.add('hidden');
     statusEl.textContent = 'You chose ' + SUIT_SYMBOLS[suit];
     playerTurn = false;
@@ -604,6 +719,7 @@ const G = (() => {
   }
 
   function start() {
+    ensureAudio();
     document.getElementById('startOverlay').classList.add('hidden');
     document.getElementById('endOverlay').classList.add('hidden');
     document.getElementById('suitPicker').classList.add('hidden');

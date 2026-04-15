@@ -83,6 +83,127 @@ const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
 // ═══════════════════════════════════════════════════════════════
+// Web Audio API — Sound Effects
+// ═══════════════════════════════════════════════════════════════
+let audioCtx = null;
+function ensureAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+}
+// Resume audio context on first user interaction
+['click','touchstart','keydown'].forEach(evt =>
+    document.addEventListener(evt, ensureAudio, { once: true })
+);
+
+// Helper: play a tone (sine/square/triangle/sawtooth)
+function playTone(freq, duration, vol = 0.1, type = 'sine', fadeOut = true) {
+    const ctx = ensureAudio();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    if (fadeOut) gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration);
+}
+
+// Helper: frequency sweep
+function playSweep(startFreq, endFreq, duration, vol = 0.1, type = 'sine') {
+    const ctx = ensureAudio();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(startFreq, ctx.currentTime);
+    osc.frequency.linearRampToValueAtTime(endFreq, ctx.currentTime + duration);
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration);
+}
+
+// Helper: noise burst (for crowd roar)
+function playNoise(duration, vol = 0.1) {
+    const ctx = ensureAudio();
+    const bufferSize = ctx.sampleRate * duration;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    // Bandpass to make it sound more like a crowd
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(800, ctx.currentTime);
+    filter.Q.setValueAtTime(0.5, ctx.currentTime);
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    source.start(ctx.currentTime);
+    source.stop(ctx.currentTime + duration);
+}
+
+// Sound: ball kick (sharp impact thud)
+function sfxKick() {
+    playTone(120, 0.08, 0.12, 'triangle', true);
+    playTone(80, 0.06, 0.08, 'square', true);
+}
+
+// Sound: ball pass (lighter kick)
+function sfxPass() {
+    playTone(150, 0.06, 0.10, 'triangle', true);
+}
+
+// Sound: goal scored (crowd roar + horn)
+function sfxGoal() {
+    playNoise(1.5, 0.12);
+    // Horn: two-tone
+    setTimeout(() => {
+        playTone(220, 0.6, 0.10, 'sawtooth', true);
+        playTone(277, 0.6, 0.08, 'sawtooth', true);
+    }, 100);
+    setTimeout(() => {
+        playTone(220, 0.8, 0.08, 'sawtooth', true);
+        playTone(277, 0.8, 0.06, 'sawtooth', true);
+    }, 800);
+}
+
+// Sound: ball hits post (metallic ping)
+function sfxPost() {
+    playTone(2400, 0.15, 0.10, 'sine', true);
+    playTone(3600, 0.10, 0.06, 'sine', true);
+    playTone(1200, 0.20, 0.05, 'triangle', true);
+}
+
+// Sound: referee whistle (high sine tone)
+function sfxWhistle(long = false) {
+    const dur = long ? 0.8 : 0.35;
+    playTone(3200, dur, 0.10, 'sine', true);
+    playTone(3800, dur * 0.7, 0.06, 'sine', true);
+}
+
+// Sound: final whistle (three blasts)
+function sfxFinalWhistle() {
+    sfxWhistle(false);
+    setTimeout(() => sfxWhistle(false), 400);
+    setTimeout(() => sfxWhistle(true), 800);
+}
+
+// Sound: goalkeeper save (dull thump)
+function sfxSave() {
+    playTone(60, 0.12, 0.12, 'sine', true);
+    playTone(90, 0.10, 0.08, 'triangle', true);
+}
+
+// ═══════════════════════════════════════════════════════════════
 // EMath — ysoccer framework/EMath.java (degree-based trig)
 // ═══════════════════════════════════════════════════════════════
 const DEG2RAD = Math.PI / 180;
@@ -429,6 +550,7 @@ function updateBall() {
 
     // Touchlines (throw-in)
     if (ball.y < 0 || ball.y > PITCH_H) {
+        sfxWhistle(false);
         deadBall = true;
         deadBallType = 'throwin';
         deadBallPos.x = clamp(ball.x, 10, PITCH_W - 10);
@@ -447,6 +569,7 @@ function updateBall() {
 
     // Goal lines (goal kick / corner)
     if (ball.x < 0) {
+        sfxWhistle(false);
         deadBall = true;
         deadBallType = 'goalkick';
         deadBallPos.x = 60;
@@ -462,6 +585,7 @@ function updateBall() {
         return;
     }
     if (ball.x > PITCH_W) {
+        sfxWhistle(false);
         deadBall = true;
         deadBallType = 'goalkick';
         deadBallPos.x = PITCH_W - 60;
@@ -487,6 +611,7 @@ function updateBall() {
 function checkGoalpostCollision(px, py) {
     const d = dist(ball, { x: px, y: py });
     if (d < BALL_R + 4) {
+        sfxPost();
         // Reflect velocity
         const nx = (ball.x - px) / d, ny = (ball.y - py) / d;
         const bvx = ball.v * EMath.cos(ball.a);
@@ -505,6 +630,7 @@ function scoreGoal(team) {
     score[team]++;
     kickOff = true;
     kickOffTeam = team === 'a' ? 'b' : 'a';
+    sfxGoal();
     resetPositions(kickOffTeam);
 }
 
@@ -884,6 +1010,7 @@ function updatePlayerState(p) {
 
 // Execute a ball kick (pass/shoot/long ball)
 function executeBallKick(p, baseSpeed, isShot) {
+    sfxKick();
     const team = p.side === 'a' ? teamA : teamB;
 
     if (isShot) {
@@ -920,6 +1047,7 @@ function enterKickState(p, mode) {
 
 // Execute a pass (tap fire = PASSING mode)
 function executePass(p) {
+    sfxPass();
     const team = p.side === 'a' ? teamA : teamB;
     const target = searchPassingMate(p, team);
 
@@ -1244,6 +1372,7 @@ function updateGK(gk, team, oppTeam) {
     if (ballDist < 80 && Math.abs(ball.x - goalX) < 100) {
         moveToward(gk, ball.x, ball.y, playerSpeed(70)); // GK slightly faster
         if (playerBallInteraction(gk)) {
+            sfxSave();
             // GK clears
             const clearAngle = gk.side === 'a' ? 0 : 180;
             const spread = (Math.random() - 0.5) * 40; // degrees
@@ -1498,10 +1627,12 @@ function update() {
         halfTime = true;
         kickOffTeam = 'b';
         resetPositions('b');
+        sfxWhistle(true);
         return;
     }
     if (matchTime >= MATCH_DURATION) {
         matchOver = true;
+        sfxFinalWhistle();
         return;
     }
 
@@ -1952,6 +2083,7 @@ document.getElementById('startBtn').addEventListener('click', () => {
     gameStarted = true;
     matchRunning = true;
     resetPositions('a');
+    sfxWhistle(true);
     requestAnimationFrame(gameLoop);
 });
 </script>

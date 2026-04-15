@@ -330,6 +330,132 @@
 
   <script>
   (function() {
+    // ============ Web Audio API Sound System ============
+    var audioCtx = null;
+    function ensureAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    // Resume audio context on first user interaction
+    ['click', 'touchstart', 'keydown'].forEach(function(evt) {
+      document.addEventListener(evt, function() { ensureAudio(); }, { once: true });
+    });
+
+    function playTone(freq, duration, volume, type, rampDown) {
+      try {
+        var ctx = ensureAudio();
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = type || 'sine';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        gain.gain.setValueAtTime(volume || 0.1, ctx.currentTime);
+        if (rampDown !== false) {
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+        }
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + duration);
+      } catch(e) {}
+    }
+
+    function playSweep(startFreq, endFreq, duration, volume, type) {
+      try {
+        var ctx = ensureAudio();
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = type || 'sine';
+        osc.frequency.setValueAtTime(startFreq, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(endFreq, ctx.currentTime + duration);
+        gain.gain.setValueAtTime(volume || 0.1, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + duration);
+      } catch(e) {}
+    }
+
+    function playNoise(duration, volume) {
+      try {
+        var ctx = ensureAudio();
+        var bufferSize = ctx.sampleRate * duration;
+        var buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        var data = buffer.getChannelData(0);
+        for (var i = 0; i < bufferSize; i++) {
+          data[i] = (Math.random() * 2 - 1);
+        }
+        var source = ctx.createBufferSource();
+        source.buffer = buffer;
+        var gain = ctx.createGain();
+        gain.gain.setValueAtTime(volume || 0.08, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+        // Bandpass filter for whoosh character
+        var filter = ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(1200, ctx.currentTime);
+        filter.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + duration);
+        filter.Q.value = 0.8;
+        source.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+        source.start(ctx.currentTime);
+        source.stop(ctx.currentTime + duration);
+      } catch(e) {}
+    }
+
+    // Sound: tile slide/move - short soft whoosh
+    function soundSlide() {
+      playNoise(0.08, 0.06);
+      playSweep(500, 300, 0.08, 0.04, 'sine');
+    }
+
+    // Sound: tile merge - satisfying pop, pitch varies with tile value
+    function soundMerge(tileValue) {
+      var baseFreq = 300 + Math.min(Math.log2(tileValue || 2), 12) * 80;
+      playTone(baseFreq, 0.12, 0.12, 'sine');
+      playTone(baseFreq * 1.5, 0.08, 0.08, 'triangle');
+    }
+
+    // Sound: new tile appear - subtle blip
+    function soundNewTile() {
+      playTone(880, 0.06, 0.06, 'sine');
+    }
+
+    // Sound: game over - descending notes
+    function soundGameOver() {
+      var notes = [440, 370, 311, 261];
+      for (var i = 0; i < notes.length; i++) {
+        (function(idx) {
+          setTimeout(function() {
+            playTone(notes[idx], 0.3, 0.10, 'triangle');
+          }, idx * 200);
+        })(i);
+      }
+    }
+
+    // Sound: win (reaching 2048) - ascending celebratory notes
+    function soundWin() {
+      var notes = [523, 659, 784, 1047, 1319];
+      for (var i = 0; i < notes.length; i++) {
+        (function(idx) {
+          setTimeout(function() {
+            playTone(notes[idx], 0.25, 0.10, 'sine');
+            if (idx < notes.length - 1) {
+              playTone(notes[idx] * 1.25, 0.15, 0.06, 'triangle');
+            }
+          }, idx * 150);
+        })(i);
+      }
+    }
+    // ============ End Sound System ============
+
     var SIZE = 4;
     var board, score, best, won, gameOver, tileId, easyMode;
     var boardEl = document.getElementById('board');
@@ -625,8 +751,17 @@
       }
 
       if (moved) {
-        // In easy mode, only add a new tile if at least one merge happened
+        // Play slide sound
+        soundSlide();
+
+        // Play merge sounds for each merged cell
         var didMerge = mergedCells.length > 0;
+        for (var sm = 0; sm < mergedCells.length; sm++) {
+          var mergeVal = board[mergedCells[sm].r][mergedCells[sm].c];
+          soundMerge(mergeVal);
+        }
+
+        // In easy mode, only add a new tile if at least one merge happened
         var newCell = null;
         var newCells = [];
 
@@ -672,7 +807,21 @@
           saveBestScore(best);
         }
 
+        // Play new tile sound
+        if (newCells.length > 0) {
+          setTimeout(function() { soundNewTile(); }, 80);
+        }
+
         if (!canMove()) gameOver = true;
+
+        // Play game over or win sounds
+        if (gameOver) {
+          setTimeout(function() { soundGameOver(); }, 150);
+        }
+        if (won) {
+          setTimeout(function() { soundWin(); }, 150);
+        }
+
         render(mergedCells, newCells);
       }
 

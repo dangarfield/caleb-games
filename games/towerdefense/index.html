@@ -229,6 +229,214 @@
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
 
+// ====== Web Audio API Sound System ======
+let audioCtx = null;
+function ensureAudio() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+}
+// Resume audio context on first user interaction
+['click','touchstart','keydown'].forEach(evt =>
+    document.addEventListener(evt, ensureAudio, { once: true })
+);
+
+// Helper: play a tone (sine, square, triangle, sawtooth)
+function playTone(freq, duration, vol, type, detune) {
+    const ctx = ensureAudio();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.value = freq;
+    if (detune) osc.detune.value = detune;
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration);
+}
+
+// Helper: frequency sweep
+function playSweep(startFreq, endFreq, duration, vol, type) {
+    const ctx = ensureAudio();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(startFreq, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(endFreq, ctx.currentTime + duration);
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration);
+}
+
+// Helper: noise burst (for thuds, explosions)
+function playNoise(duration, vol) {
+    const ctx = ensureAudio();
+    const bufferSize = ctx.sampleRate * duration;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    src.connect(gain);
+    gain.connect(ctx.destination);
+    src.start(ctx.currentTime);
+    src.stop(ctx.currentTime + duration);
+}
+
+// --- Sound effects ---
+function sfxTowerPlaced() {
+    // Construction thud + click
+    playNoise(0.08, 0.12);
+    playTone(800, 0.06, 0.10, 'square');
+    setTimeout(() => playTone(1200, 0.04, 0.08, 'sine'), 50);
+}
+
+function sfxTowerShoot(towerType) {
+    // Quick zap/pew, varies by tower type
+    switch(towerType) {
+        case 'basic':
+            playTone(600, 0.06, 0.08, 'square');
+            break;
+        case 'archer':
+            playSweep(1400, 800, 0.08, 0.08, 'sine');
+            break;
+        case 'slow':
+            playTone(300, 0.12, 0.08, 'sine');
+            playTone(350, 0.10, 0.06, 'sine');
+            break;
+        case 'splash':
+            playNoise(0.06, 0.08);
+            playTone(400, 0.08, 0.08, 'sawtooth');
+            break;
+        case 'cannon':
+            playNoise(0.10, 0.12);
+            playSweep(200, 80, 0.12, 0.10, 'square');
+            break;
+        case 'sniper':
+            playSweep(2000, 600, 0.06, 0.10, 'sine');
+            break;
+        case 'tesla':
+            playSweep(800, 2000, 0.05, 0.08, 'sawtooth');
+            playNoise(0.03, 0.06);
+            break;
+        case 'laser':
+            playTone(1800, 0.03, 0.05, 'sine');
+            break;
+        default:
+            playTone(700, 0.05, 0.08, 'square');
+    }
+}
+
+function sfxEnemyHit() {
+    playTone(500, 0.04, 0.06, 'triangle');
+}
+
+function sfxEnemyDestroyed() {
+    // Pop + small explosion
+    playSweep(600, 1200, 0.06, 0.10, 'sine');
+    playNoise(0.08, 0.08);
+    setTimeout(() => playSweep(1000, 300, 0.08, 0.06, 'triangle'), 40);
+}
+
+function sfxWaveStart() {
+    // Alert horn/klaxon
+    const ctx = ensureAudio();
+    const t = ctx.currentTime;
+    for (let i = 0; i < 3; i++) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(440, t + i * 0.12);
+        osc.frequency.setValueAtTime(520, t + i * 0.12 + 0.06);
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.setValueAtTime(0.10, t + i * 0.12);
+        gain.gain.setValueAtTime(0.10, t + i * 0.12 + 0.10);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.12 + 0.12);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t + i * 0.12);
+        osc.stop(t + i * 0.12 + 0.12);
+    }
+}
+
+function sfxWaveComplete() {
+    // Victory chime: ascending notes
+    const ctx = ensureAudio();
+    const t = ctx.currentTime;
+    const notes = [523, 659, 784, 1047]; // C5, E5, G5, C6
+    notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.001, t);
+        gain.gain.setValueAtTime(0.10, t + i * 0.10);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.10 + 0.20);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t + i * 0.10);
+        osc.stop(t + i * 0.10 + 0.25);
+    });
+}
+
+function sfxLifeLost() {
+    // Alarm buzz
+    playSweep(400, 200, 0.20, 0.12, 'sawtooth');
+    playTone(150, 0.15, 0.10, 'square');
+}
+
+function sfxGameOver() {
+    // Dramatic descending notes
+    const ctx = ensureAudio();
+    const t = ctx.currentTime;
+    const notes = [523, 440, 349, 262, 196]; // C5 down to G3
+    notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.001, t);
+        gain.gain.setValueAtTime(0.12, t + i * 0.18);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.18 + 0.30);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t + i * 0.18);
+        osc.stop(t + i * 0.18 + 0.35);
+    });
+    // Final low rumble
+    setTimeout(() => playNoise(0.30, 0.10), notes.length * 180);
+}
+
+function sfxUpgradeTower() {
+    // Ascending sparkle
+    const ctx = ensureAudio();
+    const t = ctx.currentTime;
+    const notes = [800, 1000, 1200, 1500, 1800];
+    notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.001, t);
+        gain.gain.setValueAtTime(0.08, t + i * 0.06);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.06 + 0.12);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t + i * 0.06);
+        osc.stop(t + i * 0.06 + 0.15);
+    });
+}
+
 // --- localStorage high score ---
 function loadHighScore() {
     try {
@@ -546,6 +754,7 @@ function placeTower(gx, gy) {
         splash: def.splash, slow: def.slow || 0, chain: def.chain || 0,
         rotation: -Math.PI / 2, targetRotation: -Math.PI / 2
     });
+    sfxTowerPlaced();
     updateHUD();
 }
 
@@ -560,6 +769,7 @@ function upgradeTower() {
     selectedTower.damage = Math.floor(baseDef.damage * (1 + (selectedTower.level - 1) * 0.5));
     selectedTower.range = baseDef.range + (selectedTower.level - 1) * 0.3;
     selectedTower.fireRate = Math.max(3, baseDef.fireRate - (selectedTower.level - 1) * 3);
+    sfxUpgradeTower();
     updateUpgradePanel();
     updateHUD();
 }
@@ -722,6 +932,7 @@ function startWave() {
 
 function announceWave() {
     announceText(`Wave ${wave}`);
+    sfxWaveStart();
 }
 
 function announceText(text) {
@@ -765,6 +976,7 @@ function update() {
         const target = pp[e.pathIdx + 1];
         if (!target) {
             lives--;
+            sfxLifeLost();
             enemies.splice(i, 1);
             updateHUD();
             if (lives <= 0) { endGame(); return; }
@@ -815,6 +1027,7 @@ function update() {
                 color: t.projColor, splash: (t.splash || 0) * cell,
                 slow: t.slow || 0, chain: t.chain || 0, type: t.type
             });
+            sfxTowerShoot(t.type);
         }
     }
 
@@ -884,6 +1097,7 @@ function update() {
             gold += e.reward;
             score += e.reward * 10;
             spawnParticles(e.x, e.y, '#fff', 10);
+            sfxEnemyDestroyed();
             enemies.splice(i, 1);
             updateHUD();
         }
@@ -911,6 +1125,7 @@ function applyDamage(enemy, dmg) {
         dmg -= absorbed;
     }
     enemy.hp -= dmg;
+    sfxEnemyHit();
 }
 
 function spawnParticles(x, y, color, count) {
@@ -1344,6 +1559,7 @@ function enterPlanningPhase() {
     } else {
         msg.textContent = `Wave ${wave} cleared!`;
         sub.textContent = 'Reposition towers or build new ones before the next assault.';
+        sfxWaveComplete();
     }
     btn.textContent = `I'm ready!`;
     bar.style.display = 'block';
@@ -1390,6 +1606,7 @@ function endGame() {
     gameOver = true;
     gamePaused = false;
     waitingForPlayer = false;
+    sfxGameOver();
     document.getElementById('pause-btn').style.display = 'none';
     document.getElementById('pause-overlay').style.display = 'none';
     document.getElementById('send-wave-bar').style.display = 'none';

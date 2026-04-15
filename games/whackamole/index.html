@@ -206,6 +206,125 @@
   </div>
 
   <script>
+    // ===== Web Audio API Sound System =====
+    let audioCtx = null;
+    function ensureAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      return audioCtx;
+    }
+    document.addEventListener('pointerdown', ensureAudio, { once: true });
+
+    function playTone(freq, duration, type = 'sine', volume = 0.1, startTime = 0) {
+      const ctx = ensureAudio();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(volume, ctx.currentTime + startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startTime + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + startTime);
+      osc.stop(ctx.currentTime + startTime + duration);
+    }
+
+    function playSweep(startFreq, endFreq, duration, type = 'sine', volume = 0.1) {
+      const ctx = ensureAudio();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(startFreq, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(endFreq, ctx.currentTime + duration);
+      gain.gain.setValueAtTime(volume, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + duration);
+    }
+
+    function playNoise(duration, volume = 0.08, filterFreq = 800) {
+      const ctx = ensureAudio();
+      const bufferSize = ctx.sampleRate * duration;
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = filterFreq;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(volume, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+      src.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      src.start();
+      src.stop(ctx.currentTime + duration);
+    }
+
+    // Sound: Mole appears - soft pop
+    function soundMoleAppear() {
+      playSweep(200, 600, 0.12, 'sine', 0.08);
+    }
+
+    // Sound: Whack hit (regular mole) - satisfying bonk/thwack
+    function soundWhackHit() {
+      playNoise(0.12, 0.12, 600);
+      playSweep(300, 100, 0.15, 'triangle', 0.1);
+    }
+
+    // Sound: Whack hit (golden mole) - sparkly chime + bonk
+    function soundWhackGolden() {
+      playNoise(0.1, 0.08, 500);
+      playSweep(400, 150, 0.12, 'triangle', 0.08);
+      playTone(880, 0.15, 'sine', 0.1, 0.0);
+      playTone(1100, 0.15, 'sine', 0.09, 0.06);
+      playTone(1320, 0.2, 'sine', 0.08, 0.12);
+      playTone(1760, 0.25, 'sine', 0.07, 0.18);
+    }
+
+    // Sound: Whack hit (bomb) - explosion boom
+    function soundWhackBomb() {
+      playNoise(0.4, 0.15, 300);
+      playSweep(150, 30, 0.5, 'sawtooth', 0.1);
+      playSweep(100, 20, 0.6, 'square', 0.06);
+    }
+
+    // Sound: Miss (tap empty hole) - dull thud
+    function soundMiss() {
+      playNoise(0.08, 0.08, 200);
+      playSweep(120, 60, 0.1, 'sine', 0.06);
+    }
+
+    // Sound: Timer warning tick
+    function soundTick() {
+      playTone(800, 0.05, 'square', 0.08);
+    }
+
+    // Sound: Game over - descending tones
+    function soundGameOver() {
+      playTone(440, 0.3, 'triangle', 0.1, 0.0);
+      playTone(370, 0.3, 'triangle', 0.1, 0.25);
+      playTone(311, 0.3, 'triangle', 0.1, 0.5);
+      playTone(262, 0.5, 'triangle', 0.12, 0.75);
+    }
+
+    // Sound: New high score - celebratory ascending notes
+    function soundNewHighScore() {
+      playTone(523, 0.15, 'square', 0.08, 0.0);
+      playTone(659, 0.15, 'square', 0.08, 0.12);
+      playTone(784, 0.15, 'square', 0.08, 0.24);
+      playTone(1047, 0.25, 'sine', 0.1, 0.36);
+      playTone(1319, 0.15, 'sine', 0.08, 0.5);
+      playTone(1568, 0.15, 'sine', 0.08, 0.6);
+      playTone(2093, 0.4, 'sine', 0.1, 0.72);
+    }
+
+    // ===== End Sound System =====
+
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const scoreDisplay = document.getElementById('scoreDisplay');
@@ -344,6 +463,7 @@
 
       const showTime = lvl.moleShowTime + Math.random() * 400 - 200;
       hole.mole = { type, phase: 'rising', progress: 0, showTime, elapsed: 0 };
+      soundMoleAppear();
     }
 
     function scheduleSpawn() {
@@ -427,8 +547,19 @@
           }
 
           addEffect(hole.x, hole.y, mole.type === 'golden' ? 'golden' : mole.type === 'bomb' ? 'bomb' : 'hit');
+          if (mole.type === 'golden') soundWhackGolden();
+          else if (mole.type === 'bomb') soundWhackBomb();
+          else soundWhackHit();
           mole.phase = 'sinking';
           mole.progress = 1;
+          return;
+        }
+      }
+      // No mole was hit — check if tap was near any hole for miss sound
+      for (const hole of holes) {
+        const distToHole = Math.hypot(x - hole.x, y - hole.y);
+        if (distToHole < hole.r * 1.5) {
+          soundMiss();
           break;
         }
       }
@@ -737,6 +868,7 @@
       gameTimer = setInterval(() => {
         timeLeft--;
         timeDisplay.textContent = timeLeft;
+        if (timeLeft <= 10 && timeLeft > 0) soundTick();
         if (timeLeft <= 0) endGame();
       }, 1000);
 
@@ -753,11 +885,15 @@
       clearInterval(gameTimer);
       clearTimeout(spawnTimer);
 
-      if (score > bestScore) {
+      const isNewHighScore = score > bestScore;
+      if (isNewHighScore) {
         bestScore = score;
         saveHighScore(bestScore);
         bestDisplay.textContent = bestScore;
       }
+
+      soundGameOver();
+      if (isNewHighScore) setTimeout(soundNewHighScore, 1300);
 
       finalScoreEl.textContent = score;
       endLevel.textContent = 'Reached Level ' + currentLevel;

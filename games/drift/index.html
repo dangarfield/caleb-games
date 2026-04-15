@@ -297,6 +297,237 @@
             return 1;
         }
 
+        // ---- WEB AUDIO API SOUND ENGINE ----
+        var audioCtx = null;
+        var audioResumed = false;
+        var engineOsc = null, engineGain = null;
+        var driftNoiseSource = null, driftGain = null, driftFilter = null;
+        var driftNoiseBuffer = null;
+
+        function initAudio() {
+            if (audioCtx) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            // Create noise buffer for drift/skid sounds
+            var bufLen = audioCtx.sampleRate * 2;
+            driftNoiseBuffer = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
+            var data = driftNoiseBuffer.getChannelData(0);
+            for (var i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+        }
+
+        function resumeAudio() {
+            if (audioResumed) return;
+            initAudio();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            audioResumed = true;
+        }
+
+        // Resume audio on any user interaction
+        ['click', 'touchstart', 'keydown'].forEach(function(evt) {
+            document.addEventListener(evt, resumeAudio, { once: false, passive: true });
+        });
+
+        // --- Engine sound: continuous low oscillator, pitch varies with speed ---
+        function startEngine() {
+            if (!audioCtx) return;
+            if (engineOsc) return;
+            engineOsc = audioCtx.createOscillator();
+            engineOsc.type = 'sawtooth';
+            engineOsc.frequency.setValueAtTime(55, audioCtx.currentTime);
+            engineGain = audioCtx.createGain();
+            engineGain.gain.setValueAtTime(0, audioCtx.currentTime);
+            var engineFilter = audioCtx.createBiquadFilter();
+            engineFilter.type = 'lowpass';
+            engineFilter.frequency.setValueAtTime(300, audioCtx.currentTime);
+            engineOsc.connect(engineFilter);
+            engineFilter.connect(engineGain);
+            engineGain.connect(audioCtx.destination);
+            engineOsc.start();
+        }
+
+        function updateEngine(speed, maxSpeed) {
+            if (!engineOsc || !audioCtx) return;
+            var t = audioCtx.currentTime;
+            var ratio = Math.min(speed / maxSpeed, 1);
+            var freq = 55 + ratio * 120;
+            var vol = 0.02 + ratio * 0.06;
+            engineOsc.frequency.setTargetAtTime(freq, t, 0.05);
+            engineGain.gain.setTargetAtTime(vol, t, 0.05);
+        }
+
+        function stopEngine() {
+            if (engineOsc) {
+                try { engineOsc.stop(); } catch(e) {}
+                engineOsc = null; engineGain = null;
+            }
+        }
+
+        // --- Drift/skid: filtered noise burst ---
+        var driftActive = false;
+        function startDrift() {
+            if (!audioCtx || driftActive) return;
+            driftActive = true;
+            driftNoiseSource = audioCtx.createBufferSource();
+            driftNoiseSource.buffer = driftNoiseBuffer;
+            driftNoiseSource.loop = true;
+            driftFilter = audioCtx.createBiquadFilter();
+            driftFilter.type = 'bandpass';
+            driftFilter.frequency.setValueAtTime(3000, audioCtx.currentTime);
+            driftFilter.Q.setValueAtTime(2.5, audioCtx.currentTime);
+            driftGain = audioCtx.createGain();
+            driftGain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+            driftNoiseSource.connect(driftFilter);
+            driftFilter.connect(driftGain);
+            driftGain.connect(audioCtx.destination);
+            driftNoiseSource.start();
+        }
+
+        function updateDrift(driftAngle, speed) {
+            if (!driftGain || !audioCtx) return;
+            var t = audioCtx.currentTime;
+            var intensity = Math.min(driftAngle / (Math.PI * 0.5), 1);
+            var vol = 0.04 + intensity * 0.08;
+            var freq = 2000 + intensity * 3000;
+            driftGain.gain.setTargetAtTime(vol, t, 0.03);
+            driftFilter.frequency.setTargetAtTime(freq, t, 0.03);
+        }
+
+        function stopDrift() {
+            if (!driftActive) return;
+            driftActive = false;
+            if (driftNoiseSource) {
+                try { driftNoiseSource.stop(); } catch(e) {}
+                driftNoiseSource = null; driftGain = null; driftFilter = null;
+            }
+        }
+
+        // --- Wall hit/bounce: impact thud ---
+        function playWallHit() {
+            if (!audioCtx) return;
+            var t = audioCtx.currentTime;
+            var osc = audioCtx.createOscillator();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(80, t);
+            osc.frequency.exponentialRampToValueAtTime(30, t + 0.15);
+            var g = audioCtx.createGain();
+            g.gain.setValueAtTime(0.12, t);
+            g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+            // Add noise for impact texture
+            var nSrc = audioCtx.createBufferSource();
+            nSrc.buffer = driftNoiseBuffer;
+            var nf = audioCtx.createBiquadFilter();
+            nf.type = 'lowpass'; nf.frequency.setValueAtTime(200, t);
+            var ng = audioCtx.createGain();
+            ng.gain.setValueAtTime(0.1, t);
+            ng.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+            nSrc.connect(nf); nf.connect(ng); ng.connect(audioCtx.destination);
+            osc.connect(g); g.connect(audioCtx.destination);
+            osc.start(t); osc.stop(t + 0.25);
+            nSrc.start(t); nSrc.stop(t + 0.15);
+        }
+
+        // --- Lap/stage complete: checkpoint chime ---
+        function playLapComplete() {
+            if (!audioCtx) return;
+            var t = audioCtx.currentTime;
+            var notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+            for (var i = 0; i < notes.length; i++) {
+                var osc = audioCtx.createOscillator();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(notes[i], t + i * 0.1);
+                var g = audioCtx.createGain();
+                g.gain.setValueAtTime(0, t);
+                g.gain.linearRampToValueAtTime(0.1, t + i * 0.1);
+                g.gain.linearRampToValueAtTime(0.1, t + i * 0.1 + 0.08);
+                g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.1 + 0.3);
+                osc.connect(g); g.connect(audioCtx.destination);
+                osc.start(t + i * 0.1); osc.stop(t + i * 0.1 + 0.35);
+            }
+        }
+
+        // --- Race finish: checkered flag fanfare ---
+        function playRaceFinish() {
+            if (!audioCtx) return;
+            var t = audioCtx.currentTime;
+            // Triumphant ascending arpeggio
+            var notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 1046.50];
+            for (var i = 0; i < notes.length; i++) {
+                var osc = audioCtx.createOscillator();
+                osc.type = i < 4 ? 'triangle' : 'sine';
+                var start = t + i * 0.08;
+                osc.frequency.setValueAtTime(notes[i], start);
+                var g = audioCtx.createGain();
+                g.gain.setValueAtTime(0, t);
+                g.gain.linearRampToValueAtTime(0.1, start);
+                g.gain.linearRampToValueAtTime(0.1, start + 0.12);
+                g.gain.exponentialRampToValueAtTime(0.001, start + 0.5);
+                osc.connect(g); g.connect(audioCtx.destination);
+                osc.start(start); osc.stop(start + 0.55);
+            }
+        }
+
+        // --- Boost: ascending electronic sweep ---
+        function playBoost() {
+            if (!audioCtx) return;
+            var t = audioCtx.currentTime;
+            var osc = audioCtx.createOscillator();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(200, t);
+            osc.frequency.exponentialRampToValueAtTime(1200, t + 0.3);
+            var f = audioCtx.createBiquadFilter();
+            f.type = 'lowpass'; f.frequency.setValueAtTime(800, t);
+            f.frequency.exponentialRampToValueAtTime(4000, t + 0.3);
+            var g = audioCtx.createGain();
+            g.gain.setValueAtTime(0.1, t);
+            g.gain.linearRampToValueAtTime(0.12, t + 0.15);
+            g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+            osc.connect(f); f.connect(g); g.connect(audioCtx.destination);
+            osc.start(t); osc.stop(t + 0.45);
+        }
+
+        // --- Countdown: beep sounds (low, low, low, high) ---
+        function playCountdownBeep(isGo) {
+            if (!audioCtx) return;
+            var t = audioCtx.currentTime;
+            var freq = isGo ? 880 : 440;
+            var dur = isGo ? 0.25 : 0.15;
+            var osc = audioCtx.createOscillator();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(freq, t);
+            var g = audioCtx.createGain();
+            g.gain.setValueAtTime(0.08, t);
+            g.gain.linearRampToValueAtTime(0.08, t + dur * 0.7);
+            g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+            osc.connect(g); g.connect(audioCtx.destination);
+            osc.start(t); osc.stop(t + dur + 0.01);
+        }
+
+        // --- Crash sound ---
+        function playCrash() {
+            if (!audioCtx) return;
+            var t = audioCtx.currentTime;
+            // Low thud
+            var osc = audioCtx.createOscillator();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(60, t);
+            osc.frequency.exponentialRampToValueAtTime(20, t + 0.3);
+            var g = audioCtx.createGain();
+            g.gain.setValueAtTime(0.15, t);
+            g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+            osc.connect(g); g.connect(audioCtx.destination);
+            osc.start(t); osc.stop(t + 0.45);
+            // Noise burst
+            var nSrc = audioCtx.createBufferSource();
+            nSrc.buffer = driftNoiseBuffer;
+            var nf = audioCtx.createBiquadFilter();
+            nf.type = 'lowpass'; nf.frequency.setValueAtTime(500, t);
+            nf.frequency.exponentialRampToValueAtTime(100, t + 0.3);
+            var ng = audioCtx.createGain();
+            ng.gain.setValueAtTime(0.12, t);
+            ng.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+            nSrc.connect(nf); nf.connect(ng); ng.connect(audioCtx.destination);
+            nSrc.start(t); nSrc.stop(t + 0.4);
+        }
+
         // ---- STAGE PARSING ----
         const STAGES = [];
 
@@ -564,6 +795,7 @@
                 this.touchRight = false;
                 this.particles = [];
                 this.currentZoom = physics.baseZoom;
+                this._lastTile = T_ROAD;
                 this.failedAttempts = _failedAttempts;
                 this.sessionGhost = _sessionGhosts[this.trackId] || null;
 
@@ -594,6 +826,27 @@
                 this.setupInput();
 
                 document.getElementById('menuBtn').style.display = 'block'; bouncyWrap.style.display = 'flex';
+
+                // Start engine sound and play countdown
+                initAudio();
+                stopDrift();
+                startEngine();
+                var self = this;
+                this.gameRunning = false; // pause until countdown finishes
+                this._countdownStep = 0;
+                this._countdownTimer = this.time.addEvent({
+                    delay: 700,
+                    repeat: 3,
+                    callback: function() {
+                        self._countdownStep++;
+                        if (self._countdownStep <= 3) {
+                            playCountdownBeep(false);
+                        } else {
+                            playCountdownBeep(true);
+                            self.gameRunning = true;
+                        }
+                    }
+                });
             }
 
             // ---- TILE LAYER (pre-rendered) ----
@@ -1045,6 +1298,14 @@
                     if (this.cursors.right.isDown || this.cursors.d.isDown || this.touchRight) this.steerInput = 1;
 
                     this.updateCar(dt);
+                    updateEngine(this.car.speed, physics.maxSpeed);
+                    // Drift sound management
+                    if (this.car.drifting && this.car.speed > 0.8) {
+                        if (!driftActive) startDrift();
+                        updateDrift(this.car.driftAngle, this.car.speed);
+                    } else {
+                        if (driftActive) stopDrift();
+                    }
                     this.updateParticles(dt);
                     this.ghostTime += delta;
                 }
@@ -1071,6 +1332,10 @@
                     this.triggerStageComplete();
                     return;
                 }
+
+                // Boost sound when entering ice
+                if (tile === T_ICE && this._lastTile !== T_ICE) playBoost();
+                this._lastTile = tile;
 
                 var grip = getGrip(tile);
                 var speedMult = getSpeedMult(tile);
@@ -1170,6 +1435,7 @@
                         if (hitX) car.velX *= -bounce;
                         if (hitY) car.velY *= -bounce;
                         if (!hitX && !hitY) { car.velX *= -bounce; car.velY *= -bounce; }
+                        playWallHit();
                         // Ensure minimum bounce-back speed so car escapes the wall
                         var minBounce = 1.5;
                         var bSpeed = Math.sqrt(car.velX * car.velX + car.velY * car.velY);
@@ -1281,6 +1547,7 @@
                 this.gameOver = true;
                 this.gameRunning = false;
                 document.body.style.cursor = '';
+                stopEngine(); stopDrift(); playCrash();
                 if (this.currentGhostRecording.length > 10) {
                     var tk = this.trackId;
                     if (!this.failedAttempts[tk]) this.failedAttempts[tk] = [];
@@ -1299,6 +1566,9 @@
                 this.stageComplete = true;
                 this.gameRunning = false;
                 document.body.style.cursor = '';
+                stopEngine(); stopDrift(); playLapComplete();
+                // Delayed fanfare
+                var fanfareTimer = setTimeout(function() { playRaceFinish(); }, 500);
                 if (this.currentGhostRecording.length > 10) {
                     this.sessionGhost = this.currentGhostRecording.slice();
                     _sessionGhosts[this.trackId] = this.sessionGhost;
@@ -2548,6 +2818,7 @@
             hideOverlayButtons();
             var scene = game.scene.getScene('Game');
             if (scene) scene.gameRunning = false;
+            stopEngine(); stopDrift();
             document.getElementById('menuBtn').style.display = 'none'; bouncyWrap.style.display = 'none';
             if (launchedFromEditor) {
                 launchedFromEditor = false;

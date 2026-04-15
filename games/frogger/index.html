@@ -103,6 +103,148 @@ html, body {
 (function(){
 "use strict";
 
+// ===== Web Audio API Sound System =====
+var audioCtx = null;
+var audioResumed = false;
+
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (!audioResumed && audioCtx.state === 'suspended') {
+    audioCtx.resume();
+    audioResumed = true;
+  }
+  return audioCtx;
+}
+
+// Resume audio on first user interaction
+['click','touchstart','keydown'].forEach(function(evt) {
+  document.addEventListener(evt, ensureAudio, { once: false });
+});
+
+function playTone(freq, duration, type, vol, detune) {
+  var ctx = ensureAudio();
+  var osc = ctx.createOscillator();
+  var gain = ctx.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.value = freq;
+  if (detune) osc.detune.value = detune;
+  gain.gain.value = vol || 0.1;
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + duration);
+}
+
+function playSweep(startFreq, endFreq, duration, type, vol) {
+  var ctx = ensureAudio();
+  var osc = ctx.createOscillator();
+  var gain = ctx.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.setValueAtTime(startFreq, ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(endFreq, ctx.currentTime + duration);
+  gain.gain.value = vol || 0.1;
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + duration);
+}
+
+function playNoise(duration, vol) {
+  var ctx = ensureAudio();
+  var bufferSize = Math.floor(ctx.sampleRate * duration);
+  var buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  var data = buffer.getChannelData(0);
+  for (var i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+  var source = ctx.createBufferSource();
+  source.buffer = buffer;
+  var gain = ctx.createGain();
+  gain.gain.setValueAtTime(vol || 0.1, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+  source.connect(gain);
+  gain.connect(ctx.destination);
+  source.start(ctx.currentTime);
+}
+
+function sfxHop() {
+  playSweep(300, 600, 0.08, 'sine', 0.1);
+  playSweep(450, 900, 0.06, 'triangle', 0.05);
+}
+
+function sfxSquished() {
+  playNoise(0.12, 0.12);
+  playSweep(400, 80, 0.1, 'sawtooth', 0.08);
+}
+
+function sfxDrown() {
+  var ctx = ensureAudio();
+  // Warbling bubble sound
+  var osc = ctx.createOscillator();
+  var gain = ctx.createGain();
+  var lfo = ctx.createOscillator();
+  var lfoGain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = 350;
+  osc.frequency.exponentialRampToValueAtTime(120, ctx.currentTime + 0.4);
+  lfo.type = 'sine';
+  lfo.frequency.value = 18;
+  lfoGain.gain.value = 60;
+  lfo.connect(lfoGain);
+  lfoGain.connect(osc.frequency);
+  gain.gain.value = 0.1;
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(ctx.currentTime);
+  lfo.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + 0.4);
+  lfo.stop(ctx.currentTime + 0.4);
+}
+
+function sfxReachGoal() {
+  playTone(880, 0.12, 'sine', 0.1);
+  setTimeout(function() { playTone(1100, 0.12, 'sine', 0.1); }, 80);
+  setTimeout(function() { playTone(1320, 0.2, 'sine', 0.12); }, 160);
+}
+
+function sfxLevelComplete() {
+  var notes = [523, 659, 784, 1047];
+  for (var i = 0; i < notes.length; i++) {
+    (function(n, delay) {
+      setTimeout(function() { playTone(n, 0.15, 'square', 0.08); }, delay);
+    })(notes[i], i * 100);
+  }
+  setTimeout(function() { playTone(1047, 0.35, 'sine', 0.1); }, 400);
+}
+
+function sfxAllGoalsFilled() {
+  var notes = [523, 659, 784, 880, 1047, 1175, 1319, 1568];
+  for (var i = 0; i < notes.length; i++) {
+    (function(n, delay) {
+      setTimeout(function() {
+        playTone(n, 0.2, 'sine', 0.1);
+        playTone(n * 0.5, 0.2, 'triangle', 0.06);
+      }, delay);
+    })(notes[i], i * 80);
+  }
+  setTimeout(function() {
+    playTone(1568, 0.5, 'sine', 0.12);
+    playTone(784, 0.5, 'triangle', 0.08);
+  }, 700);
+}
+
+function sfxGameOver() {
+  var notes = [440, 370, 311, 261];
+  for (var i = 0; i < notes.length; i++) {
+    (function(n, delay) {
+      setTimeout(function() { playTone(n, 0.3, 'sine', 0.1); }, delay);
+    })(notes[i], i * 200);
+  }
+  setTimeout(function() { playSweep(261, 130, 0.5, 'triangle', 0.08); }, 800);
+}
+// ===== End Sound System =====
+
 var canvas = document.getElementById('gameCanvas');
 var ctx = canvas.getContext('2d');
 var overlay = document.getElementById('overlay');
@@ -302,6 +444,7 @@ function update(dt) {
       lives--;
       if (lives <= 0) {
         gameState = 'gameover';
+        sfxGameOver();
         if (score > highScore) { highScore = score; arcadeData.frogger.highScore = highScore; localStorage.setItem('calebArcadeData', JSON.stringify(arcadeData)); }
       } else { resetFrog(); gameState = 'playing'; }
     }
@@ -318,6 +461,8 @@ function update(dt) {
         score += 1000;
         level++;
         homes = [false, false, false, false, false];
+        sfxAllGoalsFilled();
+        sfxLevelComplete();
         startLevel();
       } else { resetFrog(); gameState = 'playing'; }
     }
@@ -345,6 +490,7 @@ function update(dt) {
       frog.col = newCol;
       frog.row = newRow;
       frog.hopAnim = HOP_FRAMES;
+      sfxHop();
       if (frog.row < furthestRow) {
         score += 10 * (furthestRow - frog.row);
         furthestRow = frog.row;
@@ -374,7 +520,7 @@ function update(dt) {
   if (frog.riding) {
     frog.px += frog.riding.speed;
     frog.col = Math.round((frog.px - CELL / 2) / CELL);
-    if (frog.px < -CELL / 2 || frog.px > W + CELL / 2) { die(); return; }
+    if (frog.px < -CELL / 2 || frog.px > W + CELL / 2) { die('drown'); return; }
   }
 
   // River collision - check if frog is on a platform
@@ -397,7 +543,7 @@ function update(dt) {
         }
       }
     }
-    if (!onPlatform) { die(); return; }
+    if (!onPlatform) { die('drown'); return; }
   }
 
   // Road collision
@@ -423,6 +569,7 @@ function update(dt) {
         landed = true;
         gameState = 'winning';
         winTimer = 0.8;
+        sfxReachGoal();
         break;
       }
     }
@@ -442,10 +589,12 @@ function updateLanes(dt) {
   }
 }
 
-function die() {
+function die(reason) {
   frog.alive = false;
   gameState = 'dying';
   deathTimer = 1.0;
+  if (reason === 'drown') sfxDrown();
+  else sfxSquished();
 }
 
 // --- Drawing ---

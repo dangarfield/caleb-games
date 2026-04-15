@@ -48,6 +48,7 @@ canvas { display:block; }
   <div class="sub">Build your army, crush the enemy!</div>
   <div class="info">Drag left and right to steer your crowd through gates. Pick wisely to grow your numbers, then clash against enemies!</div>
   <button id="startBtn">Play</button>
+  <button id="continueBtn" style="display:none; margin-top:10px; padding:14px 44px; font-size:1.3rem; border:none; border-radius:14px; background:linear-gradient(135deg,#4CAF50,#2E7D32); color:#fff; cursor:pointer; font-weight:700; box-shadow:0 4px 24px rgba(76,175,80,0.4); transition:transform 0.15s; pointer-events:auto;">Continue</button>
 </div>
 <div id="resultOverlay">
   <h1 id="resultTitle">Level Clear!</h1>
@@ -76,12 +77,132 @@ function loadArcadeData() {
 function saveArcadeData(d) { localStorage.setItem('calebArcadeData', JSON.stringify(d)); }
 function getHighScore() { const d = loadArcadeData(); return (d.countmaster && d.countmaster.highScore) || 0; }
 function setHighScore(v) { const d = loadArcadeData(); if (!d.countmaster) d.countmaster = {}; d.countmaster.highScore = v; saveArcadeData(d); }
+function getSavedProgress() { const d = loadArcadeData(); return (d.countmaster && d.countmaster.progress) || null; }
+function saveProgress(lvl, sc) { const d = loadArcadeData(); if (!d.countmaster) d.countmaster = {}; d.countmaster.progress = { level: lvl, score: sc }; saveArcadeData(d); }
+function clearProgress() { const d = loadArcadeData(); if (d.countmaster) delete d.countmaster.progress; saveArcadeData(d); }
+
+// ============================================================
+//  AUDIO (Web Audio API — synthesized, no files needed)
+// ============================================================
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function resumeAudio() { if (audioCtx.state === 'suspended') audioCtx.resume(); }
+
+// Good gate: bright rising chime
+function sfxGoodGate() {
+    resumeAudio();
+    const t = audioCtx.currentTime;
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type = 'sine'; o.frequency.value = 600;
+    o.frequency.linearRampToValueAtTime(1200, t + 0.12);
+    g.gain.setValueAtTime(0.12, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    o.start(); o.stop(t + 0.2);
+}
+
+// Bad gate: low descending buzz
+function sfxBadGate() {
+    resumeAudio();
+    const t = audioCtx.currentTime;
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type = 'sawtooth'; o.frequency.value = 300;
+    o.frequency.linearRampToValueAtTime(150, t + 0.2);
+    g.gain.setValueAtTime(0.1, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+    o.start(); o.stop(t + 0.25);
+}
+
+// Multiply gate: sparkly double chime
+function sfxMultiplyGate() {
+    resumeAudio();
+    const t = audioCtx.currentTime;
+    [800, 1200].forEach((freq, i) => {
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.type = 'sine'; o.frequency.value = freq;
+        const t2 = t + i * 0.08;
+        g.gain.setValueAtTime(0.1, t2);
+        g.gain.exponentialRampToValueAtTime(0.001, t2 + 0.15);
+        o.start(t2); o.stop(t2 + 0.15);
+    });
+}
+
+// Battle hit: short percussive noise burst
+function sfxBattleHit() {
+    resumeAudio();
+    const n = audioCtx.sampleRate * 0.06;
+    const buf = audioCtx.createBuffer(1, n, audioCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const s = audioCtx.createBufferSource(), g = audioCtx.createGain();
+    s.buffer = buf; s.connect(g); g.connect(audioCtx.destination);
+    g.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.06);
+    s.start();
+}
+
+// Battle start: dramatic low rumble
+function sfxBattleStart() {
+    resumeAudio();
+    const t = audioCtx.currentTime;
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type = 'sawtooth'; o.frequency.value = 80;
+    o.frequency.linearRampToValueAtTime(60, t + 0.3);
+    g.gain.setValueAtTime(0.15, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+    o.start(); o.stop(t + 0.35);
+}
+
+// Victory fanfare: ascending arpeggio
+function sfxVictory() {
+    resumeAudio();
+    [523, 659, 784, 1047].forEach((freq, i) => {
+        const t = audioCtx.currentTime + i * 0.12;
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.type = 'sine'; o.frequency.value = freq;
+        g.gain.setValueAtTime(0.12, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+        o.start(t); o.stop(t + 0.35);
+    });
+}
+
+// Fail sound: descending notes
+function sfxFail() {
+    resumeAudio();
+    [400, 300, 200].forEach((freq, i) => {
+        const t = audioCtx.currentTime + i * 0.15;
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.type = 'sine'; o.frequency.value = freq;
+        g.gain.setValueAtTime(0.1, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+        o.start(t); o.stop(t + 0.3);
+    });
+}
+
+// Level clear: triumphant chord
+function sfxLevelClear() {
+    resumeAudio();
+    const t = audioCtx.currentTime;
+    [523, 659, 784].forEach(freq => {
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.type = 'sine'; o.frequency.value = freq;
+        g.gain.setValueAtTime(0.08, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+        o.start(t); o.stop(t + 0.6);
+    });
+}
 
 // ============================================================
 //  DOM REFS
 // ============================================================
 const overlay = document.getElementById('overlay');
 const startBtn = document.getElementById('startBtn');
+const continueBtn = document.getElementById('continueBtn');
 const hud = document.getElementById('hud');
 const resultOverlay = document.getElementById('resultOverlay');
 const resultTitle = document.getElementById('resultTitle');
@@ -339,120 +460,198 @@ function getLevelData(lvl) {
 }
 
 function generateProceduralLevel(lvl) {
-    const trackLength = 100 + lvl * 10;
-    const numGates = 6 + Math.floor(lvl * 0.8);
-    const numEnemies = 3 + Math.floor(lvl * 0.5);
+    const numSections = Math.min(2 + Math.floor(lvl / 3), 5);
+    const gatesPerSection = 2 + Math.floor(lvl / 5);
+    // Ensure track is long enough: each gate needs ~10 units, plus gaps for enemies
+    const minLength = 25 + numSections * (gatesPerSection * 10 + 20);
+    const trackLength = Math.max(minLength, 100 + Math.min(lvl * 8, 80));
+    // How punishing: what fraction of optimal count the enemy takes (higher = harder)
+    const difficulty = Math.min(0.5 + lvl * 0.03, 0.85);
+    const numTriples = Math.min(Math.floor(lvl / 5), numSections * gatesPerSection);
 
-    // Generate and validate — simulate the level to ensure it's beatable
-    for (let attempt = 0; attempt < 20; attempt++) {
+    for (let attempt = 0; attempt < 30; attempt++) {
         const gates = [];
         const enemies = [];
-        const totalElements = numGates + numEnemies;
-        const spacing = (trackLength - 20) / (totalElements + 1);
-
         let z = 20;
-        let enemyIdx = 0;
-        const enemyInterval = Math.floor(totalElements / (numEnemies + 1));
+        const sectionLen = (trackLength - 25) / numSections;
+        let simCount = 1; // track optimal count as we build
 
-        for (let i = 0; i < totalElements; i++) {
-            if ((i + 1) % enemyInterval === 0 && enemyIdx < numEnemies) {
-                const eCount = Math.floor(10 + lvl * 6 + enemyIdx * lvl * 2.5 + Math.random() * lvl * 4);
-                enemies.push({ z, count: eCount });
-                enemyIdx++;
-                z += spacing * 1.3;
-            } else {
-                const pair = generateBalancedGatePair(lvl);
-                gates.push({ z, left: pair[0], right: pair[1] });
-                z += spacing;
+        // Track sim count at each gate index for triple gate generation
+        const gateSimCounts = [];
+
+        for (let s = 0; s < numSections; s++) {
+            // Minimum 10 units between gates (about 1.7s at speed 6)
+            const gateSpacing = Math.max(10, sectionLen * 0.75 / (gatesPerSection + 1));
+
+            for (let gi = 0; gi < gatesPerSection; gi++) {
+                const gate = generateContextualGate(simCount, lvl, s, gi);
+                gateSimCounts.push(simCount);
+                gates.push({ z, ...gate });
+                simCount = bestGateResult(simCount, gate);
+                z += gateSpacing;
             }
+
+            // Gap before enemy fight
+            z += Math.max(8, sectionLen * 0.1);
+            const sectionDifficulty = difficulty + s * 0.03;
+            const eCount = Math.max(3, Math.floor(simCount * sectionDifficulty));
+            enemies.push({ z, count: eCount });
+            simCount = Math.max(0, simCount - eCount);
+            if (simCount <= 0) break;
+            z += Math.max(8, sectionLen * 0.1);
         }
 
-        // Convert some gates to triple gates: 1 per 5 levels (level 5+ = 1, level 10+ = 2, etc.)
-        const numTriples = Math.min(Math.floor(lvl / 5), gates.length);
-        if (numTriples > 0) {
-            // Pick random gate indices to make triple
-            const indices = gates.map((_, i) => i);
+        if (simCount <= 0) continue;
+
+        // Sprinkle triple gates using the sim count AT that gate's position
+        if (numTriples > 0 && gates.length > 0) {
+            const indices = [...Array(gates.length).keys()];
             for (let i = indices.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [indices[i], indices[j]] = [indices[j], indices[i]];
             }
-            for (let t = 0; t < numTriples; t++) {
-                const gi = indices[t];
-                const g = gates[gi];
-                // Add a third option — generate one more gate option
-                const extra = generateTripleGateExtra(lvl);
-                g.center = extra;
+            for (let t = 0; t < Math.min(numTriples, indices.length); t++) {
+                const idx = indices[t];
+                const g = gates[idx];
+                const countAtGate = gateSimCounts[idx];
+                if (!g.center) {
+                    const bestVal = Math.max(
+                        applyGateSim(countAtGate, g.left),
+                        applyGateSim(countAtGate, g.right)
+                    );
+                    const worstVal = Math.min(
+                        applyGateSim(countAtGate, g.left),
+                        applyGateSim(countAtGate, g.right)
+                    );
+                    const midTarget = Math.floor(worstVal + (bestVal - worstVal) * (0.3 + Math.random() * 0.4));
+                    g.center = generateGateForTarget(countAtGate, midTarget);
+                }
             }
         }
 
-        const data = { startCount: 1, trackLength, trackWidth: 6, gates, enemies };
-
-        // Simulate: always pick best gate, check if player can survive all enemies
-        if (simulateLevel(data)) return data;
+        // Set track length to end shortly after last element
+        const actualLength = z + 10;
+        const data = { startCount: 1, trackLength: actualLength, trackWidth: 6, gates, enemies };
+        const finalCount = simulateLevelCount(data);
+        if (finalCount >= 2) return data;
     }
 
-    // Fallback: generate an easy level
     return generateEasyFallback(lvl, trackLength);
 }
 
-function generateBalancedGatePair(lvl) {
-    const patterns = [
-        // One good, one bad
-        () => [
-            { op: '+', val: 3 + Math.floor(Math.random() * (5 + lvl)) },
-            { op: '-', val: 2 + Math.floor(Math.random() * (3 + lvl)) }
-        ],
-        // Both positive but different
-        () => [
-            { op: '+', val: 2 + Math.floor(Math.random() * 5) },
-            { op: '+', val: 5 + Math.floor(Math.random() * (5 + lvl)) }
-        ],
-        // Multiply vs add
-        () => [
-            { op: 'x', val: 2 },
-            { op: '+', val: 3 + Math.floor(Math.random() * 8) }
-        ],
-        // Divide vs subtract
-        () => [
-            { op: '÷', val: 2 },
-            { op: '-', val: 3 + Math.floor(Math.random() * (5 + lvl)) }
-        ],
-    ];
+// Generate a gate pair that's interesting given the player's current count
+function generateContextualGate(currentCount, lvl, section, gateIdx) {
+    // Pick a pattern type based on context
+    const r = Math.random();
+    let good, bad;
 
-    // Add harder patterns at higher levels
-    if (lvl >= 3) {
-        patterns.push(() => [
-            { op: '-', val: 2 + Math.floor(Math.random() * 4) },
-            { op: '-', val: 6 + Math.floor(Math.random() * (3 + lvl)) }
-        ]);
-    }
-    if (lvl >= 4) {
-        patterns.push(() => [
-            { op: 'x', val: Math.random() < 0.5 ? 2 : 3 },
-            { op: '÷', val: 2 }
-        ]);
+    if (currentCount <= 3) {
+        // Low count: always offer strong growth, punish with mild loss
+        const addVal = Math.max(3, Math.floor(4 + Math.random() * (6 + lvl)));
+        if (r < 0.5) {
+            good = { op: '+', val: addVal };
+            bad = { op: '+', val: Math.max(1, Math.floor(addVal * 0.3)) };
+        } else {
+            good = { op: '+', val: addVal };
+            bad = { op: '-', val: 1 + Math.floor(Math.random() * 2) };
+        }
+    } else if (currentCount <= 10) {
+        // Medium-low: multipliers start becoming interesting
+        if (r < 0.3) {
+            // Multiply vs add — multiply is better here
+            good = { op: 'x', val: 2 + (Math.random() < 0.3 && lvl >= 6 ? 1 : 0) };
+            bad = { op: '+', val: 2 + Math.floor(Math.random() * 4) };
+        } else if (r < 0.6) {
+            // Good add vs bad subtract
+            good = { op: '+', val: Math.floor(5 + Math.random() * (4 + lvl)) };
+            bad = { op: '-', val: 1 + Math.floor(Math.random() * Math.min(currentCount - 1, 4)) };
+        } else {
+            // Two adds, one much better
+            const bigAdd = Math.floor(5 + Math.random() * (5 + lvl));
+            good = { op: '+', val: bigAdd };
+            bad = { op: '+', val: Math.max(1, Math.floor(bigAdd * 0.3)) };
+        }
+    } else if (currentCount <= 30) {
+        // Medium: interesting tradeoffs emerge
+        if (r < 0.2) {
+            // x2 vs +N — which is better depends on count (creates real decisions)
+            const addVal = Math.floor(currentCount * (0.6 + Math.random() * 0.5));
+            good = { op: 'x', val: 2 };
+            bad = { op: '+', val: addVal };
+        } else if (r < 0.4 && lvl >= 6) {
+            // Both bad: damage control (mild)
+            const loss1 = 1 + Math.floor(Math.random() * 3);
+            const loss2 = loss1 + 1 + Math.floor(Math.random() * 3);
+            good = { op: '-', val: loss1 };
+            bad = { op: '-', val: loss2 };
+        } else if (r < 0.6) {
+            // Multiply vs smaller multiply/add
+            good = { op: 'x', val: 2 };
+            bad = { op: '+', val: Math.floor(3 + Math.random() * 6) };
+        } else if (r < 0.8) {
+            // Big add vs divide
+            good = { op: '+', val: Math.floor(currentCount * (0.3 + Math.random() * 0.4)) };
+            bad = { op: '÷', val: 2 };
+        } else {
+            // Good add vs subtract
+            good = { op: '+', val: Math.floor(5 + Math.random() * (5 + lvl * 0.5)) };
+            bad = { op: '-', val: 2 + Math.floor(Math.random() * Math.min(currentCount * 0.3, 8)) };
+        }
+    } else {
+        // High count (30+): more dangerous choices, bigger stakes
+        if (r < 0.2) {
+            // x2 vs ÷2 — high risk/reward
+            good = { op: 'x', val: 2 };
+            bad = { op: '÷', val: 2 };
+        } else if (r < 0.35 && lvl >= 7) {
+            // x3 vs ÷2 — very tempting but dangerous wrong pick
+            good = { op: 'x', val: 3 };
+            bad = { op: '÷', val: 2 + (lvl >= 10 ? 1 : 0) };
+        } else if (r < 0.5) {
+            // Both bad: pick your poison
+            const loss1 = Math.floor(currentCount * (0.05 + Math.random() * 0.1));
+            const loss2 = Math.floor(currentCount * (0.15 + Math.random() * 0.15));
+            good = { op: '-', val: Math.max(1, loss1) };
+            bad = { op: '-', val: Math.max(2, loss2) };
+        } else if (r < 0.7) {
+            // +N vs -N — the +N isn't huge relative to count, so it's a "maintain" gate
+            const addVal = Math.floor(3 + Math.random() * (lvl + 3));
+            good = { op: '+', val: addVal };
+            bad = { op: '-', val: Math.floor(currentCount * (0.1 + Math.random() * 0.15)) };
+        } else {
+            // Divide vs subtract — both reduce, which is less bad?
+            good = { op: '÷', val: 2 };
+            bad = { op: '-', val: Math.floor(currentCount * (0.4 + Math.random() * 0.2)) };
+        }
     }
 
-    const pair = patterns[Math.floor(Math.random() * patterns.length)]();
-    return Math.random() > 0.5 ? pair : [pair[1], pair[0]];
+    return { left: good, right: bad };
 }
 
-function generateTripleGateExtra(lvl) {
-    const options = [
-        { op: '+', val: 2 + Math.floor(Math.random() * (4 + lvl)) },
-        { op: '-', val: 2 + Math.floor(Math.random() * (3 + lvl)) },
-        { op: 'x', val: Math.random() < 0.5 ? 2 : 3 },
-        { op: '÷', val: 2 },
-    ];
-    return options[Math.floor(Math.random() * options.length)];
+// Generate a gate option that gets close to a target count
+function generateGateForTarget(currentCount, target) {
+    if (target > currentCount) {
+        return { op: '+', val: Math.max(1, target - currentCount) };
+    } else if (target < currentCount && currentCount > 1) {
+        // Subtract or divide
+        if (currentCount >= 4 && Math.abs(Math.floor(currentCount / 2) - target) < 3) {
+            return { op: '÷', val: 2 };
+        }
+        return { op: '-', val: Math.max(1, currentCount - target) };
+    }
+    return { op: '+', val: 1 };
 }
 
-function simulateLevel(data) {
+function bestGateResult(count, gate) {
+    const l = applyGateSim(count, gate.left);
+    const r = applyGateSim(count, gate.right);
+    const c = gate.center ? applyGateSim(count, gate.center) : -Infinity;
+    return Math.max(l, r, c);
+}
+
+function simulateLevelCount(data) {
     let simCount = data.startCount;
-    let gateIdx = 0;
-    let enemyIdx = 0;
 
-    // Process elements in order of z position
     const allElements = [
         ...data.gates.map(g => ({ type: 'gate', z: g.z, data: g })),
         ...data.enemies.map(e => ({ type: 'enemy', z: e.z, data: e }))
@@ -460,19 +659,21 @@ function simulateLevel(data) {
 
     for (const el of allElements) {
         if (el.type === 'gate') {
-            // Pick the best gate option
             const g = el.data;
             const countAfterLeft = applyGateSim(simCount, g.left);
             const countAfterRight = applyGateSim(simCount, g.right);
             const countAfterCenter = g.center ? applyGateSim(simCount, g.center) : -Infinity;
             simCount = Math.max(countAfterLeft, countAfterRight, countAfterCenter);
         } else {
-            // 1:1 fight: both sides lose equally until one is gone
             simCount = Math.max(0, simCount - el.data.count);
         }
-        if (simCount <= 0) return false;
+        if (simCount <= 0) return 0;
     }
-    return simCount > 0;
+    return simCount;
+}
+
+function simulateLevel(data) {
+    return simulateLevelCount(data) > 0;
 }
 
 function applyGateSim(count, gate) {
@@ -486,19 +687,48 @@ function applyGateSim(count, gate) {
 }
 
 function generateEasyFallback(lvl, trackLength) {
-    // Guaranteed beatable: all gates are positive, small enemies
+    // Guaranteed beatable: simulate forward, enemies take only 40% of optimal count
     const gates = [];
     const enemies = [];
     let z = 20;
+    let simCount = 1;
     const spacing = (trackLength - 28) / 10;
-    for (let i = 0; i < 7; i++) {
-        gates.push({ z, left: { op: '+', val: 5 + i * 2 }, right: { op: '+', val: 3 + i } });
-        z += spacing;
-    }
+
+    // Section 1: build up
     for (let i = 0; i < 3; i++) {
-        enemies.push({ z, count: 10 + lvl * 3 + i * 5 });
+        const addGood = 5 + i * 3 + Math.floor(lvl / 2);
+        const addBad = Math.max(1, Math.floor(addGood * 0.4));
+        gates.push({ z, left: { op: '+', val: addGood }, right: { op: '+', val: addBad } });
+        simCount += addGood;
         z += spacing;
     }
+    const e1 = Math.floor(simCount * 0.4);
+    enemies.push({ z, count: e1 });
+    simCount -= e1;
+    z += spacing;
+
+    // Section 2: multiply phase
+    gates.push({ z, left: { op: 'x', val: 2 }, right: { op: '+', val: 3 } });
+    simCount *= 2;
+    z += spacing;
+    gates.push({ z, left: { op: '+', val: 5 + lvl }, right: { op: '-', val: 2 } });
+    simCount += 5 + lvl;
+    z += spacing;
+
+    const e2 = Math.floor(simCount * 0.5);
+    enemies.push({ z, count: e2 });
+    simCount -= e2;
+    z += spacing;
+
+    // Section 3: final push
+    gates.push({ z, left: { op: '+', val: 8 + lvl }, right: { op: '÷', val: 2 } });
+    simCount += 8 + lvl;
+    z += spacing;
+
+    const e3 = Math.floor(simCount * 0.45);
+    enemies.push({ z, count: e3 });
+    z += spacing;
+
     return { startCount: 1, trackLength, trackWidth: 6, gates, enemies };
 }
 
@@ -570,21 +800,21 @@ function updateParticles(dt) {
 // ============================================================
 function spawnFloatingText3D(pos, text, color) {
     const canvas = document.createElement('canvas');
-    canvas.width = 256; canvas.height = 128;
+    canvas.width = 512; canvas.height = 128;
     const c = canvas.getContext('2d');
     c.font = 'bold 64px "Segoe UI", system-ui, sans-serif';
     c.textAlign = 'center'; c.textBaseline = 'middle';
     c.fillStyle = color;
     c.strokeStyle = '#000'; c.lineWidth = 4;
-    c.strokeText(text, 128, 64);
-    c.fillText(text, 128, 64);
+    c.strokeText(text, 256, 64);
+    c.fillText(text, 256, 64);
 
     const tex = new THREE.CanvasTexture(canvas);
     const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
     const sprite = new THREE.Sprite(mat);
     sprite.position.copy(pos);
     sprite.position.y += 1.5;
-    sprite.scale.set(2.5, 1.25, 1);
+    sprite.scale.set(4, 1, 1);
     scene.add(sprite);
     floatingTexts3D.push({ sprite, life: 1.2, maxLife: 1.2 });
 }
@@ -1050,12 +1280,12 @@ function hideResult() {
 //  GAME FLOW
 // ============================================================
 function startGame() {
+    resumeAudio();
     level = 1;
     score = 0;
     overlay.classList.add('hidden');
     hud.classList.remove('hidden');
     hideResult();
-    // Position camera high and far so level 1 gets the same sweep as later levels
     camera.position.set(0, 12, -20);
     startLevel();
 }
@@ -1071,7 +1301,9 @@ function triggerGoal() {
     goalCamT = 0;
     score += count * 10;
     if (score > highScore) { highScore = score; setHighScore(highScore); }
+    saveProgress(level + 1, score);
     updateHUD();
+    sfxLevelClear();
 
     spawnParticles3D(new THREE.Vector3(playerCenterX, 1, playerCenterZ), 0xFFD700, 30);
     spawnParticles3D(new THREE.Vector3(playerCenterX, 1, playerCenterZ), 0x00C0FF, 20);
@@ -1087,6 +1319,7 @@ function triggerFail() {
     state = 'fail';
     if (score > highScore) { highScore = score; setHighScore(highScore); }
     updateHUD();
+    sfxFail();
     setTimeout(() => {
         showResult('Try Again!', `Level ${level}`, `Score: ${score}  |  Best: ${highScore}`);
         resultBtn.textContent = 'Restart Level';
@@ -1094,6 +1327,35 @@ function triggerFail() {
 }
 
 startBtn.addEventListener('click', startGame);
+
+// Continue button — resume from saved progress
+function updateContinueBtn() {
+    const prog = getSavedProgress();
+    if (prog && prog.level > 1) {
+        continueBtn.style.display = '';
+        continueBtn.textContent = `Continue (Level ${prog.level})`;
+    } else {
+        continueBtn.style.display = 'none';
+    }
+}
+updateContinueBtn();
+
+continueBtn.addEventListener('click', () => {
+    const prog = getSavedProgress();
+    if (prog) {
+        level = prog.level;
+        score = prog.score;
+    } else {
+        level = 1;
+        score = 0;
+    }
+    overlay.classList.add('hidden');
+    hud.classList.remove('hidden');
+    hideResult();
+    camera.position.set(0, 12, -20);
+    startLevel();
+});
+
 resultBtn.addEventListener('click', () => {
     if (state === 'clear') {
         level++;
@@ -1164,9 +1426,11 @@ function update(dt) {
                 if (diff > 0) {
                     spawnParticles3D(pos, 0x4CAF50, 12);
                     spawnFloatingText3D(pos, `+${diff}`, '#4CAF50');
+                    if (gate.op === 'x') sfxMultiplyGate(); else sfxGoodGate();
                 } else if (diff < 0) {
                     spawnParticles3D(pos, 0xF44336, 10);
                     spawnFloatingText3D(pos, `${diff}`, '#F44336');
+                    sfxBadGate();
                 }
 
                 // Fade gate
@@ -1189,6 +1453,7 @@ function update(dt) {
                 currentFight = eg;
                 state = 'fight';
                 fightTimer = 0;
+                sfxBattleStart();
             }
         }
 
@@ -1203,7 +1468,12 @@ function update(dt) {
         const eg = currentFight;
         fightTimer += dt;
 
-        playerCenterZ += PLAYER_SPEED * 0.15 * dt;
+        // Stop forward movement — lock player just past the enemy
+        const fightZ = eg.z + 2;
+        if (playerCenterZ < fightZ) {
+            playerCenterZ += PLAYER_SPEED * 0.3 * dt; // slow approach
+            if (playerCenterZ > fightZ) playerCenterZ = fightZ;
+        }
         playerCenterX += (targetX - playerCenterX) * 4 * dt;
 
         const spread = Math.min(Math.sqrt(count) * 0.3, 2.2);
@@ -1219,35 +1489,48 @@ function update(dt) {
             playerCountSprite.position.set(playerCenterX, 1.2, playerCenterZ - 0.5);
         }
 
-        // Move enemies toward player
+        // Move enemies toward the player
         for (const e of eg.enemies) {
             if (!e.alive) continue;
-            e.mesh.position.z += Math.sign(playerCenterZ - e.mesh.position.z) * 3 * dt;
+            e.mesh.position.z += (playerCenterZ - e.mesh.position.z) * 3 * dt;
             e.mesh.position.x += (playerCenterX - e.mesh.position.x) * 1.5 * dt;
         }
 
-        // 1:1 combat — each tick, one from each side eliminates the other
-        if (fightTimer >= 0.08) {
+        // Dynamic tick rate: cap total fight duration at 3 seconds
+        // Total ticks needed = min(count, eg.count), tick interval = 3s / ticks, clamped to [0.02, 0.08]
+        const totalTicks = Math.min(count, eg.count);
+        const tickInterval = totalTicks > 0 ? Math.max(0.02, Math.min(0.08, 3.0 / totalTicks)) : 0.08;
+        // Kill multiple per tick if even 0.02s isn't fast enough
+        const killsPerTick = tickInterval <= 0.02 ? Math.max(1, Math.ceil(totalTicks / 150)) : 1;
+
+        if (fightTimer >= tickInterval) {
             fightTimer = 0;
+            sfxBattleHit();
 
-            // Kill one enemy
-            for (const e of eg.enemies) {
-                if (!e.alive) continue;
-                e.alive = false;
-                spawnParticles3D(e.mesh.position.clone(), ENEMY_COLOR, 3);
-                scene.remove(e.mesh);
-                break;
-            }
-            eg.count = Math.max(0, eg.count - 1);
+            for (let k = 0; k < killsPerTick; k++) {
+                // Kill one enemy (mesh if available, otherwise just decrement count)
+                eg.count = Math.max(0, eg.count - 1);
+                let removedEnemyMesh = false;
+                for (const e of eg.enemies) {
+                    if (!e.alive) continue;
+                    e.alive = false;
+                    if (k === 0) spawnParticles3D(e.mesh.position.clone(), ENEMY_COLOR, 3);
+                    scene.remove(e.mesh);
+                    removedEnemyMesh = true;
+                    break;
+                }
 
-            // Kill one player
-            if (players.length > 0) {
-                const idx = players.length - 1;
-                spawnParticles3D(players[idx].mesh.position.clone(), PLAYER_COLOR, 3);
-                scene.remove(players[idx].mesh);
-                players.splice(idx, 1);
+                // Kill one player (mesh if available, otherwise just decrement count)
+                count = Math.max(0, count - 1);
+                if (players.length > 0) {
+                    const idx = players.length - 1;
+                    if (k === 0) spawnParticles3D(players[idx].mesh.position.clone(), PLAYER_COLOR, 3);
+                    scene.remove(players[idx].mesh);
+                    players.splice(idx, 1);
+                }
+
+                if (eg.count <= 0 || count <= 0) break;
             }
-            count = Math.max(0, count - 1);
             updatePlayerCountSprite();
             updateEnemyCountSprite(eg);
             updateHUD();
@@ -1257,6 +1540,7 @@ function update(dt) {
                 if (eg.countSprite) { scene.remove(eg.countSprite); eg.countSprite.material.map.dispose(); eg.countSprite.material.dispose(); eg.countSprite = null; }
                 spawnParticles3D(new THREE.Vector3(0, 1, eg.z), 0x4CAF50, 20);
                 spawnFloatingText3D(new THREE.Vector3(0, 2, eg.z), 'VICTORY!', '#4CAF50');
+                sfxVictory();
                 score += eg.originalCount * 5;
                 updateHUD();
                 currentFight = null;

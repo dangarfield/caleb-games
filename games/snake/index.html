@@ -231,6 +231,83 @@
 
 <script>
 (function() {
+  // --- Web Audio API Sound System ---
+  let audioCtx = null;
+  function ensureAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  function playTone(freq, duration, vol, type, rampEnd) {
+    const ctx = ensureAudio();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    if (rampEnd !== undefined) {
+      osc.frequency.linearRampToValueAtTime(rampEnd, ctx.currentTime + duration);
+    }
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration);
+  }
+
+  function playNoiseBurst(duration, vol) {
+    const ctx = ensureAudio();
+    const bufferSize = ctx.sampleRate * duration;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1);
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    src.connect(gain);
+    gain.connect(ctx.destination);
+    src.start(ctx.currentTime);
+    src.stop(ctx.currentTime + duration);
+  }
+
+  function soundEat() {
+    playNoiseBurst(0.06, 0.12);
+    playTone(520, 0.1, 0.1, 'square');
+    setTimeout(() => playTone(680, 0.08, 0.08, 'square'), 40);
+  }
+
+  function soundTurn() {
+    playTone(1200, 0.03, 0.05, 'sine');
+  }
+
+  function soundSpeedUp() {
+    playTone(400, 0.12, 0.1, 'sine', 800);
+  }
+
+  function soundDeath() {
+    playTone(200, 0.35, 0.12, 'sawtooth', 80);
+    playNoiseBurst(0.15, 0.08);
+  }
+
+  function soundGameOver() {
+    const notes = [440, 370, 311, 220];
+    notes.forEach((f, i) => {
+      setTimeout(() => playTone(f, 0.3, 0.1, 'sine'), i * 180);
+    });
+  }
+
+  function soundNewHighScore() {
+    const notes = [523, 659, 784, 1047];
+    notes.forEach((f, i) => {
+      setTimeout(() => playTone(f, 0.2, 0.1, 'sine'), i * 120);
+    });
+  }
+
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
   const scoreEl = document.getElementById('score');
@@ -412,6 +489,7 @@
         return;
       }
       // Lose a life: flash, respawn snake but keep score
+      soundDeath();
       spawnParticles(snake[0].x, snake[0].y);
       const cx = Math.floor(cols / 2);
       const cy = Math.floor(rows / 2);
@@ -430,10 +508,13 @@
       score++;
       scoreEl.textContent = score;
       spawnParticles(food.x, food.y);
+      soundEat();
       placeFood();
       // Speed up slightly, respecting difficulty base
       const minSpeed = Math.round(60 / DIFFICULTIES[currentDifficulty].speedMul);
+      const oldSpeed = speed;
       if (speed > minSpeed) speed = Math.max(minSpeed, speed - 3);
+      if (speed !== oldSpeed) soundSpeedUp();
       clearInterval(gameLoop);
       gameLoop = setInterval(update, speed);
     } else {
@@ -446,16 +527,23 @@
   function die() {
     alive = false;
     clearInterval(gameLoop);
+    soundDeath();
     for (let i = 0; i < snake.length; i += 2) {
       spawnParticles(snake[i].x, snake[i].y);
     }
     const best = getBestScore(currentDifficulty);
-    if (score > best) {
+    const isNewHighScore = score > best;
+    if (isNewHighScore) {
       setBestScore(currentDifficulty, score);
       updateBestDisplay();
     }
     finalScoreEl.textContent = score;
     setTimeout(() => {
+      if (isNewHighScore && score > 0) {
+        soundNewHighScore();
+      } else {
+        soundGameOver();
+      }
       gameOverOverlay.classList.remove('hidden');
     }, 600);
   }
@@ -606,6 +694,7 @@
     if (dx === -dir.x && dy === 0) return;
     if (dy === -dir.y && dx === 0) return;
     if (dx === 0 && dy === 0) return;
+    if (dx !== nextDir.x || dy !== nextDir.y) soundTurn();
     nextDir = {x: dx, y: dy};
   }
 
@@ -644,6 +733,7 @@
 
   // --- Start / Retry ---
   function startGame() {
+    ensureAudio();
     init();
     startOverlay.classList.add('hidden');
     gameOverOverlay.classList.add('hidden');

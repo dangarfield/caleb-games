@@ -55,6 +55,185 @@
 (function() {
   "use strict";
 
+  // --- Web Audio API Sound System ---
+  let audioCtx = null;
+  let audioResumed = false;
+
+  function ensureAudio() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (!audioResumed && audioCtx.state === 'suspended') {
+      audioCtx.resume();
+      audioResumed = true;
+    }
+    return audioCtx;
+  }
+
+  // Resume audio on first user interaction
+  ['click','touchstart','keydown'].forEach(evt => {
+    document.addEventListener(evt, ensureAudio, { once: false, passive: true });
+  });
+
+  function playTone(freq, duration, vol, type, detune) {
+    try {
+      const ctx = ensureAudio();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type || 'square';
+      osc.frequency.value = freq;
+      if (detune) osc.detune.value = detune;
+      gain.gain.setValueAtTime(vol || 0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + duration);
+    } catch(e) {}
+  }
+
+  function playSweep(startFreq, endFreq, duration, vol, type) {
+    try {
+      const ctx = ensureAudio();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type || 'sawtooth';
+      osc.frequency.setValueAtTime(startFreq, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(endFreq, ctx.currentTime + duration);
+      gain.gain.setValueAtTime(vol || 0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + duration);
+    } catch(e) {}
+  }
+
+  function playNoise(duration, vol) {
+    try {
+      const ctx = ensureAudio();
+      const bufferSize = ctx.sampleRate * duration;
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1);
+      }
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(vol || 0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+      source.connect(gain);
+      gain.connect(ctx.destination);
+      source.start(ctx.currentTime);
+    } catch(e) {}
+  }
+
+  // Sound events
+  function soundTurn() {
+    playTone(880, 0.06, 0.10, 'square');
+    playTone(1100, 0.04, 0.08, 'sine');
+  }
+
+  function soundCountdownTick(num) {
+    // Higher pitch as countdown progresses
+    const freq = num <= 0 ? 1200 : 400 + (4 - num) * 150;
+    const dur = num <= 0 ? 0.2 : 0.1;
+    const vol = num <= 0 ? 0.12 : 0.09;
+    playTone(freq, dur, vol, 'square');
+    if (num <= 0) {
+      // "GO!" gets extra fanfare
+      playTone(600, 0.15, 0.08, 'sawtooth');
+      playTone(900, 0.15, 0.08, 'sine');
+    }
+  }
+
+  function soundCrash() {
+    playNoise(0.5, 0.12);
+    playSweep(600, 80, 0.6, 0.10, 'sawtooth');
+    playTone(120, 0.4, 0.08, 'sine');
+  }
+
+  function soundWinRound() {
+    // Triumphant ascending fanfare
+    const ctx = ensureAudio();
+    const notes = [523, 659, 784, 1047]; // C5, E5, G5, C6
+    notes.forEach((freq, i) => {
+      setTimeout(() => {
+        playTone(freq, 0.2, 0.10, 'square');
+        playTone(freq * 1.5, 0.15, 0.06, 'sine');
+      }, i * 120);
+    });
+  }
+
+  function soundLoseRound() {
+    playSweep(400, 100, 0.5, 0.10, 'sawtooth');
+    playTone(100, 0.3, 0.08, 'sine');
+  }
+
+  function soundGameStart() {
+    // Electronic power-up sweep
+    playSweep(200, 1200, 0.5, 0.10, 'sawtooth');
+    playTone(400, 0.3, 0.08, 'square');
+    setTimeout(() => playTone(800, 0.2, 0.08, 'sine'), 200);
+  }
+
+  function soundGameOver(won) {
+    if (won) {
+      // Big win fanfare
+      const notes = [523, 659, 784, 1047, 1319];
+      notes.forEach((freq, i) => {
+        setTimeout(() => {
+          playTone(freq, 0.3, 0.12, 'square');
+          playTone(freq * 0.5, 0.25, 0.06, 'sine');
+        }, i * 150);
+      });
+    } else {
+      // Sad descending
+      playSweep(800, 100, 1.0, 0.10, 'sawtooth');
+      playNoise(0.3, 0.08);
+      setTimeout(() => playTone(80, 0.5, 0.08, 'sine'), 300);
+    }
+  }
+
+  // Engine hum (continuous low tone while playing)
+  let engineOsc = null;
+  let engineGain = null;
+
+  function startEngineHum() {
+    try {
+      const ctx = ensureAudio();
+      if (engineOsc) return;
+      engineOsc = ctx.createOscillator();
+      engineGain = ctx.createGain();
+      engineOsc.type = 'sawtooth';
+      engineOsc.frequency.value = 55;
+      engineGain.gain.value = 0.04;
+      engineOsc.connect(engineGain);
+      engineGain.connect(ctx.destination);
+      engineOsc.start();
+    } catch(e) {}
+  }
+
+  function stopEngineHum() {
+    try {
+      if (engineOsc) {
+        engineGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+        engineOsc.stop(audioCtx.currentTime + 0.15);
+        engineOsc = null;
+        engineGain = null;
+      }
+    } catch(e) { engineOsc = null; engineGain = null; }
+  }
+
+  function setEngineSpeed(speed) {
+    try {
+      if (engineOsc && audioCtx) {
+        engineOsc.frequency.setTargetAtTime(45 + speed * 2, audioCtx.currentTime, 0.1);
+      }
+    } catch(e) {}
+  }
+
   // --- Constants ---
   const GRID_COLS = 25;
   const GRID_ROWS = 25;
@@ -134,6 +313,7 @@
   let lastTime = 0;
   let showInstructions = true;
   let difficultyLevel = 1; // increases each round
+  let lastCountdownNum = -1; // track countdown ticks for sound
 
   // Directions: 0=up,1=right,2=down,3=left
   const DX = [0, 1, 0, -1];
@@ -184,6 +364,7 @@
     crashWho = '';
     crashTimer = 0;
     countdownTimer = COUNTDOWN_SECS + 1; // extra 1 for "GO!"
+    lastCountdownNum = -1;
     state = 'countdown';
     lastTime = performance.now();
   }
@@ -311,6 +492,7 @@
 
   function setPlayerDir(d) {
     if (state === 'playing' && d !== opposite(player.dir)) {
+      if (d !== player.nextDir) soundTurn();
       player.nextDir = d;
     }
   }
@@ -374,6 +556,7 @@
     playerScore = 0;
     aiScore = 0;
     roundNum = 0;
+    soundGameStart();
     initRound();
   }
 
@@ -404,18 +587,29 @@
   function update(dt) {
     if (state === 'countdown') {
       countdownTimer -= dt;
+      let currentNum;
       if (countdownTimer > 1) {
-        countdownText = Math.ceil(countdownTimer - 1).toString();
+        currentNum = Math.ceil(countdownTimer - 1);
+        countdownText = currentNum.toString();
       } else if (countdownTimer > 0) {
+        currentNum = 0;
         countdownText = 'GO!';
       } else {
         state = 'playing';
+        startEngineHum();
+        lastCountdownNum = -1;
+        return;
+      }
+      if (currentNum !== lastCountdownNum) {
+        lastCountdownNum = currentNum;
+        soundCountdownTick(currentNum);
       }
       return;
     }
 
     if (state === 'playing') {
       moveAccum += dt * gameSpeed;
+      setEngineSpeed(gameSpeed);
       moveLerp = Math.min(1, moveAccum);
       while (moveAccum >= 1) {
         moveAccum -= 1;
@@ -452,6 +646,8 @@
           state = 'crash';
           crashTimer = 2.5;
           moveAccum = 0;
+          stopEngineHum();
+          soundCrash();
           return;
         }
       }
@@ -472,12 +668,17 @@
       if (crashTimer <= 0) {
         if (playerScore >= ROUNDS_TO_WIN || aiScore >= ROUNDS_TO_WIN) {
           // Track wins
-          if (playerScore >= ROUNDS_TO_WIN) {
+          const playerWon = playerScore >= ROUNDS_TO_WIN;
+          if (playerWon) {
             totalWins++;
             setHighScore(totalWins);
           }
           state = 'gameover';
+          soundGameOver(playerWon);
         } else {
+          // Round transition sound
+          if (crashWho === 'ai') soundWinRound();
+          else if (crashWho === 'player') soundLoseRound();
           roundNum++;
           initRound();
         }

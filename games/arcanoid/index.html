@@ -148,6 +148,91 @@
   }
   initStars();
 
+  // --- Web Audio API Sound System ---
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  let audioResumed = false;
+  function resumeAudio() {
+    if (!audioResumed && audioCtx.state === 'suspended') {
+      audioCtx.resume();
+      audioResumed = true;
+    }
+  }
+  // Resume on first interaction
+  ['touchstart', 'mousedown', 'keydown'].forEach(evt =>
+    window.addEventListener(evt, resumeAudio, { once: false })
+  );
+
+  function playTone(freq, duration, type, vol) {
+    if (audioCtx.state === 'suspended') return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    gain.gain.setValueAtTime(vol || 0.1, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + duration);
+  }
+
+  function playNoise(duration, vol) {
+    if (audioCtx.state === 'suspended') return;
+    const bufferSize = audioCtx.sampleRate * duration;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+    }
+    const src = audioCtx.createBufferSource();
+    const gain = audioCtx.createGain();
+    src.buffer = buffer;
+    gain.gain.setValueAtTime(vol || 0.1, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    src.connect(gain);
+    gain.connect(audioCtx.destination);
+    src.start(audioCtx.currentTime);
+  }
+
+  function playSweep(startFreq, endFreq, duration, type, vol) {
+    if (audioCtx.state === 'suspended') return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(startFreq, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(endFreq, audioCtx.currentTime + duration);
+    gain.gain.setValueAtTime(vol || 0.1, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration + 0.05);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + duration + 0.05);
+  }
+
+  function soundPaddleHit() { playTone(300, 0.05, 'sine', 0.1); }
+  function soundBrickHit(hits, maxHits) {
+    const freq = 500 + (1 - hits / maxHits) * 300;
+    playTone(freq, 0.06, 'square', 0.08);
+  }
+  function soundIndestructibleHit() { playTone(150, 0.08, 'triangle', 0.12); }
+  function soundBrickDestroyed() { playNoise(0.1, 0.1); }
+  function soundPowerUpCollected() { playSweep(400, 800, 0.15, 'sine', 0.1); }
+  function soundBallLost() { playSweep(400, 150, 0.3, 'sine', 0.12); }
+  function soundLevelComplete() {
+    if (audioCtx.state === 'suspended') return;
+    const notes = [261.63, 329.63, 392.00, 523.25]; // C4, E4, G4, C5
+    notes.forEach((freq, i) => {
+      setTimeout(() => playTone(freq, 0.25, 'sine', 0.1), i * 120);
+    });
+  }
+  function soundGameOver() {
+    if (audioCtx.state === 'suspended') return;
+    const notes = [392.00, 329.63, 261.63, 196.00]; // G4, E4, C4, G3
+    notes.forEach((freq, i) => {
+      setTimeout(() => playTone(freq, 0.3, 'sine', 0.1), i * 180);
+    });
+  }
+
   // --- Scaled helper ---
   function s(v) { return v * scale; }
 
@@ -1748,6 +1833,7 @@
             laser.y >= br.y && laser.y <= br.y + br.h) {
           if (br.indestructible) {
             spawnParticles(br.x + br.w / 2, br.y + br.h / 2, '#cccccc', 3);
+            soundIndestructibleHit();
             lasers.splice(i, 1);
             break;
           }
@@ -1759,11 +1845,13 @@
             highScore = Math.max(highScore, score);
             spawnParticles(br.x + br.w / 2, br.y + br.h / 2, br.color[0], 8);
             spawnPowerUp(br.x + br.w / 2, br.y + br.h / 2);
+            soundBrickDestroyed();
           } else {
             score += 5;
             saveHighScore(score);
             highScore = Math.max(highScore, score);
             spawnParticles(br.x + br.w / 2, br.y + br.h / 2, br.color[1], 4);
+            soundBrickHit(br.hits, br.maxHits);
           }
           lasers.splice(i, 1);
           break;
@@ -1822,7 +1910,9 @@
             state = STATE.GAME_OVER;
             saveHighScore(score);
             highScore = Math.max(highScore, score);
+            soundGameOver();
           } else {
+            soundBallLost();
             balls.push(createBall());
           }
         }
@@ -1836,6 +1926,7 @@
           ball.x >= paddle.x - paddle.w / 2 &&
           ball.x <= paddle.x + paddle.w / 2) {
 
+        soundPaddleHit();
         if (magnetActive) {
           const offsetX = ball.x - paddle.x;
           magnetBalls.push({ ball: ball, offsetX: offsetX });
@@ -1873,6 +1964,7 @@
               ball.vy = -ball.vy;
             }
             spawnParticles(br.x + br.w / 2, br.y + br.h / 2, '#cccccc', 4);
+            soundIndestructibleHit();
             screenShake = 1;
             break;
           }
@@ -1905,10 +1997,12 @@
             }
             spawnParticles(br.x + br.w / 2, br.y + br.h / 2, br.color[0], ball.fireball ? 20 : 12);
             spawnPowerUp(br.x + br.w / 2, br.y + br.h / 2);
+            soundBrickDestroyed();
             if (ball.fireball) screenShake = 3;
           } else {
             score += 5;
             spawnParticles(br.x + br.w / 2, br.y + br.h / 2, br.color[1], 6);
+            soundBrickHit(br.hits, br.maxHits);
           }
 
           saveHighScore(score);
@@ -1949,6 +2043,7 @@
           pu.x - pu.w / 2 <= paddle.x + paddle.w / 2) {
         activatePowerUp(pu.type);
         spawnParticles(pu.x, pu.y, PU_TYPES[pu.type].color, 8);
+        soundPowerUpCollected();
         powerUps.splice(i, 1);
         continue;
       }
@@ -1958,14 +2053,17 @@
       }
     }
 
-    // Check level complete (indestructible bricks don't count)
-    if (bricks.every(b => !b.alive || b.indestructible)) {
+    // Check level complete - only breakable bricks count; indestructible ones are ignored
+    const breakableBricksRemaining = bricks.some(b => b.alive && !b.indestructible);
+    if (!breakableBricksRemaining) {
       if (level + 1 < LEVELS.length) {
         state = STATE.LEVEL_COMPLETE;
+        soundLevelComplete();
       } else {
         state = STATE.WIN;
         saveHighScore(score);
         highScore = Math.max(highScore, score);
+        soundLevelComplete();
       }
     }
   }

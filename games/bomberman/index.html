@@ -223,6 +223,124 @@
   let lastTime = 0;
   let dpadDir = null;
 
+  // === Web Audio API Sound System ===
+  let audioCtx = null;
+  function ensureAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  function playTone(freq, duration, vol, type) {
+    const ctx = ensureAudio();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration);
+  }
+
+  function playSweep(startFreq, endFreq, duration, vol, type) {
+    const ctx = ensureAudio();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(startFreq, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(endFreq, ctx.currentTime + duration);
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration);
+  }
+
+  function playNoise(duration, vol) {
+    const ctx = ensureAudio();
+    const bufferSize = ctx.sampleRate * duration;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    source.start(ctx.currentTime);
+  }
+
+  function sndPlaceBomb() {
+    playTone(60, 0.15, 0.12, 'sine');
+    playTone(45, 0.2, 0.08, 'triangle');
+  }
+
+  function sndExplode() {
+    playNoise(0.4, 0.12);
+    playTone(40, 0.5, 0.15, 'sine');
+    playSweep(200, 30, 0.3, 0.08, 'sawtooth');
+  }
+
+  function sndWallDestroy() {
+    playNoise(0.2, 0.08);
+    playSweep(300, 80, 0.15, 0.06, 'square');
+  }
+
+  function sndPowerup() {
+    const ctx = ensureAudio();
+    const t = ctx.currentTime;
+    [400, 500, 600, 800].forEach(function(freq, i) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, t + i * 0.07);
+      gain.gain.linearRampToValueAtTime(0.1, t + i * 0.07 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.07 + 0.12);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t + i * 0.07);
+      osc.stop(t + i * 0.07 + 0.12);
+    });
+  }
+
+  function sndPlayerDeath() {
+    playSweep(600, 100, 0.6, 0.1, 'sawtooth');
+    playSweep(500, 80, 0.7, 0.08, 'sine');
+  }
+
+  function sndEnemyDeath() {
+    playSweep(800, 200, 0.12, 0.1, 'square');
+    playTone(300, 0.08, 0.08, 'sine');
+  }
+
+  function sndLevelComplete() {
+    const ctx = ensureAudio();
+    const t = ctx.currentTime;
+    var notes = [523, 659, 784, 1047];
+    notes.forEach(function(freq, i) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, t + i * 0.15);
+      gain.gain.linearRampToValueAtTime(0.12, t + i * 0.15 + 0.03);
+      gain.gain.setValueAtTime(0.12, t + i * 0.15 + 0.1);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.15 + 0.3);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t + i * 0.15);
+      osc.stop(t + i * 0.15 + 0.3);
+    });
+  }
+  // === End Sound System ===
+
   // Resize to fill available screen, optimized for landscape
   let canvasScale = 1, offsetX = 0, offsetY = 0;
   function resize() {
@@ -367,12 +485,14 @@
       exploded: false,
       owner: true
     });
+    sndPlaceBomb();
   }
 
   // Explode bomb
   function explodeBomb(bomb) {
     if (bomb.exploded) return;
     bomb.exploded = true;
+    sndExplode();
     const g = toGrid(bomb.x, bomb.y);
     const cells = [{ r: g.r, c: g.c }];
     const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
@@ -386,6 +506,7 @@
           cells.push({ r: nr, c: nc });
           grid[nr][nc] = EMPTY;
           score += 10;
+          sndWallDestroy();
           // Chance for power-up
           if (Math.random() < 0.3) {
             const types = ['blast', 'bombs', 'speed'];
@@ -422,6 +543,7 @@
         if (eg.r === cell.r && eg.c === cell.c) {
           e.alive = false;
           score += 100;
+          sndEnemyDeath();
         }
       }
     }
@@ -442,6 +564,7 @@
   function playerDie() {
     player.alive = false;
     lives--;
+    sndPlayerDeath();
     updateHUD();
     if (lives <= 0) {
       gameOver = true;
@@ -554,6 +677,7 @@
           if (pu.type === 'bombs') maxBombs = Math.min(maxBombs + 1, 5);
           if (pu.type === 'speed') speedLevel = Math.min(speedLevel + 1, 4);
           score += 50;
+          sndPowerup();
           powerups.splice(i, 1);
           updateHUD();
         }
@@ -562,6 +686,7 @@
 
     // Check level complete
     if (enemies.every(e => !e.alive)) {
+      sndLevelComplete();
       level++;
       if (level > 10) {
         gameOver = true;
@@ -840,6 +965,7 @@
   }
 
   function startGame() {
+    ensureAudio();
     overlay.style.display = 'none';
     initGame();
     gameRunning = true;
