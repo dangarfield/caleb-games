@@ -364,6 +364,15 @@
       box-shadow: 0 12px 40px rgba(0, 229, 255, 0.5), 0 4px 12px rgba(0,0,0,0.3);
     }
 
+    .card-petri {
+      background: linear-gradient(145deg, #0a1a0a, #1abc9c, #2ecc71);
+      box-shadow: 0 8px 30px rgba(46, 204, 113, 0.3), 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .card-petri:hover {
+      box-shadow: 0 12px 40px rgba(46, 204, 113, 0.5), 0 4px 12px rgba(0,0,0,0.3);
+    }
+
     .card-snail {
       background: linear-gradient(145deg, #6c5ce7, #4834d4, #7ab648);
       box-shadow: 0 8px 30px rgba(108, 92, 231, 0.4), 0 2px 8px rgba(0,0,0,0.2);
@@ -371,6 +380,24 @@
 
     .card-snail:hover {
       box-shadow: 0 12px 40px rgba(108, 92, 231, 0.6), 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    .card-minesweeper {
+      background: linear-gradient(145deg, #6c5ce7, #1a1a6e, #a29bfe);
+      box-shadow: 0 8px 30px rgba(108, 92, 231, 0.4), 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .card-minesweeper:hover {
+      box-shadow: 0 12px 40px rgba(108, 92, 231, 0.6), 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    .card-conquer {
+      background: linear-gradient(145deg, #e17055, #d63031, #fdcb6e);
+      box-shadow: 0 8px 30px rgba(214, 48, 49, 0.4), 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .card-conquer:hover {
+      box-shadow: 0 12px 40px rgba(214, 48, 49, 0.6), 0 4px 12px rgba(0,0,0,0.3);
     }
 
     .game-icon {
@@ -589,10 +616,28 @@
       <div class="game-desc">Stretch forward and dodge falling blocks!</div>
     </a>
 
+    <a href="games/minesweeper/index.html" class="game-card card-minesweeper">
+      <div class="game-icon" aria-hidden="true">&#x1F6A9;</div>
+      <div class="game-title">Minesweeper</div>
+      <div class="game-desc">Reveal cells and dodge the hidden mines!</div>
+    </a>
+
     <a href="games/infinijump/index.html" class="game-card card-infinijump">
       <div class="game-icon" aria-hidden="true">&#x1F4AB;</div>
       <div class="game-title">Infinijump</div>
       <div class="game-desc">Jump between nodes, dodge spinning barriers!</div>
+    </a>
+
+    <a href="games/petri/index.html" class="game-card card-petri">
+      <div class="game-icon" aria-hidden="true">&#x1F9EB;</div>
+      <div class="game-title">Petri</div>
+      <div class="game-desc">Absorb smaller cells, avoid bigger ones. Survive the dish!</div>
+    </a>
+
+    <a href="games/conquer/index.html" class="game-card card-conquer">
+      <div class="game-icon" aria-hidden="true">&#x2694;</div>
+      <div class="game-title">Conquer</div>
+      <div class="game-desc">Capture every hex in this Risk-like strategy game!</div>
     </a>
   </div>
 

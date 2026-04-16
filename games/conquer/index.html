@@ -1,0 +1,1587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Conquer - Caleb's Arcade</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0a0a2e; overflow:hidden; touch-action:none; font-family:'Segoe UI',system-ui,sans-serif; }
+canvas { display:block; }
+#backBtn{position:fixed;top:12px;left:12px;z-index:9999;background:rgba(0,0,0,0.55);color:#fff;text-decoration:none;padding:6px 18px;border-radius:20px;font:bold 15px/1.4 'Segoe UI',system-ui,sans-serif;border:1px solid rgba(255,255,255,0.18);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:background 0.2s}
+#backBtn:hover{background:rgba(0,0,0,0.75)}
+.overlay-screen { position:fixed; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(0,0,0,0.65); color:#fff; text-align:center; padding:0 20px; }
+.overlay-screen h1 { font-size:clamp(2rem,8vw,4rem); margin-bottom:0.5rem; }
+.overlay-screen .sub { font-size:clamp(1rem,3vw,1.4rem); color:#a0c4ff; margin-bottom:1rem; }
+.overlay-screen .info { font-size:clamp(0.85rem,2.5vw,1.1rem); color:rgba(255,255,255,0.7); margin-bottom:1.5rem; max-width:500px; padding:0 1rem; line-height:1.5; }
+.overlay-screen button { padding:14px 40px; font-size:1.3rem; border:none; border-radius:12px; background:linear-gradient(135deg,#6c5ce7,#a29bfe); color:#fff; cursor:pointer; font-weight:700; box-shadow:0 4px 20px rgba(108,92,231,0.4); transition:transform 0.15s; margin:5px; }
+.overlay-screen button:hover { transform:scale(1.05); }
+.overlay-screen button:active { transform:scale(0.95); }
+.btn-row { display:inline-flex; justify-content:center; margin-top:8px; }
+.btn-row button { padding:10px 22px !important; font-size:1rem !important; border-radius:0 !important; margin:0 !important; background:transparent !important; border:2px solid #3a3a6a !important; color:#888 !important; box-shadow:none !important; transition:all 0.15s !important; }
+.btn-row button:first-child { border-radius:10px 0 0 10px !important; }
+.btn-row button:last-child { border-radius:0 10px 10px 0 !important; }
+.btn-row button:not(:first-child) { border-left:none !important; }
+.btn-row button:hover { background:rgba(255,255,255,0.05) !important; }
+.player-btn.active { background:linear-gradient(135deg,#0984e3,#74b9ff) !important; border-color:#74b9ff !important; color:#fff !important; box-shadow:0 2px 12px rgba(9,132,227,0.4) !important; }
+.size-btn.active { background:linear-gradient(135deg,#00b894,#55efc4) !important; border-color:#55efc4 !important; color:#fff !important; box-shadow:0 2px 12px rgba(0,184,148,0.4) !important; }
+.diff-btn.active { background:linear-gradient(135deg,#e17055,#d63031) !important; border-color:#e17055 !important; color:#fff !important; box-shadow:0 2px 12px rgba(214,48,49,0.4) !important; }
+.hidden { display:none !important; }
+#hud { position:fixed; top:60px; right:12px; z-index:10; display:flex; flex-direction:column; gap:6px; pointer-events:none; align-items:flex-end; }
+.hud-player { display:flex; align-items:center; gap:8px; padding:4px 12px; border-radius:10px; background:rgba(0,0,0,0.4); backdrop-filter:blur(6px); font:bold 13px 'Segoe UI',system-ui,sans-serif; color:#fff; }
+.hud-dot { width:12px; height:12px; border-radius:50%; }
+.hud-count { min-width:30px; text-align:right; }
+.hud-troops { min-width:40px; text-align:right; color:rgba(255,255,255,0.6); font-weight:400; }
+#turnIndicator { position:fixed; top:12px; right:12px; z-index:10; padding:6px 18px; border-radius:20px; background:rgba(0,0,0,0.55); color:#fff; font:bold 14px 'Segoe UI',system-ui,sans-serif; backdrop-filter:blur(6px); pointer-events:none; }
+#endTurnBtn { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:10; padding:12px 36px; font-size:1.1rem; border:none; border-radius:12px; background:linear-gradient(135deg,#3d8bfd,#4dabf7); color:#fff; cursor:pointer; font-weight:700; box-shadow:0 4px 20px rgba(77,171,247,0.4); transition:transform 0.15s; }
+#endTurnBtn:hover { transform:translateX(-50%) scale(1.05); }
+#endTurnBtn:active { transform:translateX(-50%) scale(0.95); }
+#resultOverlay { position:fixed; inset:0; z-index:30; display:none; flex-direction:column; align-items:center; justify-content:center; background:rgba(0,0,0,0.7); color:#fff; text-align:center; padding:0 20px; backdrop-filter:blur(4px); }
+#resultOverlay h1 { font-size:clamp(2rem,8vw,3.5rem); margin-bottom:0.5rem; }
+#resultOverlay .sub { font-size:clamp(1rem,3vw,1.4rem); color:#a0c4ff; margin-bottom:1.5rem; }
+#resultOverlay button { padding:14px 40px; font-size:1.3rem; border:none; border-radius:12px; background:linear-gradient(135deg,#6c5ce7,#a29bfe); color:#fff; cursor:pointer; font-weight:700; box-shadow:0 4px 20px rgba(108,92,231,0.4); transition:transform 0.15s; margin:5px; }
+#resultOverlay button:hover { transform:scale(1.05); }
+#resultOverlay button:active { transform:scale(0.95); }
+#careerMap { position:fixed; inset:0; z-index:15; display:none; flex-direction:column; align-items:center; justify-content:space-between; color:#fff; padding:12px 20px 20px; pointer-events:none; }
+#careerHeader { pointer-events:none; text-align:center; }
+#careerMap h1 { font-size:clamp(1.5rem,5vw,2.5rem); margin:0 0 2px; text-shadow:0 2px 10px rgba(0,0,0,0.8); }
+#careerMap .sub { color:#a0c4ff; font-size:0.9rem; text-shadow:0 2px 8px rgba(0,0,0,0.8); }
+#careerBackBtn { pointer-events:auto; padding:10px 30px; font-size:1rem; border:none; border-radius:10px; background:linear-gradient(135deg,#636e72,#2d3436); color:#fff; cursor:pointer; font-weight:600; margin-bottom:10px; }
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+<canvas id="c"></canvas>
+
+<!-- MAIN MENU -->
+<div id="menuScreen" class="overlay-screen">
+  <h1>Conquer</h1>
+  <div class="sub">Capture every hex to win!</div>
+  <div class="info">Tap your cell, then tap an adjacent enemy or neutral cell to attack. All troops minus 1 will charge! Make multiple attacks per turn, then press End Turn. Each turn your cells gain +1 troop.</div>
+  <button id="careerBtn">Campaign</button>
+  <button id="quickPlayBtn">Quick Play</button>
+</div>
+
+<!-- QUICK PLAY SETUP -->
+<div id="quickSetup" class="overlay-screen hidden">
+  <h1>Quick Play</h1>
+  <div style="color:rgba(255,255,255,0.7);font-size:0.9rem;margin:12px 0 4px;">Players</div>
+  <div class="btn-row" id="playerRow">
+    <button class="player-btn" data-players="2">2</button>
+    <button class="player-btn active" data-players="3">3</button>
+    <button class="player-btn" data-players="4">4</button>
+    <button class="player-btn" data-players="5">5</button>
+  </div>
+  <div style="color:rgba(255,255,255,0.7);font-size:0.9rem;margin:12px 0 4px;">Map Size</div>
+  <div class="btn-row" id="sizeRow">
+    <button class="size-btn active" data-size="small">Small</button>
+    <button class="size-btn" data-size="medium">Medium</button>
+    <button class="size-btn" data-size="large">Large</button>
+    <button class="size-btn" data-size="mega">Mega</button>
+  </div>
+  <div style="color:rgba(255,255,255,0.7);font-size:0.9rem;margin:12px 0 4px;">Difficulty</div>
+  <div class="btn-row" id="diffRow">
+    <button class="diff-btn" data-diff="easy">Easy</button>
+    <button class="diff-btn active" data-diff="normal">Normal</button>
+    <button class="diff-btn" data-diff="hard">Hard</button>
+  </div>
+  <button id="startQuickBtn" style="margin-top:16px;">Play</button>
+  <button id="quickBackBtn" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-top:8px;font-size:1rem;padding:10px 30px;">Back</button>
+</div>
+
+<!-- CAREER MAP (overlay for title + back button; map drawn on main canvas) -->
+<div id="careerMap">
+  <div id="careerHeader">
+    <h1>Campaign</h1>
+    <div class="sub" id="careerProgress">0 / 127 conquered</div>
+  </div>
+  <button id="careerBackBtn">Back</button>
+</div>
+
+<!-- IN-GAME HUD -->
+<div id="hud" class="hidden"></div>
+<div id="turnIndicator" class="hidden">Your Turn</div>
+<button id="endTurnBtn" class="hidden">End Turn</button>
+
+<!-- RESULT -->
+<div id="resultOverlay">
+  <h1 id="resultTitle">Victory!</h1>
+  <div class="sub" id="resultSub"></div>
+  <button id="resultBtn">Continue</button>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const menuScreen = document.getElementById('menuScreen');
+const quickSetup = document.getElementById('quickSetup');
+const careerBtn = document.getElementById('careerBtn');
+const quickPlayBtn = document.getElementById('quickPlayBtn');
+const startQuickBtn = document.getElementById('startQuickBtn');
+const quickBackBtn = document.getElementById('quickBackBtn');
+const hudEl = document.getElementById('hud');
+const turnIndicator = document.getElementById('turnIndicator');
+const endTurnBtn = document.getElementById('endTurnBtn');
+const resultOverlay = document.getElementById('resultOverlay');
+const resultTitle = document.getElementById('resultTitle');
+const resultSub = document.getElementById('resultSub');
+const resultBtn = document.getElementById('resultBtn');
+const playerBtns = document.querySelectorAll('.player-btn');
+const careerMapEl = document.getElementById('careerMap');
+const careerBackBtn = document.getElementById('careerBackBtn');
+const careerProgress = document.getElementById('careerProgress');
+
+let W, H;
+let cells = [];
+let careerMapActive = false;
+function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+    if (cells.length && gameRunning) { calcHexMetrics(); recalcCellPositions(); renderGame(); }
+    if (careerMapActive) { drawCareerMap(); }
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ============================================================
+//  AUDIO
+// ============================================================
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function resumeAudio() { if (audioCtx.state === 'suspended') audioCtx.resume(); }
+
+function sfxSelect() {
+    resumeAudio(); const t = audioCtx.currentTime;
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type = 'sine'; o.frequency.value = 600;
+    g.gain.setValueAtTime(0.08, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    o.start(t); o.stop(t + 0.1);
+}
+function sfxAttack() {
+    resumeAudio(); const t = audioCtx.currentTime;
+    const n = audioCtx.sampleRate * 0.12, buf = audioCtx.createBuffer(1, n, audioCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const s = audioCtx.createBufferSource(), g = audioCtx.createGain();
+    s.buffer = buf; s.connect(g); g.connect(audioCtx.destination);
+    g.gain.setValueAtTime(0.15, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+    s.start(t);
+}
+function sfxCapture() {
+    resumeAudio(); const t = audioCtx.currentTime;
+    [700, 1000].forEach((freq, i) => {
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.type = 'sine'; o.frequency.value = freq;
+        const t2 = t + i * 0.08;
+        g.gain.setValueAtTime(0.1, t2); g.gain.exponentialRampToValueAtTime(0.001, t2 + 0.15);
+        o.start(t2); o.stop(t2 + 0.15);
+    });
+}
+function sfxFail() {
+    resumeAudio(); const t = audioCtx.currentTime;
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type = 'sawtooth'; o.frequency.value = 250;
+    o.frequency.linearRampToValueAtTime(120, t + 0.2);
+    g.gain.setValueAtTime(0.08, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+    o.start(t); o.stop(t + 0.25);
+}
+function sfxVictory() {
+    resumeAudio();
+    [523, 659, 784, 1047].forEach((freq, i) => {
+        const t = audioCtx.currentTime + i * 0.12;
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.type = 'sine'; o.frequency.value = freq;
+        g.gain.setValueAtTime(0.12, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+        o.start(t); o.stop(t + 0.35);
+    });
+}
+function sfxDefeat() {
+    resumeAudio();
+    [400, 300, 200, 150].forEach((freq, i) => {
+        const t = audioCtx.currentTime + i * 0.15;
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.type = 'sine'; o.frequency.value = freq;
+        g.gain.setValueAtTime(0.1, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+        o.start(t); o.stop(t + 0.3);
+    });
+}
+function sfxReinforce() {
+    resumeAudio(); const t = audioCtx.currentTime;
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type = 'sine'; o.frequency.value = 500;
+    o.frequency.linearRampToValueAtTime(700, t + 0.15);
+    g.gain.setValueAtTime(0.06, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    o.start(t); o.stop(t + 0.2);
+}
+
+// ============================================================
+//  STORAGE
+// ============================================================
+function loadArcadeData() { try { return JSON.parse(localStorage.getItem('calebArcadeData')) || {}; } catch { return {}; } }
+function saveArcadeData(d) { localStorage.setItem('calebArcadeData', JSON.stringify(d)); }
+function getConquerData() {
+    const d = loadArcadeData();
+    const cd = d.conquer || { wins: 0, careerLevel: 1, completed: [] };
+    // Migrate old saves that lack completed array
+    if (!cd.completed) {
+        cd.completed = [];
+        // Old saves tracked progress via careerLevel — mark earlier levels as completed
+        if (cd.careerLevel > 1) {
+            for (let i = 0; i < cd.careerLevel - 1; i++) cd.completed.push(i);
+        }
+        d.conquer = cd; saveArcadeData(d);
+    }
+    return cd;
+}
+function saveConquerData(cd) { const d = loadArcadeData(); d.conquer = cd; saveArcadeData(d); }
+
+// ============================================================
+//  CONSTANTS
+// ============================================================
+const PLAYER_COLORS = ['#4dabf7', '#ff6b6b', '#51cf66', '#ffd43b', '#cc5de8'];
+const PLAYER_NAMES = ['You', 'Red', 'Green', 'Yellow', 'Purple'];
+const NEUTRAL_COLOR = '#3a3a5c';
+const BG_COLOR = '#0a0a2e';
+const GRID_COLOR = '#1a1a3e';
+
+const BOARD_SIZES = {
+    small:  { rows: 5, cols: 6 },
+    medium: { rows: 7, cols: 8 },
+    large:  { rows: 9, cols: 10 },
+    mega:   { rows: 12, cols: 14 },
+};
+
+// ============================================================
+//  GAME STATE
+// ============================================================
+let numPlayers = 3;
+let boardSize = 'small';
+let difficulty = 'normal'; // easy, normal, hard
+let currentPlayer = 0;
+let selectedCell = null;
+let gameRunning = false;
+let animating = false;
+let animations = [];
+let particles = [];
+let gameMode = 'quick'; // 'quick' or 'career'
+let usedCells = new Set(); // cells that have acted this turn (player only)
+let fogOfWar = false;       // career mechanic
+let doubleReinforce = false; // career mechanic
+let slowStart = false;      // all players start with 1 troop
+let fortified = false;      // neutrals start with high troops
+let shrinking = false;      // edge cells collapse over time
+let turnCounter = 0;        // tracks full rounds for shrinking map
+
+// ============================================================
+//  HEX MATH
+// ============================================================
+let hexSize = 30, hexW, hexH, offsetX, offsetY;
+
+function calcHexMetrics() {
+    const cfg = BOARD_SIZES[boardSize];
+    const marginX = 40, marginY = 120;
+    const availW = W - marginX * 2;
+    const availH = H - marginY * 2;
+    const fitW = availW / (cfg.cols + 0.5) / Math.sqrt(3);
+    const fitH = availH / (cfg.rows * 1.5 + 0.5);
+    hexSize = Math.min(fitW, fitH, 40);
+    hexW = Math.sqrt(3) * hexSize;
+    hexH = 2 * hexSize;
+    const gridW = cfg.cols * hexW + hexW / 2;
+    const gridH = cfg.rows * 1.5 * hexSize + 0.5 * hexSize;
+    offsetX = (W - gridW) / 2 + hexW / 2;
+    offsetY = (H - gridH) / 2 + hexSize + 20;
+}
+
+function hexCenter(row, col) {
+    return {
+        x: offsetX + col * hexW + (row % 2) * hexW / 2,
+        y: offsetY + row * hexSize * 1.5,
+    };
+}
+
+function hexCorners(cx, cy) {
+    const c = [];
+    for (let i = 0; i < 6; i++) {
+        const a = Math.PI / 180 * (60 * i - 30);
+        c.push({ x: cx + hexSize * Math.cos(a), y: cy + hexSize * Math.sin(a) });
+    }
+    return c;
+}
+
+function pointInHex(px, py, cx, cy) {
+    const dx = Math.abs(px - cx), dy = Math.abs(py - cy);
+    if (dx > hexW / 2 || dy > hexSize) return false;
+    return hexSize * hexW / 2 - hexSize / 2 * dx - hexW / 2 * dy >= 0;
+}
+
+function getNeighbors(row, col) {
+    const cfg = BOARD_SIZES[boardSize];
+    const even = row % 2 === 0;
+    const dirs = even
+        ? [[-1,-1],[-1,0],[0,-1],[0,1],[1,-1],[1,0]]
+        : [[-1,0],[-1,1],[0,-1],[0,1],[1,0],[1,1]];
+    const nb = [];
+    for (const [dr, dc] of dirs) {
+        const nr = row + dr, nc = col + dc;
+        if (nr >= 0 && nr < cfg.rows && nc >= 0 && nc < cfg.cols) {
+            const idx = nr * cfg.cols + nc;
+            if (cells[idx] && cells[idx].active) nb.push(idx);
+        }
+    }
+    return nb;
+}
+
+function recalcCellPositions() {
+    for (const cell of cells) {
+        const { x, y } = hexCenter(cell.row, cell.col);
+        cell.x = x; cell.y = y;
+    }
+}
+
+// ============================================================
+//  BOARD GENERATION
+// ============================================================
+function generateBoard() {
+    const cfg = BOARD_SIZES[boardSize];
+    cells = [];
+    calcHexMetrics();
+    for (let r = 0; r < cfg.rows; r++) {
+        for (let c = 0; c < cfg.cols; c++) {
+            const { x, y } = hexCenter(r, c);
+            cells.push({ row: r, col: c, x, y, owner: -1, troops: 0, active: true });
+        }
+    }
+    // Organic shape — elliptical trim + seeded noise for unique boards each game
+    const cx = (cfg.cols - 1) / 2, cy = (cfg.rows - 1) / 2;
+    const noiseSeed = (Math.random() * 2147483647) | 0;
+    function noise(r, c) {
+        let h = (r * 374761393 + c * 668265263 + noiseSeed) | 0;
+        h = (h ^ (h >> 13)) * 1274126177;
+        return ((h ^ (h >> 16)) & 0x7fffffff) / 0x7fffffff;
+    }
+    for (const cell of cells) {
+        const dx = (cell.col - cx) / (cx || 1), dy = (cell.row - cy) / (cy || 1);
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const edgeNoise = noise(cell.row, cell.col) * 0.25;
+        if (dist > 0.9 + edgeNoise) cell.active = false;
+        else if (dist > 0.3 && noise(cell.row + 100, cell.col + 100) < 0.12) cell.active = false;
+    }
+    // Flood-fill to ensure connectivity — keep only the largest connected group
+    const visited = new Set();
+    const groups = [];
+    for (let i = 0; i < cells.length; i++) {
+        if (!cells[i].active || visited.has(i)) continue;
+        const group = [];
+        const stack = [i];
+        while (stack.length) {
+            const idx = stack.pop();
+            if (visited.has(idx)) continue;
+            visited.add(idx);
+            group.push(idx);
+            for (const ni of getNeighbors(cells[idx].row, cells[idx].col)) {
+                if (cells[ni].active && !visited.has(ni)) stack.push(ni);
+            }
+        }
+        groups.push(group);
+    }
+    groups.sort((a, b) => b.length - a.length);
+    // Deactivate all but the largest group
+    for (let g = 1; g < groups.length; g++) {
+        for (const idx of groups[g]) cells[idx].active = false;
+    }
+    // Place players
+    const active = cells.filter(c => c.active);
+    const starts = pickStartPositions(active, numPlayers);
+    for (let p = 0; p < numPlayers; p++) {
+        starts[p].owner = p;
+        starts[p].troops = slowStart ? 1 : 5;
+    }
+    // Neutrals
+    for (const c of active) {
+        if (c.owner === -1) c.troops = fortified ? (3 + Math.floor(Math.random() * 5)) : (1 + Math.floor(Math.random() * 4));
+    }
+}
+
+function pickStartPositions(active, n) {
+    let best = null, bestMin = 0;
+    for (let a = 0; a < 300; a++) {
+        const picks = [];
+        const avail = [...active];
+        for (let i = 0; i < n; i++) {
+            const idx = Math.floor(Math.random() * avail.length);
+            picks.push(avail.splice(idx, 1)[0]);
+        }
+        let minD = Infinity;
+        for (let i = 0; i < picks.length; i++)
+            for (let j = i + 1; j < picks.length; j++) {
+                const d = Math.hypot(picks[i].x - picks[j].x, picks[i].y - picks[j].y);
+                if (d < minD) minD = d;
+            }
+        if (minD > bestMin) { bestMin = minD; best = picks; }
+    }
+    return best;
+}
+
+// ============================================================
+//  RENDERING
+// ============================================================
+// Build set of visible cell indices under fog of war
+function getVisibleCells() {
+    if (!fogOfWar) return null;
+    const visible = new Set();
+    for (let i = 0; i < cells.length; i++) {
+        if (!cells[i].active || cells[i].owner !== 0) continue;
+        visible.add(i);
+        for (const ni of getNeighbors(cells[i].row, cells[i].col)) {
+            visible.add(ni);
+        }
+    }
+    return visible;
+}
+
+function renderGame() {
+    ctx.fillStyle = BG_COLOR;
+    ctx.fillRect(0, 0, W, H);
+    const visible = getVisibleCells();
+    for (let i = 0; i < cells.length; i++) {
+        const cell = cells[i];
+        if (!cell.active) continue;
+        if (visible && !visible.has(i)) {
+            drawFogHex(cell);
+            continue;
+        }
+        drawHex(cell, currentPlayer === 0 && usedCells.has(i));
+    }
+    // Selection highlight
+    if (selectedCell !== null && cells[selectedCell]) {
+        const cell = cells[selectedCell];
+        const corners = hexCorners(cell.x, cell.y);
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(corners[0].x, corners[0].y);
+        for (let i = 1; i < 6; i++) ctx.lineTo(corners[i].x, corners[i].y);
+        ctx.closePath(); ctx.stroke();
+        // Valid targets
+        if (cell.troops > 1 && !usedCells.has(selectedCell)) {
+            const nb = getNeighbors(cell.row, cell.col);
+            for (const ni of nb) {
+                const nc = cells[ni];
+                if (visible && !visible.has(ni)) continue;
+                const ncorners = hexCorners(nc.x, nc.y);
+                if (nc.owner === currentPlayer) {
+                    // Reinforce target
+                    ctx.strokeStyle = 'rgba(100,200,255,0.4)'; ctx.lineWidth = 2;
+                } else {
+                    // Attack target
+                    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2;
+                }
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(ncorners[0].x, ncorners[0].y);
+                for (let i = 1; i < 6; i++) ctx.lineTo(ncorners[i].x, ncorners[i].y);
+                ctx.closePath(); ctx.stroke();
+                ctx.setLineDash([]);
+            }
+        }
+    }
+    // Animations (hide if both endpoints are in fog)
+    for (const anim of animations) {
+        if (visible && anim.fromCell != null && anim.toCell != null &&
+            !visible.has(anim.fromCell) && !visible.has(anim.toCell)) continue;
+        const t = anim.progress;
+        const ax = anim.fromX + (anim.toX - anim.fromX) * t;
+        const ay = anim.fromY + (anim.toY - anim.fromY) * t;
+        ctx.fillStyle = anim.color; ctx.globalAlpha = 0.8;
+        ctx.beginPath(); ctx.arc(ax, ay, hexSize * 0.3, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1; ctx.fillStyle = '#fff';
+        ctx.font = `bold ${Math.round(hexSize * 0.35)}px 'Segoe UI',system-ui,sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(anim.troops, ax, ay);
+    }
+    // Particles
+    for (const p of particles) {
+        ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+}
+
+function drawHex(cell, used) {
+    const corners = hexCorners(cell.x, cell.y);
+    ctx.fillStyle = cell.owner === -1 ? NEUTRAL_COLOR : PLAYER_COLORS[cell.owner];
+    if (used) ctx.globalAlpha = 0.45;
+    ctx.beginPath();
+    ctx.moveTo(corners[0].x, corners[0].y);
+    for (let i = 1; i < 6; i++) ctx.lineTo(corners[i].x, corners[i].y);
+    ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = used ? '#555' : GRID_COLOR; ctx.lineWidth = 2; ctx.stroke();
+    const fs = Math.round(hexSize * 0.55);
+    ctx.font = `bold ${fs}px 'Segoe UI',system-ui,sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = cell.owner === -1 ? 'rgba(255,255,255,0.5)' : '#fff';
+    if (used) ctx.globalAlpha = 0.4;
+    ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 3;
+    ctx.fillText(cell.troops, cell.x, cell.y);
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+}
+
+function drawFogHex(cell) {
+    const corners = hexCorners(cell.x, cell.y);
+    ctx.fillStyle = '#151535';
+    ctx.beginPath();
+    ctx.moveTo(corners[0].x, corners[0].y);
+    for (let i = 1; i < 6; i++) ctx.lineTo(corners[i].x, corners[i].y);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#1a1a40'; ctx.lineWidth = 1; ctx.stroke();
+    const fs = Math.round(hexSize * 0.4);
+    ctx.font = `${fs}px 'Segoe UI',system-ui,sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.fillText('?', cell.x, cell.y);
+}
+
+
+function spawnParticles(x, y, color, n) {
+    for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2, sp = 1 + Math.random() * 3;
+        particles.push({ x, y, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp, life:1, decay:0.02+Math.random()*0.03, size:2+Math.random()*3, color });
+    }
+}
+
+// ============================================================
+//  HUD
+// ============================================================
+function updateHUD() {
+    let html = '';
+    for (let p = 0; p < numPlayers; p++) {
+        const owned = cells.filter(c => c.active && c.owner === p);
+        const troops = owned.reduce((s, c) => s + c.troops, 0);
+        const alive = owned.length > 0;
+        const isCur = p === currentPlayer && gameRunning;
+        const border = isCur ? `border:2px solid ${PLAYER_COLORS[p]}` : '';
+        html += `<div class="hud-player" style="opacity:${alive?1:0.3};${border}">
+            <div class="hud-dot" style="background:${PLAYER_COLORS[p]}"></div>
+            <span>${PLAYER_NAMES[p]}</span>
+            <span class="hud-count">${owned.length}</span>
+            <span class="hud-troops">(${troops})</span></div>`;
+    }
+    // Show active mechanic
+    if (fogOfWar) html += `<div class="hud-player" style="opacity:0.7;border:1px solid #e17055">👁 Fog of War<br><span style="font-size:0.65rem;opacity:0.6">You can only see what's nearby</span></div>`;
+    if (doubleReinforce) html += `<div class="hud-player" style="opacity:0.7;border:1px solid #ffd43b">⚡ Double Reinforce<br><span style="font-size:0.65rem;opacity:0.6">You get extra troops each turn</span></div>`;
+    if (slowStart) html += `<div class="hud-player" style="opacity:0.7;border:1px solid #74b9ff">🐢 Slow Start<br><span style="font-size:0.65rem;opacity:0.6">Everyone starts with only 1 troop</span></div>`;
+    if (fortified) html += `<div class="hud-player" style="opacity:0.7;border:1px solid #fd79a8">🏰 Fortified<br><span style="font-size:0.65rem;opacity:0.6">Empty spaces are harder to capture</span></div>`;
+    if (shrinking) html += `<div class="hud-player" style="opacity:0.7;border:1px solid #a29bfe">🌀 Shrinking<br><span style="font-size:0.65rem;opacity:0.6">The map gets smaller over time</span></div>`;
+    html += `<button id="giveUpBtn" onclick="giveUp()" style="pointer-events:auto;margin-top:4px;padding:5px 14px;font-size:0.75rem;border:none;border-radius:8px;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.4);cursor:pointer;font-weight:600;transition:all 0.15s;">Give Up</button>`;
+    hudEl.innerHTML = html;
+    if (currentPlayer === 0 && gameRunning) {
+        turnIndicator.textContent = 'Your Turn';
+    } else if (gameRunning) {
+        turnIndicator.textContent = `${PLAYER_NAMES[currentPlayer]}'s Turn`;
+    }
+}
+
+// ============================================================
+//  GAME LOGIC
+// ============================================================
+function reinforce(player) {
+    const amt = (doubleReinforce && player === 0) ? 2 : 1;
+    for (const c of cells) if (c.active && c.owner === player) c.troops += amt;
+}
+
+function giveUp() {
+    if (!gameRunning) return;
+    gameRunning = false;
+    endTurnBtn.classList.add('hidden');
+    sfxDefeat();
+    resultTitle.textContent = 'Defeated!';
+    resultSub.textContent = 'You surrendered.';
+    resultOverlay.style.display = 'flex';
+}
+
+function attack(fromIdx, toIdx, callback) {
+    const from = cells[fromIdx], to = cells[toIdx];
+    const attackTroops = from.troops - 1;
+    from.troops = 1;
+    animating = true;
+
+    const anim = {
+        fromX: from.x, fromY: from.y, toX: to.x, toY: to.y,
+        fromCell: fromIdx, toCell: toIdx,
+        progress: 0, troops: attackTroops, color: PLAYER_COLORS[from.owner],
+    };
+    animations.push(anim);
+    const startTime = performance.now(), duration = 300;
+
+    function step(now) {
+        anim.progress = Math.min(1, (now - startTime) / duration);
+        renderGame();
+        if (anim.progress < 1) {
+            requestAnimationFrame(step);
+        } else {
+            animations.length = 0;
+            resolveAttack(from, to, attackTroops, toIdx);
+            renderGame();
+            animating = false;
+            if (callback) callback();
+        }
+    }
+    requestAnimationFrame(step);
+}
+
+function resolveAttack(from, to, attackTroops, toIdx) {
+    // In fog of war, only show effects if target cell is visible to player
+    const fogVis = fogOfWar ? getVisibleCells() : null;
+    const canSee = !fogVis || fogVis.has(toIdx);
+    if (attackTroops > to.troops) {
+        to.owner = from.owner;
+        to.troops = attackTroops - to.troops;
+        if (canSee) { spawnParticles(to.x, to.y, PLAYER_COLORS[from.owner], 12); sfxCapture(); }
+    } else if (attackTroops === to.troops) {
+        to.troops = 1;
+        if (canSee) { spawnParticles(to.x, to.y, '#888', 6); sfxFail(); }
+    } else {
+        to.troops -= attackTroops;
+        if (canSee) { spawnParticles(to.x, to.y, PLAYER_COLORS[to.owner] || '#ff6b6b', 8); sfxFail(); }
+    }
+    updateHUD();
+}
+
+function checkGameOver() {
+    const alive = new Set();
+    for (const c of cells) if (c.active && c.owner >= 0) alive.add(c.owner);
+    if (alive.size <= 1) {
+        const winner = alive.size === 1 ? [...alive][0] : -1;
+        gameRunning = false;
+        endTurnBtn.classList.add('hidden');
+        setTimeout(() => {
+            if (winner === 0) {
+                resultTitle.textContent = 'Victory!';
+                resultSub.textContent = gameMode === 'career' ? 'Territory conquered!' : 'You conquered the board!';
+                sfxVictory();
+                if (gameMode === 'career') {
+                    const cd = getConquerData();
+                    if (!cd.completed) cd.completed = [];
+                    if (!cd.completed.includes(currentCareerLevel)) {
+                        cd.completed.push(currentCareerLevel);
+                        saveConquerData(cd);
+                    }
+                }
+            } else {
+                resultTitle.textContent = 'Defeated!';
+                resultSub.textContent = winner >= 0 ? `${PLAYER_NAMES[winner]} conquered the board.` : 'Draw!';
+                sfxDefeat();
+            }
+            resultOverlay.style.display = 'flex';
+        }, 400);
+        return true;
+    }
+    return false;
+}
+
+function shrinkMap() {
+    // Find edge cells (active cells with fewer than 6 active neighbours)
+    const edgeCells = [];
+    for (let i = 0; i < cells.length; i++) {
+        const c = cells[i];
+        if (!c.active) continue;
+        const activeNeighbors = getNeighbors(c.row, c.col).filter(ni => cells[ni].active).length;
+        if (activeNeighbors < 4) edgeCells.push(i);
+    }
+    // Remove 1-3 random edge cells
+    const toRemove = Math.min(edgeCells.length, 1 + Math.floor(Math.random() * 3));
+    for (let r = 0; r < toRemove; r++) {
+        const pick = Math.floor(Math.random() * edgeCells.length);
+        const idx = edgeCells.splice(pick, 1)[0];
+        cells[idx].active = false;
+        cells[idx].owner = -1;
+        cells[idx].troops = 0;
+    }
+}
+
+function nextTurn() {
+    if (!gameRunning) return;
+    selectedCell = null;
+    usedCells.clear();
+    let next = (currentPlayer + 1) % numPlayers;
+    let safety = 0;
+    while (safety < numPlayers) {
+        if (cells.some(c => c.active && c.owner === next)) break;
+        next = (next + 1) % numPlayers;
+        safety++;
+    }
+    // Shrinking map: every 3 full rounds, collapse edge cells
+    if (shrinking && next <= currentPlayer) {
+        turnCounter++;
+        if (turnCounter % 3 === 0) shrinkMap();
+    }
+    currentPlayer = next;
+    reinforce(currentPlayer);
+    sfxReinforce();
+    updateHUD();
+    renderGame();
+    if (checkGameOver()) return;
+    if (currentPlayer === 0) {
+        endTurnBtn.classList.remove('hidden');
+    } else {
+        endTurnBtn.classList.add('hidden');
+        turnIndicator.textContent = `${PLAYER_NAMES[currentPlayer]}'s Turn`;
+        setTimeout(() => aiTurn(), 400);
+    }
+}
+
+// ============================================================
+//  AI
+// ============================================================
+function aiFindAttacks(player) {
+    const attacks = [];
+    for (let i = 0; i < cells.length; i++) {
+        const from = cells[i];
+        if (!from.active || from.owner !== player || from.troops <= 1 || usedCells.has(i)) continue;
+        for (const ni of getNeighbors(from.row, from.col)) {
+            const to = cells[ni];
+            if (to.owner === player) continue;
+            const atkTroops = from.troops - 1;
+            const surplus = atkTroops - to.troops;
+            let score = surplus * 2;
+            if (surplus > 0) score += 10;
+            if (to.owner >= 0) score += 4;
+            if (to.owner === 0) score += 3;
+            const friendlyBorders = getNeighbors(to.row, to.col).filter(n => cells[n].active && cells[n].owner === player).length;
+            score += friendlyBorders * 2;
+            // Difficulty adjustments
+            if (difficulty === 'easy') {
+                if (surplus <= 0) score -= 20; // very cautious
+                score += Math.random() * 8 - 4; // random noise
+            } else if (difficulty === 'hard') {
+                if (surplus >= 0) score += 5; // more aggressive
+            } else {
+                if (surplus <= 0) score -= 12;
+            }
+            attacks.push({ from: i, to: ni, score, surplus });
+        }
+    }
+    attacks.sort((a, b) => b.score - a.score);
+    return attacks;
+}
+
+function aiTurn() {
+    if (!gameRunning) return;
+    const attacks = aiFindAttacks(currentPlayer);
+    // surplus = (from.troops-1) - to.troops; need >0 to capture
+    // normal/hard: only attack when guaranteed capture (surplus >= 1)
+    // easy: need comfortable lead (surplus >= 2)
+    const minSurplus = difficulty === 'easy' ? 2 : 1;
+    const viable = attacks.filter(a => a.surplus >= minSurplus);
+    if (viable.length > 0) {
+        usedCells.add(viable[0].from);
+        attack(viable[0].from, viable[0].to, () => {
+            if (checkGameOver()) return;
+            setTimeout(() => aiContinueTurn(), 200);
+        });
+    } else {
+        setTimeout(() => nextTurn(), 200);
+    }
+}
+
+function aiContinueTurn() {
+    if (!gameRunning) return;
+    const attacks = aiFindAttacks(currentPlayer);
+    const minSurplus = difficulty === 'easy' ? 2 : 1;
+    const viable = attacks.filter(a => a.surplus >= minSurplus);
+    // Easy AI only makes 1-2 attacks per turn
+    if (difficulty === 'easy' && Math.random() < 0.5) {
+        setTimeout(() => nextTurn(), 200);
+        return;
+    }
+    if (viable.length > 0) {
+        usedCells.add(viable[0].from);
+        attack(viable[0].from, viable[0].to, () => {
+            if (checkGameOver()) return;
+            setTimeout(() => aiContinueTurn(), 200);
+        });
+    } else {
+        setTimeout(() => nextTurn(), 200);
+    }
+}
+
+// ============================================================
+//  PLAYER INPUT — multiple attacks per turn
+// ============================================================
+function getCellAtPoint(px, py) {
+    for (let i = 0; i < cells.length; i++) {
+        if (!cells[i].active) continue;
+        if (pointInHex(px, py, cells[i].x, cells[i].y)) return i;
+    }
+    return -1;
+}
+
+canvas.addEventListener('pointerdown', (e) => {
+    if (careerMapActive) return;
+    if (!gameRunning || animating || currentPlayer !== 0) return;
+    resumeAudio();
+    const ci = getCellAtPoint(e.clientX, e.clientY);
+    if (ci < 0) { selectedCell = null; renderGame(); return; }
+    const cell = cells[ci];
+
+    // Fog of war — can't interact with hidden cells
+    if (fogOfWar) {
+        const visible = getVisibleCells();
+        if (visible && !visible.has(ci)) { selectedCell = null; renderGame(); return; }
+    }
+
+    if (selectedCell !== null) {
+        const sel = cells[selectedCell];
+        const nb = getNeighbors(sel.row, sel.col);
+        if (nb.includes(ci) && sel.troops > 1 && !usedCells.has(selectedCell)) {
+            if (cell.owner === currentPlayer) {
+                // Reinforce — transfer troops to own adjacent cell
+                const troops = sel.troops - 1;
+                sel.troops = 1;
+                usedCells.add(selectedCell);
+                sfxReinforce();
+                animating = true;
+                const anim = {
+                    fromX: sel.x, fromY: sel.y, toX: cell.x, toY: cell.y,
+                    fromCell: selectedCell, toCell: ci,
+                    progress: 0, troops, color: PLAYER_COLORS[currentPlayer],
+                };
+                animations.push(anim);
+                const startTime = performance.now(), duration = 200;
+                selectedCell = null;
+                function step(now) {
+                    anim.progress = Math.min(1, (now - startTime) / duration);
+                    renderGame();
+                    if (anim.progress < 1) {
+                        requestAnimationFrame(step);
+                    } else {
+                        animations.length = 0;
+                        cell.troops += troops;
+                        usedCells.add(ci);
+                        animating = false;
+                        updateHUD();
+                        renderGame();
+                    }
+                }
+                requestAnimationFrame(step);
+                return;
+            } else {
+                // Attack enemy or neutral cell
+                usedCells.add(selectedCell);
+                sfxAttack();
+                const fromIdx = selectedCell;
+                selectedCell = null;
+                attack(fromIdx, ci, () => {
+                    if (checkGameOver()) return;
+                    updateHUD();
+                    renderGame();
+                });
+                return;
+            }
+        }
+    }
+    // Select own cell (must not be used already)
+    if (cell.owner === currentPlayer && cell.troops > 1 && !usedCells.has(ci)) {
+        selectedCell = ci;
+        sfxSelect();
+    } else {
+        selectedCell = null;
+    }
+    renderGame();
+});
+
+// End Turn button
+endTurnBtn.addEventListener('click', () => {
+    if (!gameRunning || currentPlayer !== 0 || animating) return;
+    selectedCell = null;
+    endTurnBtn.classList.add('hidden');
+    nextTurn();
+});
+
+// ============================================================
+//  CAREER MODE — 100 levels on a massive spiral hex map
+// ============================================================
+// Special mechanics: fog = fog of war, boost = double reinforce for player
+// Levels are generated procedurally with hand-named entries and scaling difficulty
+const CAREER_LEVEL_NAMES = [
+    'Outpost','Skirmish','Border Clash','Recon','Three Crowns','Barricade','Crossroads','Supply Line',
+    'Dark Lands','Siege','Four Winds','Stronghold','Battlefront','Night Raid','Fortified','Rally',
+    'War Council','Fog of War','Maze','Empire','Blind Fury','Five Kingdoms','Overpower','Deadlock',
+    'Dominion','Blackout','Bunkers','Last Stand','Surge','Warlords','Shadow War','Gauntlet',
+    'No Mercy','Total Blackout','Fortress','Blitz','Pandemonium','Iron Curtain','Armageddon','Conqueror',
+    'Aftermath','New Dawn','Scorched Earth','Cold Front','Uprising','Occupied','Fractured','Resistance',
+    'Tidal Wave','Ember','Frozen Wastes','Sandstorm','Whiteout','Thunder','Inferno','Eclipse',
+    'Depths','Twilight Zone','Onslaught','Reckoning','Cataclysm','Vortex','Crucible','Typhoon',
+    'Oblivion','Phoenix','Dusk','Firestorm','Tempest','Avalanche','Maelstrom','Leviathan',
+    'Ragnarok','Nemesis','Singularity','Nova','Extinction','Supernova','Void','Titan',
+    'Omega','Genesis','Rebirth','Apex','Zenith','Pinnacle','Summit','Colossus',
+    'Juggernaut','Behemoth','Overlord','Sovereign','Monarch','Emperor','Ascendant','Eternal',
+    'Infinite','Absolute','Ultimate','Legendary',
+    'Annihilation','Cinder','Frostbite','Rampage','Havoc','Dominance','Wrath','Fury',
+    'Carnage','Mayhem','Chaos','Valor','Honor','Glory','Triumph','Conquest',
+    'Vendetta','Retribution','Judgment','Sentinel','Bastion','Citadel','Paragon',
+];
+const CAREER_LEVELS = [];
+const CAREER_LEVEL_COUNT = 127; // matches 8-ring hex with symmetric gaps
+(function generateCareerLevels() {
+    // Seeded pseudo-random for deterministic but varied levels
+    let seed = 42;
+    function rand() { seed = (seed * 16807 + 0) % 2147483647; return seed / 2147483647; }
+
+    for (let i = 0; i < CAREER_LEVEL_COUNT; i++) {
+        const t = i / (CAREER_LEVEL_COUNT - 1); // 0 to 1 progression
+        const r = rand();
+
+        // Players: ramp up with some randomness — early levels mostly 2-3, late levels 4-5
+        let players;
+        if (t < 0.15) players = r < 0.8 ? 2 : 3;
+        else if (t < 0.35) players = r < 0.3 ? 2 : r < 0.8 ? 3 : 4;
+        else if (t < 0.6) players = r < 0.1 ? 2 : r < 0.4 ? 3 : r < 0.8 ? 4 : 5;
+        else if (t < 0.8) players = r < 0.15 ? 3 : r < 0.5 ? 4 : 5;
+        else players = r < 0.1 ? 3 : r < 0.35 ? 4 : 5;
+
+        // Size: ramp up with variety — mega appears in later levels
+        let size;
+        if (t < 0.2) size = r < 0.7 ? 'small' : 'medium';
+        else if (t < 0.4) size = r < 0.2 ? 'small' : r < 0.7 ? 'medium' : 'large';
+        else if (t < 0.65) size = r < 0.1 ? 'small' : r < 0.35 ? 'medium' : r < 0.8 ? 'large' : 'mega';
+        else if (t < 0.85) size = r < 0.05 ? 'medium' : r < 0.35 ? 'large' : 'mega';
+        else size = r < 0.2 ? 'large' : 'mega';
+
+        // Difficulty: gradually harder but with occasional easier levels
+        let diff;
+        if (t < 0.15) diff = 'easy';
+        else if (t < 0.3) diff = r < 0.6 ? 'easy' : 'normal';
+        else if (t < 0.5) diff = r < 0.15 ? 'easy' : r < 0.7 ? 'normal' : 'hard';
+        else if (t < 0.75) diff = r < 0.05 ? 'easy' : r < 0.35 ? 'normal' : 'hard';
+        else diff = r < 0.15 ? 'normal' : 'hard';
+
+        // Specials: none for first 2, then ~40% chance with increasing frequency
+        let special = null;
+        if (i >= 2) {
+            const specialChance = 0.3 + t * 0.2;
+            if (rand() < specialChance) {
+                const sr = rand();
+                if (sr < 0.25) special = 'fog';
+                else if (sr < 0.45) special = 'boost';
+                else if (sr < 0.65) special = 'slowstart';
+                else if (sr < 0.85) special = 'fortified';
+                else special = 'shrinking';
+            }
+        }
+
+        // Level 0 is always a gentle intro
+        if (i === 0) { players = 2; size = 'small'; diff = 'easy'; special = null; }
+
+        CAREER_LEVELS.push({
+            name: CAREER_LEVEL_NAMES[i] || `Level ${i + 1}`,
+            players, size, diff, special
+        });
+    }
+})();
+
+let currentCareerLevel = 0;
+let careerCells = []; // hex cells for the career map board
+
+// Career map — spiral hex layout with symmetric gaps
+// 8 rings from center, gaps have 6-fold symmetry
+const CAREER_HEX_COORDS = [];
+(function buildSpiralCoords() {
+    CAREER_HEX_COORDS.push({ q: 0, r: 0 });
+    const dirs = [[0,1],[-1,1],[-1,0],[0,-1],[1,-1],[1,0]];
+    // Build all 8 rings
+    const allSlots = [];
+    for (let ring = 1; ring <= 8; ring++) {
+        let q = ring, r = -ring;
+        for (let d = 0; d < 6; d++) {
+            for (let s = 0; s < ring; s++) {
+                allSlots.push({ q, r, ring, edge: d, pos: s });
+                q += dirs[d][0]; r += dirs[d][1];
+            }
+        }
+    }
+    // Create symmetric gap pattern: for each ring, pick positions to gap
+    // and apply them to all 6 edges (6-fold symmetry)
+    const gapPositions = new Set();
+    // Ring 3: remove position 1 on each edge (6 gaps)
+    // Ring 4: remove positions 0,2 on each edge (12 gaps)
+    // Ring 5: remove positions 1,3 on each edge (12 gaps)
+    // Ring 6: remove positions 0,2,4 on each edge (18 gaps)
+    // Ring 7: remove positions 1,3,5 on each edge (18 gaps)
+    // Ring 8: remove positions 0,2,4,6 on each edge (24 gaps)
+    const gapPattern = {
+        3: [1],
+        4: [0, 2],
+        5: [1, 3],
+        6: [0, 2, 4],
+        7: [1, 3, 5],
+        8: [0, 2, 4, 6],
+    };
+    for (const slot of allSlots) {
+        const pattern = gapPattern[slot.ring];
+        if (pattern && pattern.includes(slot.pos)) {
+            gapPositions.add(slot.q + ',' + slot.r);
+        }
+    }
+    // Add non-gap slots as level coords
+    for (const slot of allSlots) {
+        if (gapPositions.has(slot.q + ',' + slot.r)) continue;
+        CAREER_HEX_COORDS.push({ q: slot.q, r: slot.r });
+    }
+})();
+
+// Axial hex neighbors
+const AXIAL_DIRS = [[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]];
+function getCareerNeighborIndices(idx) {
+    const cell = careerCells[idx];
+    const neighbors = [];
+    for (const [dq, dr] of AXIAL_DIRS) {
+        const nq = cell.q + dq, nr = cell.r + dr;
+        const ni = careerCells.findIndex(c => c.q === nq && c.r === nr);
+        if (ni >= 0) neighbors.push(ni);
+    }
+    return neighbors;
+}
+
+// Check if a level is unlocked: level 0 always unlocked, or adjacent to a completed level
+function isLevelUnlocked(levelIdx, completed) {
+    if (levelIdx === 0) return true;
+    const cellIdx = careerCells.findIndex(c => c.levelIdx === levelIdx);
+    if (cellIdx < 0) return false;
+    const neighbors = getCareerNeighborIndices(cellIdx);
+    return neighbors.some(ni => {
+        const nLevel = careerCells[ni].levelIdx;
+        return completed.includes(nLevel);
+    });
+}
+
+// Career map hex size and pan offset
+let cmHexSize = 40;
+let cmPanX = 0, cmPanY = 0;
+let cmDragStart = null, cmDragPanStart = null;
+let cmHoverIdx = -1; // index into careerCells for hover highlight
+
+function cmHexToPixel(q, r) {
+    const x = cmHexSize * Math.sqrt(3) * (q + r / 2);
+    const y = cmHexSize * 1.5 * r;
+    return { x: x + W / 2 + cmPanX, y: y + H / 2 + cmPanY };
+}
+
+function cmHexCorners(cx, cy, r) {
+    const sz = r || cmHexSize;
+    const corners = [];
+    for (let i = 0; i < 6; i++) {
+        const angle = Math.PI / 6 + i * Math.PI / 3;
+        corners.push({ x: cx + sz * Math.cos(angle), y: cy + sz * Math.sin(angle) });
+    }
+    return corners;
+}
+
+function buildCareerBoard() {
+    careerCells = [];
+    for (let i = 0; i < CAREER_HEX_COORDS.length; i++) {
+        const { q, r } = CAREER_HEX_COORDS[i];
+        careerCells.push({ q, r, x: 0, y: 0, levelIdx: i });
+    }
+    cmHexSize = Math.min(W, H) * 0.07;
+    cmHexSize = Math.max(30, Math.min(50, cmHexSize));
+    cmPanX = 0;
+    cmPanY = 0;
+}
+
+function recalcCareerPositions() {
+    for (const cell of careerCells) {
+        const { x, y } = cmHexToPixel(cell.q, cell.r);
+        cell.x = x; cell.y = y;
+    }
+}
+
+function drawCareerMap() {
+    const cd = getConquerData();
+    const completed = cd.completed || [];
+    const completedCount = completed.length;
+    careerProgress.textContent = `${completedCount} / ${CAREER_LEVELS.length} conquered`;
+
+    recalcCareerPositions();
+
+    // Background with richer gradient
+    const bgGrad = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7);
+    bgGrad.addColorStop(0, '#12123e');
+    bgGrad.addColorStop(0.5, '#0a0a2a');
+    bgGrad.addColorStop(1, '#050518');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Subtle star field (deterministic based on position)
+    for (let si = 0; si < 60; si++) {
+        const sx = ((si * 7919 + 1013) % W);
+        const sy = ((si * 6271 + 2347) % H);
+        const sa = 0.08 + (si % 5) * 0.04;
+        const sr = 0.5 + (si % 3) * 0.5;
+        ctx.fillStyle = `rgba(255,255,255,${sa})`;
+        ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // Draw connection lines between adjacent hexes first (behind everything)
+    for (let ci = 0; ci < careerCells.length; ci++) {
+        const cell = careerCells[ci];
+        if (cell.x < -cmHexSize * 3 || cell.x > W + cmHexSize * 3 ||
+            cell.y < -cmHexSize * 3 || cell.y > H + cmHexSize * 3) continue;
+        const neighbors = getCareerNeighborIndices(ci);
+        for (const ni of neighbors) {
+            if (ni <= ci) continue;
+            const n = careerCells[ni];
+            const bothCompleted = completed.includes(cell.levelIdx) && completed.includes(n.levelIdx);
+            const eitherActive = completed.includes(cell.levelIdx) || completed.includes(n.levelIdx) ||
+                isLevelUnlocked(cell.levelIdx, completed) || isLevelUnlocked(n.levelIdx, completed);
+            if (bothCompleted) {
+                // Glowing green line for completed paths
+                ctx.strokeStyle = 'rgba(81,207,102,0.12)';
+                ctx.lineWidth = Math.max(4, cmHexSize * 0.1);
+                ctx.beginPath(); ctx.moveTo(cell.x, cell.y); ctx.lineTo(n.x, n.y); ctx.stroke();
+                ctx.strokeStyle = 'rgba(81,207,102,0.35)';
+                ctx.lineWidth = Math.max(1.5, cmHexSize * 0.04);
+                ctx.beginPath(); ctx.moveTo(cell.x, cell.y); ctx.lineTo(n.x, n.y); ctx.stroke();
+            } else if (eitherActive) {
+                ctx.strokeStyle = 'rgba(108,92,231,0.08)';
+                ctx.lineWidth = Math.max(3, cmHexSize * 0.08);
+                ctx.beginPath(); ctx.moveTo(cell.x, cell.y); ctx.lineTo(n.x, n.y); ctx.stroke();
+                ctx.strokeStyle = 'rgba(108,92,231,0.2)';
+                ctx.lineWidth = Math.max(1, cmHexSize * 0.03);
+                ctx.beginPath(); ctx.moveTo(cell.x, cell.y); ctx.lineTo(n.x, n.y); ctx.stroke();
+            } else {
+                ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+                ctx.lineWidth = Math.max(1, cmHexSize * 0.03);
+                ctx.beginPath(); ctx.moveTo(cell.x, cell.y); ctx.lineTo(n.x, n.y); ctx.stroke();
+            }
+        }
+    }
+
+    // Glow pass — soft radial glow behind active hexes
+    for (let ci = 0; ci < careerCells.length; ci++) {
+        const cell = careerCells[ci];
+        if (cell.x < -cmHexSize * 3 || cell.x > W + cmHexSize * 3 ||
+            cell.y < -cmHexSize * 3 || cell.y > H + cmHexSize * 3) continue;
+        const i = cell.levelIdx;
+        const isCompleted = completed.includes(i);
+        const isUnlocked = isLevelUnlocked(i, completed);
+        if (!isCompleted && !isUnlocked) continue;
+        const glowR = cmHexSize * 1.3;
+        const glow = ctx.createRadialGradient(cell.x, cell.y, 0, cell.x, cell.y, glowR);
+        if (isCompleted) {
+            glow.addColorStop(0, 'rgba(45,138,78,0.25)');
+            glow.addColorStop(1, 'rgba(45,138,78,0)');
+        } else {
+            glow.addColorStop(0, 'rgba(108,92,231,0.2)');
+            glow.addColorStop(1, 'rgba(108,92,231,0)');
+        }
+        ctx.fillStyle = glow;
+        ctx.fillRect(cell.x - glowR, cell.y - glowR, glowR * 2, glowR * 2);
+    }
+
+    // Draw all hexes: gradient fill + border + text
+    for (let ci = 0; ci < careerCells.length; ci++) {
+        const cell = careerCells[ci];
+        if (cell.x < -cmHexSize * 2 || cell.x > W + cmHexSize * 2 ||
+            cell.y < -cmHexSize * 2 || cell.y > H + cmHexSize * 2) continue;
+        const i = cell.levelIdx;
+        const lvl = CAREER_LEVELS[i];
+        const isCompleted = completed.includes(i);
+        const isUnlocked = isLevelUnlocked(i, completed);
+        const isHover = ci === cmHoverIdx;
+        const corners = cmHexCorners(cell.x, cell.y);
+
+        // Gradient fill — top-left highlight to bottom-right shadow
+        const grad = ctx.createLinearGradient(
+            cell.x - cmHexSize * 0.6, cell.y - cmHexSize * 0.6,
+            cell.x + cmHexSize * 0.6, cell.y + cmHexSize * 0.6
+        );
+        if (isCompleted) {
+            grad.addColorStop(0, isHover ? '#5fd87a' : '#38a85e');
+            grad.addColorStop(1, isHover ? '#3aaa55' : '#1f6e3a');
+            ctx.fillStyle = grad;
+        } else if (isUnlocked) {
+            grad.addColorStop(0, isHover ? '#a594ff' : '#7e6ff0');
+            grad.addColorStop(1, isHover ? '#6b5cd4' : '#4a3db0');
+            ctx.fillStyle = grad;
+        } else {
+            ctx.fillStyle = '#181835';
+        }
+        ctx.beginPath();
+        ctx.moveTo(corners[0].x, corners[0].y);
+        for (let j = 1; j < 6; j++) ctx.lineTo(corners[j].x, corners[j].y);
+        ctx.closePath();
+        ctx.fill();
+
+        // Inner highlight — subtle top edge shine
+        if (isCompleted || isUnlocked) {
+            const shineGrad = ctx.createLinearGradient(cell.x, cell.y - cmHexSize * 0.8, cell.x, cell.y);
+            shineGrad.addColorStop(0, 'rgba(255,255,255,0.12)');
+            shineGrad.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = shineGrad;
+            ctx.fill();
+        }
+
+        // Border
+        ctx.strokeStyle = (isUnlocked || isCompleted) ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.05)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Text
+        const canSeeDetails = isUnlocked || isCompleted;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        if (lvl.special && canSeeDetails) {
+            const iconFs = Math.max(12, Math.round(cmHexSize * 0.42));
+            ctx.font = `${iconFs}px sans-serif`;
+            const specIcon = lvl.special === 'fog' ? '👁' : lvl.special === 'boost' ? '⚡' :
+                lvl.special === 'slowstart' ? '🐢' : lvl.special === 'fortified' ? '🏰' : '🌀';
+            ctx.fillText(specIcon, cell.x, cell.y - cmHexSize * 0.15);
+        }
+        const fs = Math.round(cmHexSize * (lvl.special && canSeeDetails ? 0.22 : 0.3));
+        ctx.font = `bold ${fs}px 'Segoe UI',system-ui,sans-serif`;
+        ctx.fillStyle = canSeeDetails ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.12)';
+        ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 3;
+        ctx.fillText(i + 1, cell.x, lvl.special && canSeeDetails ? cell.y + cmHexSize * 0.25 : cell.y);
+        ctx.shadowBlur = 0;
+        if (isCompleted) {
+            ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            ctx.font = `bold ${Math.max(10, Math.round(cmHexSize * 0.3))}px 'Segoe UI',system-ui,sans-serif`;
+            ctx.fillText('✓', cell.x + cmHexSize * 0.42, cell.y - cmHexSize * 0.42);
+        }
+    }
+
+    // Hover highlight — drawn on top of everything, exactly like main game selection
+    if (cmHoverIdx >= 0 && cmHoverIdx < careerCells.length) {
+        const hc = careerCells[cmHoverIdx];
+        const corners = cmHexCorners(hc.x, hc.y);
+        ctx.shadowColor = 'rgba(255,255,255,0.4)'; ctx.shadowBlur = 8;
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(corners[0].x, corners[0].y);
+        for (let j = 1; j < 6; j++) ctx.lineTo(corners[j].x, corners[j].y);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+    }
+
+    // Legend panel
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    const legendW = 220;
+    const legendX = W - legendW - 16;
+    const legendTop = 80;
+    const lh = 26;
+    const lFont = `600 12px 'Segoe UI',system-ui,sans-serif`;
+    const specials = [
+        { icon: '👁', label: 'Fog of War', desc: "You can only see what's nearby" },
+        { icon: '⚡', label: 'Double Reinforce', desc: 'You get extra troops each turn' },
+        { icon: '🐢', label: 'Slow Start', desc: 'Everyone starts with only 1 troop' },
+        { icon: '🏰', label: 'Fortified', desc: 'Empty spaces are harder to capture' },
+        { icon: '🌀', label: 'Shrinking Map', desc: 'The map gets smaller over time' },
+    ];
+    const rowH = 38;
+    const legendRows = specials.length;
+    const legendH = rowH * legendRows + 16;
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(6,6,32,0.8)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.lineWidth = 1;
+    const pad = 14;
+    const lx = legendX - pad, lt = legendTop - pad;
+    const lw = legendW + pad * 2, lht = legendH + pad;
+    const lr = 8;
+    ctx.beginPath();
+    ctx.moveTo(lx + lr, lt);
+    ctx.lineTo(lx + lw - lr, lt);
+    ctx.arcTo(lx + lw, lt, lx + lw, lt + lr, lr);
+    ctx.lineTo(lx + lw, lt + lht - lr);
+    ctx.arcTo(lx + lw, lt + lht, lx + lw - lr, lt + lht, lr);
+    ctx.lineTo(lx + lr, lt + lht);
+    ctx.arcTo(lx, lt + lht, lx, lt + lht - lr, lr);
+    ctx.lineTo(lx, lt + lr);
+    ctx.arcTo(lx, lt, lx + lr, lt, lr);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.restore();
+
+    let ly = legendTop;
+    for (const s of specials) {
+        ctx.font = `14px sans-serif`; ctx.fillStyle = '#fff';
+        ctx.fillText(s.icon, legendX, ly);
+        ctx.font = lFont; ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.fillText(s.label, legendX + 24, ly);
+        ctx.font = `500 10px 'Segoe UI',system-ui,sans-serif`;
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.fillText(s.desc, legendX + 24, ly + 15);
+        ly += rowH;
+    }
+}
+
+// Career map interaction — drag to pan, tap to select level
+// Use window-level capture listeners to ensure events aren't blocked by overlays
+window.addEventListener('pointerdown', (e) => {
+    if (!careerMapActive) return;
+    // Don't intercept clicks on UI buttons
+    if (e.target.closest('#careerBackBtn')) return;
+    cmDragStart = { x: e.clientX, y: e.clientY };
+    cmDragPanStart = { x: cmPanX, y: cmPanY };
+}, true);
+
+window.addEventListener('pointermove', (e) => {
+    if (!careerMapActive) return;
+    if (cmDragStart) {
+        const newPanX = cmDragPanStart.x + (e.clientX - cmDragStart.x);
+        const newPanY = cmDragPanStart.y + (e.clientY - cmDragStart.y);
+        const bnd = getCareerBounds();
+        cmPanX = Math.max(bnd.minPanX, Math.min(bnd.maxPanX, newPanX));
+        cmPanY = Math.max(bnd.minPanY, Math.min(bnd.maxPanY, newPanY));
+        cmHoverIdx = -1;
+        drawCareerMap();
+        return;
+    }
+    // Hover detection
+    recalcCareerPositions();
+    const cd = getConquerData();
+    const completed = cd.completed || [];
+    let newHover = -1;
+    for (let ci = 0; ci < careerCells.length; ci++) {
+        const cell = careerCells[ci];
+        if (Math.hypot(e.clientX - cell.x, e.clientY - cell.y) > cmHexSize * 0.85) continue;
+        const isComp = completed.includes(cell.levelIdx);
+        const isUnlock = isLevelUnlocked(cell.levelIdx, completed);
+        if (isComp || isUnlock) { newHover = ci; break; }
+    }
+    if (newHover !== cmHoverIdx) {
+        cmHoverIdx = newHover;
+        canvas.style.cursor = cmHoverIdx >= 0 ? 'pointer' : 'grab';
+        drawCareerMap();
+    }
+}, true);
+
+window.addEventListener('pointerup', (e) => {
+    if (!cmDragStart) return;
+    if (!careerMapActive) { cmDragStart = null; return; }
+    const dx = e.clientX - cmDragStart.x;
+    const dy = e.clientY - cmDragStart.y;
+    cmDragStart = null;
+    if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
+        handleCareerTap(e.clientX, e.clientY);
+    }
+}, true);
+
+function getCareerBounds() {
+    // Calculate raw pixel extents of all career cells (before W/2, H/2 viewport offset)
+    let minPx = Infinity, maxPx = -Infinity, minPy = Infinity, maxPy = -Infinity;
+    for (const { q, r } of CAREER_HEX_COORDS) {
+        const x = cmHexSize * Math.sqrt(3) * (q + r / 2);
+        const y = cmHexSize * 1.5 * r;
+        minPx = Math.min(minPx, x); maxPx = Math.max(maxPx, x);
+        minPy = Math.min(minPy, y); maxPy = Math.max(maxPy, y);
+    }
+    const pad = cmHexSize;
+    // Screen pos = rawPos + W/2 + cmPanX
+    // Constraint: map edges stay at or past viewport edges (can't pan past the map)
+    //   Right edge of map >= right of viewport: maxPx + W/2 + cmPanX >= W - pad → cmPanX >= W/2 - pad - maxPx
+    //   Left edge of map <= left of viewport:   minPx + W/2 + cmPanX <= pad     → cmPanX <= pad - W/2 - minPx
+    let mnX = W / 2 - pad - maxPx;
+    let mxX = pad - W / 2 - minPx;
+    // If map fits in viewport (min > max), no panning needed — lock to center
+    if (mnX > mxX) mnX = mxX = 0;
+    let mnY = H / 2 - pad - maxPy;
+    let mxY = pad - H / 2 - minPy;
+    if (mnY > mxY) mnY = mxY = 0;
+    return { minPanX: mnX, maxPanX: mxX, minPanY: mnY, maxPanY: mxY };
+}
+
+function handleCareerTap(px, py) {
+    const cd = getConquerData();
+    const completed = cd.completed || [];
+    recalcCareerPositions();
+    for (const cell of careerCells) {
+        if (Math.hypot(px - cell.x, py - cell.y) > cmHexSize * 0.85) continue;
+        const isComp = completed.includes(cell.levelIdx);
+        const isUnlock = isLevelUnlocked(cell.levelIdx, completed);
+        if (!isComp && !isUnlock) continue;
+        currentCareerLevel = cell.levelIdx;
+        startCareerLevel(cell.levelIdx);
+        return;
+    }
+}
+
+function startCareerLevel(idx) {
+    cmHoverIdx = -1;
+    canvas.style.cursor = '';
+    const lvl = CAREER_LEVELS[idx];
+    gameMode = 'career';
+    numPlayers = lvl.players;
+    boardSize = lvl.size;
+    difficulty = lvl.diff;
+    fogOfWar = lvl.special === 'fog';
+    doubleReinforce = lvl.special === 'boost';
+    slowStart = lvl.special === 'slowstart';
+    fortified = lvl.special === 'fortified';
+    shrinking = lvl.special === 'shrinking';
+    currentCareerLevel = idx;
+    careerMapActive = false;
+    launchGame();
+}
+
+// ============================================================
+//  ANIMATION LOOP
+// ============================================================
+let lastFrame = 0;
+function animLoop(now) {
+    requestAnimationFrame(animLoop);
+    if (!gameRunning && particles.length === 0) return;
+    const dt = now - lastFrame; lastFrame = now;
+    if (dt > 100) return;
+    let needsRender = false;
+    for (let i = particles.length - 1; i >= 0; i--) {
+        particles[i].x += particles[i].vx;
+        particles[i].y += particles[i].vy;
+        particles[i].life -= particles[i].decay;
+        if (particles[i].life <= 0) particles.splice(i, 1);
+        needsRender = true;
+    }
+    if (needsRender && !animating) renderGame();
+}
+requestAnimationFrame(animLoop);
+
+// ============================================================
+//  MENU LOGIC
+// ============================================================
+playerBtns.forEach(btn => btn.addEventListener('click', () => {
+    playerBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    numPlayers = parseInt(btn.dataset.players);
+}));
+
+const sizeBtns = document.querySelectorAll('.size-btn');
+sizeBtns.forEach(btn => btn.addEventListener('click', () => {
+    sizeBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    boardSize = btn.dataset.size;
+}));
+
+const diffBtns = document.querySelectorAll('.diff-btn');
+diffBtns.forEach(btn => btn.addEventListener('click', () => {
+    diffBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    difficulty = btn.dataset.diff;
+}));
+
+function hideAllScreens() {
+    menuScreen.classList.add('hidden');
+    quickSetup.classList.add('hidden');
+    careerMapActive = false;
+    careerMapEl.style.display = 'none';
+    resultOverlay.style.display = 'none';
+    hudEl.classList.add('hidden');
+    turnIndicator.classList.add('hidden');
+    endTurnBtn.classList.add('hidden');
+}
+
+careerBtn.addEventListener('click', () => {
+    resumeAudio();
+    hideAllScreens();
+    careerMapActive = true;
+    careerMapEl.style.display = 'flex';
+    buildCareerBoard();
+    drawCareerMap();
+});
+
+quickPlayBtn.addEventListener('click', () => {
+    hideAllScreens();
+    quickSetup.classList.remove('hidden');
+});
+
+quickBackBtn.addEventListener('click', () => {
+    hideAllScreens();
+    menuScreen.classList.remove('hidden');
+});
+
+careerBackBtn.addEventListener('click', () => {
+    careerMapActive = false;
+    cmHoverIdx = -1;
+    canvas.style.cursor = '';
+    ctx.fillStyle = '#060620';
+    ctx.fillRect(0, 0, W, H);
+    hideAllScreens();
+    menuScreen.classList.remove('hidden');
+});
+
+startQuickBtn.addEventListener('click', () => {
+    resumeAudio();
+    gameMode = 'quick';
+    fogOfWar = false;
+    doubleReinforce = false;
+    slowStart = false;
+    fortified = false;
+    shrinking = false;
+    launchGame();
+    quickSetup.classList.add('hidden');
+});
+
+function launchGame() {
+    currentPlayer = 0;
+    selectedCell = null;
+    gameRunning = true;
+    animations = [];
+    particles = [];
+    usedCells.clear();
+    turnCounter = 0;
+    generateBoard();
+    calcHexMetrics();
+    recalcCellPositions();
+    reinforce(0);
+    hideAllScreens();
+    hudEl.classList.remove('hidden');
+    turnIndicator.classList.remove('hidden');
+    endTurnBtn.classList.remove('hidden');
+    updateHUD();
+    renderGame();
+}
+
+resultBtn.addEventListener('click', () => {
+    hideAllScreens();
+    if (gameMode === 'career') {
+        careerMapActive = true;
+        careerMapEl.style.display = 'flex';
+        buildCareerBoard();
+        drawCareerMap();
+    } else {
+        ctx.fillStyle = '#060620';
+        ctx.fillRect(0, 0, W, H);
+        menuScreen.classList.remove('hidden');
+    }
+});
+
+window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') {
+        e.preventDefault();
+        if (resultOverlay.style.display === 'flex') {
+            resultBtn.click();
+        } else if (!menuScreen.classList.contains('hidden')) {
+            quickPlayBtn.click();
+        } else if (!quickSetup.classList.contains('hidden')) {
+            startQuickBtn.click();
+        } else if (gameRunning && currentPlayer === 0 && !animating) {
+            endTurnBtn.click();
+        }
+    }
+});
+
+// Initial render
+renderGame();
+</script>
+</body>
+</html>
