@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Infinijump - Caleb's Arcade</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0a0a2e; overflow:hidden; touch-action:none; font-family:'Segoe UI',system-ui,sans-serif; }
+canvas { display:block; width:100%; height:100%; }
+#backBtn{position:fixed;top:12px;left:12px;z-index:9999;background:rgba(0,0,0,0.55);color:#fff;text-decoration:none;padding:6px 18px;border-radius:20px;font:bold 15px/1.4 'Segoe UI',system-ui,sans-serif;border:1px solid rgba(255,255,255,0.18);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:background 0.2s}
+#backBtn:hover{background:rgba(0,0,0,0.75)}
+#overlay { position:fixed; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(0,0,0,0.65); color:#fff; text-align:center; }
+#overlay h1 { font-size:clamp(2rem,8vw,4rem); margin-bottom:0.5rem; }
+#overlay .sub { font-size:clamp(1rem,3vw,1.4rem); color:#a0c4ff; margin-bottom:1.5rem; }
+#overlay .info { font-size:clamp(0.85rem,2.5vw,1.1rem); color:rgba(255,255,255,0.7); margin-bottom:2rem; max-width:500px; padding:0 1rem; line-height:1.5; }
+#overlay button { padding:14px 40px; font-size:1.3rem; border:none; border-radius:12px; background:linear-gradient(135deg,#6c5ce7,#a29bfe); color:#fff; cursor:pointer; font-weight:700; box-shadow:0 4px 20px rgba(108,92,231,0.4); transition:transform 0.15s; }
+#overlay button:hover { transform:scale(1.05); }
+#overlay button:active { transform:scale(0.95); }
+#finalScore { font-size:clamp(1.5rem,5vw,2.5rem); color:#ffd32a; margin-bottom:1rem; }
+.hidden { display:none !important; }
+#slowTimeBtn { position:fixed; z-index:10; right:16px; bottom:24px; width:min(136px, 18vw); height:min(136px, 18vw); border-radius:50%; border:3px solid rgba(255,255,255,0.25); background:rgba(0,0,0,0.45); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:transform 0.15s,border-color 0.3s,box-shadow 0.3s; }
+#slowTimeBtn:hover { transform:scale(1.1); }
+#slowTimeBtn:active { transform:scale(0.9); }
+#slowTimeBtn.active { }
+#slowTimeBtn .icon { width:47%; height:47%; }
+#slowTimeBtn .badge { position:absolute; top:-6px; left:-6px; min-width:36px; height:36px; border-radius:18px; background:#ff4757; color:#fff; font:bold 18px/36px 'Segoe UI',system-ui,sans-serif; text-align:center; padding:0 8px; pointer-events:none; }
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+<canvas id="c"></canvas>
+<div id="overlay">
+  <h1>Infinijump</h1>
+  <div class="sub">Jump between the nodes!</div>
+  <div class="info">Tap, click, or press Space to jump to the next node. Avoid the spinning barriers! Each level cleared earns you a Slow Time charge — tap the clock to slow the barriers and line up your shot.</div>
+  <button id="startBtn">Play</button>
+</div>
+<div id="slowTimeBtn" class="hidden" title="Slow Time">
+  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+  </svg>
+  <span class="badge hidden">0</span>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const startBtn = document.getElementById('startBtn');
+const slowTimeBtn = document.getElementById('slowTimeBtn');
+const slowTimeBadge = slowTimeBtn.querySelector('.badge');
+
+let W, H;
+function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+resize();
+window.addEventListener('resize', resize);
+
+// --- Audio ---
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function resumeAudio() { if (audioCtx.state === 'suspended') audioCtx.resume(); }
+
+function playJump() {
+    resumeAudio();
+    const t = audioCtx.currentTime;
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type = 'sine'; o.frequency.setValueAtTime(400, t);
+    o.frequency.exponentialRampToValueAtTime(800, t + 0.1);
+    g.gain.setValueAtTime(0.1, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+    o.start(t); o.stop(t + 0.15);
+}
+
+function playDeath() {
+    resumeAudio();
+    const t = audioCtx.currentTime;
+    [440, 370, 311, 233].forEach((freq, i) => {
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.type = 'triangle'; o.frequency.setValueAtTime(freq, t + i * 0.15);
+        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.1, t + i * 0.15);
+        g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.15 + 0.25);
+        o.start(t + i * 0.15); o.stop(t + i * 0.15 + 0.3);
+    });
+}
+
+function playScore() {
+    resumeAudio();
+    const t = audioCtx.currentTime;
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type = 'sine'; o.frequency.setValueAtTime(900, t);
+    o.frequency.exponentialRampToValueAtTime(1400, t + 0.08);
+    g.gain.setValueAtTime(0.08, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    o.start(t); o.stop(t + 0.1);
+}
+
+function playLevelUp() {
+    resumeAudio();
+    const t = audioCtx.currentTime;
+    [523, 659, 784, 1047].forEach((freq, i) => {
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.type = 'sine'; o.frequency.setValueAtTime(freq, t + i * 0.1);
+        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.08, t + i * 0.1);
+        g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.1 + 0.2);
+        o.start(t + i * 0.1); o.stop(t + i * 0.1 + 0.25);
+    });
+}
+
+function playSlowTime() {
+    resumeAudio();
+    const t = audioCtx.currentTime;
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type = 'sine'; o.frequency.setValueAtTime(1200, t);
+    o.frequency.exponentialRampToValueAtTime(400, t + 0.4);
+    g.gain.setValueAtTime(0.06, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    o.start(t); o.stop(t + 0.5);
+}
+
+function playSlowTimeEnd() {
+    resumeAudio();
+    const t = audioCtx.currentTime;
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type = 'sine'; o.frequency.setValueAtTime(400, t);
+    o.frequency.exponentialRampToValueAtTime(1200, t + 0.4);
+    g.gain.setValueAtTime(0.06, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    o.start(t); o.stop(t + 0.5);
+}
+
+function activateSlowTime() {
+    if (slowTimeCharges <= 0 || slowTimePhase !== 'idle' || !gameRunning || gameOver || autoPlay) return;
+    slowTimeCharges--;
+    updateSlowTimeUI();
+    playSlowTime();
+    slowTimePhase = 'ramp-down';
+    slowTimeT = 0;
+    slowTimeBtn.classList.add('active');
+}
+
+function updateSlowTimeUI() {
+    if (autoPlay || !gameRunning) {
+        slowTimeBtn.classList.add('hidden');
+        return;
+    }
+    slowTimeBtn.classList.remove('hidden');
+    const theme = getTheme();
+    // Match level colors
+    slowTimeBtn.style.borderColor = slowTimePhase !== 'idle' ? theme.accent : theme.node;
+    slowTimeBtn.style.boxShadow = slowTimePhase !== 'idle' ? `0 0 28px ${theme.accent}88` : 'none';
+    const icon = slowTimeBtn.querySelector('.icon');
+    if (icon) {
+        icon.setAttribute('stroke', theme.node);
+        icon.querySelectorAll('*').forEach(el => el.setAttribute('stroke', theme.node));
+    }
+    if (slowTimeCharges > 1) {
+        slowTimeBadge.textContent = slowTimeCharges;
+        slowTimeBadge.classList.remove('hidden');
+        slowTimeBadge.style.background = theme.node;
+    } else {
+        slowTimeBadge.classList.add('hidden');
+    }
+    slowTimeBtn.style.opacity = slowTimeCharges > 0 ? '1' : '0.35';
+    slowTimeBtn.style.pointerEvents = slowTimeCharges > 0 && slowTimePhase === 'idle' ? 'auto' : 'none';
+}
+
+// --- Storage ---
+function loadArcadeData() {
+    try { return JSON.parse(localStorage.getItem('calebArcadeData')) || {}; } catch(e) { return {}; }
+}
+function getHighScore() { const d = loadArcadeData(); return (d.infinijump && d.infinijump.highScore) || 0; }
+function setHighScore(val) { const d = loadArcadeData(); if (!d.infinijump) d.infinijump = {}; d.infinijump.highScore = val; localStorage.setItem('calebArcadeData', JSON.stringify(d)); }
+let highScore = getHighScore();
+
+// --- Stars ---
+const stars = [];
+for (let i = 0; i < 120; i++) stars.push({ x: Math.random(), y: Math.random(), r: Math.random() * 1.5 + 0.5, twinkle: Math.random() * Math.PI * 2 });
+
+// --- Levels / Themes (cycle every 10 levels) ---
+const THEMES = [
+    { name: 'Deep Space',   bg: ['#1a1a2e','#16213e','#0f3460'], node: '#6c5ce7', nodeGlow: '#a29bfe', bar: '#ff4757', barTip: '#ff6b81', player: '#00e5ff', accent: '#ffd32a' },
+    { name: 'Nebula',       bg: ['#2d1b69','#1b1464','#0c0a3e'], node: '#9b59b6', nodeGlow: '#d2b4de', bar: '#e74c3c', barTip: '#f1948a', player: '#00e5ff', accent: '#f39c12' },
+    { name: 'Solar Flare',  bg: ['#4a1a2e','#3e1620','#601a0f'], node: '#e67e22', nodeGlow: '#f5cba7', bar: '#ff6348', barTip: '#ffbe76', player: '#ffd32a', accent: '#ff6348' },
+    { name: 'Frozen Void',  bg: ['#0a2e3e','#0f3460','#1a4a6e'], node: '#3498db', nodeGlow: '#85c1e9', bar: '#1abc9c', barTip: '#76d7c4', player: '#ecf0f1', accent: '#1abc9c' },
+    { name: 'Toxic Cloud',  bg: ['#1a2e0a','#16301a','#0f4020'], node: '#2ecc71', nodeGlow: '#82e0aa', bar: '#f1c40f', barTip: '#f9e79f', player: '#00ff88', accent: '#f1c40f' },
+    { name: 'Blood Moon',   bg: ['#3e0a0a','#4a1a1a','#601010'], node: '#c0392b', nodeGlow: '#f1948a', bar: '#e74c3c', barTip: '#fadbd8', player: '#ff6b6b', accent: '#ffd32a' },
+    { name: 'Cosmic Storm', bg: ['#1a0a3e','#2d1b69','#4a1a6e'], node: '#8e44ad', nodeGlow: '#d7bde2', bar: '#e056a0', barTip: '#f78fb3', player: '#d980fa', accent: '#e056a0' },
+    { name: 'Starfire',     bg: ['#3e2a0a','#4a3010','#604020'], node: '#d35400', nodeGlow: '#f0b27a', bar: '#ff4757', barTip: '#ff6b81', player: '#ffd32a', accent: '#ff9f43' },
+    { name: 'Black Hole',   bg: ['#0a0a0a','#151515','#1a1a2e'], node: '#7f8c8d', nodeGlow: '#bdc3c7', bar: '#9b59b6', barTip: '#d2b4de', player: '#ecf0f1', accent: '#9b59b6' },
+    { name: 'Infinity',     bg: ['#f0f0f0','#d0d0d0','#e8e8e8'], node: '#2c2c2c', nodeGlow: '#4a4a4a', bar: '#1a1a1a', barTip: '#555555', player: '#333333', accent: '#666666' },
+];
+
+function getLevel(lvl) {
+    const theme = THEMES[lvl % THEMES.length];
+    const cycle = Math.floor(lvl / THEMES.length);
+    const target = 5 + lvl; // level 0 = 5, level 1 = 6, etc.
+    const suffix = cycle > 0 ? ` ${['II','III','IV','V','VI','VII','VIII','IX','X'][cycle - 1] || (cycle + 1)}` : '';
+    return { ...theme, name: theme.name + suffix, target };
+}
+
+// --- Game state ---
+let nodes = [];
+let playerNode = null;
+let nextNodeIndex = 0;
+let score = 0;
+let difficulty = 1;
+let gameRunning = false;
+let gameOver = false;
+let jumpAnim = null;
+let deathJumpAnim = null; // animated jump that hits barrier
+let particles = [];
+let ticks = 0;
+let deathAnim = null;
+let screenShake = 0;
+let currentLevel = 0;
+let levelScore = 0; // score within current level
+let bgTransT = 1;
+let bgFromLevel = 0;
+let autoPlay = false; // menu demo mode
+let autoPlayTimer = 0;
+let displayedProgress = 0; // for tweened progress bar
+let slowTimeCharges = 0;
+let slowTimeActive = false;
+let slowTimeT = 0; // 0..1 progression through slow time effect
+let slowTimeDuration = 0; // total frames for full effect
+let slowTimePhase = 'idle'; // 'ramp-down','hold','ramp-up','idle'
+let slowTimeSpeedMult = 1; // current speed multiplier (1 = normal, 0.5 = slow)
+let levelUpNotif = null; // { text, subtext, t, duration }
+
+const NODE_RADIUS = 28;
+const SAFE_ZONE = 40;
+
+function lerpColor(a, b, t) {
+    const ah = parseInt(a.slice(1), 16), bh = parseInt(b.slice(1), 16);
+    const ar = ah >> 16, ag = (ah >> 8) & 0xff, ab = ah & 0xff;
+    const br = bh >> 16, bg2 = (bh >> 8) & 0xff, bb = bh & 0xff;
+    const r = Math.round(ar + (br - ar) * t), g = Math.round(ag + (bg2 - ag) * t), b2 = Math.round(ab + (bb - ab) * t);
+    return '#' + ((1 << 24) + (r << 16) + (g << 8) + b2).toString(16).slice(1);
+}
+
+function getTheme() {
+    const lvl = getLevel(currentLevel);
+    if (bgTransT >= 1) return lvl;
+    const from = getLevel(bgFromLevel);
+    const t = bgTransT;
+    return {
+        ...lvl,
+        bg: from.bg.map((c, i) => lerpColor(c, lvl.bg[i], t)),
+        node: lerpColor(from.node, lvl.node, t),
+        nodeGlow: lerpColor(from.nodeGlow, lvl.nodeGlow, t),
+        bar: lerpColor(from.bar, lvl.bar, t),
+        barTip: lerpColor(from.barTip, lvl.barTip, t),
+        player: lerpColor(from.player, lvl.player, t),
+        accent: lerpColor(from.accent, lvl.accent, t),
+    };
+}
+
+function getLevelTarget() { return getLevel(currentLevel).target; }
+
+function initGame() {
+    nodes = [];
+    score = 0;
+    levelScore = 0;
+    currentLevel = 0;
+    bgTransT = 1;
+    bgFromLevel = 0;
+    difficulty = 1;
+    gameRunning = true;
+    gameOver = false;
+    autoPlay = false;
+    jumpAnim = null;
+    deathJumpAnim = null;
+    deathAnim = null;
+    screenShake = 0;
+    particles = [];
+    nextNodeIndex = 0;
+    ticks = 0;
+    displayedProgress = 0;
+    slowTimeCharges = 0;
+    slowTimeActive = false;
+    slowTimePhase = 'idle';
+    slowTimeSpeedMult = 1;
+    slowTimeBtn.classList.remove('active');
+    levelUpNotif = null;
+    updateSlowTimeUI();
+
+    const startY = H * 0.75;
+    addNode(W / 2, startY);
+    for (let i = 1; i < 8; i++) addNodeAbove();
+    playerNode = nodes[0];
+    nextNodeIndex = 1;
+}
+
+function initDemo() {
+    nodes = [];
+    score = 0;
+    levelScore = 0;
+    currentLevel = 0;
+    bgTransT = 1;
+    bgFromLevel = 0;
+    difficulty = 1;
+    gameRunning = true;
+    gameOver = false;
+    autoPlay = true;
+    autoPlayTimer = 0;
+    jumpAnim = null;
+    deathJumpAnim = null;
+    deathAnim = null;
+    screenShake = 0;
+    particles = [];
+    nextNodeIndex = 0;
+    ticks = 0;
+    displayedProgress = 0;
+    slowTimeCharges = 0;
+    slowTimeActive = false;
+    slowTimePhase = 'idle';
+    slowTimeSpeedMult = 1;
+    slowTimeBtn.classList.add('hidden');
+
+    const startY = H * 0.75;
+    addNode(W / 2, startY);
+    for (let i = 1; i < 8; i++) addNodeAbove();
+    playerNode = nodes[0];
+    nextNodeIndex = 1;
+}
+
+function getMaxBars() {
+    if (currentLevel >= 20) return 4;
+    if (currentLevel >= 10) return 3;
+    return 2;
+}
+
+function addNode(x, y) {
+    const maxBars = getMaxBars();
+    // Earlier levels: mostly 1 bar, occasional 2. Later: up to maxBars
+    let numBars;
+    if (maxBars <= 2) {
+        numBars = Math.random() < 0.3 + currentLevel * 0.04 ? 2 : 1;
+    } else {
+        numBars = Math.floor(Math.random() * maxBars) + 1;
+    }
+    nodes.push({
+        x, y,
+        angle: Math.random() * Math.PI * 2,
+        numBars,
+        barLen: 60 + Math.random() * 70,
+        orbitR: 80 + Math.random() * 50,
+        spinSpeed: (0.005 + Math.random() * 0.01) * (Math.random() < 0.5 ? 1 : -1),
+        pulse: Math.random() * Math.PI * 2
+    });
+}
+
+function addNodeAbove() {
+    const last = nodes[nodes.length - 1];
+    const dist = 200 + Math.random() * 140;
+    const angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.9;
+    let nx = last.x + Math.cos(angle) * dist;
+    let ny = last.y + Math.sin(angle) * dist;
+    nx = Math.max(100, Math.min(W - 100, nx));
+    if (ny >= last.y - 150) ny = last.y - 150 - Math.random() * 80;
+    addNode(nx, ny);
+}
+
+function spawnParticles(x, y, color, count, speedMult) {
+    const sm = speedMult || 1;
+    for (let i = 0; i < count; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const spd = (1 + Math.random() * 3) * sm;
+        particles.push({ x, y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, life: 1, decay: 0.01 + Math.random() * 0.02, color, r: 2 + Math.random() * 4 });
+    }
+}
+
+// --- Collision ---
+function segmentsIntersect(ax, ay, bx, by, cx, cy, dx, dy) {
+    const denom = (bx - ax) * (dy - cy) - (by - ay) * (dx - cx);
+    if (Math.abs(denom) < 0.0001) return false;
+    const t = ((cx - ax) * (dy - cy) - (cy - ay) * (dx - cx)) / denom;
+    const u = ((cx - ax) * (by - ay) - (cy - ay) * (bx - ax)) / denom;
+    return t >= 0 && t <= 1 && u >= 0 && u <= 1;
+}
+
+// Returns t (0-1) of first intersection, or -1
+function segmentIntersectT(ax, ay, bx, by, cx, cy, dx, dy) {
+    const denom = (bx - ax) * (dy - cy) - (by - ay) * (dx - cx);
+    if (Math.abs(denom) < 0.0001) return -1;
+    const t = ((cx - ax) * (dy - cy) - (cy - ay) * (dx - cx)) / denom;
+    const u = ((cx - ax) * (by - ay) - (cy - ay) * (bx - ax)) / denom;
+    if (t >= 0 && t <= 1 && u >= 0 && u <= 1) return t;
+    return -1;
+}
+
+function getBarEndpoints(node, barIndex) {
+    const a = node.angle + (barIndex * Math.PI * 2) / node.numBars;
+    const cx = node.x + Math.cos(a) * node.orbitR;
+    const cy = node.y + Math.sin(a) * node.orbitR;
+    const perpA = a + Math.PI / 2;
+    const halfLen = node.barLen / 2;
+    return {
+        x1: cx + Math.cos(perpA) * halfLen, y1: cy + Math.sin(perpA) * halfLen,
+        x2: cx - Math.cos(perpA) * halfLen, y2: cy - Math.sin(perpA) * halfLen,
+        cx, cy
+    };
+}
+
+// Find earliest collision point (t = 0..1 along jump line)
+function findCollisionPoint(fromNode, toNode) {
+    const fx = fromNode.x, fy = fromNode.y;
+    const tx = toNode.x, ty = toNode.y;
+    let minT = 2;
+    for (const node of nodes) {
+        for (let i = 0; i < node.numBars; i++) {
+            const bar = getBarEndpoints(node, i);
+            const t = segmentIntersectT(fx, fy, tx, ty, bar.x1, bar.y1, bar.x2, bar.y2);
+            if (t >= 0 && t < minT) minT = t;
+        }
+    }
+    return minT <= 1 ? minT : -1;
+}
+
+function triggerDeathExplosion(x, y) {
+    deathAnim = { x, y, t: 0 };
+    screenShake = 25;
+    const theme = getTheme();
+    spawnParticles(x, y, theme.bar, 40, 3);
+    spawnParticles(x, y, theme.barTip, 25, 2.5);
+    spawnParticles(x, y, theme.accent, 20, 2);
+    spawnParticles(x, y, '#ff9f43', 15, 1.5);
+    spawnParticles(x, y, '#fff', 12, 4);
+}
+
+function doJump() {
+    if (!gameRunning || gameOver || jumpAnim || deathJumpAnim) return;
+    if (nextNodeIndex >= nodes.length) return;
+
+    const from = playerNode;
+    const to = nodes[nextNodeIndex];
+    const collT = findCollisionPoint(from, to);
+
+    if (collT >= 0) {
+        // Animate player moving to the collision point, THEN explode
+        const hitX = from.x + (to.x - from.x) * collT;
+        const hitY = from.y + (to.y - from.y) * collT;
+        playJump();
+        playerNode = null; // player has left the node
+        deathJumpAnim = {
+            fromX: from.x, fromY: from.y,
+            toX: hitX, toY: hitY,
+            t: 0,
+            duration: Math.max(6, Math.floor(collT * 12))
+        };
+        gameRunning = false;
+        return;
+    }
+
+    // Successful jump
+    playJump();
+    jumpAnim = {
+        fromX: from.x, fromY: from.y,
+        toX: to.x, toY: to.y,
+        t: 0, duration: 12
+    };
+    const dx = to.x - from.x, dy = to.y - from.y;
+    for (let i = 0; i < 8; i++) {
+        const frac = i / 8;
+        spawnParticles(from.x + dx * frac, from.y + dy * frac, getTheme().player, 2);
+    }
+}
+
+function completeJump() {
+    playerNode = nodes[nextNodeIndex];
+    nextNodeIndex++;
+    score++;
+    levelScore++;
+    if (!autoPlay) playScore();
+    spawnParticles(playerNode.x, playerNode.y, getTheme().player, 8);
+    // Difficulty: 1x at level 0, 2x at level 10, 3x at level 20, etc.
+    difficulty = 1 + currentLevel * 0.1;
+
+    // Level up check
+    if (levelScore >= getLevelTarget()) {
+        bgFromLevel = currentLevel;
+        currentLevel++;
+        bgTransT = 0;
+        levelScore = 0;
+        displayedProgress = 0;
+        if (!autoPlay) {
+            playLevelUp();
+            slowTimeCharges++;
+            updateSlowTimeUI();
+            const lvl = getLevel(currentLevel);
+            levelUpNotif = { text: `Level ${currentLevel + 1}`, subtext: lvl.name, t: 0, duration: 150 };
+        }
+        spawnParticles(playerNode.x, playerNode.y, getTheme().accent, 20, 2);
+    }
+}
+
+function doDeath() {
+    gameOver = true;
+    if (!autoPlay) {
+        playDeath();
+        if (score > highScore) { highScore = score; setHighScore(highScore); }
+        setTimeout(() => showGameOver(), 1500);
+    } else {
+        // Demo: restart after a pause
+        setTimeout(() => {
+            if (autoPlay) initDemo();
+        }, 1200);
+    }
+}
+
+function showGameOver() {
+    slowTimeBtn.classList.add('hidden');
+    const lvlName = getLevel(currentLevel).name;
+    overlay.innerHTML = `
+        <h1>Game Over</h1>
+        <div id="finalScore">Score: ${score}</div>
+        <div class="sub" style="color:rgba(255,255,255,0.4); margin-bottom:0.5rem;">Lv.${currentLevel + 1} ${lvlName}</div>
+        <div class="sub" style="color:rgba(255,255,255,0.5)">Best: ${highScore}</div>
+        <button id="startBtn">Play Again</button>
+    `;
+    overlay.classList.remove('hidden');
+    document.getElementById('startBtn').addEventListener('click', startGame);
+    document.getElementById('startBtn').addEventListener('touchend', e => { e.preventDefault(); startGame(); });
+}
+
+function startGame() {
+    resumeAudio();
+    overlay.classList.add('hidden');
+    initGame();
+}
+
+startBtn.addEventListener('click', startGame);
+startBtn.addEventListener('touchend', e => { e.preventDefault(); startGame(); });
+slowTimeBtn.addEventListener('click', e => { e.stopPropagation(); activateSlowTime(); });
+slowTimeBtn.addEventListener('touchend', e => { e.preventDefault(); e.stopPropagation(); activateSlowTime(); });
+
+// Start demo immediately
+initDemo();
+
+// --- Input ---
+window.addEventListener('keydown', e => {
+    if (e.code === 'Space' || e.key === ' ') {
+        e.preventDefault();
+        if (!overlay.classList.contains('hidden')) return;
+        doJump();
+    }
+});
+canvas.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    if (!overlay.classList.contains('hidden')) return;
+    doJump();
+});
+
+// --- Update ---
+function update() {
+    ticks++;
+
+    // Tween background
+    if (bgTransT < 1) bgTransT = Math.min(1, bgTransT + 0.008);
+
+    // Level up notification
+    if (levelUpNotif) {
+        levelUpNotif.t++;
+        if (levelUpNotif.t >= levelUpNotif.duration) levelUpNotif = null;
+    }
+
+    // Death animation
+    if (deathAnim) {
+        deathAnim.t++;
+        if (deathAnim.t < 40 && deathAnim.t % 3 === 0) {
+            spawnParticles(deathAnim.x + (Math.random() - 0.5) * 60, deathAnim.y + (Math.random() - 0.5) * 60,
+                Math.random() < 0.5 ? getTheme().bar : getTheme().accent, 5, 1.5);
+        }
+    }
+    if (screenShake > 0) screenShake *= 0.9;
+    if (screenShake < 0.5) screenShake = 0;
+
+    // Particles always update
+    particles = particles.filter(p => {
+        p.x += p.vx; p.y += p.vy; p.vy += 0.04; p.vx *= 0.99; p.life -= p.decay;
+        return p.life > 0;
+    });
+
+    // Update slow time effect
+    if (slowTimePhase === 'ramp-down') {
+        // 300ms at 60fps ≈ 18 frames
+        slowTimeSpeedMult = Math.max(0.5, slowTimeSpeedMult - (0.5 / 18));
+        if (slowTimeSpeedMult <= 0.5) { slowTimeSpeedMult = 0.5; slowTimePhase = 'hold'; slowTimeT = 0; updateSlowTimeUI(); }
+    } else if (slowTimePhase === 'hold') {
+        // 6 seconds at 60fps = 360 frames
+        slowTimeT++;
+        if (slowTimeT >= 360) { slowTimePhase = 'ramp-up'; playSlowTimeEnd(); updateSlowTimeUI(); }
+    } else if (slowTimePhase === 'ramp-up') {
+        slowTimeSpeedMult = Math.min(1, slowTimeSpeedMult + (0.5 / 18));
+        if (slowTimeSpeedMult >= 1) { slowTimeSpeedMult = 1; slowTimePhase = 'idle'; slowTimeBtn.classList.remove('active'); updateSlowTimeUI(); }
+    }
+    // Keep button colors in sync during level transitions
+    if (bgTransT < 1 && !autoPlay && gameRunning) updateSlowTimeUI();
+
+    // Spin barriers always
+    const demoMult = autoPlay ? 0.35 : 1;
+    for (const node of nodes) {
+        node.angle += node.spinSpeed * (gameRunning ? difficulty : difficulty * 0.3) * slowTimeSpeedMult * demoMult;
+        node.pulse += 0.05;
+    }
+
+    // Death jump animation (player flies to collision point)
+    if (deathJumpAnim) {
+        deathJumpAnim.t++;
+        if (deathJumpAnim.t >= deathJumpAnim.duration) {
+            const dx = deathJumpAnim.toX, dy = deathJumpAnim.toY;
+            triggerDeathExplosion(dx, dy);
+            deathJumpAnim = null;
+            doDeath();
+        }
+        return; // freeze everything else during death jump
+    }
+
+    if (!gameRunning) return;
+
+    // Auto-play AI
+    if (autoPlay) {
+        autoPlayTimer++;
+        if (!jumpAnim && !gameOver && autoPlayTimer > 60) {
+            // Try to jump - check if path is clear
+            if (nextNodeIndex < nodes.length) {
+                const collT = findCollisionPoint(playerNode, nodes[nextNodeIndex]);
+                if (collT < 0) {
+                    doJump();
+                    autoPlayTimer = 0;
+                }
+            }
+            // If stuck too long, just jump anyway
+            if (autoPlayTimer > 150) {
+                doJump();
+                autoPlayTimer = 0;
+            }
+        }
+    }
+
+    // Jump animation
+    if (jumpAnim) {
+        jumpAnim.t++;
+        if (jumpAnim.t >= jumpAnim.duration) {
+            jumpAnim = null;
+            completeJump();
+        }
+    }
+
+    // Scroll to keep player in lower-mid screen
+    const targetY = H * 0.65;
+    if (playerNode) {
+        const py = jumpAnim ? lerp(jumpAnim.fromY, jumpAnim.toY, jumpAnim.t / jumpAnim.duration) : playerNode.y;
+        if (py < targetY) {
+            const scrollAmt = (targetY - py) * 0.08;
+            for (const node of nodes) node.y += scrollAmt;
+            if (jumpAnim) { jumpAnim.fromY += scrollAmt; jumpAnim.toY += scrollAmt; }
+        }
+    }
+
+    // Passive scroll
+    const passiveScroll = (0.15 + difficulty * 0.08) * (autoPlay ? 0.35 : 1);
+    for (const node of nodes) node.y += passiveScroll;
+    if (jumpAnim) { jumpAnim.fromY += passiveScroll; jumpAnim.toY += passiveScroll; }
+
+    // Remove fallen nodes
+    while (nodes.length > 0 && nodes[0].y > H + 80) {
+        nodes.shift(); nextNodeIndex--;
+        if (nextNodeIndex < 0) nextNodeIndex = 0;
+    }
+
+    // Add nodes at top
+    while (nodes.length < 10 || nodes[nodes.length - 1].y > -200) addNodeAbove();
+
+    // Fall off screen death
+    if (playerNode && playerNode.y > H + 30 && !gameOver) {
+        triggerDeathExplosion(playerNode.x, H - 30);
+        gameRunning = false;
+        doDeath();
+    }
+}
+
+function lerp(a, b, t) { t = Math.max(0, Math.min(1, t)); t = t * (2 - t); return a + (b - a) * t; }
+function lerpLinear(a, b, t) { return a + (b - a) * Math.max(0, Math.min(1, t)); }
+
+// --- Draw ---
+function drawStars() {
+    const time = ticks * 0.01;
+    for (const s of stars) {
+        const tw = Math.sin(time * 2 + s.twinkle) * 0.3 + 0.7;
+        ctx.globalAlpha = tw * 0.6;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(s.x * W, s.y * H, s.r, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+}
+
+function drawNode(node, isPlayer, isNext) {
+    const x = node.x, y = node.y;
+    const theme = getTheme();
+
+    // Barriers
+    for (let i = 0; i < node.numBars; i++) {
+        const bar = getBarEndpoints(node, i);
+        ctx.strokeStyle = theme.bar;
+        ctx.lineWidth = 5;
+        ctx.shadowColor = theme.bar;
+        ctx.shadowBlur = 12;
+        ctx.beginPath(); ctx.moveTo(bar.x1, bar.y1); ctx.lineTo(bar.x2, bar.y2); ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = theme.barTip;
+        ctx.beginPath(); ctx.arc(bar.x1, bar.y1, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(bar.x2, bar.y2, 5, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // Orbit ring
+    if (node.numBars > 0) {
+        ctx.strokeStyle = theme.bar.slice(0, 7) + '14';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(x, y, node.orbitR, 0, Math.PI * 2); ctx.stroke();
+    }
+
+    // Node
+    const pulse = Math.sin(node.pulse) * 0.3 + 0.7;
+    if (isPlayer) {
+        ctx.shadowColor = theme.player; ctx.shadowBlur = 15 * pulse; ctx.fillStyle = theme.player;
+    } else if (isNext) {
+        ctx.shadowColor = theme.nodeGlow; ctx.shadowBlur = 12 * pulse; ctx.fillStyle = theme.nodeGlow;
+    } else {
+        ctx.shadowColor = theme.node; ctx.shadowBlur = 6; ctx.fillStyle = theme.node;
+    }
+    ctx.beginPath(); ctx.arc(x, y, NODE_RADIUS, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Core
+    ctx.fillStyle = isPlayer ? '#fff' : isNext ? '#fff' : theme.nodeGlow;
+    ctx.globalAlpha = isPlayer ? 1 : isNext ? 0.7 : 0.4;
+    ctx.beginPath(); ctx.arc(x, y, NODE_RADIUS * 0.45, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+}
+
+function drawJumpLine() {
+    if (!jumpAnim && !deathJumpAnim) return;
+    const anim = jumpAnim || deathJumpAnim;
+    const t = anim.t / anim.duration;
+    const cx = lerpLinear(anim.fromX, anim.toX, t);
+    const cy = lerpLinear(anim.fromY, anim.toY, t);
+    const theme = getTheme();
+
+    // Trail
+    ctx.strokeStyle = (deathJumpAnim ? theme.bar : theme.player).slice(0, 7) + '66';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(anim.fromX, anim.fromY); ctx.lineTo(cx, cy); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Player dot
+    const col = deathJumpAnim ? theme.bar : theme.player;
+    ctx.shadowColor = col; ctx.shadowBlur = 20;
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.arc(cx, cy, NODE_RADIUS + 3, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(cx, cy, NODE_RADIUS * 0.4, 0, Math.PI * 2); ctx.fill();
+
+    // Sparks during death jump
+    if (deathJumpAnim && deathJumpAnim.t % 2 === 0) {
+        spawnParticles(cx, cy, theme.bar, 2, 1);
+    }
+}
+
+function drawPreviewLine() {
+    if (jumpAnim || deathJumpAnim || gameOver || !playerNode || nextNodeIndex >= nodes.length) return;
+    const to = nodes[nextNodeIndex];
+    const theme = getTheme();
+    ctx.strokeStyle = theme.nodeGlow.slice(0, 7) + '40';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath(); ctx.moveTo(playerNode.x, playerNode.y); ctx.lineTo(to.x, to.y); ctx.stroke();
+    ctx.setLineDash([]);
+}
+
+function drawParticles() {
+    for (const p of particles) {
+        ctx.globalAlpha = p.life;
+        ctx.shadowColor = p.color; ctx.shadowBlur = 6 * p.life;
+        ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (0.5 + p.life * 0.5), 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+}
+
+function drawDeathEffect() {
+    if (!deathAnim) return;
+    const t = deathAnim.t, x = deathAnim.x, y = deathAnim.y;
+    const theme = getTheme();
+
+    // Shockwaves
+    for (let i = 0; i < 3; i++) {
+        const ringT = (t - i * 8) / 50;
+        if (ringT < 0 || ringT > 1) continue;
+        const radius = ringT * 250;
+        const alpha = (1 - ringT) * 0.6;
+        const colors = [theme.bar, theme.accent, '#fff'];
+        ctx.strokeStyle = colors[i].slice(0, 7) + Math.floor(alpha * 255 * (i === 0 ? 1 : i === 1 ? 0.7 : 0.5)).toString(16).padStart(2, '0');
+        ctx.lineWidth = (1 - ringT) * 6 + 1;
+        ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.stroke();
+    }
+
+    if (t < 8) {
+        ctx.fillStyle = `rgba(255,255,255,${(1 - t / 8) * 0.5})`;
+        ctx.fillRect(0, 0, W, H);
+    }
+    if (t < 60) {
+        const vigAlpha = (1 - t / 60) * 0.3;
+        const grad = ctx.createRadialGradient(W / 2, H / 2, H * 0.2, W / 2, H / 2, H * 0.8);
+        grad.addColorStop(0, 'rgba(255,0,0,0)');
+        grad.addColorStop(1, `rgba(255,0,0,${vigAlpha})`);
+        ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+    }
+}
+
+function drawLevelProgress() {
+    if (autoPlay) return;
+    const theme = getTheme();
+    const barX = W - 28;
+    const barTop = 110;
+    const barBot = H - 185; // leave room for slow time button (136px + gaps)
+    const barH = barBot - barTop;
+    const barW = 8;
+
+    // Tween displayed progress toward actual progress
+    const target = getLevelTarget();
+    const actualProgress = Math.min(levelScore / target, 1);
+    displayedProgress += (actualProgress - displayedProgress) * 0.08;
+    if (Math.abs(displayedProgress - actualProgress) < 0.002) displayedProgress = actualProgress;
+
+    // Track background
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.beginPath(); ctx.roundRect(barX - barW / 2, barTop, barW, barH, 4); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(barX - barW / 2, barTop, barW, barH, 4); ctx.stroke();
+
+    // Filled portion (bottom to top, current level progress)
+    const fillH = barH * displayedProgress;
+    if (fillH > 1) {
+        const grad = ctx.createLinearGradient(0, barBot, 0, barBot - fillH);
+        grad.addColorStop(0, theme.player);
+        grad.addColorStop(1, theme.nodeGlow);
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.roundRect(barX - barW / 2, barBot - fillH, barW, fillH, 3); ctx.fill();
+
+        // Glow at fill top
+        ctx.shadowColor = theme.player; ctx.shadowBlur = 10;
+        ctx.fillStyle = theme.player;
+        ctx.beginPath(); ctx.arc(barX, barBot - fillH, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+    }
+
+    // Level label - prominent pill
+    const lvlText = `Lv.${currentLevel + 1}`;
+    ctx.font = "bold 14px 'Segoe UI', system-ui, sans-serif";
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const lvlW = ctx.measureText(lvlText).width + 16;
+    const lvlPillH = 24;
+    const lvlPillY = barTop - lvlPillH - 28;
+    // Pill background
+    ctx.fillStyle = theme.node + '55';
+    ctx.beginPath(); ctx.roundRect(barX - lvlW / 2, lvlPillY, lvlW, lvlPillH, 12); ctx.fill();
+    ctx.strokeStyle = theme.node + '88';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(barX - lvlW / 2, lvlPillY, lvlW, lvlPillH, 12); ctx.stroke();
+    // Pill text
+    ctx.shadowColor = theme.node; ctx.shadowBlur = 8;
+    ctx.fillStyle = '#fff';
+    ctx.fillText(lvlText, barX, lvlPillY + lvlPillH / 2);
+    ctx.shadowBlur = 0;
+
+    // Level name below pill
+    ctx.font = "bold 10px 'Segoe UI', system-ui, sans-serif";
+    ctx.fillStyle = theme.nodeGlow + '99';
+    ctx.textBaseline = 'top';
+    ctx.fillText(getLevel(currentLevel).name, barX, lvlPillY + lvlPillH + 4);
+
+    // Score count
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.font = "10px 'Segoe UI', system-ui, sans-serif";
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(`${levelScore}/${target}`, barX, barBot + 8);
+
+    // Slow time indicator (when active)
+    if (slowTimePhase !== 'idle') {
+        const stAlpha = slowTimePhase === 'hold' ? 0.7 + Math.sin(ticks * 0.15) * 0.3 : 0.5;
+        ctx.globalAlpha = stAlpha;
+        ctx.fillStyle = '#ffd32a';
+        ctx.font = "bold 10px 'Segoe UI', system-ui, sans-serif";
+        ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        ctx.fillText('SLOW', barX, barBot + 22);
+        ctx.globalAlpha = 1;
+    }
+}
+
+function drawHUD() {
+    if (autoPlay) return;
+    const hudX = W / 2;
+    const hudY = 18;
+    const text = `${score}`;
+    ctx.font = "bold 26px 'Segoe UI', system-ui, sans-serif";
+    const tw = ctx.measureText(text).width;
+    const pillW = tw + 36;
+    const pillH = 38;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.beginPath(); ctx.roundRect(hudX - pillW / 2, hudY, pillW, pillH, 16); ctx.fill();
+
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(108,92,231,0.5)'; ctx.shadowBlur = 8;
+    ctx.fillText(text, hudX, hudY + pillH / 2);
+    ctx.shadowBlur = 0;
+
+    if (highScore > 0) {
+        ctx.font = "13px 'Segoe UI', system-ui, sans-serif";
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.fillText(`Best: ${highScore}`, hudX, hudY + pillH + 14);
+    }
+}
+
+function drawLevelUpNotif() {
+    if (!levelUpNotif) return;
+    const { text, subtext, t, duration } = levelUpNotif;
+    const theme = getTheme();
+    // Fade in for first 20 frames, hold, fade out last 30 frames
+    let alpha;
+    if (t < 20) alpha = t / 20;
+    else if (t > duration - 60) alpha = (duration - t) / 60;
+    else alpha = 1;
+    alpha *= 0.6; // subtle
+    // Position just below the player, float downward slightly
+    const yOff = t * 0.15;
+    const px = playerNode ? playerNode.x : W / 2;
+    const py = playerNode ? playerNode.y : H * 0.65;
+    const cx = px;
+    const cy = py + 60 + yOff;
+    ctx.globalAlpha = alpha;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    // Main text
+    ctx.font = "bold 48px 'Segoe UI', system-ui, sans-serif";
+    ctx.shadowColor = theme.node; ctx.shadowBlur = 20;
+    ctx.fillStyle = theme.nodeGlow;
+    ctx.fillText(text, cx, cy);
+    ctx.shadowBlur = 0;
+    // Subtext
+    ctx.font = "22px 'Segoe UI', system-ui, sans-serif";
+    ctx.fillStyle = theme.accent;
+    ctx.fillText(subtext, cx, cy + 38);
+    ctx.globalAlpha = 1;
+}
+
+function draw() {
+    const theme = getTheme();
+    const bg = ctx.createLinearGradient(0, 0, W * 0.3, H);
+    bg.addColorStop(0, theme.bg[0]); bg.addColorStop(0.5, theme.bg[1]); bg.addColorStop(1, theme.bg[2]);
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+
+    drawStars();
+
+    if (!gameRunning && !gameOver && !autoPlay && !deathJumpAnim) return;
+
+    if (screenShake > 0.5) {
+        ctx.save();
+        ctx.translate((Math.random() - 0.5) * screenShake * 2, (Math.random() - 0.5) * screenShake * 2);
+    }
+
+    drawPreviewLine();
+    for (let i = nodes.length - 1; i >= 0; i--) {
+        const node = nodes[i];
+        if (node.y < -150 || node.y > H + 150) continue;
+        drawNode(node, node === playerNode && !jumpAnim && !deathJumpAnim, i === nextNodeIndex);
+    }
+    drawJumpLine();
+    drawParticles();
+    drawDeathEffect();
+
+    if (screenShake > 0.5) ctx.restore();
+
+    drawHUD();
+    drawLevelProgress();
+    drawLevelUpNotif();
+}
+
+// --- Game loop ---
+function loop() { update(); draw(); requestAnimationFrame(loop); }
+loop();
+</script>
+</body>
+</html>
