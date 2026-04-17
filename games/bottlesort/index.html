@@ -303,7 +303,7 @@ function useBonusEmpty() {
 function getBonusEmpties() { return loadSaveData().bonusEmpties || 0; }
 
 // ─── Game State ──────────────────────────────────────────────────────
-let state = 'menu'; // menu, levelselect, playing, animating, won, timesup
+let state = 'menu'; // menu, levelselect, playing, animating, won, timesup, stuck
 let currentConfig = {};
 let level = 1;
 let bottles = [];
@@ -458,7 +458,7 @@ function startLevel(lvl) {
 
 // ─── Timer ───────────────────────────────────────────────────────────
 function timerLoop(now) {
-  if (!timerActive || state === 'won' || state === 'timesup' || state === 'levelselect' || state === 'menu') return;
+  if (!timerActive || state === 'won' || state === 'timesup' || state === 'stuck' || state === 'levelselect' || state === 'menu') return;
   // Only decrement during active play (not during pour animation)
   if (state === 'playing') {
     const dt = (now - timerLastTick) / 1000;
@@ -959,6 +959,80 @@ function drawTimesUpScreen() {
   ctx.fillText('Level Select', W / 2, lsBtnY + btnH / 2);
 }
 
+function drawStuckScreen() {
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(0, 0, W, H);
+
+  const titleSize = Math.min(W * 0.09, 50);
+  ctx.font = `bold ${titleSize}px "Segoe UI", system-ui, sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#f1c40f';
+  ctx.shadowColor = '#f1c40f'; ctx.shadowBlur = 20;
+  ctx.fillText('No Moves Left!', W / 2, H * 0.32);
+  ctx.shadowBlur = 0;
+
+  ctx.font = '16px "Segoe UI", system-ui, sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.fillText('Try undoing or restart the level', W / 2, H * 0.42);
+
+  const btnW = 200, btnH = 50, btnR = 12;
+  const btnX = (W - btnW) / 2;
+
+  // Undo button (if undos available)
+  const hasUndos = undoStack.length > 0 && (undosRemaining === null || undosRemaining > 0);
+  if (hasUndos) {
+    const undoBtnY = H * 0.50;
+    ctx.beginPath();
+    ctx.roundRect(btnX, undoBtnY, btnW, btnH, btnR);
+    ctx.fillStyle = '#f1c40f';
+    ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 18px "Segoe UI", system-ui, sans-serif';
+    ctx.fillText('Undo', W / 2, undoBtnY + btnH / 2);
+  }
+
+  const retryY = hasUndos ? H * 0.50 + btnH + 15 : H * 0.50;
+  ctx.beginPath();
+  ctx.roundRect(btnX, retryY, btnW, btnH, btnR);
+  ctx.fillStyle = '#e74c3c';
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 18px "Segoe UI", system-ui, sans-serif';
+  ctx.fillText('Restart', W / 2, retryY + btnH / 2);
+
+  const lsBtnY = retryY + btnH + 15;
+  ctx.beginPath();
+  ctx.roundRect(btnX, lsBtnY, btnW, btnH, btnR);
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.fill();
+  ctx.fillText('Level Select', W / 2, lsBtnY + btnH / 2);
+}
+
+function handleStuckTap(px, py) {
+  const btnW = 200, btnH = 50;
+  const btnX = (W - btnW) / 2;
+  const hasUndos = undoStack.length > 0 && (undosRemaining === null || undosRemaining > 0);
+
+  if (hasUndos) {
+    const undoBtnY = H * 0.50;
+    if (px >= btnX && px <= btnX + btnW && py >= undoBtnY && py <= undoBtnY + btnH) {
+      state = 'playing';
+      undoMove();
+      return;
+    }
+  }
+
+  const retryY = hasUndos ? H * 0.50 + btnH + 15 : H * 0.50;
+  if (px >= btnX && px <= btnX + btnW && py >= retryY && py <= retryY + btnH) {
+    startLevel(level);
+    return;
+  }
+  const lsBtnY = retryY + btnH + 15;
+  if (px >= btnX && px <= btnX + btnW && py >= lsBtnY && py <= lsBtnY + btnH) {
+    showLevelSelect();
+  }
+}
+
 // ─── Level Select (HTML) ─────────────────────────────────────────────
 const levelSelectEl = document.getElementById('levelSelect');
 
@@ -1337,6 +1411,119 @@ function canPour(srcIdx, dstIdx) {
   return src[src.length - 1] === dst[dst.length - 1];
 }
 
+function hasValidMoves() {
+  for (let s = 0; s < bottles.length; s++) {
+    for (let d = 0; d < bottles.length; d++) {
+      if (canPour(s, d)) return true;
+    }
+  }
+  return false;
+}
+
+// Bounded BFS solver — checks if the puzzle is solvable from current state.
+// Returns true if solvable (or uncertain), false if definitely stuck.
+function isSolvable() {
+  if (!hasValidMoves()) return false;
+
+  const ml = currentConfig.maxLayers || 4;
+  const n = bottles.length;
+
+  // Encode state as a normalized string for deduplication.
+  // Each bottle → sorted position-independent key. Sort bottles so permutations match.
+  function encodeState(bots) {
+    const keys = bots.map(b => b.join(','));
+    keys.sort();
+    return keys.join('|');
+  }
+
+  function isWon(bots) {
+    for (const b of bots) {
+      if (b.length === 0) continue;
+      if (b.length !== ml) return false;
+      const c = b[0];
+      for (let i = 1; i < b.length; i++) if (b[i] !== c) return false;
+    }
+    return true;
+  }
+
+  // Compute locked floor per bottle — these layers never move, solver skips them
+  const lockedFloor = [];
+  for (let i = 0; i < n; i++) {
+    let f = 0;
+    if (bottleLocked[i]) {
+      while (f < bottles[i].length && bottleLocked[i][f]) f++;
+    }
+    lockedFloor.push(f);
+  }
+
+  // Get top contiguous same-color count above locked layers
+  function getTop(b, idx) {
+    if (b.length <= lockedFloor[idx]) return { color: -1, count: 0 };
+    const topColor = b[b.length - 1];
+    let count = 0;
+    for (let i = b.length - 1; i >= lockedFloor[idx]; i--) {
+      if (b[i] !== topColor) break;
+      count++;
+    }
+    return { color: topColor, count };
+  }
+
+  // Seed BFS with current bottle state (deep copy)
+  const startBots = bottles.map(b => [...b]);
+  const startKey = encodeState(startBots);
+
+  if (isWon(startBots)) return true;
+
+  const visited = new Set();
+  visited.add(startKey);
+
+  let queue = [startBots];
+  const MAX_STATES = 8000;
+
+  while (queue.length > 0 && visited.size < MAX_STATES) {
+    const nextQueue = [];
+    for (const bots of queue) {
+      if (visited.size >= MAX_STATES) break;
+      // Generate all valid moves
+      for (let s = 0; s < n; s++) {
+        const top = getTop(bots[s], s);
+        if (top.count === 0) continue;
+        if (bottleCapped[s] > 0) continue; // capped bottles can change during play, but approximate
+        for (let d = 0; d < n; d++) {
+          if (s === d) continue;
+          if (bots[d].length >= ml) continue;
+          if (bots[d].length === 0 || bots[d][bots[d].length - 1] === top.color) {
+            const space = ml - bots[d].length;
+            const pourCount = Math.min(top.count, space);
+            // Skip pointless moves: pouring entire bottle into empty (just swaps)
+            if (bots[d].length === 0 && bots[s].length - pourCount === lockedFloor[s] && pourCount === bots[s].length - lockedFloor[s]) {
+              // Only skip if source has nothing locked below (pure swap)
+              if (lockedFloor[s] === 0) continue;
+            }
+            // Apply move
+            const next = bots.map(b => [...b]);
+            const moved = next[s].splice(next[s].length - pourCount, pourCount);
+            for (const c of moved) next[d].push(c);
+
+            if (isWon(next)) return true;
+
+            const key = encodeState(next);
+            if (!visited.has(key)) {
+              visited.add(key);
+              nextQueue.push(next);
+            }
+          }
+        }
+      }
+    }
+    queue = nextQueue;
+  }
+
+  // If we exhausted the search space → definitely stuck
+  // If we hit the limit → uncertain, assume solvable (don't false-alarm)
+  return visited.size >= MAX_STATES;
+}
+
 function getTopCount(bottle, bottleIdx) {
   if (bottle.length === 0) return 0;
   const topColor = bottle[bottle.length - 1];
@@ -1385,6 +1572,10 @@ function pourBottle(srcIdx, dstIdx, startPos) {
       if (currentConfig.bonusEmptyReward && stars === 3) addBonusEmpty();
       initConfetti();
       sfxWin();
+    } else if (!isSolvable()) {
+      timerActive = false;
+      state = 'stuck';
+      sfxInvalid();
     }
     drawCurrentState();
   }, startPos);
@@ -1465,6 +1656,7 @@ function drawScene() {
     if (state === 'playing') drawButtons();
     if (state === 'won') drawWinScreen();
     if (state === 'timesup') drawTimesUpScreen();
+    if (state === 'stuck') drawStuckScreen();
   }
 }
 
@@ -1579,6 +1771,7 @@ function handleTimesUpTap(px, py) {
 function handleTap(px, py) {
   if (state === 'won') { handleWonTap(px, py); return; }
   if (state === 'timesup') { handleTimesUpTap(px, py); return; }
+  if (state === 'stuck') { handleStuckTap(px, py); return; }
   if (state === 'playing') { handlePlayingTap(px, py); return; }
 }
 
