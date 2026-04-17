@@ -285,6 +285,8 @@ function canPlayCard(card) {
   if (card.rank === 2) return true;
   // 10 burns - always playable
   if (card.rank === 10) return true;
+  // Jack is glass (see-through) - always playable
+  if (card.rank === 11) return true;
   if (mustPlayUnder7) {
     return card.rank <= 7;
   }
@@ -753,41 +755,40 @@ function drawPlayPhase(pad, gap) {
   ctx.font = `${10 * scale}px 'Segoe UI', sans-serif`;
   ctx.textAlign = 'center';
 
-  // AI face-down
+  // AI area
   let aiY = 8;
-  const aiZoneW = 3 * (CW * 0.6 + smallGap);
-  let aiX = pad;
+  const aiCardStep = CW * 0.6 + smallGap;
 
-  ctx.fillText('AI Face-Down', aiX + aiZoneW/2, aiY - 1);
-  for (let i = 0; i < ai.faceDown.length; i++) {
-    drawCard(aiX + i * (CW * 0.6 + smallGap), aiY + 8, null, true, false, true);
+  // AI Hand (top center)
+  ctx.fillText('AI Hand: ' + ai.hand.length, W / 2, aiY - 1);
+  if (ai.hand.length > 0) {
+    drawCardStack(W / 2 - CW * 0.85 / 2, aiY + 8, ai.hand.length);
   }
-  // Empty slots
+
+  // AI face-down (left)
+  let aiX = pad;
+  ctx.fillText('AI Face-Down', aiX + (3 * aiCardStep) / 2, aiY - 1);
+  for (let i = 0; i < ai.faceDown.length; i++) {
+    drawCard(aiX + i * aiCardStep, aiY + 8, null, true, false, true);
+  }
   for (let i = ai.faceDown.length; i < 3; i++) {
     ctx.strokeStyle = 'rgba(255,255,255,0.15)';
     ctx.lineWidth = 1;
-    drawRoundedRect(aiX + i * (CW * 0.6 + smallGap), aiY + 8, CW * 0.85, CH * 0.85, 5);
+    drawRoundedRect(aiX + i * aiCardStep, aiY + 8, CW * 0.85, CH * 0.85, 5);
     ctx.stroke();
   }
 
-  // AI face-up
-  let aiFuX = W/2 - aiZoneW/2;
-  ctx.fillText('AI Face-Up', aiFuX + aiZoneW/2, aiY - 1);
+  // AI face-up (right of face-down)
+  let aiFuX = aiX + 3 * aiCardStep + 20;
+  ctx.fillText('AI Face-Up', aiFuX + (3 * aiCardStep) / 2, aiY - 1);
   for (let i = 0; i < ai.faceUp.length; i++) {
-    drawCard(aiFuX + i * (CW * 0.6 + smallGap), aiY + 8, ai.faceUp[i], false, false, true);
+    drawCard(aiFuX + i * aiCardStep, aiY + 8, ai.faceUp[i], false, false, true);
   }
   for (let i = ai.faceUp.length; i < 3; i++) {
     ctx.strokeStyle = 'rgba(255,255,255,0.15)';
     ctx.lineWidth = 1;
-    drawRoundedRect(aiFuX + i * (CW * 0.6 + smallGap), aiY + 8, CW * 0.85, CH * 0.85, 5);
+    drawRoundedRect(aiFuX + i * aiCardStep, aiY + 8, CW * 0.85, CH * 0.85, 5);
     ctx.stroke();
-  }
-
-  // AI hand count
-  let aiHandX = W - pad - aiZoneW;
-  ctx.fillText('AI Hand: ' + ai.hand.length, aiHandX + aiZoneW/2, aiY - 1);
-  if (ai.hand.length > 0) {
-    drawCardStack(aiHandX, aiY + 8, ai.hand.length);
   }
 
   // ── Middle area: discard + deck (centered) ──
@@ -840,52 +841,88 @@ function drawPlayPhase(pad, gap) {
   }
 
   // ── Player area (bottom) ──
-  const playerZoneY = midY + CH + 45;
+  const activeZone = getPlayableZone(player);
+  const handY = H - CH - 18;
+  const maxHandW = W - pad * 2;
 
-  // Player face-down + face-up
-  const pZoneW = 3 * (CW + gap);
-  const pFdX = pad + 4;
-  const pFuX = pad + 4;
+  // Small indicator area for inactive face-down/face-up zones
+  const indicatorY = midY + CH + 40;
 
   ctx.fillStyle = 'rgba(255,255,255,0.5)';
   ctx.font = `${10 * scale}px 'Segoe UI', sans-serif`;
   ctx.textAlign = 'left';
 
-  // Face-down
-  ctx.fillText('Face-Down', pFdX, playerZoneY);
   regions.playerFaceDown = [];
-  for (let i = 0; i < player.faceDown.length; i++) {
-    const x = pFdX + i * (CW * 0.7 + smallGap);
-    const y = playerZoneY + 10;
-    drawCard(x, y, null, true, selectedCards.includes(i) && playSource === 'faceDown', true);
-    regions.playerFaceDown.push({ x, y, w: CW * 0.85, h: CH * 0.85, idx: i });
-  }
-
-  // Face-up
-  const fuLabelY = playerZoneY + CH * 0.85 + 22;
-  ctx.fillText('Face-Up', pFuX, fuLabelY);
   regions.playerFaceUp = [];
-  for (let i = 0; i < player.faceUp.length; i++) {
-    const x = pFuX + i * (CW * 0.7 + smallGap);
-    const y = fuLabelY + 10;
-    drawCard(x, y, player.faceUp[i], false, selectedCards.includes(i) && playSource === 'faceUp', true);
-    regions.playerFaceUp.push({ x, y, w: CW * 0.85, h: CH * 0.85, idx: i });
-  }
-
-  // Hand
-  const handY = H - CH - 18;
-  const maxHandW = W - pad * 2;
-  const handCardW = player.hand.length > 0 ? Math.min(CW + gap, (maxHandW) / player.hand.length) : CW + gap;
-  const handTotalW = player.hand.length * handCardW;
-  const handStartX = (W - handTotalW) / 2;
-
   regions.playerHand = [];
-  for (let i = 0; i < player.hand.length; i++) {
-    const x = handStartX + i * handCardW;
-    const sel = selectedCards.includes(i) && playSource === 'hand';
-    const y = sel ? handY - 10 : handY;
-    drawCard(x, y, player.hand[i], false, sel);
-    regions.playerHand.push({ x, y: handY, w: CW, h: CH, idx: i });
+
+  if (activeZone === 'hand') {
+    // Face-down indicators (small, left)
+    const pFdX = pad + 4;
+    ctx.fillText('Face-Down', pFdX, indicatorY);
+    for (let i = 0; i < player.faceDown.length; i++) {
+      const x = pFdX + i * (CW * 0.6 + smallGap);
+      drawCard(x, indicatorY + 10, null, true, false, true);
+    }
+    // Face-up indicators (small, right of face-down)
+    const pFuX = pad + 4 + 3 * (CW * 0.6 + smallGap) + 20;
+    ctx.fillText('Face-Up', pFuX, indicatorY);
+    for (let i = 0; i < player.faceUp.length; i++) {
+      const x = pFuX + i * (CW * 0.6 + smallGap);
+      drawCard(x, indicatorY + 10, player.faceUp[i], false, false, true);
+    }
+
+    // Hand cards (full-size, centered at bottom)
+    const handCardW = player.hand.length > 0 ? Math.min(CW + gap, maxHandW / player.hand.length) : CW + gap;
+    const handTotalW = player.hand.length * handCardW;
+    const handStartX = (W - handTotalW) / 2;
+    for (let i = 0; i < player.hand.length; i++) {
+      const x = handStartX + i * handCardW;
+      const sel = selectedCards.includes(i) && playSource === 'hand';
+      const y = sel ? handY - 10 : handY;
+      drawCard(x, y, player.hand[i], false, sel);
+      regions.playerHand.push({ x, y: handY, w: CW, h: CH, idx: i });
+    }
+  } else if (activeZone === 'faceUp') {
+    // Face-down indicators (small, left)
+    const pFdX = pad + 4;
+    ctx.fillText('Face-Down', pFdX, indicatorY);
+    for (let i = 0; i < player.faceDown.length; i++) {
+      const x = pFdX + i * (CW * 0.6 + smallGap);
+      drawCard(x, indicatorY + 10, null, true, false, true);
+    }
+
+    // Face-up cards promoted to main hand area (full-size, centered)
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = `bold ${12 * scale}px 'Segoe UI', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText('Playing Face-Up Cards', W / 2, handY - 8);
+    const fuCardW = Math.min(CW + gap, maxHandW / Math.max(player.faceUp.length, 1));
+    const fuTotalW = player.faceUp.length * fuCardW;
+    const fuStartX = (W - fuTotalW) / 2;
+    for (let i = 0; i < player.faceUp.length; i++) {
+      const x = fuStartX + i * fuCardW;
+      const sel = selectedCards.includes(i) && playSource === 'faceUp';
+      const y = sel ? handY - 10 : handY;
+      drawCard(x, y, player.faceUp[i], false, sel);
+      regions.playerFaceUp.push({ x, y: handY, w: CW, h: CH, idx: i });
+    }
+  } else if (activeZone === 'faceDown') {
+    // Face-down cards promoted to main hand area (full-size, centered)
+    ctx.fillStyle = '#f87171';
+    ctx.font = `bold ${12 * scale}px 'Segoe UI', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText('Playing Face-Down Cards (blind!)', W / 2, handY - 8);
+    const fdCardW = Math.min(CW + gap, maxHandW / Math.max(player.faceDown.length, 1));
+    const fdTotalW = player.faceDown.length * fdCardW;
+    const fdStartX = (W - fdTotalW) / 2;
+    for (let i = 0; i < player.faceDown.length; i++) {
+      const x = fdStartX + i * fdCardW;
+      const sel = selectedCards.includes(i) && playSource === 'faceDown';
+      const y = sel ? handY - 10 : handY;
+      drawCard(x, y, null, true, sel);
+      regions.playerFaceDown.push({ x, y: handY, w: CW, h: CH, idx: i });
+    }
   }
 
   // Play button (when cards selected)

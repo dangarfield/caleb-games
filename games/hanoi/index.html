@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Tower of Hanoi - Caleb's Arcade</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0a0a2e; overflow:hidden; touch-action:none; font-family:'Segoe UI',system-ui,sans-serif; }
+canvas { display:block; width:100%; height:100%; }
+.hidden { display:none !important; }
+#backBtn { position:fixed; top:12px; left:12px; z-index:9999;
+  background:rgba(0,0,0,0.55); color:#fff; text-decoration:none;
+  padding:6px 18px; border-radius:20px;
+  font:bold 15px/1.4 'Segoe UI',system-ui,sans-serif;
+  border:1px solid rgba(255,255,255,0.18);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  transition:background 0.2s; }
+#backBtn:hover { background:rgba(0,0,0,0.75); }
+.game-btns { position:fixed; top:12px; right:12px; z-index:9999; display:flex; gap:8px; }
+.game-btns button { background:rgba(0,0,0,0.55); color:#fff; border:1px solid rgba(255,255,255,0.18);
+  padding:6px 14px; border-radius:20px; font:bold 14px/1.4 'Segoe UI',system-ui,sans-serif;
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  cursor:pointer; transition:background 0.2s; touch-action:manipulation; }
+.game-btns button:hover { background:rgba(0,0,0,0.75); }
+.game-btns button:disabled { opacity:0.3; pointer-events:none; }
+#overlay { position:fixed; inset:0; z-index:20; display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  background:rgba(5,5,30,0.55); color:#fff; text-align:center; overflow-y:auto;
+  padding:20px; padding-bottom:30vh; }
+#overlay h1 { font-size:clamp(2rem,8vw,4rem); margin-bottom:0.3rem;
+  text-shadow:0 2px 20px rgba(0,0,0,0.8), 0 0 40px rgba(108,92,231,0.3); }
+#overlay .sub { font-size:clamp(1rem,3vw,1.4rem); color:#a0c4ff; margin-bottom:0.8rem;
+  text-shadow:0 1px 10px rgba(0,0,0,0.8); }
+#overlay .info { font-size:clamp(0.85rem,2.5vw,1.1rem); color:rgba(255,255,255,0.8);
+  margin-bottom:1.5rem; max-width:500px; padding:0 1rem; line-height:1.5;
+  text-shadow:0 1px 6px rgba(0,0,0,0.8); }
+.level-grid { display:grid; grid-template-columns:repeat(10, 1fr); gap:6px;
+  max-width:680px; width:100%; padding:0 10px; }
+.ls-cell { aspect-ratio:1; border-radius:8px; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; cursor:pointer;
+  border:1px solid rgba(108,92,231,0.3); background:rgba(255,255,255,0.04);
+  transition:transform 0.1s, box-shadow 0.3s; user-select:none;
+  -webkit-tap-highlight-color:transparent; }
+.ls-cell:hover { background:rgba(108,92,231,0.25); border-color:rgba(162,155,254,0.5);
+  box-shadow:0 0 12px rgba(108,92,231,0.3); }
+.ls-cell:active { transform:scale(0.93); }
+.ls-cell .lvl-num { font-weight:700; font-size:clamp(13px,2.5vw,16px); line-height:1.1; }
+.ls-cell .lvl-stars { display:flex; gap:1px; margin-top:2px; font-size:clamp(8px,1.5vw,10px); }
+.ls-cell .lvl-stars span { opacity:0.2; }
+.ls-cell .lvl-stars span.earned { opacity:1; color:#ffd32a; }
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+<div class="game-btns hidden" id="gameBtns">
+  <button id="undoBtn" disabled>Undo</button>
+  <button id="menuBtn">Menu</button>
+</div>
+<canvas id="c"></canvas>
+<div id="overlay">
+  <h1>Tower of Hanoi</h1>
+  <div class="sub">Move all discs to the rightmost peg</div>
+  <div class="info">Tap or drag discs between pegs. Larger discs can't go on smaller ones!</div>
+  <div class="level-grid" id="levelGrid"></div>
+</div>
+<script>
+(function(){
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const gameBtns = document.getElementById('gameBtns');
+const undoBtn = document.getElementById('undoBtn');
+const menuBtn = document.getElementById('menuBtn');
+const levelGrid = document.getElementById('levelGrid');
+let W, H;
+let state = 'menu';
+function resize() {
+  W = canvas.width = innerWidth; H = canvas.height = innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── Levels ──
+const LEVELS = [
+  { name: 'Easy Peasy',   discs: 2, pegs: 3 },
+  { name: 'Warm Up',      discs: 3, pegs: 4 },
+  { name: 'Novice',       discs: 3, pegs: 3 },
+  { name: 'Thinker',      discs: 4, pegs: 4 },
+  { name: 'Puzzler',      discs: 5, pegs: 4 },
+  { name: 'Tricky',       discs: 4, pegs: 3 },
+  { name: 'Brain Teaser', discs: 6, pegs: 4 },
+  { name: 'Hard',         discs: 5, pegs: 3 },
+  { name: 'Expert',       discs: 6, pegs: 3 },
+  { name: 'Grandmaster',  discs: 7, pegs: 3 },
+];
+
+function minMoves3(n) { return (1 << n) - 1; }
+function minMoves4(n) {
+  if (n <= 0) return 0;
+  if (n === 1) return 1;
+  const dp = [0, 1];
+  for (let i = 2; i <= n; i++) {
+    let best = Infinity;
+    for (let t = 1; t < i; t++) best = Math.min(best, 2 * dp[t] + (1 << (i - t)) - 1);
+    dp[i] = best;
+  }
+  return dp[n];
+}
+function getMinMoves(lvl) { return lvl.pegs === 4 ? minMoves4(lvl.discs) : minMoves3(lvl.discs); }
+
+// ── Audio ──
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function playTone(freq, dur, type, vol, endFreq) {
+  const c = ensureAudio();
+  const osc = c.createOscillator(), gain = c.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.setValueAtTime(freq, c.currentTime);
+  if (endFreq) osc.frequency.exponentialRampToValueAtTime(Math.max(endFreq, 20), c.currentTime + dur);
+  gain.gain.setValueAtTime(vol || 0.1, c.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
+  osc.connect(gain); gain.connect(c.destination);
+  osc.start(); osc.stop(c.currentTime + dur);
+}
+function sfxPickup() { playTone(500, 0.12, 'sine', 0.12, 800); }
+function sfxPlace() { playTone(300, 0.15, 'sine', 0.1, 200); }
+function sfxInvalid() { playTone(150, 0.2, 'sawtooth', 0.08, 100); }
+function sfxWin() {
+  [523, 659, 784, 1047, 1319].forEach((f, i) => setTimeout(() => playTone(f, 0.3, 'triangle', 0.1), i * 120));
+}
+
+// ── Storage ──
+function loadArcadeData() {
+  try { return JSON.parse(localStorage.getItem('calebArcadeData')) || {}; } catch (e) { return {}; }
+}
+function saveArcadeData(data) { localStorage.setItem('calebArcadeData', JSON.stringify(data)); }
+
+// ── Game state ──
+let currentLevel = 0;
+let numDiscs = 3;
+let numPegs = 3;
+let pegs = [];
+let selectedPeg = -1;
+let moves = 0;
+let moveHistory = [];
+let timerStart = 0;
+let elapsed = 0;
+let won = false;
+let winTime = 0;
+let confetti = [];
+
+// Drag
+let pointerDown = false;
+let pointerStartX = 0, pointerStartY = 0;
+let isDragging = false;
+let dragDisc = -1;
+let dragFromPeg = -1;
+let dragX = 0, dragY = 0;
+const DRAG_THRESHOLD = 10;
+
+// Animation
+let animating = false;
+let animDisc = -1;
+let animFrom = { x: 0, y: 0 };
+let animTo = { x: 0, y: 0 };
+let animProgress = 0;
+let animSpeed = 0.04;
+let animCallback = null;
+
+const DISC_COLORS = ['#e74c3c', '#e67e22', '#f1c40f', '#2ecc71', '#1abc9c', '#3498db', '#9b59b6'];
+
+// ── Demo auto-play ──
+let demoMoveQueue = [];
+let demoWait = 0;
+
+function solveHanoi(n, from, to, aux) {
+  if (n === 0) return;
+  solveHanoi(n - 1, from, aux, to);
+  demoMoveQueue.push({ from, to });
+  solveHanoi(n - 1, aux, to, from);
+}
+
+function initDemo() {
+  numDiscs = 5; numPegs = 3;
+  pegs = [[], [], []];
+  for (let i = numDiscs - 1; i >= 0; i--) pegs[0].push(i);
+  selectedPeg = -1;
+  animating = false;
+  demoMoveQueue = [];
+  solveHanoi(numDiscs, 0, 2, 1);
+  demoWait = 60;
+}
+
+function stepDemo() {
+  if (animating) return;
+  if (demoWait > 0) { demoWait--; return; }
+  if (demoMoveQueue.length === 0) { initDemo(); return; }
+  const mv = demoMoveQueue.shift();
+  const disc = pegs[mv.from][pegs[mv.from].length - 1];
+  const srcPos = pegs[mv.from].length - 1;
+  const dstPos = pegs[mv.to].length;
+  pegs[mv.from].pop();
+  pegs[mv.to].push(disc);
+  animDisc = disc;
+  animFrom = { x: pegX(mv.from), y: discY(mv.from, srcPos) };
+  animTo = { x: pegX(mv.to), y: discY(mv.to, dstPos) };
+  animProgress = 0;
+  animSpeed = 0.018;
+  animating = true;
+  animCallback = () => { demoWait = 20; };
+}
+
+// ── Level grid ──
+function buildLevelGrid() {
+  levelGrid.innerHTML = '';
+  const data = loadArcadeData();
+  const hanoi = data.hanoi || {};
+  LEVELS.forEach((lvl, i) => {
+    const cell = document.createElement('div');
+    cell.className = 'ls-cell';
+    const best = hanoi['l' + i];
+    const minM = getMinMoves(lvl);
+    // Star rating: 3 if perfect, 2 if <=1.5x min, 1 if completed
+    let stars = 0;
+    if (best) {
+      if (best.moves === minM) stars = 3;
+      else if (best.moves <= Math.ceil(minM * 1.5)) stars = 2;
+      else stars = 1;
+      cell.style.background = `linear-gradient(180deg,rgba(108,92,231,0.3),rgba(108,92,231,0.1))`;
+      cell.style.borderColor = 'rgba(108,92,231,0.4)';
+    }
+    let html = `<span class="lvl-num">${i + 1}</span>`;
+    html += '<span class="lvl-stars">';
+    for (let s = 0; s < 3; s++) html += `<span class="${s < stars ? 'earned' : ''}">★</span>`;
+    html += '</span>';
+    cell.innerHTML = html;
+    cell.addEventListener('click', () => { ensureAudio(); startLevel(i); });
+    levelGrid.appendChild(cell);
+  });
+}
+
+// ── Layout helpers ──
+function pegX(i) { return W * (i + 1) / (numPegs + 1); }
+function baseY() { return H * 0.82; }
+function pegTop() { return H * 0.22; }
+function discW(disc) {
+  const minW = Math.min(W * 0.045, 34);
+  const maxW = Math.min(W / (numPegs + 1) * 0.85, 160);
+  return minW + (maxW - minW) * ((disc + 1) / numDiscs);
+}
+function discH() { return Math.min(Math.max(H * 0.05, 20), 38); }
+function discY(pegIdx, stackPos) { return baseY() - (stackPos + 1) * (discH() + 3); }
+
+// ── Start / Menu ──
+function startLevel(idx) {
+  currentLevel = idx;
+  const lvl = LEVELS[idx];
+  numDiscs = lvl.discs;
+  numPegs = lvl.pegs;
+  pegs = [];
+  for (let p = 0; p < numPegs; p++) pegs.push([]);
+  for (let i = numDiscs - 1; i >= 0; i--) pegs[0].push(i);
+  selectedPeg = -1;
+  moves = 0;
+  moveHistory = [];
+  timerStart = performance.now();
+  elapsed = 0;
+  won = false;
+  confetti = [];
+  animating = false;
+  isDragging = false;
+  pointerDown = false;
+  dragDisc = -1;
+  state = 'playing';
+  overlay.classList.add('hidden');
+  gameBtns.classList.remove('hidden');
+  undoBtn.disabled = true;
+}
+
+function returnToMenu() {
+  state = 'menu';
+  won = false;
+  overlay.classList.remove('hidden');
+  gameBtns.classList.add('hidden');
+  initDemo();
+  buildLevelGrid();
+}
+
+menuBtn.addEventListener('click', returnToMenu);
+undoBtn.addEventListener('click', () => {
+  if (moveHistory.length === 0 || animating || won) return;
+  const last = moveHistory.pop();
+  pegs[last.to].pop();
+  pegs[last.from].push(last.disc);
+  moves--;
+  undoBtn.disabled = moveHistory.length === 0;
+  sfxPlace();
+});
+
+// ── Input ──
+function getPegFromX(x) {
+  let closest = -1, closestDist = Infinity;
+  for (let i = 0; i < numPegs; i++) {
+    const d = Math.abs(x - pegX(i));
+    if (d < closestDist) { closestDist = d; closest = i; }
+  }
+  return closestDist < W / (numPegs + 1) * 0.6 ? closest : -1;
+}
+
+function tryMove(fromPeg, toPeg) {
+  if (fromPeg === toPeg || fromPeg < 0 || toPeg < 0) return false;
+  if (pegs[fromPeg].length === 0) return false;
+  const disc = pegs[fromPeg][pegs[fromPeg].length - 1];
+  if (pegs[toPeg].length > 0 && pegs[toPeg][pegs[toPeg].length - 1] < disc) {
+    sfxInvalid();
+    return false;
+  }
+  const srcPos = pegs[fromPeg].length - 1;
+  const dstPos = pegs[toPeg].length;
+  pegs[fromPeg].pop();
+  pegs[toPeg].push(disc);
+  moves++;
+  moveHistory.push({ from: fromPeg, to: toPeg, disc });
+  undoBtn.disabled = false;
+  animDisc = disc;
+  animFrom = { x: pegX(fromPeg), y: discY(fromPeg, srcPos) };
+  animTo = { x: pegX(toPeg), y: discY(toPeg, dstPos) };
+  animProgress = 0;
+  animSpeed = 0.04;
+  animating = true;
+  animCallback = () => { sfxPlace(); checkWin(); };
+  return true;
+}
+
+function checkWin() {
+  if (pegs[numPegs - 1].length === numDiscs) {
+    won = true;
+    winTime = elapsed;
+    state = 'won';
+    sfxWin();
+    spawnConfetti();
+    saveBest();
+  }
+}
+
+canvas.addEventListener('pointerdown', (e) => {
+  if (state === 'won') {
+    const bx = W / 2, by = H * 0.64;
+    if (Math.abs(e.clientX - bx) < 110 && e.clientY > by && e.clientY < by + 50) {
+      returnToMenu();
+    }
+    return;
+  }
+  if (state !== 'playing' || animating) return;
+  const peg = getPegFromX(e.clientX);
+
+  if (selectedPeg >= 0) {
+    if (peg < 0 || peg === selectedPeg) { selectedPeg = -1; return; }
+    const from = selectedPeg;
+    selectedPeg = -1;
+    tryMove(from, peg);
+    return;
+  }
+
+  if (peg < 0 || pegs[peg].length === 0) return;
+  pointerDown = true;
+  pointerStartX = e.clientX;
+  pointerStartY = e.clientY;
+  isDragging = false;
+  dragFromPeg = peg;
+  dragDisc = pegs[peg][pegs[peg].length - 1];
+  dragX = e.clientX;
+  dragY = e.clientY;
+});
+
+canvas.addEventListener('pointermove', (e) => {
+  if (!pointerDown || state !== 'playing' || animating) return;
+  dragX = e.clientX;
+  dragY = e.clientY;
+  if (!isDragging) {
+    const dx = dragX - pointerStartX, dy = dragY - pointerStartY;
+    if (dx * dx + dy * dy > DRAG_THRESHOLD * DRAG_THRESHOLD) {
+      isDragging = true;
+      sfxPickup();
+    }
+  }
+});
+
+canvas.addEventListener('pointerup', (e) => {
+  if (!pointerDown) return;
+  pointerDown = false;
+  if (state !== 'playing') { isDragging = false; dragDisc = -1; return; }
+  if (isDragging) {
+    isDragging = false;
+    const toPeg = getPegFromX(e.clientX);
+    if (toPeg >= 0 && toPeg !== dragFromPeg) tryMove(dragFromPeg, toPeg);
+    dragDisc = -1;
+    dragFromPeg = -1;
+  } else {
+    if (dragFromPeg >= 0 && pegs[dragFromPeg].length > 0) {
+      selectedPeg = dragFromPeg;
+      sfxPickup();
+    }
+    dragDisc = -1;
+    dragFromPeg = -1;
+  }
+});
+
+canvas.addEventListener('pointercancel', () => {
+  pointerDown = false; isDragging = false; dragDisc = -1; dragFromPeg = -1;
+});
+canvas.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
+
+// ── Best scores ──
+function saveBest() {
+  const data = loadArcadeData();
+  if (!data.hanoi) data.hanoi = {};
+  const key = 'l' + currentLevel;
+  const prev = data.hanoi[key];
+  if (!prev || moves < prev.moves || (moves === prev.moves && winTime < prev.time)) {
+    data.hanoi[key] = { moves, time: Math.round(winTime) };
+    saveArcadeData(data);
+  }
+}
+
+function spawnConfetti() {
+  confetti = [];
+  const colors = ['#ffd32a', '#ff6b6b', '#54a0ff', '#5f27cd', '#01a3a4', '#f368e0', '#ff9f43', '#69f0ae'];
+  for (let i = 0; i < 80; i++) {
+    confetti.push({
+      x: W * Math.random(), y: -20 - Math.random() * 200,
+      vx: (Math.random() - 0.5) * 4, vy: 2 + Math.random() * 4,
+      size: 4 + Math.random() * 6, color: colors[i % colors.length],
+      rot: Math.random() * Math.PI * 2, rotV: (Math.random() - 0.5) * 0.2
+    });
+  }
+}
+
+// ── Drawing ──
+function drawBg() {
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#0a0a2e');
+  grad.addColorStop(0.5, '#141452');
+  grad.addColorStop(1, '#1a1a6e');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawPegs() {
+  const pw = Math.max(8, W * 0.012);
+  const by = baseY();
+  const top = pegTop();
+  for (let i = 0; i < numPegs; i++) {
+    const x = pegX(i);
+    const grad = ctx.createLinearGradient(x - pw / 2, 0, x + pw / 2, 0);
+    grad.addColorStop(0, '#4a4a7a');
+    grad.addColorStop(0.5, '#7a7ab0');
+    grad.addColorStop(1, '#4a4a7a');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.roundRect(x - pw / 2, top, pw, by - top, pw / 2);
+    ctx.fill();
+    const bw = Math.min(W / (numPegs + 1) * 0.9, 180);
+    const bh = Math.max(8, H * 0.015);
+    ctx.fillStyle = '#5a5a90';
+    ctx.beginPath();
+    ctx.roundRect(x - bw / 2, by, bw, bh, 4);
+    ctx.fill();
+    ctx.font = `bold ${Math.max(11, W * 0.013)}px "Segoe UI",system-ui,sans-serif`;
+    ctx.textAlign = 'center';
+    if (i === 0) {
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.fillText('START', x, by + bh + 18);
+    } else if (i === numPegs - 1) {
+      ctx.fillStyle = 'rgba(255,215,50,0.35)';
+      ctx.fillText('GOAL', x, by + bh + 18);
+    }
+  }
+}
+
+function lighten(hex, pct) {
+  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+  return `rgb(${Math.min(255, r + pct)},${Math.min(255, g + pct)},${Math.min(255, b + pct)})`;
+}
+function darken(hex, pct) {
+  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+  return `rgb(${Math.max(0, r - pct)},${Math.max(0, g - pct)},${Math.max(0, b - pct)})`;
+}
+
+function drawDisc(disc, x, y, highlight) {
+  const w = discW(disc);
+  const h = discH();
+  const color = DISC_COLORS[disc % DISC_COLORS.length];
+  const r = Math.min(h / 2, 14);
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.beginPath();
+  ctx.roundRect(x - w / 2 + 3, y + 3, w, h, r);
+  ctx.fill();
+  const grad = ctx.createLinearGradient(x, y, x, y + h);
+  grad.addColorStop(0, lighten(color, 30));
+  grad.addColorStop(0.5, color);
+  grad.addColorStop(1, darken(color, 20));
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.roundRect(x - w / 2, y, w, h, r);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  ctx.beginPath();
+  ctx.roundRect(x - w / 2 + 4, y + 2, w - 8, h * 0.4, r);
+  ctx.fill();
+  if (highlight) {
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.roundRect(x - w / 2 - 2, y - 2, w + 4, h + 4, r + 2);
+    ctx.stroke();
+    ctx.strokeStyle = '#a29bfe';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#a29bfe';
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.roundRect(x - w / 2 - 2, y - 2, w + 4, h + 4, r + 2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+}
+
+function drawAllDiscs() {
+  for (let p = 0; p < numPegs; p++) {
+    for (let s = 0; s < pegs[p].length; s++) {
+      const disc = pegs[p][s];
+      if (animating && disc === animDisc) continue;
+      if (isDragging && p === dragFromPeg && s === pegs[p].length - 1 && disc === dragDisc) continue;
+      const isTop = s === pegs[p].length - 1;
+      const isSelected = (p === selectedPeg && isTop);
+      if (isSelected) {
+        drawDisc(disc, pegX(p), pegTop() - discH() - 8, true);
+      } else {
+        drawDisc(disc, pegX(p), discY(p, s), false);
+      }
+    }
+  }
+  if (isDragging && dragDisc >= 0) {
+    drawDisc(dragDisc, dragX, dragY - discH() * 0.7, true);
+  }
+}
+
+function drawAnimDisc() {
+  if (!animating) return;
+  animProgress += animSpeed;
+  if (animProgress >= 1) {
+    animProgress = 1;
+    animating = false;
+    if (animCallback) { animCallback(); animCallback = null; }
+    return;
+  }
+
+  // 3 phases: lift up (0-0.25), arc across (0.25-0.75), drop down (0.75-1)
+  const topY = pegTop() - discH() - 20;
+  let x, y;
+
+  if (animProgress < 0.25) {
+    // Phase 1: lift straight up with ease-out
+    const p = animProgress / 0.25;
+    const t = 1 - (1 - p) * (1 - p);
+    x = animFrom.x;
+    y = animFrom.y + (topY - animFrom.y) * t;
+  } else if (animProgress < 0.75) {
+    // Phase 2: arc across the top — bezier with a subtle upward bow
+    const p = (animProgress - 0.25) / 0.5;
+    // Cubic ease-in-out for smooth speed
+    const t = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+    // Quadratic bezier: start(fromX, topY) → control(midX, bowY) → end(toX, topY)
+    const cpX = (animFrom.x + animTo.x) / 2;
+    const bowAmount = Math.abs(animTo.x - animFrom.x) * 0.25 + 40;
+    const cpY = topY - bowAmount;
+    const mt = 1 - t;
+    x = mt * mt * animFrom.x + 2 * mt * t * cpX + t * t * animTo.x;
+    y = mt * mt * topY + 2 * mt * t * cpY + t * t * topY;
+  } else {
+    // Phase 3: drop straight down with ease-in
+    const p = (animProgress - 0.75) / 0.25;
+    const t = p * p;
+    x = animTo.x;
+    y = topY + (animTo.y - topY) * t;
+  }
+
+  drawDisc(animDisc, x, y, false);
+}
+
+function drawHUD() {
+  if (state !== 'playing' && state !== 'won') return;
+  if (!won) elapsed = (performance.now() - timerStart) / 1000;
+  const lvl = LEVELS[currentLevel];
+  const minM = getMinMoves(lvl);
+  const timeStr = formatTime(elapsed);
+  const moveStr = `Moves: ${moves}`;
+  const minStr = `Min: ${minM}`;
+
+  ctx.font = `bold ${Math.max(13, W * 0.018)}px "Segoe UI",system-ui,sans-serif`;
+  const textW = ctx.measureText(moveStr + '    ' + minStr + '    ' + timeStr).width;
+  const pillW = textW + 50;
+  const pillH = 42;
+  const px = (W - pillW) / 2;
+  const py = 14;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath();
+  ctx.roundRect(px, py, pillW, pillH, 14);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  const ty = py + pillH / 2;
+  let tx = px + 18;
+
+  ctx.fillStyle = '#fff';
+  ctx.fillText(moveStr, tx, ty);
+  tx += ctx.measureText(moveStr).width + 20;
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.fillText(minStr, tx, ty);
+  tx += ctx.measureText(minStr).width + 20;
+  ctx.fillStyle = '#ffd32a';
+  ctx.fillText(timeStr, tx, ty);
+
+  const data = loadArcadeData();
+  const best = data.hanoi && data.hanoi['l' + currentLevel];
+  if (best) {
+    ctx.font = `bold ${Math.max(10, W * 0.012)}px "Segoe UI",system-ui,sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Best: ${best.moves} moves, ${formatTime(best.time)}`, W / 2, py + pillH + 14);
+  }
+}
+
+function formatTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, '0')}`;
+}
+
+function drawWinScreen() {
+  if (state !== 'won') return;
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(0, 0, W, H);
+
+  confetti.forEach(c => {
+    c.x += c.vx; c.y += c.vy; c.vy += 0.05; c.rot += c.rotV;
+    ctx.save();
+    ctx.translate(c.x, c.y);
+    ctx.rotate(c.rot);
+    ctx.fillStyle = c.color;
+    ctx.fillRect(-c.size / 2, -c.size / 2, c.size, c.size * 0.5);
+    ctx.restore();
+  });
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const titleSize = Math.min(W * 0.1, 64);
+  ctx.font = `bold ${titleSize}px "Segoe UI",system-ui,sans-serif`;
+  ctx.shadowColor = '#ffd32a';
+  ctx.shadowBlur = 30;
+  ctx.fillStyle = '#ffd32a';
+  ctx.fillText('You Win!', W / 2, H * 0.35);
+  ctx.shadowBlur = 0;
+
+  const minM = getMinMoves(LEVELS[currentLevel]);
+  ctx.font = `bold ${Math.min(W * 0.05, 32)}px "Segoe UI",system-ui,sans-serif`;
+  ctx.fillStyle = '#fff';
+  ctx.fillText(`${moves} moves in ${formatTime(winTime)}`, W / 2, H * 0.45);
+
+  ctx.font = `bold ${Math.min(W * 0.035, 22)}px "Segoe UI",system-ui,sans-serif`;
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.fillText(`Minimum possible: ${minM} moves`, W / 2, H * 0.52);
+
+  if (moves === minM) {
+    ctx.fillStyle = '#ffd32a';
+    ctx.fillText('Perfect!', W / 2, H * 0.58);
+  }
+
+  const btnW = 220, btnH = 50, btnR = 12;
+  const bx = W / 2 - btnW / 2, by = H * 0.64;
+  const grad = ctx.createLinearGradient(bx, by, bx + btnW, by + btnH);
+  grad.addColorStop(0, '#6c5ce7');
+  grad.addColorStop(1, '#a29bfe');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.roundRect(bx, by, btnW, btnH, btnR);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold 18px "Segoe UI",system-ui,sans-serif`;
+  ctx.fillText('Play Again', W / 2, by + btnH / 2);
+}
+
+function drawScene() {
+  drawBg();
+  drawPegs();
+  drawAllDiscs();
+  drawAnimDisc();
+  drawHUD();
+  drawWinScreen();
+}
+
+function loop() {
+  if (state === 'menu') {
+    stepDemo();
+    drawBg();
+    drawPegs();
+    drawAllDiscs();
+    drawAnimDisc();
+  } else {
+    drawScene();
+  }
+  requestAnimationFrame(loop);
+}
+initDemo();
+buildLevelGrid();
+loop();
+})();
+</script>
+</body>
+</html>

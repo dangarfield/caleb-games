@@ -26,48 +26,42 @@
             justify-content: center; z-index: 200; backdrop-filter: blur(4px);
         }
         #overlay.hidden { display: none; }
-        .overlay-box {
+        .box {
             background: linear-gradient(135deg, #1a472a, #0d5e2f);
             border: 2px solid rgba(255,255,255,0.2); border-radius: 20px;
-            padding: 40px; max-width: 400px; text-align: center; color: #fff;
+            padding: 36px 40px; max-width: 420px; width: 90%; text-align: center; color: #fff;
         }
-        .overlay-box h2 { font-size: 28px; margin-bottom: 15px; }
-        .overlay-box p { font-size: 16px; line-height: 1.6; margin-bottom: 8px; opacity: 0.9; }
-        .overlay-box .start-btn {
-            margin-top: 20px; padding: 12px 40px; font-size: 20px;
+        .box h2 { font-size: 28px; margin-bottom: 10px; }
+        .box p { font-size: 15px; line-height: 1.6; margin-bottom: 6px; opacity: 0.85; }
+        .btn {
+            display: inline-block; margin-top: 18px; padding: 12px 44px; font-size: 20px;
             background: linear-gradient(135deg, #27ae60, #229954); color: #fff;
-            border: none; border-radius: 30px; cursor: pointer;
+            border: none; border-radius: 30px; cursor: pointer; font-weight: 700;
+            box-shadow: 0 4px 16px rgba(39,174,96,0.4); transition: transform 0.12s;
         }
-        .overlay-box .start-btn:hover { filter: brightness(1.1); }
-      #backBtn {
-    position: fixed;
-    top: 10px;
-    left: 10px;
-    background: rgba(255,255,255,0.15);
-    color: #fff;
-    text-decoration: none;
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-size: 14px;
-    z-index: 9999;
-    backdrop-filter: blur(4px);
-    border: 1px solid rgba(255,255,255,0.2);
-    transition: background 0.2s;
-  }
-  #backBtn:hover, #backBtn:active {
-    background: rgba(255,255,255,0.3);
-  }
+        .btn:hover { transform: scale(1.05); }
+        .btn:active { transform: scale(0.95); }
+        .stars { font-size: 28px; letter-spacing: 4px; margin: 8px 0; }
+        .tier-label { font-size: 12px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.5; margin-bottom: 4px; }
+        #backBtn {
+            position: fixed; top: 10px; left: 10px;
+            background: rgba(255,255,255,0.15); color: #fff; text-decoration: none;
+            padding: 8px 16px; border-radius: 20px; font-size: 14px; z-index: 9999;
+            backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.2);
+            transition: background 0.2s;
+        }
+        #backBtn:hover, #backBtn:active { background: rgba(255,255,255,0.3); }
     </style>
 </head>
 <body>
     <a id="backBtn" href="../../index.html">&larr; Games</a>
     <div id="overlay">
-        <div class="overlay-box">
+        <div class="box" id="menuBox">
             <h2>Free Kick</h2>
             <p>Tap the goal to aim</p>
-            <p>Swipe up to kick - direction and speed control curve!</p>
-            <p>Beat the wall and goalkeeper to score!</p>
-            <button class="start-btn" id="startBtn">Play</button>
+            <p>Swipe up to kick!</p>
+            <p>Curve the ball around the wall to score!</p>
+            <button class="btn" id="playBtn">Play</button>
         </div>
     </div>
     <canvas id="c"></canvas>
@@ -76,531 +70,550 @@
     const canvas = document.getElementById('c');
     const ctx = canvas.getContext('2d');
     const overlay = document.getElementById('overlay');
-    const startBtn = document.getElementById('startBtn');
+    const menuBox = document.getElementById('menuBox');
+    const playBtn = document.getElementById('playBtn');
 
-    // === Web Audio API Sound System ===
+    // ============================================================
+    //  AUDIO
+    // ============================================================
     let audioCtx = null;
     function ensureAudio() {
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         if (audioCtx.state === 'suspended') audioCtx.resume();
         return audioCtx;
     }
-
-    function playTone(freq, duration, vol, type, rampDown) {
-        const ctx = ensureAudio();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = type || 'sine';
-        osc.frequency.setValueAtTime(freq, ctx.currentTime);
-        gain.gain.setValueAtTime(vol, ctx.currentTime);
-        if (rampDown !== false) {
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-        }
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + duration);
-        return { osc, gain, ctx };
+    function playTone(freq, dur, vol, type) {
+        const c = ensureAudio();
+        const o = c.createOscillator(), g = c.createGain();
+        o.type = type || 'sine';
+        o.frequency.setValueAtTime(freq, c.currentTime);
+        g.gain.setValueAtTime(vol, c.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
+        o.connect(g); g.connect(c.destination);
+        o.start(c.currentTime); o.stop(c.currentTime + dur);
     }
-
-    function playNoiseBurst(duration, vol) {
-        const ctx = ensureAudio();
-        const bufferSize = ctx.sampleRate * duration;
-        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-            data[i] = (Math.random() * 2 - 1);
-        }
-        const source = ctx.createBufferSource();
-        source.buffer = buffer;
-        const gain = ctx.createGain();
-        gain.gain.setValueAtTime(vol, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-        source.connect(gain);
-        gain.connect(ctx.destination);
-        source.start(ctx.currentTime);
-        return { source, gain, ctx };
+    function playNoise(dur, vol, freq) {
+        const c = ensureAudio();
+        const n = c.sampleRate * dur;
+        const buf = c.createBuffer(1, n, c.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+        const s = c.createBufferSource(); s.buffer = buf;
+        const g = c.createGain();
+        g.gain.setValueAtTime(vol, c.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
+        if (freq) {
+            const f = c.createBiquadFilter();
+            f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = 1;
+            s.connect(f); f.connect(g);
+        } else { s.connect(g); }
+        g.connect(c.destination); s.start(c.currentTime);
     }
-
     function sfxKick() {
-        // Sharp thud/impact sound
-        const ctx = ensureAudio();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(160, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.12);
-        gain.gain.setValueAtTime(0.12, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.15);
-        // Add a click layer
-        playNoiseBurst(0.04, 0.08);
+        const c = ensureAudio();
+        const o = c.createOscillator(), g = c.createGain();
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(160, c.currentTime);
+        o.frequency.exponentialRampToValueAtTime(50, c.currentTime + 0.12);
+        g.gain.setValueAtTime(0.15, c.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.15);
+        o.connect(g); g.connect(c.destination);
+        o.start(c.currentTime); o.stop(c.currentTime + 0.15);
+        playNoise(0.05, 0.1);
     }
-
     function sfxGoal() {
-        // Crowd cheer (filtered noise burst)
-        const ctx = ensureAudio();
-        const bufLen = ctx.sampleRate * 1.2;
-        const buffer = ctx.createBuffer(1, bufLen, ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufLen; i++) {
-            data[i] = (Math.random() * 2 - 1);
-        }
-        const source = ctx.createBufferSource();
-        source.buffer = buffer;
-        const bandpass = ctx.createBiquadFilter();
-        bandpass.type = 'bandpass';
-        bandpass.frequency.setValueAtTime(1200, ctx.currentTime);
-        bandpass.Q.setValueAtTime(0.5, ctx.currentTime);
-        const gain = ctx.createGain();
-        gain.gain.setValueAtTime(0.0, ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(0.12, ctx.currentTime + 0.08);
-        gain.gain.setValueAtTime(0.12, ctx.currentTime + 0.5);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2);
-        source.connect(bandpass);
-        bandpass.connect(gain);
-        gain.connect(ctx.destination);
-        source.start(ctx.currentTime);
-        // Triumphant rising tone
-        const osc = ctx.createOscillator();
-        const tGain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(400, ctx.currentTime + 0.05);
-        osc.frequency.linearRampToValueAtTime(600, ctx.currentTime + 0.2);
-        osc.frequency.setValueAtTime(600, ctx.currentTime + 0.25);
-        osc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.45);
-        tGain.gain.setValueAtTime(0.1, ctx.currentTime + 0.05);
-        tGain.gain.setValueAtTime(0.1, ctx.currentTime + 0.6);
-        tGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.0);
-        osc.connect(tGain);
-        tGain.connect(ctx.destination);
-        osc.start(ctx.currentTime + 0.05);
-        osc.stop(ctx.currentTime + 1.0);
+        playNoise(1.2, 0.12, 1200);
+        setTimeout(() => {
+            playTone(400, 0.3, 0.1, 'sine');
+            setTimeout(() => playTone(600, 0.3, 0.1, 'sine'), 150);
+            setTimeout(() => playTone(800, 0.5, 0.08, 'sine'), 300);
+        }, 50);
     }
-
-    function sfxSaved() {
-        // Dull thump
-        const ctx = ensureAudio();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(100, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.15);
-        gain.gain.setValueAtTime(0.1, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.2);
-        // Soft noise layer
-        playNoiseBurst(0.06, 0.05);
+    function sfxSaved() { playTone(100, 0.2, 0.1, 'sine'); playNoise(0.06, 0.07); }
+    function sfxMiss() { playNoise(0.35, 0.08, 800); }
+    function sfxPost() {
+        playTone(1800, 0.4, 0.12, 'square');
+        playTone(900, 0.3, 0.08, 'sine');
     }
-
-    function sfxMiss() {
-        // Whoosh sound - filtered noise sweep
-        const ctx = ensureAudio();
-        const bufLen = ctx.sampleRate * 0.35;
-        const buffer = ctx.createBuffer(1, bufLen, ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufLen; i++) {
-            data[i] = (Math.random() * 2 - 1);
-        }
-        const source = ctx.createBufferSource();
-        source.buffer = buffer;
-        const filter = ctx.createBiquadFilter();
-        filter.type = 'bandpass';
-        filter.frequency.setValueAtTime(500, ctx.currentTime);
-        filter.frequency.exponentialRampToValueAtTime(2000, ctx.currentTime + 0.15);
-        filter.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.35);
-        filter.Q.setValueAtTime(2, ctx.currentTime);
-        const gain = ctx.createGain();
-        gain.gain.setValueAtTime(0.0, ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(0.1, ctx.currentTime + 0.05);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-        source.connect(filter);
-        filter.connect(gain);
-        gain.connect(ctx.destination);
-        source.start(ctx.currentTime);
-    }
-
+    function sfxBlocked() { playTone(120, 0.15, 0.1, 'triangle'); playNoise(0.04, 0.06); }
     function sfxWhistle() {
-        // High sine whistle
-        const ctx = ensureAudio();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(880, ctx.currentTime);
-        gain.gain.setValueAtTime(0.1, ctx.currentTime);
-        gain.gain.setValueAtTime(0.1, ctx.currentTime + 0.15);
-        gain.gain.setValueAtTime(0.001, ctx.currentTime + 0.18);
-        gain.gain.setValueAtTime(0.1, ctx.currentTime + 0.25);
-        gain.gain.setValueAtTime(0.1, ctx.currentTime + 0.6);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.0);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 1.0);
-        // Second harmonic for realism
-        const osc2 = ctx.createOscillator();
-        const gain2 = ctx.createGain();
-        osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(1760, ctx.currentTime);
-        gain2.gain.setValueAtTime(0.04, ctx.currentTime);
-        gain2.gain.setValueAtTime(0.04, ctx.currentTime + 0.15);
-        gain2.gain.setValueAtTime(0.001, ctx.currentTime + 0.18);
-        gain2.gain.setValueAtTime(0.04, ctx.currentTime + 0.25);
-        gain2.gain.setValueAtTime(0.04, ctx.currentTime + 0.6);
-        gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.0);
-        osc2.connect(gain2);
-        gain2.connect(ctx.destination);
-        osc2.start(ctx.currentTime);
-        osc2.stop(ctx.currentTime + 1.0);
+        const c = ensureAudio();
+        const o = c.createOscillator(), g = c.createGain();
+        o.type = 'sine'; o.frequency.value = 880;
+        g.gain.setValueAtTime(0.1, c.currentTime);
+        g.gain.setValueAtTime(0.1, c.currentTime + 0.15);
+        g.gain.setValueAtTime(0.001, c.currentTime + 0.18);
+        g.gain.setValueAtTime(0.1, c.currentTime + 0.25);
+        g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.8);
+        o.connect(g); g.connect(c.destination);
+        o.start(c.currentTime); o.stop(c.currentTime + 0.8);
     }
 
-    function sfxBlocked() {
-        // Dull thump for wall block
-        const ctx = ensureAudio();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(120, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(35, ctx.currentTime + 0.1);
-        gain.gain.setValueAtTime(0.1, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.15);
-    }
-    // === End Sound System ===
-
+    // ============================================================
+    //  CANVAS SETUP
+    // ============================================================
     let W, H;
-    function resize() {
-        W = canvas.width = window.innerWidth;
-        H = canvas.height = window.innerHeight;
-    }
+    function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
     resize();
     window.addEventListener('resize', resize);
 
-    // Game state
-    const STATE = { AIMING: 0, KICKING: 1, FLYING: 2, RESULT: 3 };
-    let state = STATE.AIMING;
-    let level = 1;
-    let score = 0;
-    let kicks = 0;
-    let maxKicks = 5;
-    let resultText = '';
-    let resultTimer = 0;
+    // ============================================================
+    //  SAVE DATA
+    // ============================================================
+    function loadData() {
+        try {
+            const raw = localStorage.getItem('calebArcadeData');
+            return raw ? JSON.parse(raw) : {};
+        } catch { return {}; }
+    }
+    function saveData(d) { localStorage.setItem('calebArcadeData', JSON.stringify(d)); }
+    function getFKData() {
+        const d = loadData();
+        return d.freekick || { highScore: 0, bestTier: 0, totalGoals: 0 };
+    }
+    function saveFKData(fk) {
+        const d = loadData(); d.freekick = fk; saveData(d);
+    }
 
-    // 3D projection parameters
-    const CAM_HEIGHT = 80;
-    const CAM_DIST = 280;
-    const GOAL_DIST = 250;
+    // ============================================================
+    //  TIERS / PROGRESSION
+    // ============================================================
+    const TIERS = [
+        { name: 'Playground', wallCount: 0, keeperSpeed: 0.6, keeperAccuracy: 35, kickDist: 120, wind: 0 },
+        { name: 'School Cup', wallCount: 2, keeperSpeed: 0.8, keeperAccuracy: 28, kickDist: 130, wind: 0 },
+        { name: 'School Cup', wallCount: 3, keeperSpeed: 1.0, keeperAccuracy: 22, kickDist: 140, wind: 0 },
+        { name: 'City Championship', wallCount: 3, keeperSpeed: 1.1, keeperAccuracy: 18, kickDist: 145, wind: 0.3 },
+        { name: 'City Championship', wallCount: 4, keeperSpeed: 1.2, keeperAccuracy: 15, kickDist: 150, wind: 0.5 },
+        { name: 'National Finals', wallCount: 4, keeperSpeed: 1.4, keeperAccuracy: 12, kickDist: 155, wind: 0.7 },
+        { name: 'National Finals', wallCount: 5, keeperSpeed: 1.5, keeperAccuracy: 10, kickDist: 160, wind: 0.8 },
+        { name: 'World Cup', wallCount: 5, keeperSpeed: 1.7, keeperAccuracy: 8, kickDist: 165, wind: 1.0 },
+        { name: 'World Cup', wallCount: 5, keeperSpeed: 1.8, keeperAccuracy: 6, kickDist: 170, wind: 1.2 },
+        { name: 'Legend', wallCount: 5, keeperSpeed: 2.0, keeperAccuracy: 5, kickDist: 175, wind: 1.5 },
+    ];
+    const KICKS_PER_ROUND = 5;
+
+    // ============================================================
+    //  GAME STATE
+    // ============================================================
+    const ST = { MENU: 0, AIM: 1, KICK: 2, FLY: 3, RESULT: 4, ROUND_END: 5 };
+    let state = ST.MENU;
+    let tierIdx = 0;
+    let score = 0;
+    let kickNum = 0;
+    let goalsThisRound = 0;
+    let streak = 0;
+    let resultText = '';
+    let resultSub = '';
+    let resultIsGoal = false;
+    let resultTimer = 0;
+    let shakeTimer = 0;
+    let shakeIntensity = 0;
+    let slowMo = 1;
+    let slowMoTimer = 0;
+
+    // 3D projection
+    const CAM_HEIGHT = 40;
+    const CAM_DIST = 120;
     const GOAL_WIDTH = 120;
     const GOAL_HEIGHT = 40;
-    const FIELD_WIDTH = 200;
+    let GOAL_DIST = 150;
 
-    // Ball state
+    // Ball
     let ball = { x: 0, y: 0, z: 0 };
     let ballVel = { x: 0, y: 0, z: 0 };
-    let ballSpin = { x: 0, y: 0 };
-    let ballRadius = 4;
+    let ballSpin = 0;
+    let ballRot = 0;
+    const BALL_R = 4;
+    let ballTrail = [];
 
-    // Aim target on goal plane (in world coords)
-    let aimX = 0, aimY = 20;
-    let aimScreenX = 0, aimScreenY = 0;
+    // Aim
+    let aimX = 0, aimY = GOAL_HEIGHT / 2;
     let hasAim = false;
+    let aimPulse = 0;
 
-    // Swipe tracking
+    // Swipe
     let swipeStart = null;
     let swipeEnd = null;
     let isSwiping = false;
 
-    // Goalkeeper
-    let keeper = { x: 0, y: 0, targetX: 0, targetY: 0, diveDir: 0, diveProgress: 0, isDiving: false };
-    const KEEPER_WIDTH = 14;
-    const KEEPER_HEIGHT = 30;
+    // Keeper
+    let keeper = { x: 0, y: 0, tx: 0, ty: 0, diving: false, progress: 0, speed: 1, idleT: 0 };
+    const KP_W = 14, KP_H = 30;
 
-    // Wall players
+    // Wall
     let wallPlayers = [];
+
+    // Wind
+    let wind = 0;
+
+    // Net deformation
+    let netHit = null; // { x, y, t }
 
     // Particles
     let particles = [];
 
-    function resetBall() {
-        ball = { x: 0, y: ballRadius, z: 0 };
-        ballVel = { x: 0, y: 0, z: 0 };
-        ballSpin = { x: 0, y: 0 };
-        hasAim = false;
-        swipeStart = null;
-        swipeEnd = null;
-        isSwiping = false;
-        state = STATE.AIMING;
-    }
+    // Grass particles
+    let grassParts = [];
 
-    function setupWall() {
-        wallPlayers = [];
-        const count = Math.min(2 + level, 7);
-        const wallDist = 140;
-        const spacing = 12;
-        const startX = -(count - 1) * spacing / 2;
-        for (let i = 0; i < count; i++) {
-            wallPlayers.push({
-                x: startX + i * spacing,
-                z: wallDist,
-                jumping: false,
-                jumpHeight: 0,
-                jumpVel: 0
-            });
-        }
-    }
-
-    function resetKeeper() {
-        keeper = {
-            x: 0, y: 0,
-            targetX: 0, targetY: 0,
-            diveDir: 0, diveProgress: 0, isDiving: false,
-            speed: 1.5 + level * 0.3
-        };
-    }
-
-    function setupRound() {
-        resetBall();
-        setupWall();
-        resetKeeper();
-    }
-
-    // 3D to 2D projection
     function project(x, y, z) {
         const d = CAM_DIST + z;
-        if (d <= 1) return { sx: W / 2, sy: H / 2, scale: 0 };
-        const scale = 600 / d;
-        const sx = W / 2 + x * scale;
-        const sy = H * 0.75 - y * scale - (CAM_HEIGHT * scale * 0.3);
-        return { sx, sy, scale };
+        if (d <= 1) return { sx: W / 2, sy: H / 2, sc: 0 };
+        const fov = Math.min(W, H) * 1.8;
+        const sc = fov / d;
+        const groundY = H * 0.82;
+        return { sx: W / 2 + x * sc, sy: groundY - y * sc - CAM_HEIGHT * sc * 0.15, sc };
     }
 
-    // Screen to goal plane (approximate inverse projection for aim)
     function screenToGoal(sx, sy) {
         const d = CAM_DIST + GOAL_DIST;
-        const scale = 600 / d;
-        const worldX = (sx - W / 2) / scale;
-        const worldY = (H * 0.75 - sy - (CAM_HEIGHT * scale * 0.3)) / scale;
-        return { x: worldX, y: Math.max(0, worldY) };
+        const fov = Math.min(W, H) * 1.8;
+        const sc = fov / d;
+        const groundY = H * 0.82;
+        return { x: (sx - W / 2) / sc, y: Math.max(0, (groundY - sy - CAM_HEIGHT * sc * 0.15) / sc) };
     }
 
-    // Input handling
+    // ============================================================
+    //  SETUP
+    // ============================================================
+    function setupRound() {
+        const tier = TIERS[Math.min(tierIdx, TIERS.length - 1)];
+        GOAL_DIST = tier.kickDist;
+
+        ball = { x: 0, y: BALL_R, z: 0 };
+        ballVel = { x: 0, y: 0, z: 0 };
+        ballSpin = 0; ballRot = 0;
+        ballTrail = [];
+        hasAim = false;
+        aimX = 0; aimY = GOAL_HEIGHT / 2;
+        swipeStart = null; swipeEnd = null; isSwiping = false;
+        netHit = null;
+
+        // Wind
+        wind = (Math.random() - 0.5) * 2 * tier.wind;
+
+        // Keeper
+        keeper = { x: 0, y: 0, tx: 0, ty: 0, diving: false, progress: 0, speed: tier.keeperSpeed, idleT: 0 };
+
+        // Wall
+        wallPlayers = [];
+        const wc = tier.wallCount;
+        const wallDist = GOAL_DIST * 0.55;
+        const spacing = 12;
+        const startX = -(wc - 1) * spacing / 2;
+        for (let i = 0; i < wc; i++) {
+            wallPlayers.push({
+                x: startX + i * spacing, z: wallDist,
+                jumping: false, jumpH: 0, jumpV: 0,
+                jumpDelay: tierIdx < 3 ? Math.random() * 0.3 : Math.random() * 0.1
+            });
+        }
+
+        state = ST.AIM;
+    }
+
+    // ============================================================
+    //  INPUT
+    // ============================================================
+    const isTouch = 'ontouchstart' in window;
+
     function getPos(e) {
         const t = e.touches ? e.touches[0] : e;
         return { x: t.clientX, y: t.clientY };
     }
 
-    canvas.addEventListener('touchstart', onDown, { passive: false });
-    canvas.addEventListener('mousedown', onDown);
+    canvas.addEventListener('pointerdown', onDown, { passive: false });
+    canvas.addEventListener('pointermove', onMove, { passive: false });
+    canvas.addEventListener('pointerup', onUp, { passive: false });
+    canvas.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+
+    let dragAim = false;
 
     function onDown(e) {
         e.preventDefault();
-        const pos = getPos(e);
+        if (state === ST.ROUND_END || state === ST.MENU) return;
+        if (state === ST.RESULT) return;
 
-        if (state === STATE.RESULT) return;
+        const pos = { x: e.clientX, y: e.clientY };
 
-        if (state === STATE.AIMING) {
-            // Check if tapping on goal area to set aim
-            const goalProj = project(0, GOAL_HEIGHT / 2, GOAL_DIST);
-            const goalLeft = project(-GOAL_WIDTH / 2, 0, GOAL_DIST);
-            const goalRight = project(GOAL_WIDTH / 2, 0, GOAL_DIST);
-            const goalTop = project(0, GOAL_HEIGHT, GOAL_DIST);
+        if (state === ST.AIM) {
+            // Work out where the goal is on screen to decide aim vs kick zone
+            const goalBot = project(0, 0, GOAL_DIST);
+            const kickZoneTop = goalBot.sy + 40; // some space below the goal line
 
-            // If tap is roughly in the goal area, set aim point
-            if (pos.y < H * 0.65) {
+            if (pos.y < kickZoneTop) {
+                // Aiming at the goal
                 const aim = screenToGoal(pos.x, pos.y);
                 aimX = Math.max(-GOAL_WIDTH / 2 + 5, Math.min(GOAL_WIDTH / 2 - 5, aim.x));
-                aimY = Math.max(2, Math.min(GOAL_HEIGHT - 2, aim.y));
+                aimY = Math.max(3, Math.min(GOAL_HEIGHT - 3, aim.y));
                 hasAim = true;
-                aimScreenX = pos.x;
-                aimScreenY = pos.y;
+                dragAim = true;
                 return;
             }
 
-            // If tap is in lower area, start swipe to kick
+            // Lower area = start kick swipe
             if (hasAim) {
-                swipeStart = { x: pos.x, y: pos.y, t: Date.now() };
+                swipeStart = { x: pos.x, y: pos.y, t: performance.now() };
                 isSwiping = true;
-
-                const moveFn = (e2) => {
-                    e2.preventDefault();
-                    swipeEnd = getPos(e2);
-                };
-                const upFn = (e2) => {
-                    e2.preventDefault();
-                    canvas.removeEventListener('touchmove', moveFn);
-                    canvas.removeEventListener('mousemove', moveFn);
-                    canvas.removeEventListener('touchend', upFn);
-                    canvas.removeEventListener('mouseup', upFn);
-                    if (swipeStart && swipeEnd) {
-                        performKick();
-                    }
-                    isSwiping = false;
-                };
-                canvas.addEventListener('touchmove', moveFn, { passive: false });
-                canvas.addEventListener('mousemove', moveFn);
-                canvas.addEventListener('touchend', upFn, { passive: false });
-                canvas.addEventListener('mouseup', upFn);
             }
         }
     }
 
-    function performKick() {
-        if (!swipeStart || !swipeEnd) return;
+    function onMove(e) {
+        e.preventDefault();
+        const pos = { x: e.clientX, y: e.clientY };
 
-        const dx = swipeEnd.x - swipeStart.x;
-        const dy = swipeStart.y - swipeEnd.y; // inverted: swipe up = positive
-        const dt = Math.max(50, Date.now() - swipeStart.t);
-        const speed = Math.min(Math.sqrt(dx * dx + dy * dy) / dt, 3);
+        if (dragAim && state === ST.AIM) {
+            const aim = screenToGoal(pos.x, pos.y);
+            aimX = Math.max(-GOAL_WIDTH / 2 + 5, Math.min(GOAL_WIDTH / 2 - 5, aim.x));
+            aimY = Math.max(3, Math.min(GOAL_HEIGHT - 3, aim.y));
+            return;
+        }
 
-        if (dy < 20) return; // need upward swipe
-
-        const power = Math.min(speed * 2.5 + 0.8, 4);
-        const curve = dx / 150; // horizontal curve from swipe direction
-
-        // Velocity toward goal
-        const dirX = aimX * 0.008;
-        const dirY = aimY * 0.025 + 0.3;
-        const dirZ = power * 1.8;
-
-        ballVel = { x: dirX * dirZ, y: dirY * power * 0.6, z: dirZ };
-        ballSpin = { x: curve * 2, y: 0 };
-
-        // Keeper reacts
-        const reaction = Math.max(0.1, 0.6 - level * 0.05);
-        const keeperGuessX = aimX + (Math.random() - 0.5) * (40 - level * 3);
-        const keeperGuessY = aimY + (Math.random() - 0.5) * (15 - level);
-        keeper.targetX = keeperGuessX;
-        keeper.targetY = Math.max(0, keeperGuessY);
-        keeper.isDiving = true;
-        keeper.diveProgress = 0;
-
-        // Wall players jump
-        wallPlayers.forEach(p => {
-            p.jumping = true;
-            p.jumpVel = 2.5 + Math.random() * 1;
-        });
-
-        state = STATE.FLYING;
-        kicks++;
-        sfxKick();
+        if (isSwiping) {
+            swipeEnd = pos;
+        }
     }
 
+    function onUp(e) {
+        e.preventDefault();
+        dragAim = false;
+
+        if (isSwiping && swipeStart && swipeEnd) {
+            performKick();
+        }
+        isSwiping = false;
+    }
+
+    function performKick() {
+        const dx = swipeEnd.x - swipeStart.x;
+        const dy = swipeStart.y - swipeEnd.y;
+        const dt = Math.max(50, performance.now() - swipeStart.t);
+
+        if (dy < 30) { isSwiping = false; return; }
+
+        const speed = Math.min(Math.sqrt(dx * dx + dy * dy) / dt, 3.5);
+        const power = Math.min(speed * 2.2 + 0.9, 4.5);
+        const curve = dx / 180;
+
+        // Direction toward aim point — scaled to goal distance
+        const distScale = GOAL_DIST / 150;
+        const dirX = aimX * 0.012;
+        const dirY = aimY * 0.025 + 0.4;
+        const dirZ = power * 1.3 * distScale;
+
+        ballVel = { x: dirX * dirZ, y: dirY * power * 0.5, z: dirZ };
+        ballSpin = curve * 2.5;
+
+        // Keeper reacts
+        const tier = TIERS[Math.min(tierIdx, TIERS.length - 1)];
+        const guessError = tier.keeperAccuracy;
+        keeper.tx = aimX + (Math.random() - 0.5) * guessError;
+        keeper.ty = Math.max(0, aimY + (Math.random() - 0.5) * guessError * 0.4);
+        keeper.diving = true;
+        keeper.progress = 0;
+
+        // Wall jump
+        for (const p of wallPlayers) {
+            p.jumping = true;
+            p.jumpV = 2.8 + Math.random() * 0.8;
+            // On easy tiers, some players flinch/duck
+            if (tierIdx < 3 && Math.random() < 0.15) {
+                p.jumpV = 0.5; // barely jumps
+            }
+        }
+
+        // Grass particles at ball position
+        for (let i = 0; i < 12; i++) {
+            grassParts.push({
+                x: ball.x, y: 0, z: ball.z,
+                vx: (Math.random() - 0.5) * 3,
+                vy: Math.random() * 3 + 1,
+                vz: Math.random() * 2,
+                life: 1
+            });
+        }
+
+        state = ST.FLY;
+        kickNum++;
+        sfxKick();
+        swipeStart = null; swipeEnd = null;
+    }
+
+    // ============================================================
+    //  PARTICLES
+    // ============================================================
     function spawnParticles(x, y, z, color, count) {
         for (let i = 0; i < count; i++) {
             particles.push({
-                x, y, z,
-                vx: (Math.random() - 0.5) * 4,
-                vy: Math.random() * 3 + 1,
-                vz: (Math.random() - 0.5) * 2,
-                life: 1,
-                color
+                x, y, z, color,
+                vx: (Math.random() - 0.5) * 5,
+                vy: Math.random() * 4 + 1,
+                vz: (Math.random() - 0.5) * 3,
+                life: 1, size: 2 + Math.random() * 3
             });
         }
     }
 
+    function spawnConfetti(x, y, z, count) {
+        const colors = ['#f1c40f', '#e74c3c', '#2ecc71', '#3498db', '#fff', '#e67e22'];
+        for (let i = 0; i < count; i++) {
+            particles.push({
+                x, y, z, color: colors[Math.floor(Math.random() * colors.length)],
+                vx: (Math.random() - 0.5) * 8,
+                vy: Math.random() * 6 + 2,
+                vz: (Math.random() - 0.5) * 4,
+                life: 1, size: 3 + Math.random() * 4, confetti: true
+            });
+        }
+    }
+
+    // ============================================================
+    //  UPDATE
+    // ============================================================
     function update(dt) {
-        if (state === STATE.FLYING) {
+        aimPulse += dt * 0.05;
+
+        // Slow motion
+        if (slowMoTimer > 0) {
+            slowMoTimer -= dt;
+            slowMo = 0.25;
+            if (slowMoTimer <= 0) slowMo = 1;
+        }
+
+        // Screen shake
+        if (shakeTimer > 0) shakeTimer -= dt;
+
+        // Keeper idle sway
+        if (!keeper.diving) {
+            keeper.idleT += dt * 0.03;
+            keeper.x = Math.sin(keeper.idleT) * 8;
+        }
+
+        if (state === ST.FLY) {
+            const spd = dt * slowMo;
+
             // Ball physics
-            ball.x += ballVel.x * dt;
-            ball.y += ballVel.y * dt;
-            ball.z += ballVel.z * dt;
+            ball.x += ballVel.x * spd;
+            ball.y += ballVel.y * spd;
+            ball.z += ballVel.z * spd;
 
             // Gravity
-            ballVel.y -= 0.12 * dt;
+            ballVel.y -= 0.13 * spd;
 
-            // Spin/curve effect
-            ballVel.x += ballSpin.x * 0.015 * dt;
+            // Curve (Magnus effect)
+            ballVel.x += ballSpin * 0.018 * spd;
+
+            // Wind
+            ballVel.x += wind * 0.003 * spd;
 
             // Air drag
-            ballVel.x *= 0.998;
-            ballVel.z *= 0.998;
+            ballVel.x *= (1 - 0.002 * spd);
+            ballVel.z *= (1 - 0.002 * spd);
+
+            // Ball rotation visual
+            ballRot += (ballVel.z * 0.1 + Math.abs(ballSpin) * 0.05) * spd;
+
+            // Trail
+            if (ball.z > 5) {
+                ballTrail.push({ x: ball.x, y: ball.y, z: ball.z, life: 1 });
+                if (ballTrail.length > 15) ballTrail.shift();
+            }
 
             // Ground bounce
-            if (ball.y < ballRadius) {
-                ball.y = ballRadius;
-                ballVel.y = Math.abs(ballVel.y) * 0.4;
+            if (ball.y < BALL_R) {
+                ball.y = BALL_R;
+                ballVel.y = Math.abs(ballVel.y) * 0.35;
+                if (Math.abs(ballVel.y) < 0.3) ballVel.y = 0;
             }
 
             // Wall collision
             for (const p of wallPlayers) {
-                const wallHeight = 28 + p.jumpHeight;
+                if (p.jumpDelay > 0) { p.jumpDelay -= spd * 0.016; continue; }
+                if (p.jumping) {
+                    p.jumpH += p.jumpV * spd;
+                    p.jumpV -= 0.16 * spd;
+                    if (p.jumpH <= 0) { p.jumpH = 0; p.jumping = false; }
+                }
+                const wallH = 28 + p.jumpH;
                 const dxw = ball.x - p.x;
                 const dzw = ball.z - p.z;
                 const dist = Math.sqrt(dxw * dxw + dzw * dzw);
-                if (dist < 10 && ball.y < wallHeight && ball.z > p.z - 5 && ball.z < p.z + 5) {
-                    // Blocked by wall
+                if (dist < 10 && ball.y < wallH && ball.z > p.z - 6 && ball.z < p.z + 6) {
                     ballVel.z *= -0.3;
                     ballVel.x += (Math.random() - 0.5) * 2;
-                    ballVel.y = Math.abs(ballVel.y) * 0.5 + 1;
+                    ballVel.y = Math.abs(ballVel.y) * 0.4 + 1;
                     spawnParticles(ball.x, ball.y, ball.z, '#fff', 8);
                     sfxBlocked();
                     break;
                 }
             }
 
-            // Update wall players jumping
-            wallPlayers.forEach(p => {
-                if (p.jumping) {
-                    p.jumpHeight += p.jumpVel * dt;
-                    p.jumpVel -= 0.15 * dt;
-                    if (p.jumpHeight <= 0) {
-                        p.jumpHeight = 0;
-                        p.jumping = false;
-                    }
-                }
-            });
-
             // Keeper dive
-            if (keeper.isDiving) {
-                keeper.diveProgress = Math.min(1, keeper.diveProgress + keeper.speed * 0.02 * dt);
-                keeper.x += (keeper.targetX - keeper.x) * 0.06 * dt;
-                keeper.y += (keeper.targetY - keeper.y) * 0.06 * dt;
+            if (keeper.diving) {
+                keeper.progress = Math.min(1, keeper.progress + keeper.speed * 0.018 * spd);
+                const ease = keeper.progress * (2 - keeper.progress); // ease out
+                keeper.x += (keeper.tx - keeper.x) * 0.05 * spd;
+                keeper.y += (keeper.ty - keeper.y) * 0.05 * spd;
             }
 
-            // Check if ball reached goal plane
+            // Check ball at goal plane
             if (ball.z >= GOAL_DIST) {
                 checkGoal();
             }
 
-            // Ball went too far or stopped
-            if (ball.z > GOAL_DIST + 50 || (ball.z > 10 && Math.abs(ballVel.z) < 0.1 && ball.y < ballRadius + 1)) {
+            // Ball went past goal
+            if (ball.z > GOAL_DIST + 60) {
                 sfxMiss();
-                showResult('Miss!', false);
+                showResult('WIDE!', '', false);
             }
 
-            // Ball came back (blocked)
-            if (ball.z < -20) {
-                sfxBlocked();
-                showResult('Blocked!', false);
+            // Ball came back (blocked and rolled back)
+            if (ball.z < -30) {
+                showResult('BLOCKED!', '', false);
+            }
+
+            // Ball stopped
+            if (ball.z > 20 && Math.abs(ballVel.z) < 0.05 && ball.y < BALL_R + 1) {
+                sfxMiss();
+                showResult('Miss!', '', false);
             }
         }
 
         // Update particles
-        particles = particles.filter(p => {
-            p.x += p.vx * dt;
-            p.y += p.vy * dt;
-            p.z += p.vz * dt;
-            p.vy -= 0.05 * dt;
-            p.life -= 0.02 * dt;
-            return p.life > 0;
-        });
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i];
+            p.x += p.vx * dt * 0.5;
+            p.y += p.vy * dt * 0.5;
+            p.z += p.vz * dt * 0.5;
+            p.vy -= 0.06 * dt;
+            p.life -= (p.confetti ? 0.012 : 0.02) * dt;
+            if (p.life <= 0) particles.splice(i, 1);
+        }
+
+        // Update grass particles
+        for (let i = grassParts.length - 1; i >= 0; i--) {
+            const g = grassParts[i];
+            g.x += g.vx * dt * 0.5;
+            g.y += g.vy * dt * 0.5;
+            g.z += g.vz * dt * 0.5;
+            g.vy -= 0.1 * dt;
+            if (g.y < 0) g.y = 0;
+            g.life -= 0.025 * dt;
+            if (g.life <= 0) grassParts.splice(i, 1);
+        }
+
+        // Trail fade
+        for (let i = ballTrail.length - 1; i >= 0; i--) {
+            ballTrail[i].life -= 0.04 * dt;
+            if (ballTrail[i].life <= 0) ballTrail.splice(i, 1);
+        }
 
         // Result timer
-        if (state === STATE.RESULT) {
+        if (state === ST.RESULT) {
             resultTimer -= dt;
             if (resultTimer <= 0) {
-                if (kicks >= maxKicks) {
-                    // Game over, show final score
-                    showGameOver();
+                if (kickNum >= KICKS_PER_ROUND) {
+                    showRoundEnd();
                 } else {
                     setupRound();
                 }
@@ -609,424 +622,777 @@
     }
 
     function checkGoal() {
-        const inGoalX = ball.x > -GOAL_WIDTH / 2 && ball.x < GOAL_WIDTH / 2;
-        const inGoalY = ball.y > 0 && ball.y < GOAL_HEIGHT;
+        const inX = ball.x > -GOAL_WIDTH / 2 && ball.x < GOAL_WIDTH / 2;
+        const inY = ball.y > 0 && ball.y < GOAL_HEIGHT;
 
-        if (!inGoalX || !inGoalY) {
-            sfxMiss();
-            showResult('Wide!', false);
+        // Post/crossbar hit detection
+        const nearLeftPost = Math.abs(ball.x - (-GOAL_WIDTH / 2)) < 4 && inY;
+        const nearRightPost = Math.abs(ball.x - (GOAL_WIDTH / 2)) < 4 && inY;
+        const nearCrossbar = Math.abs(ball.y - GOAL_HEIGHT) < 4 && inX;
+
+        if (nearLeftPost || nearRightPost || nearCrossbar) {
+            // Post hit!
+            sfxPost();
+            ballVel.z *= -0.4;
+            if (nearLeftPost || nearRightPost) ballVel.x *= -0.5;
+            if (nearCrossbar) ballVel.y *= -0.5;
+            slowMoTimer = 30;
+            slowMo = 0.25;
+            spawnParticles(ball.x, ball.y, ball.z, '#ff0', 12);
+            showResult('OFF THE POST!', 'So close!', false);
             return;
         }
 
-        // Check keeper save
-        const keeperDx = Math.abs(ball.x - keeper.x);
-        const keeperDy = Math.abs(ball.y - keeper.y);
-        const saveReachX = KEEPER_WIDTH * (0.8 + keeper.diveProgress * 0.8);
-        const saveReachY = KEEPER_HEIGHT * 0.5;
-
-        if (keeperDx < saveReachX && keeperDy < saveReachY) {
-            spawnParticles(ball.x, ball.y, ball.z, '#ff0', 15);
-            sfxSaved();
-            showResult('Saved!', false);
-        } else {
-            score++;
-            spawnParticles(ball.x, ball.y, ball.z, '#0f0', 25);
-            spawnParticles(ball.x, ball.y, ball.z, '#fff', 15);
-            sfxGoal();
-            showResult('GOAL!', true);
-            if (kicks % 3 === 0) level++;
+        if (!inX || !inY) {
+            if (ball.y >= GOAL_HEIGHT) {
+                sfxMiss();
+                showResult('OVER!', '', false);
+            } else {
+                sfxMiss();
+                showResult('WIDE!', '', false);
+            }
+            return;
         }
+
+        // Keeper save check
+        const kdx = Math.abs(ball.x - keeper.x);
+        const kdy = Math.abs(ball.y - keeper.y);
+        const reachX = KP_W * (0.7 + keeper.progress * 0.9);
+        const reachY = KP_H * 0.5;
+
+        if (kdx < reachX && kdy < reachY) {
+            spawnParticles(ball.x, ball.y, ball.z, '#ff0', 12);
+            sfxSaved();
+
+            // Near-miss encouragement
+            if (kdx > reachX * 0.7 || kdy > reachY * 0.7) {
+                showResult('SAVED!', 'Great effort!', false);
+            } else {
+                showResult('SAVED!', '', false);
+            }
+            return;
+        }
+
+        // GOAL!
+        goalsThisRound++;
+        streak++;
+
+        // Score calculation
+        let pts = 100;
+        let bonus = '';
+
+        // Corner bonus
+        const cornerX = Math.abs(ball.x) > GOAL_WIDTH * 0.35;
+        const topShot = ball.y > GOAL_HEIGHT * 0.7;
+        if (cornerX && topShot) {
+            pts += 50;
+            bonus = 'TOP BINS!';
+        } else if (cornerX) {
+            pts += 25;
+            bonus = 'Great placement!';
+        } else if (topShot) {
+            pts += 25;
+            bonus = 'Up and over!';
+        }
+
+        // Curve bonus
+        if (Math.abs(ballSpin) > 1.5) {
+            pts += 25;
+            bonus = bonus ? bonus + ' Banana!' : 'Banana shot!';
+        }
+
+        // Streak multiplier
+        if (streak >= 5) pts = Math.round(pts * 3);
+        else if (streak >= 4) pts = Math.round(pts * 2.5);
+        else if (streak >= 3) pts = Math.round(pts * 2);
+        else if (streak >= 2) pts = Math.round(pts * 1.5);
+
+        score += pts;
+
+        // Effects
+        spawnConfetti(ball.x, ball.y, ball.z, 35);
+        netHit = { x: ball.x, y: ball.y, t: 1 };
+        shakeTimer = 12;
+        shakeIntensity = 4;
+        slowMoTimer = 40;
+        slowMo = 0.25;
+        sfxGoal();
+
+        const streakText = streak >= 3 ? ` (x${streak} streak!)` : '';
+        showResult('GOAL!', `+${pts}${streakText}${bonus ? ' ' + bonus : ''}`, true);
     }
 
-    function showResult(text, isGoal) {
+    function showResult(text, sub, isGoal) {
         resultText = text;
-        state = STATE.RESULT;
-        resultTimer = 90;
-        ballVel = { x: 0, y: 0, z: 0 };
+        resultSub = sub;
+        resultIsGoal = isGoal;
+        state = ST.RESULT;
+        resultTimer = 100;
+        if (!isGoal) streak = 0;
     }
 
-    let gameOverShown = false;
-    function showGameOver() {
-        gameOverShown = true;
-        sfxWhistle();
+    function showRoundEnd() {
+        state = ST.ROUND_END;
+        const stars = goalsThisRound >= 5 ? 3 : goalsThisRound >= 3 ? 2 : goalsThisRound >= 1 ? 1 : 0;
+
+        // Save progress
+        const fk = getFKData();
+        if (score > fk.highScore) fk.highScore = score;
+        fk.totalGoals += goalsThisRound;
+        if (stars >= 1 && tierIdx >= fk.bestTier) fk.bestTier = tierIdx + 1;
+        saveFKData(fk);
+
+        const starStr = (stars >= 1 ? '\u2605' : '\u2606') + (stars >= 2 ? '\u2605' : '\u2606') + (stars >= 3 ? '\u2605' : '\u2606');
+        const tier = TIERS[Math.min(tierIdx, TIERS.length - 1)];
+
         overlay.classList.remove('hidden');
         overlay.innerHTML = `
-            <div class="overlay-box">
-                <h2>Full Time!</h2>
-                <p>Score: ${score} / ${maxKicks}</p>
-                <p>Level reached: ${level}</p>
-                <button class="start-btn" onclick="location.reload()">Play Again</button>
+            <div class="box">
+                <div class="tier-label">${tier.name}</div>
+                <h2>${goalsThisRound >= 3 ? 'Great Round!' : goalsThisRound >= 1 ? 'Nice Try!' : 'Keep Practising!'}</h2>
+                <div class="stars">${starStr}</div>
+                <p>Goals: ${goalsThisRound} / ${KICKS_PER_ROUND}</p>
+                <p>Score: ${score}</p>
+                ${stars >= 1 && tierIdx < TIERS.length - 1 ? `<button class="btn" id="nextBtn">Next Round</button>` : ''}
+                <button class="btn" style="background:linear-gradient(135deg,#636e72,#2d3436);margin-left:8px;" id="menuBtn2">Menu</button>
             </div>`;
+
+        const nextBtn = document.getElementById('nextBtn');
+        const menuBtn2 = document.getElementById('menuBtn2');
+        if (nextBtn) nextBtn.addEventListener('click', () => {
+            overlay.classList.add('hidden');
+            tierIdx++;
+            kickNum = 0;
+            goalsThisRound = 0;
+            streak = 0;
+            setupRound();
+        });
+        if (menuBtn2) menuBtn2.addEventListener('click', () => {
+            showMenu();
+        });
     }
 
-    // Drawing
-    function draw() {
-        ctx.clearRect(0, 0, W, H);
+    function showMenu() {
+        state = ST.MENU;
+        const fk = getFKData();
+        overlay.classList.remove('hidden');
+        overlay.innerHTML = `
+            <div class="box">
+                <h2>Free Kick</h2>
+                <p>${isTouch ? 'Tap' : 'Click'} the goal to aim</p>
+                <p>Swipe up to kick!</p>
+                <p>Curve the ball around the wall to score!</p>
+                ${fk.highScore > 0 ? `<p style="margin-top:8px;opacity:0.6;">Best: ${fk.highScore} pts | ${fk.totalGoals} total goals</p>` : ''}
+                <button class="btn" id="playBtn2">Play</button>
+            </div>`;
+        document.getElementById('playBtn2').addEventListener('click', () => { startGame(); ensureLoop(); });
+    }
 
+    function startGame() {
+        ensureAudio();
+        overlay.classList.add('hidden');
+        tierIdx = 0;
+        score = 0;
+        kickNum = 0;
+        goalsThisRound = 0;
+        streak = 0;
+        setupRound();
+        sfxWhistle();
+    }
+
+    // ============================================================
+    //  DRAWING
+    // ============================================================
+    function draw() {
+        ctx.save();
+
+        // Screen shake
+        if (shakeTimer > 0) {
+            const sx = (Math.random() - 0.5) * shakeIntensity * (shakeTimer / 12);
+            const sy = (Math.random() - 0.5) * shakeIntensity * (shakeTimer / 12);
+            ctx.translate(sx, sy);
+        }
+
+        ctx.clearRect(-10, -10, W + 20, H + 20);
         drawSky();
         drawField();
         drawGoal();
+        drawGrass();
         drawWall();
         drawKeeper();
+        drawBallTrail();
         drawBallShadow();
         drawBall();
         drawParticles();
         drawAim();
         drawHUD();
+        drawWindIndicator();
         drawSwipeHint();
+        drawResult();
 
-        if (state === STATE.RESULT && resultTimer > 0) {
-            drawResult();
-        }
+        ctx.restore();
     }
 
     function drawSky() {
-        const grad = ctx.createLinearGradient(0, 0, 0, H * 0.5);
-        grad.addColorStop(0, '#87CEEB');
-        grad.addColorStop(0.7, '#b8e4f7');
-        grad.addColorStop(1, '#d4efc4');
+        // Sky fills entire canvas first, field draws on top
+        const horizonY = project(0, 0, GOAL_DIST + 50).sy;
+        const grad = ctx.createLinearGradient(0, 0, 0, horizonY);
+        grad.addColorStop(0, '#5aade0');
+        grad.addColorStop(0.6, '#8ec8e8');
+        grad.addColorStop(1, '#b8dcc8');
         ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, W, H * 0.55);
+        ctx.fillRect(0, 0, W, horizonY + 5);
 
-        // Crowd / stands silhouette
-        ctx.fillStyle = '#3a5a3a';
-        const standY = H * 0.28;
+        // Crowd / stands behind goal
+        const standTop = horizonY - H * 0.18;
+        const standBot = horizonY;
+        ctx.fillStyle = '#2a5a30';
         ctx.beginPath();
-        ctx.moveTo(0, standY + 40);
-        for (let x = 0; x <= W; x += 3) {
-            const h = Math.sin(x * 0.01) * 8 + Math.sin(x * 0.03) * 4 + Math.random() * 2;
-            ctx.lineTo(x, standY + h);
+        ctx.moveTo(0, standBot);
+        for (let x = 0; x <= W; x += 4) {
+            const h = Math.sin(x * 0.012) * 6 + Math.sin(x * 0.035) * 3;
+            ctx.lineTo(x, standTop + h);
         }
-        ctx.lineTo(W, H * 0.55);
-        ctx.lineTo(0, H * 0.55);
-        ctx.fill();
+        ctx.lineTo(W, standBot);
+        ctx.closePath(); ctx.fill();
 
-        // Crowd dots
-        ctx.fillStyle = 'rgba(255,255,255,0.1)';
+        // Crowd color dots
+        ctx.globalAlpha = 0.18;
+        const colors = ['#e74c3c', '#3498db', '#f1c40f', '#fff', '#2ecc71'];
         for (let i = 0; i < 150; i++) {
-            const cx = Math.random() * W;
-            const cy = standY + Math.random() * 35;
-            ctx.fillRect(cx, cy, 2, 2);
+            const cx = (i * 173 + 47) % W;
+            const cy = standTop + 5 + (i * 71 + 13) % (standBot - standTop - 10);
+            ctx.fillStyle = colors[i % colors.length];
+            ctx.fillRect(cx, cy, 2, 3);
         }
+        ctx.globalAlpha = 1;
     }
 
     function drawField() {
-        // Green field
-        const grad = ctx.createLinearGradient(0, H * 0.5, 0, H);
-        grad.addColorStop(0, '#2d8a4e');
-        grad.addColorStop(0.3, '#27a844');
-        grad.addColorStop(1, '#1e7a38');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, H * 0.45, W, H * 0.55);
+        // Fill below horizon with grass base
+        const horizonY = project(0, 0, GOAL_DIST + 50).sy;
+        ctx.fillStyle = '#28903f';
+        ctx.fillRect(0, horizonY, W, H - horizonY);
 
-        // Field lines (perspective)
-        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-        ctx.lineWidth = 2;
-        for (let z = 0; z <= GOAL_DIST; z += 30) {
-            const left = project(-FIELD_WIDTH, 0, z);
-            const right = project(FIELD_WIDTH, 0, z);
+        // Grass with perspective stripes
+        const stripes = 14;
+        const maxZ = GOAL_DIST + 30;
+        for (let i = 0; i < stripes; i++) {
+            const z0 = (i / stripes) * maxZ;
+            const z1 = ((i + 1) / stripes) * maxZ;
+            const spread = 400;
+            const l0 = project(-spread, 0, z0), r0 = project(spread, 0, z0);
+            const l1 = project(-spread, 0, z1), r1 = project(spread, 0, z1);
+            ctx.fillStyle = i % 2 === 0 ? '#2d9e4a' : '#269040';
             ctx.beginPath();
-            ctx.moveTo(left.sx, left.sy);
-            ctx.lineTo(right.sx, right.sy);
-            ctx.stroke();
+            ctx.moveTo(l0.sx, l0.sy); ctx.lineTo(r0.sx, r0.sy);
+            ctx.lineTo(r1.sx, r1.sy); ctx.lineTo(l1.sx, l1.sy);
+            ctx.closePath(); ctx.fill();
+        }
+
+        // Subtle field lines
+        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+        ctx.lineWidth = 1;
+        for (let z = 0; z <= GOAL_DIST; z += 30) {
+            const l = project(-300, 0, z), r = project(300, 0, z);
+            ctx.beginPath(); ctx.moveTo(l.sx, l.sy); ctx.lineTo(r.sx, r.sy); ctx.stroke();
         }
     }
 
     function drawGoal() {
-        const postRadius = 3;
-        const topLeft = project(-GOAL_WIDTH / 2, GOAL_HEIGHT, GOAL_DIST);
-        const topRight = project(GOAL_WIDTH / 2, GOAL_HEIGHT, GOAL_DIST);
-        const botLeft = project(-GOAL_WIDTH / 2, 0, GOAL_DIST);
-        const botRight = project(GOAL_WIDTH / 2, 0, GOAL_DIST);
+        const tl = project(-GOAL_WIDTH / 2, GOAL_HEIGHT, GOAL_DIST);
+        const tr = project(GOAL_WIDTH / 2, GOAL_HEIGHT, GOAL_DIST);
+        const bl = project(-GOAL_WIDTH / 2, 0, GOAL_DIST);
+        const br = project(GOAL_WIDTH / 2, 0, GOAL_DIST);
 
-        // Net (back)
-        const netDepth = 20;
-        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+        // Net
+        const netD = 22;
+        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
         ctx.lineWidth = 0.5;
-        for (let i = 0; i <= 10; i++) {
-            const t = i / 10;
+        for (let i = 0; i <= 12; i++) {
+            const t = i / 12;
             const x = -GOAL_WIDTH / 2 + GOAL_WIDTH * t;
             const front = project(x, 0, GOAL_DIST);
             const top = project(x, GOAL_HEIGHT, GOAL_DIST);
-            const back = project(x, GOAL_HEIGHT * 0.8, GOAL_DIST + netDepth);
+            const back = project(x, GOAL_HEIGHT * 0.7, GOAL_DIST + netD);
+
+            // Net deformation
+            let ox = 0, oy = 0;
+            if (netHit) {
+                const ndx = x - netHit.x;
+                const falloff = Math.exp(-(ndx * ndx) / 400);
+                ox = falloff * netHit.t * 3;
+                oy = falloff * netHit.t * -2;
+            }
+
             ctx.beginPath();
             ctx.moveTo(front.sx, front.sy);
-            ctx.lineTo(top.sx, top.sy);
-            ctx.lineTo(back.sx, back.sy);
+            ctx.lineTo(top.sx + ox, top.sy + oy);
+            ctx.lineTo(back.sx + ox * 1.5, back.sy + oy * 0.5);
             ctx.stroke();
         }
-        for (let i = 0; i <= 5; i++) {
-            const t = i / 5;
+        for (let i = 0; i <= 6; i++) {
+            const t = i / 6;
             const y = GOAL_HEIGHT * t;
-            const yBack = GOAL_HEIGHT * 0.8 * t;
-            const left = project(-GOAL_WIDTH / 2, y, GOAL_DIST);
-            const right = project(GOAL_WIDTH / 2, y, GOAL_DIST);
+            const l = project(-GOAL_WIDTH / 2, y, GOAL_DIST);
+            const r = project(GOAL_WIDTH / 2, y, GOAL_DIST);
+
+            let oy = 0;
+            if (netHit) {
+                const ndy = y - netHit.y;
+                const falloff = Math.exp(-(ndy * ndy) / 300);
+                oy = falloff * netHit.t * -3;
+            }
+
             ctx.beginPath();
-            ctx.moveTo(left.sx, left.sy);
-            ctx.lineTo(right.sx, right.sy);
+            ctx.moveTo(l.sx, l.sy + oy); ctx.lineTo(r.sx, r.sy + oy);
             ctx.stroke();
         }
 
-        // Posts
+        // Net hit decay
+        if (netHit) {
+            netHit.t *= 0.95;
+            if (netHit.t < 0.01) netHit = null;
+        }
+
+        // Posts and crossbar
         ctx.strokeStyle = '#fff';
-        ctx.lineWidth = Math.max(3, topLeft.scale * postRadius);
+        ctx.lineWidth = Math.max(4, tl.sc * 3.5);
+        ctx.lineCap = 'round';
 
-        // Left post
-        ctx.beginPath();
-        ctx.moveTo(botLeft.sx, botLeft.sy);
-        ctx.lineTo(topLeft.sx, topLeft.sy);
-        ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(bl.sx, bl.sy); ctx.lineTo(tl.sx, tl.sy); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(br.sx, br.sy); ctx.lineTo(tr.sx, tr.sy); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(tl.sx, tl.sy); ctx.lineTo(tr.sx, tr.sy); ctx.stroke();
 
-        // Right post
-        ctx.beginPath();
-        ctx.moveTo(botRight.sx, botRight.sy);
-        ctx.lineTo(topRight.sx, topRight.sy);
-        ctx.stroke();
-
-        // Crossbar
-        ctx.beginPath();
-        ctx.moveTo(topLeft.sx, topLeft.sy);
-        ctx.lineTo(topRight.sx, topRight.sy);
-        ctx.stroke();
+        // Post shadows
+        ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+        ctx.lineWidth = Math.max(6, tl.sc * 5);
+        ctx.beginPath(); ctx.moveTo(bl.sx + 2, bl.sy); ctx.lineTo(tl.sx + 2, tl.sy); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(br.sx + 2, br.sy); ctx.lineTo(tr.sx + 2, tr.sy); ctx.stroke();
     }
 
     function drawWall() {
-        wallPlayers.forEach(p => {
-            const bodyHeight = 28 + p.jumpHeight;
+        // Sort by z for proper depth ordering
+        const sorted = [...wallPlayers].sort((a, b) => b.z - a.z);
+        for (const p of sorted) {
+            const bodyH = 28 + p.jumpH;
             const base = project(p.x, 0, p.z);
-            const top = project(p.x, bodyHeight, p.z);
-            const scale = base.scale;
+            const top = project(p.x, bodyH, p.z);
+            const sc = base.sc;
 
             // Shadow
-            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.fillStyle = 'rgba(0,0,0,0.15)';
             ctx.beginPath();
-            ctx.ellipse(base.sx, base.sy, 6 * scale, 2 * scale, 0, 0, Math.PI * 2);
+            ctx.ellipse(base.sx, base.sy, 7 * sc, 2 * sc, 0, 0, Math.PI * 2);
             ctx.fill();
 
-            // Body
+            const bw = 9 * sc;
+            const headR = 4.5 * sc;
+            const bodyTop = top.sy + headR;
+            const bodyBtm = base.sy;
+
+            // Legs
             ctx.fillStyle = '#1a237e';
-            const bodyW = 8 * scale;
-            const headR = 4 * scale;
-            ctx.fillRect(base.sx - bodyW / 2, top.sy + headR, bodyW, base.sy - top.sy - headR);
+            ctx.fillRect(base.sx - bw * 0.35, bodyBtm - (bodyBtm - bodyTop) * 0.08, bw * 0.25, (bodyBtm - bodyTop) * 0.08);
+            ctx.fillRect(base.sx + bw * 0.1, bodyBtm - (bodyBtm - bodyTop) * 0.08, bw * 0.25, (bodyBtm - bodyTop) * 0.08);
+
+            // Body (shirt)
+            ctx.fillStyle = '#1a237e';
+            ctx.fillRect(base.sx - bw / 2, bodyTop, bw, (bodyBtm - bodyTop) * 0.72);
 
             // Shorts
             ctx.fillStyle = '#fff';
-            const shortsTop = base.sy - (base.sy - top.sy - headR) * 0.25;
-            ctx.fillRect(base.sx - bodyW / 2, shortsTop, bodyW, (base.sy - shortsTop) * 0.5);
+            ctx.fillRect(base.sx - bw / 2, bodyTop + (bodyBtm - bodyTop) * 0.55, bw, (bodyBtm - bodyTop) * 0.17);
+
+            // Socks
+            ctx.fillStyle = '#1a237e';
 
             // Head
-            ctx.fillStyle = '#f5cba7';
+            ctx.fillStyle = '#deb887';
             ctx.beginPath();
             ctx.arc(base.sx, top.sy + headR, headR, 0, Math.PI * 2);
             ctx.fill();
 
-            // Arms covering face (wall stance)
-            ctx.fillStyle = '#f5cba7';
-            ctx.fillRect(base.sx - bodyW * 0.7, top.sy + headR * 1.5, bodyW * 1.4, headR);
-        });
+            // Hair
+            ctx.fillStyle = '#3e2723';
+            ctx.beginPath();
+            ctx.arc(base.sx, top.sy + headR * 0.5, headR * 0.85, Math.PI, 0);
+            ctx.fill();
+
+            // Arms covering face
+            ctx.fillStyle = '#deb887';
+            ctx.fillRect(base.sx - bw * 0.65, bodyTop + headR * 0.3, bw * 1.3, headR * 0.7);
+        }
     }
 
     function drawKeeper() {
         const kx = keeper.x;
         const ky = Math.max(0, keeper.y);
-        const kz = GOAL_DIST - 3;
+        const kz = GOAL_DIST - 4;
 
         const base = project(kx, 0, kz);
         const body = project(kx, 28 + ky * 0.3, kz);
-        const scale = base.scale;
-        const bodyW = 10 * scale;
-        const headR = 5 * scale;
+        const sc = base.sc;
+        const bw = 11 * sc;
+        const headR = 5.5 * sc;
 
         // Shadow
-        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
         ctx.beginPath();
-        ctx.ellipse(base.sx, base.sy, 8 * scale, 2 * scale, 0, 0, Math.PI * 2);
+        ctx.ellipse(base.sx, base.sy, 9 * sc, 2.5 * sc, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Determine dive angle
+        // Dive angle
         let angle = 0;
-        if (keeper.isDiving) {
-            const diveAmount = keeper.diveProgress;
-            angle = Math.sign(keeper.targetX) * diveAmount * 0.8;
+        if (keeper.diving) {
+            angle = Math.sign(keeper.tx) * keeper.progress * 0.7;
         }
 
         ctx.save();
         ctx.translate(base.sx, base.sy);
         ctx.rotate(angle);
 
-        // Body (jersey - different from wall)
+        const bh = base.sy - body.sy;
+
+        // Body (keeper jersey - bright)
         ctx.fillStyle = '#f39c12';
-        ctx.fillRect(-bodyW / 2, -(base.sy - body.sy), bodyW, base.sy - body.sy);
+        ctx.fillRect(-bw / 2, -bh, bw, bh * 0.72);
 
         // Shorts
         ctx.fillStyle = '#2c3e50';
-        const shortsH = (base.sy - body.sy) * 0.25;
-        ctx.fillRect(-bodyW / 2, -shortsH, bodyW, shortsH);
+        ctx.fillRect(-bw / 2, -bh * 0.28, bw, bh * 0.18);
 
         // Head
-        ctx.fillStyle = '#f5cba7';
+        ctx.fillStyle = '#deb887';
         ctx.beginPath();
-        ctx.arc(0, -(base.sy - body.sy) - headR, headR, 0, Math.PI * 2);
+        ctx.arc(0, -bh - headR, headR, 0, Math.PI * 2);
         ctx.fill();
 
-        // Gloves (arms stretched)
+        // Cap
+        ctx.fillStyle = '#f39c12';
+        ctx.beginPath();
+        ctx.arc(0, -bh - headR * 1.2, headR * 0.9, Math.PI, 0);
+        ctx.fill();
+
+        // Gloves
         ctx.fillStyle = '#e74c3c';
-        const armReach = keeper.isDiving ? keeper.diveProgress * bodyW * 2 : bodyW * 0.5;
-        ctx.fillRect(-bodyW / 2 - armReach, -(base.sy - body.sy) * 0.6, armReach + bodyW + armReach, bodyW * 0.4);
+        const armReach = keeper.diving ? keeper.progress * bw * 2 : bw * 0.4;
+        const armY = -bh * 0.55;
+        const armH = bw * 0.35;
+        ctx.beginPath();
+        ctx.roundRect(-bw / 2 - armReach, armY, armReach + bw + armReach, armH, 3);
+        ctx.fill();
 
         ctx.restore();
     }
 
+    function drawBallTrail() {
+        for (const t of ballTrail) {
+            const p = project(t.x, t.y, t.z);
+            const r = Math.max(1, BALL_R * p.sc * t.life * 0.6);
+            ctx.globalAlpha = t.life * 0.3;
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+    }
+
     function drawBallShadow() {
-        const shadow = project(ball.x, 0, ball.z);
-        const heightFade = Math.max(0.1, 1 - ball.y / 60);
-        ctx.fillStyle = `rgba(0,0,0,${0.25 * heightFade})`;
+        const sh = project(ball.x, 0, ball.z);
+        const fade = Math.max(0.05, 1 - ball.y / 60);
+        ctx.fillStyle = `rgba(0,0,0,${0.2 * fade})`;
         ctx.beginPath();
-        ctx.ellipse(shadow.sx, shadow.sy, ballRadius * shadow.scale * 1.5, ballRadius * shadow.scale * 0.5, 0, 0, Math.PI * 2);
+        ctx.ellipse(sh.sx, sh.sy, BALL_R * sh.sc * 1.8, BALL_R * sh.sc * 0.5, 0, 0, Math.PI * 2);
         ctx.fill();
     }
 
     function drawBall() {
         const p = project(ball.x, ball.y, ball.z);
-        const r = Math.max(3, ballRadius * p.scale);
+        const r = Math.max(3, BALL_R * p.sc);
 
-        // Ball
+        // White ball
         ctx.fillStyle = '#fff';
         ctx.beginPath();
         ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
         ctx.fill();
 
-        // Pentagon pattern
+        // Pentagon pattern (rotates)
         ctx.fillStyle = '#333';
+        const pAngle = ballRot;
+        const px = p.sx + Math.cos(pAngle) * r * 0.2;
+        const py = p.sy + Math.sin(pAngle) * r * 0.2;
         ctx.beginPath();
-        ctx.arc(p.sx - r * 0.15, p.sy - r * 0.1, r * 0.35, 0, Math.PI * 2);
+        ctx.arc(px, py, r * 0.32, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Secondary pentagon
+        const px2 = p.sx + Math.cos(pAngle + 2.5) * r * 0.45;
+        const py2 = p.sy + Math.sin(pAngle + 2.5) * r * 0.35;
+        ctx.beginPath();
+        ctx.arc(px2, py2, r * 0.2, 0, Math.PI * 2);
         ctx.fill();
 
         // Highlight
-        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
         ctx.beginPath();
-        ctx.arc(p.sx - r * 0.3, p.sy - r * 0.3, r * 0.25, 0, Math.PI * 2);
+        ctx.arc(p.sx - r * 0.25, p.sy - r * 0.3, r * 0.22, 0, Math.PI * 2);
         ctx.fill();
+
+        // Outline
+        ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
+        ctx.stroke();
     }
 
     function drawAim() {
-        if (!hasAim || state !== STATE.AIMING) return;
+        if (!hasAim || state !== ST.AIM) return;
 
         const p = project(aimX, aimY, GOAL_DIST);
-        const r = 12;
-
-        ctx.strokeStyle = 'rgba(255,50,50,0.8)';
-        ctx.lineWidth = 2;
+        const r = 14 + Math.sin(aimPulse) * 3;
 
         // Crosshair
+        ctx.strokeStyle = 'rgba(255,60,60,0.85)';
+        ctx.lineWidth = 2.5;
         ctx.beginPath();
         ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
         ctx.stroke();
 
         ctx.beginPath();
-        ctx.moveTo(p.sx - r - 4, p.sy);
-        ctx.lineTo(p.sx + r + 4, p.sy);
+        ctx.moveTo(p.sx - r - 5, p.sy); ctx.lineTo(p.sx - r * 0.4, p.sy);
+        ctx.moveTo(p.sx + r * 0.4, p.sy); ctx.lineTo(p.sx + r + 5, p.sy);
+        ctx.moveTo(p.sx, p.sy - r - 5); ctx.lineTo(p.sx, p.sy - r * 0.4);
+        ctx.moveTo(p.sx, p.sy + r * 0.4); ctx.lineTo(p.sx, p.sy + r + 5);
         ctx.stroke();
 
+        // Trajectory preview arc
+        ctx.setLineDash([5, 5]);
+        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.moveTo(p.sx, p.sy - r - 4);
-        ctx.lineTo(p.sx, p.sy + r + 4);
-        ctx.stroke();
-
-        // Dotted line from ball to aim
-        ctx.setLineDash([4, 4]);
-        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-        const ballProj = project(ball.x, ball.y, ball.z);
-        ctx.beginPath();
-        ctx.moveTo(ballProj.sx, ballProj.sy);
-        ctx.lineTo(p.sx, p.sy);
+        const steps = 20;
+        for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            const pz = GOAL_DIST * t;
+            const px = aimX * t;
+            const py = aimY * t + (1 - t) * t * GOAL_DIST * 0.12; // parabolic arc
+            const pt = project(px, py, pz);
+            if (i === 0) ctx.moveTo(pt.sx, pt.sy);
+            else ctx.lineTo(pt.sx, pt.sy);
+        }
         ctx.stroke();
         ctx.setLineDash([]);
     }
 
+    function drawGrass() {
+        for (const g of grassParts) {
+            const p = project(g.x, g.y, g.z);
+            ctx.globalAlpha = g.life;
+            ctx.fillStyle = '#4caf50';
+            ctx.fillRect(p.sx, p.sy, 2, 4);
+        }
+        ctx.globalAlpha = 1;
+    }
+
     function drawParticles() {
-        particles.forEach(p => {
-            const proj = project(p.x, p.y, p.z);
-            const r = Math.max(1, 2 * proj.scale * p.life);
+        for (const p of particles) {
+            const pr = project(p.x, p.y, p.z);
+            const r = Math.max(1, (p.size || 2) * pr.sc * p.life);
             ctx.globalAlpha = p.life;
             ctx.fillStyle = p.color;
-            ctx.beginPath();
-            ctx.arc(proj.sx, proj.sy, r, 0, Math.PI * 2);
-            ctx.fill();
-        });
+            if (p.confetti) {
+                ctx.save();
+                ctx.translate(pr.sx, pr.sy);
+                ctx.rotate(p.vx * p.life);
+                ctx.fillRect(-r, -r * 0.4, r * 2, r * 0.8);
+                ctx.restore();
+            } else {
+                ctx.beginPath();
+                ctx.arc(pr.sx, pr.sy, r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
         ctx.globalAlpha = 1;
     }
 
     function drawHUD() {
-        // Score
+        const tier = TIERS[Math.min(tierIdx, TIERS.length - 1)];
+
+        // Background bar
         ctx.fillStyle = 'rgba(0,0,0,0.4)';
-        ctx.fillRect(W - 160, 10, 150, 50);
+        const hw = Math.min(220, W * 0.35);
+        ctx.beginPath();
+        ctx.roundRect(W - hw - 14, 8, hw + 6, 54, 10);
+        ctx.fill();
+
         ctx.fillStyle = '#fff';
-        ctx.font = 'bold 18px Segoe UI, sans-serif';
         ctx.textAlign = 'right';
-        ctx.fillText(`Score: ${score}`, W - 20, 35);
-        ctx.font = '14px Segoe UI, sans-serif';
-        ctx.fillText(`Kick ${Math.min(kicks + 1, maxKicks)} / ${maxKicks}  |  Lvl ${level}`, W - 20, 52);
+        ctx.font = 'bold 20px Segoe UI, sans-serif';
+        ctx.fillText(`${score}`, W - 20, 33);
+
+        ctx.font = '13px Segoe UI, sans-serif';
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.fillText(`Kick ${Math.min(kickNum + (state === ST.AIM ? 1 : 0), KICKS_PER_ROUND)} / ${KICKS_PER_ROUND}  |  ${tier.name}`, W - 20, 52);
+
+        // Streak indicator
+        if (streak >= 2) {
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#f1c40f';
+            ctx.font = 'bold 14px Segoe UI, sans-serif';
+            const mult = streak >= 5 ? 'x3' : streak >= 4 ? 'x2.5' : streak >= 3 ? 'x2' : 'x1.5';
+            ctx.fillText(`${streak} streak! ${mult}`, W / 2, 28);
+        }
+
+        ctx.textAlign = 'left';
+    }
+
+    function drawWindIndicator() {
+        if (Math.abs(wind) < 0.05) return;
+
+        const wx = 70, wy = 50;
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.beginPath();
+        ctx.roundRect(wx - 30, wy - 15, 60, 30, 8);
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.font = '10px Segoe UI, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('WIND', wx, wy - 3);
+
+        // Arrow
+        const arrowLen = Math.min(20, Math.abs(wind) * 15);
+        const dir = Math.sign(wind);
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(wx - arrowLen * dir, wy + 6);
+        ctx.lineTo(wx + arrowLen * dir, wy + 6);
+        ctx.moveTo(wx + arrowLen * dir - 5 * dir, wy + 2);
+        ctx.lineTo(wx + arrowLen * dir, wy + 6);
+        ctx.lineTo(wx + arrowLen * dir - 5 * dir, wy + 10);
+        ctx.stroke();
+
         ctx.textAlign = 'left';
     }
 
     function drawSwipeHint() {
-        if (state !== STATE.AIMING || !hasAim) return;
+        if (state !== ST.AIM) return;
 
-        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        if (!hasAim) {
+            const goalCenter = project(0, GOAL_HEIGHT / 2, GOAL_DIST);
+            ctx.fillStyle = 'rgba(255,255,255,0.6)';
+            ctx.font = '17px Segoe UI, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${isTouch ? 'Tap' : 'Click'} the goal to aim!`, W / 2, goalCenter.sy + 50);
+            ctx.textAlign = 'left';
+            return;
+        }
+
+        // Kick zone indicator
+        const goalBot = project(0, 0, GOAL_DIST);
+        const kickZoneY = goalBot.sy + 40;
+        ctx.fillStyle = 'rgba(255,255,255,0.03)';
+        ctx.fillRect(0, kickZoneY, W, H - kickZoneY);
+
+        // Dashed line separator
+        ctx.setLineDash([6, 6]);
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(W * 0.2, kickZoneY); ctx.lineTo(W * 0.8, kickZoneY); ctx.stroke();
+        ctx.setLineDash([]);
+
+        const hintY = Math.min(H - 30, kickZoneY + (H - kickZoneY) * 0.6);
+        ctx.fillStyle = 'rgba(255,255,255,0.45)';
         ctx.font = '16px Segoe UI, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('Swipe up from below to kick!', W / 2, H - 40);
+        ctx.fillText('Swipe up here to kick!', W / 2, hintY);
 
-        // Arrow hint
-        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        // Arrow
+        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
         ctx.lineWidth = 2;
-        const arrowX = W / 2;
-        const arrowY = H - 70;
+        const ax = W / 2, ay = hintY - 28;
         ctx.beginPath();
-        ctx.moveTo(arrowX, arrowY + 20);
-        ctx.lineTo(arrowX, arrowY - 10);
-        ctx.moveTo(arrowX - 8, arrowY);
-        ctx.lineTo(arrowX, arrowY - 10);
-        ctx.lineTo(arrowX + 8, arrowY);
+        ctx.moveTo(ax, ay + 18); ctx.lineTo(ax, ay - 8);
+        ctx.moveTo(ax - 7, ay); ctx.lineTo(ax, ay - 8); ctx.lineTo(ax + 7, ay);
         ctx.stroke();
+
         ctx.textAlign = 'left';
     }
 
     function drawResult() {
-        const alpha = Math.min(1, resultTimer / 30);
+        if (state !== ST.RESULT || resultTimer <= 0) return;
+
+        const alpha = Math.min(1, resultTimer / 25);
         ctx.save();
         ctx.globalAlpha = alpha;
-        ctx.fillStyle = resultText === 'GOAL!' ? '#2ecc71' : '#e74c3c';
-        ctx.font = `bold ${Math.min(72, W * 0.12)}px Segoe UI, sans-serif`;
+
+        // Main text
+        const fontSize = Math.min(72, W * 0.11);
+        ctx.font = `bold ${fontSize}px Segoe UI, sans-serif`;
         ctx.textAlign = 'center';
+
+        // Scale bounce
+        const age = 100 - resultTimer;
+        const scale = age < 8 ? 0.8 + age * 0.04 : age < 15 ? 1.12 - (age - 8) * 0.017 : 1;
+
+        ctx.save();
+        ctx.translate(W / 2, H * 0.38);
+        ctx.scale(scale, scale);
+
         ctx.strokeStyle = 'rgba(0,0,0,0.5)';
         ctx.lineWidth = 4;
-        ctx.strokeText(resultText, W / 2, H * 0.4);
-        ctx.fillText(resultText, W / 2, H * 0.4);
+        ctx.strokeText(resultText, 0, 0);
+
+        ctx.fillStyle = resultIsGoal ? '#2ecc71' : resultText.includes('POST') ? '#f1c40f' : '#e74c3c';
+        ctx.fillText(resultText, 0, 0);
+
+        ctx.restore();
+
+        // Sub text
+        if (resultSub) {
+            ctx.font = `bold ${Math.min(24, W * 0.04)}px Segoe UI, sans-serif`;
+            ctx.fillStyle = resultIsGoal ? '#f1c40f' : 'rgba(255,255,255,0.8)';
+            ctx.fillText(resultSub, W / 2, H * 0.38 + fontSize * 0.6);
+        }
+
         ctx.textAlign = 'left';
         ctx.restore();
     }
 
-    // Game loop
+    // ============================================================
+    //  GAME LOOP
+    // ============================================================
     let lastTime = 0;
+    let loopRunning = false;
+
     function loop(time) {
-        const dt = Math.min(3, (time - lastTime) / 16.67);
+        const rawDt = Math.min(3, (time - lastTime) / 16.67);
         lastTime = time;
 
-        if (!gameOverShown) {
-            update(dt);
+        if (state !== ST.MENU && state !== ST.ROUND_END) {
+            update(rawDt);
             draw();
         }
         requestAnimationFrame(loop);
     }
 
-    // Start
-    startBtn.addEventListener('click', () => {
-        ensureAudio();
-        overlay.classList.add('hidden');
-        setupRound();
-        requestAnimationFrame(loop);
+    // ============================================================
+    //  START
+    // ============================================================
+    function ensureLoop() {
+        if (!loopRunning) {
+            loopRunning = true;
+            requestAnimationFrame((t) => { lastTime = t; requestAnimationFrame(loop); });
+        }
+    }
+
+    playBtn.addEventListener('click', () => {
+        startGame();
+        ensureLoop();
     });
 
 })();

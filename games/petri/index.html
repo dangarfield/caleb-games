@@ -1,0 +1,1361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Petri - Caleb's Arcade</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0a1a0a; overflow:hidden; touch-action:none; font-family:'Segoe UI',system-ui,sans-serif; }
+canvas { display:block; width:100%; height:100%; }
+#backBtn{position:fixed;top:12px;left:12px;z-index:9999;background:rgba(0,0,0,0.55);color:#fff;text-decoration:none;padding:6px 18px;border-radius:20px;font:bold 15px/1.4 'Segoe UI',system-ui,sans-serif;border:1px solid rgba(255,255,255,0.18);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:background 0.2s}
+#backBtn:hover{background:rgba(0,0,0,0.75)}
+#overlay { position:fixed; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(0,0,0,0.7); color:#fff; text-align:center; }
+#overlay h1 { font-size:clamp(2rem,8vw,4rem); margin-bottom:0.5rem; }
+#overlay .sub { font-size:clamp(1rem,3vw,1.4rem); color:#7ecf7e; margin-bottom:1.5rem; }
+#overlay .info { font-size:clamp(0.85rem,2.5vw,1.1rem); color:rgba(255,255,255,0.7); margin-bottom:2rem; max-width:500px; padding:0 1rem; line-height:1.5; }
+#overlay button { padding:14px 40px; font-size:1.3rem; border:none; border-radius:12px; background:linear-gradient(135deg,#2ecc71,#27ae60); color:#fff; cursor:pointer; font-weight:700; box-shadow:0 4px 20px rgba(46,204,113,0.4); transition:transform 0.15s; }
+#overlay button:hover { transform:scale(1.05); }
+#overlay button:active { transform:scale(0.95); }
+#finalScore { font-size:clamp(1.5rem,5vw,2.5rem); color:#2ecc71; margin-bottom:1rem; }
+.hidden { display:none !important; }
+#boostBtn { position:fixed; z-index:10; right:16px; bottom:24px; width:min(90px,13vw); height:min(90px,13vw); border-radius:50%; border:3px solid rgba(255,255,255,0.25); background:rgba(0,0,0,0.45); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); cursor:pointer; display:flex; align-items:center; justify-content:center; flex-direction:column; transition:border-color 0.2s,box-shadow 0.2s; color:#fff; font:bold 14px 'Segoe UI',system-ui,sans-serif; user-select:none; -webkit-user-select:none; }
+#boostBtn.active { border-color:#f39c12; box-shadow:0 0 20px rgba(243,156,18,0.5); }
+#boostBtn svg { width:40%; height:40%; }
+#boostBtn .label { font-size:clamp(9px,1.8vw,12px); opacity:0.7; margin-top:2px; }
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+<canvas id="c"></canvas>
+<div id="overlay">
+  <h1>Petri</h1>
+  <div class="sub">Grow. Eat. Survive the dish!</div>
+  <div class="info" style="text-align:left;">
+    Eat cells smaller than you to grow bigger!<br><br>
+    <span style="color:#e74c3c;">&#9679;</span> <b>Red hunters</b> — they're coming for you!<br>
+    <span style="color:#f39c12;">&#9679;</span> <b>Orange swarms</b> — attack in packs<br>
+    <span style="color:#8e44ad;">&#9679;</span> <b>Purple splitters</b> — they multiply!<br>
+    <span style="color:#1abc9c;">&#10038;</span> <b>Green spikes</b> — toxic, don't touch!<br><br>
+    <span style="opacity:0.6;">Move with mouse, touch or WASD<br>
+    Hold <b>Boost</b> to go fast (uses energy!)</span>
+  </div>
+  <div id="menuHighScore" style="color:rgba(255,255,255,0.5);font-size:0.9rem;margin-bottom:0.8rem;"></div>
+  <button id="startBtn">Play</button>
+</div>
+<div id="boostBtn" class="hidden">
+  <svg viewBox="0 0 24 24" fill="none" stroke="#f39c12" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+  </svg>
+  <span class="label">Boost</span>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const startBtn = document.getElementById('startBtn');
+const boostBtn = document.getElementById('boostBtn');
+
+let W, H;
+function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+resize();
+window.addEventListener('resize', resize);
+
+// --- Audio ---
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function resumeAudio() { if (audioCtx.state === 'suspended') audioCtx.resume(); }
+
+function playAbsorb(size) {
+    resumeAudio();
+    const t = audioCtx.currentTime;
+    const freq = 300 + Math.min(size, 100) * 5;
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    const f = audioCtx.createBiquadFilter();
+    o.connect(f); f.connect(g); g.connect(audioCtx.destination);
+    f.type = 'bandpass'; f.frequency.setValueAtTime(freq, t); f.Q.setValueAtTime(2, t);
+    o.type = 'sawtooth'; o.frequency.setValueAtTime(freq * 0.5, t);
+    o.frequency.exponentialRampToValueAtTime(freq * 1.5, t + 0.08);
+    g.gain.setValueAtTime(0.07, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+    o.start(t); o.stop(t + 0.15);
+}
+
+
+function playDeath() {
+    resumeAudio();
+    const t = audioCtx.currentTime;
+    [200, 160, 120, 80].forEach((freq, i) => {
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.type = 'triangle'; o.frequency.setValueAtTime(freq, t + i * 0.15);
+        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.08, t + i * 0.15);
+        g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.15 + 0.3);
+        o.start(t + i * 0.15); o.stop(t + i * 0.15 + 0.35);
+    });
+}
+
+function playLevelUp() {
+    resumeAudio();
+    const t = audioCtx.currentTime;
+    [523, 659, 784, 1047].forEach((freq, i) => {
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.type = 'sine'; o.frequency.setValueAtTime(freq, t + i * 0.1);
+        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.06, t + i * 0.1);
+        g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.1 + 0.2);
+        o.start(t + i * 0.1); o.stop(t + i * 0.1 + 0.25);
+    });
+}
+
+let dangerOsc = null, dangerGain = null, dangerActive = false;
+function startDangerPulse() {
+    if (dangerActive) return;
+    dangerActive = true;
+    resumeAudio();
+    dangerOsc = audioCtx.createOscillator();
+    dangerGain = audioCtx.createGain();
+    const lfo = audioCtx.createOscillator();
+    const lfoGain = audioCtx.createGain();
+    lfo.connect(lfoGain); lfoGain.connect(dangerGain.gain);
+    dangerOsc.connect(dangerGain); dangerGain.connect(audioCtx.destination);
+    dangerOsc.type = 'sine'; dangerOsc.frequency.setValueAtTime(55, audioCtx.currentTime);
+    dangerGain.gain.setValueAtTime(0, audioCtx.currentTime);
+    lfo.type = 'sine'; lfo.frequency.setValueAtTime(1.2, audioCtx.currentTime);
+    lfoGain.gain.setValueAtTime(0.04, audioCtx.currentTime);
+    dangerOsc.start(); lfo.start();
+}
+function stopDangerPulse() {
+    if (!dangerActive) return;
+    dangerActive = false;
+    try { dangerOsc.stop(); } catch(e) {}
+    dangerOsc = null; dangerGain = null;
+}
+
+// --- Ambient drone ---
+let ambientOsc = null, ambientGain = null;
+function startAmbient() {
+    resumeAudio();
+    if (ambientOsc) return;
+    ambientOsc = audioCtx.createOscillator();
+    ambientGain = audioCtx.createGain();
+    const f = audioCtx.createBiquadFilter();
+    ambientOsc.connect(f); f.connect(ambientGain); ambientGain.connect(audioCtx.destination);
+    ambientOsc.type = 'sawtooth'; ambientOsc.frequency.setValueAtTime(40, audioCtx.currentTime);
+    f.type = 'lowpass'; f.frequency.setValueAtTime(80, audioCtx.currentTime);
+    ambientGain.gain.setValueAtTime(0.015, audioCtx.currentTime);
+    ambientOsc.start();
+}
+function stopAmbient() {
+    if (!ambientOsc) return;
+    try { ambientOsc.stop(); } catch(e) {}
+    ambientOsc = null; ambientGain = null;
+}
+
+// --- Storage ---
+function loadArcadeData() {
+    try { return JSON.parse(localStorage.getItem('calebArcadeData')) || {}; } catch(e) { return {}; }
+}
+function getHighScore() { const d = loadArcadeData(); return (d.petri && d.petri.highScore) || 0; }
+function setHighScore(val) { const d = loadArcadeData(); if (!d.petri) d.petri = {}; d.petri.highScore = val; localStorage.setItem('calebArcadeData', JSON.stringify(d)); }
+let highScore = getHighScore();
+function updateMenuHighScore() {
+    const el = document.getElementById('menuHighScore');
+    if (el) el.textContent = highScore > 0 ? `Best: ${highScore}` : '';
+}
+updateMenuHighScore();
+
+// --- Levels ---
+const LEVELS = [
+    { name: 'Primordial Soup', targetMass: 600,   worldR: 1800, bg: '#0a1a0a', nutrients: 80,  passive: 12, fleeing: 4,  hunters: 3,  swarm: 0,  splitters: 0, toxic: 0, predators: 1, color: '#2ecc71' },
+    { name: 'Algae Bloom',     targetMass: 1200,  worldR: 2200, bg: '#0a1a1a', nutrients: 90,  passive: 15, fleeing: 6,  hunters: 5,  swarm: 8,  splitters: 0, toxic: 2, predators: 2, color: '#1abc9c' },
+    { name: 'Tide Pool',       targetMass: 2000,  worldR: 2600, bg: '#1a0a1a', nutrients: 100, passive: 18, fleeing: 10, hunters: 7,  swarm: 12, splitters: 2, toxic: 3, predators: 3, color: '#9b59b6' },
+    { name: 'Deep Water',      targetMass: 3200,  worldR: 3000, bg: '#0a0a1a', nutrients: 110, passive: 20, fleeing: 12, hunters: 10, swarm: 15, splitters: 4, toxic: 4, predators: 4, color: '#3498db' },
+    { name: 'Thermal Vent',    targetMass: 5000,  worldR: 3500, bg: '#1a0a0a', nutrients: 120, passive: 22, fleeing: 15, hunters: 12, swarm: 20, splitters: 6, toxic: 5, predators: 6, color: '#e74c3c' },
+    { name: 'Brine Lake',      targetMass: 7000,  worldR: 3800, bg: '#0a0a10', nutrients: 130, passive: 24, fleeing: 16, hunters: 14, swarm: 22, splitters: 7, toxic: 6, predators: 7, color: '#f39c12' },
+    { name: 'Coral Graveyard', targetMass: 9500,  worldR: 4200, bg: '#1a1a0a', nutrients: 140, passive: 26, fleeing: 18, hunters: 16, swarm: 25, splitters: 9, toxic: 7, predators: 9, color: '#d35400' },
+    { name: 'Midnight Zone',   targetMass: 12000, worldR: 4500, bg: '#050508', nutrients: 150, passive: 28, fleeing: 20, hunters: 18, swarm: 28, splitters: 10, toxic: 8, predators: 11, color: '#2c3e50' },
+    { name: 'Hydra Colony',    targetMass: 16000, worldR: 5000, bg: '#100a1a', nutrients: 160, passive: 30, fleeing: 22, hunters: 20, swarm: 30, splitters: 12, toxic: 9, predators: 13, color: '#8e44ad' },
+    { name: 'The Abyss',       targetMass: 20000, worldR: 5500, bg: '#050510', nutrients: 170, passive: 32, fleeing: 24, hunters: 22, swarm: 35, splitters: 14, toxic: 10, predators: 16, color: '#e056a0' },
+];
+
+// --- Game State ---
+const WORLD_R = 2000;
+let cells = [];
+let player = null;
+let playerParts = []; // split parts
+let camera = { x: 0, y: 0, zoom: 1 };
+let gameRunning = false;
+let gameOver = false;
+let currentLevel = 0;
+let ticks = 0;
+let mouseX = W / 2, mouseY = H / 2;
+let particles = [];
+let bgParticles = [];
+let levelUpNotif = null;
+let demoMode = false;
+
+// --- Helpers ---
+function massToRadius(mass) { return Math.sqrt(mass) * 1.8; }
+function radiusToMass(r) { return (r / 1.8) * (r / 1.8); }
+function dist(a, b) { return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2); }
+function rng(min, max) { return min + Math.random() * (max - min); }
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function lerpV(a, b, t) { return a + (b - a) * t; }
+
+function lerpColor(a, b, t) {
+    const ah = parseInt(a.slice(1), 16), bh = parseInt(b.slice(1), 16);
+    const ar = ah >> 16, ag = (ah >> 8) & 0xff, ab2 = ah & 0xff;
+    const br = bh >> 16, bg2 = (bh >> 8) & 0xff, bb = bh & 0xff;
+    const r = Math.round(ar + (br - ar) * t), g = Math.round(ag + (bg2 - ag) * t), b2 = Math.round(ab2 + (bb - ab2) * t);
+    return '#' + ((1 << 24) + (r << 16) + (g << 8) + b2).toString(16).slice(1);
+}
+
+// --- Cell types ---
+// Types: nutrient, passive, fleeing, hunter, swarm, splitter, toxic, predator
+function createCell(x, y, mass, type, color) {
+    return {
+        x, y, vx: 0, vy: 0,
+        mass,
+        type,
+        color: color || '#2ecc71',
+        wobblePhase: Math.random() * Math.PI * 2,
+        wobbleSpeed: 0.02 + Math.random() * 0.02,
+        alive: true,
+        nucleusOff: { x: (Math.random() - 0.5) * 0.3, y: (Math.random() - 0.5) * 0.3 },
+        organelles: Array.from({length: Math.floor(Math.random() * 3) + 1}, () => ({
+            angle: Math.random() * Math.PI * 2,
+            dist: 0.3 + Math.random() * 0.35,
+            r: 0.1 + Math.random() * 0.12,
+            phase: Math.random() * Math.PI * 2
+        })),
+        splitTimer: 0,
+        fleeDist: 0,
+        aiTimer: Math.floor(Math.random() * 120), // for periodic AI decisions
+        targetCell: null, // for hunters
+        aggroRange: 0,
+        spikes: type === 'toxic' ? Math.floor(Math.random() * 4) + 5 : 0,
+    };
+}
+
+function getLevel() { return LEVELS[Math.min(currentLevel, LEVELS.length - 1)]; }
+
+function rndPos(worldR, minR) {
+    const angle = Math.random() * Math.PI * 2;
+    const r = (minR || 0) + Math.random() * (worldR - (minR || 0));
+    return { x: Math.cos(angle) * r, y: Math.sin(angle) * r };
+}
+
+function spawnNutrient(lvl, worldR) {
+    const p = rndPos(worldR, 0);
+    const colors = ['#7ecf7e','#5dade2','#f7dc6f','#f0b27a','#d7bde2','#82e0aa'];
+    return createCell(p.x, p.y, 5 + Math.random() * 15, 'nutrient',
+        colors[Math.floor(Math.random() * colors.length)]);
+}
+
+function spawnPassive(lvl, worldR) {
+    const p = rndPos(worldR, 200);
+    const colors = ['#58d68d','#45b39d','#5499c7','#af7ac5'];
+    const c = createCell(p.x, p.y, 30 + Math.random() * 60, 'passive',
+        colors[Math.floor(Math.random() * colors.length)]);
+    c.vx = rng(-0.3, 0.3); c.vy = rng(-0.3, 0.3);
+    return c;
+}
+
+function spawnFleeing(lvl, worldR) {
+    const p = rndPos(worldR, 300);
+    const colors = ['#f9e79f','#f5cba7','#fadbd8','#d5f5e3'];
+    const c = createCell(p.x, p.y, 20 + Math.random() * 50, 'fleeing',
+        colors[Math.floor(Math.random() * colors.length)]);
+    c.fleeDist = 250 + Math.random() * 200;
+    return c;
+}
+
+// Hunters: fast, aggressive, actively seek prey (including player)
+function spawnHunter(lvl, worldR, playerMass) {
+    const p = rndPos(worldR, 400);
+    const mass = Math.max(60, playerMass * (0.6 + Math.random() * 0.8));
+    const colors = ['#e74c3c','#c0392b','#d35400'];
+    const c = createCell(p.x, p.y, mass, 'hunter',
+        colors[Math.floor(Math.random() * colors.length)]);
+    c.aggroRange = 500 + Math.random() * 300;
+    return c;
+}
+
+// Swarmers: small, fast, move in packs toward food
+function spawnSwarm(lvl, worldR) {
+    const p = rndPos(worldR, 200);
+    const colors = ['#f39c12','#e67e22','#d4ac0d'];
+    const c = createCell(p.x, p.y, 15 + Math.random() * 25, 'swarm',
+        colors[Math.floor(Math.random() * colors.length)]);
+    c.aggroRange = 300;
+    return c;
+}
+
+// Splitters: periodically split into two, aggressive
+function spawnSplitter(lvl, worldR, playerMass) {
+    const p = rndPos(worldR, 400);
+    const mass = Math.max(80, playerMass * (0.5 + Math.random() * 0.6));
+    const c = createCell(p.x, p.y, mass, 'splitter', '#8e44ad');
+    c.aiTimer = 200 + Math.floor(Math.random() * 300);
+    c.aggroRange = 450;
+    return c;
+}
+
+// Toxic: can't be eaten, damages you on contact, wanders
+function spawnToxic(lvl, worldR) {
+    const p = rndPos(worldR, 300);
+    const c = createCell(p.x, p.y, 40 + Math.random() * 80, 'toxic', '#1abc9c');
+    c.vx = rng(-0.2, 0.2); c.vy = rng(-0.2, 0.2);
+    return c;
+}
+
+// Predator: large, slow, but relentless
+function spawnPredator(lvl, worldR, playerMass) {
+    const p = rndPos(worldR, 500);
+    const mass = Math.max(200, playerMass * (1.3 + Math.random() * 1.0));
+    const colors = ['#a93226','#7b241c','#641e16'];
+    const c = createCell(p.x, p.y, mass, 'predator',
+        colors[Math.floor(Math.random() * colors.length)]);
+    c.aggroRange = 700;
+    return c;
+}
+
+function populateWorld() {
+    cells = [];
+    const lvl = getLevel();
+    const worldR = lvl.worldR;
+    for (let i = 0; i < lvl.nutrients; i++) cells.push(spawnNutrient(lvl, worldR));
+    for (let i = 0; i < lvl.passive; i++) cells.push(spawnPassive(lvl, worldR));
+    for (let i = 0; i < lvl.fleeing; i++) cells.push(spawnFleeing(lvl, worldR));
+    for (let i = 0; i < (lvl.hunters || 0); i++) cells.push(spawnHunter(lvl, worldR, 50));
+    for (let i = 0; i < (lvl.swarm || 0); i++) cells.push(spawnSwarm(lvl, worldR));
+    for (let i = 0; i < (lvl.splitters || 0); i++) cells.push(spawnSplitter(lvl, worldR, 50));
+    for (let i = 0; i < (lvl.toxic || 0); i++) cells.push(spawnToxic(lvl, worldR));
+    for (let i = 0; i < lvl.predators; i++) cells.push(spawnPredator(lvl, worldR, 50));
+}
+
+function initBgParticles(worldR) {
+    bgParticles = [];
+    for (let i = 0; i < 200; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const r = Math.random() * worldR;
+        bgParticles.push({
+            x: Math.cos(a) * r, y: Math.sin(a) * r,
+            r: 0.5 + Math.random() * 2,
+            alpha: 0.1 + Math.random() * 0.2,
+            vx: rng(-0.1, 0.1), vy: rng(-0.1, 0.1),
+            twinkle: Math.random() * Math.PI * 2
+        });
+    }
+}
+
+// --- Init ---
+function initGame() {
+    const lvl = getLevel();
+    player = createCell(0, 0, 50, 'player', lvl.color);
+    playerParts = [player];
+    populateWorld();
+    initBgParticles(lvl.worldR);
+    camera = { x: 0, y: 0, zoom: 1 };
+    gameRunning = true;
+    gameOver = false;
+    ticks = 0;
+    particles = [];
+    levelUpNotif = null;
+    demoMode = false;
+    boosting = false;
+    boostBtn.classList.remove('hidden', 'active');
+    startAmbient();
+}
+
+function initDemo() {
+    currentLevel = 0;
+    const lvl = getLevel();
+    player = createCell(0, 0, 50, 'player', lvl.color);
+    playerParts = [player];
+    populateWorld();
+    initBgParticles(lvl.worldR);
+    camera = { x: 0, y: 0, zoom: 1 };
+    gameRunning = true;
+    gameOver = false;
+    ticks = 0;
+    particles = [];
+    levelUpNotif = null;
+    demoMode = true;
+    boosting = false;
+    boostBtn.classList.add('hidden');
+}
+
+// --- Player movement ---
+function getPlayerCenter() {
+    if (playerParts.length === 0) return { x: 0, y: 0 };
+    let tx = 0, ty = 0, tm = 0;
+    for (const p of playerParts) { tx += p.x * p.mass; ty += p.y * p.mass; tm += p.mass; }
+    return { x: tx / tm, y: ty / tm };
+}
+
+function getPlayerTotalMass() {
+    let m = 0;
+    for (const p of playerParts) m += p.mass;
+    return m;
+}
+
+let boosting = false;
+
+function movePlayerPart(part, tx, ty, dt) {
+    const dx = tx - part.x, dy = ty - part.y;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    if (d < 1) return;
+    // Gentler size penalty: speed goes from 5 down to ~2.5 at very large sizes
+    const speed = Math.max(2.5, 5.5 - massToRadius(part.mass) * 0.012);
+    const boostMult = boosting ? 1.8 : 1;
+    const force = Math.min(d, speed * boostMult) / d;
+    part.vx += dx * force * 0.06;
+    part.vy += dy * force * 0.06;
+}
+
+
+// --- Spawn particles ---
+function spawnAbsorbParticles(x, y, color, count) {
+    for (let i = 0; i < count; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const spd = 0.5 + Math.random() * 2;
+        particles.push({
+            x, y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
+            life: 1, decay: 0.02 + Math.random() * 0.03,
+            color, r: 1 + Math.random() * 3
+        });
+    }
+}
+
+// --- Spatial grid ---
+function buildGrid(allCells, cellSize) {
+    const grid = {};
+    for (const c of allCells) {
+        if (!c.alive) continue;
+        const gx = Math.floor(c.x / cellSize);
+        const gy = Math.floor(c.y / cellSize);
+        const key = gx + ',' + gy;
+        if (!grid[key]) grid[key] = [];
+        grid[key].push(c);
+    }
+    return grid;
+}
+
+function getNearby(grid, x, y, cellSize) {
+    const gx = Math.floor(x / cellSize);
+    const gy = Math.floor(y / cellSize);
+    const result = [];
+    for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+            const key = (gx + dx) + ',' + (gy + dy);
+            if (grid[key]) result.push(...grid[key]);
+        }
+    }
+    return result;
+}
+
+// --- Update ---
+function update() {
+    ticks++;
+    const lvl = getLevel();
+    const worldR = lvl.worldR;
+    const dt = 1;
+
+    // Update particles
+    particles = particles.filter(p => {
+        p.x += p.vx; p.y += p.vy; p.vx *= 0.97; p.vy *= 0.97; p.life -= p.decay;
+        return p.life > 0;
+    });
+
+    // Level up notification
+    if (levelUpNotif) {
+        levelUpNotif.t++;
+        if (levelUpNotif.t >= levelUpNotif.duration) levelUpNotif = null;
+    }
+
+    if (!gameRunning) return;
+
+    // Background particles drift
+    for (const p of bgParticles) {
+        p.x += p.vx; p.y += p.vy;
+        p.twinkle += 0.02;
+        const d = Math.sqrt(p.x * p.x + p.y * p.y);
+        if (d > worldR) { p.x *= 0.99; p.y *= 0.99; }
+    }
+
+    // --- Player movement ---
+    if (!gameOver) {
+        let tx, ty;
+        if (demoMode) {
+            // AI: move toward nearest edible cell
+            const center = getPlayerCenter();
+            const totalMass = getPlayerTotalMass();
+            let bestTarget = null, bestDist = Infinity;
+            for (const c of cells) {
+                if (!c.alive || c.mass >= totalMass * 0.8) continue;
+                const d = dist(center, c);
+                const value = c.mass / (d + 1);
+                if (value > (bestTarget ? bestTarget.mass / (bestDist + 1) : 0)) {
+                    bestTarget = c; bestDist = d;
+                }
+            }
+            if (bestTarget) { tx = bestTarget.x; ty = bestTarget.y; }
+            else { tx = center.x; ty = center.y; }
+        } else if (inputMode === 'keyboard') {
+            const center = getPlayerCenter();
+            const kSpeed = 300;
+            let kx = 0, ky = 0;
+            if (keys.up) ky -= 1;
+            if (keys.down) ky += 1;
+            if (keys.left) kx -= 1;
+            if (keys.right) kx += 1;
+            const kLen = Math.sqrt(kx * kx + ky * ky) || 1;
+            tx = center.x + (kx / kLen) * kSpeed;
+            ty = center.y + (ky / kLen) * kSpeed;
+            if (!keys.up && !keys.down && !keys.left && !keys.right) {
+                tx = center.x; ty = center.y;
+            }
+        } else if (inputMode === 'touch') {
+            const center = getPlayerCenter();
+            if (joystick.active && (Math.abs(joystick.dx) > 0.05 || Math.abs(joystick.dy) > 0.05)) {
+                const jSpeed = 400;
+                tx = center.x + joystick.dx * jSpeed;
+                ty = center.y + joystick.dy * jSpeed;
+            } else {
+                tx = center.x; ty = center.y; // stop when not touching
+            }
+        } else {
+            tx = (mouseX - W / 2) / camera.zoom + camera.x;
+            ty = (mouseY - H / 2) / camera.zoom + camera.y;
+        }
+
+        for (const part of playerParts) {
+            movePlayerPart(part, tx, ty, dt);
+        }
+    }
+
+    // --- Physics for all ---
+    const allMoving = [...playerParts, ...cells.filter(c => c.alive)];
+    for (const c of allMoving) {
+        c.x += c.vx; c.y += c.vy;
+        c.vx *= 0.92; c.vy *= 0.92;
+        c.wobblePhase += c.wobbleSpeed;
+
+        // World boundary
+        const d = Math.sqrt(c.x * c.x + c.y * c.y);
+        const r = massToRadius(c.mass);
+        if (d + r > worldR) {
+            const angle = Math.atan2(c.y, c.x);
+            c.x = Math.cos(angle) * (worldR - r);
+            c.y = Math.sin(angle) * (worldR - r);
+            c.vx *= -0.3; c.vy *= -0.3;
+        }
+    }
+
+    // --- AI behavior ---
+    const playerCenter = getPlayerCenter();
+    const totalPlayerMass = getPlayerTotalMass();
+
+    // Helper: steer toward a point
+    function steerToward(c, tx, ty, strength) {
+        const dx = tx - c.x, dy = ty - c.y;
+        const dn = Math.sqrt(dx * dx + dy * dy) || 1;
+        c.vx += (dx / dn) * strength;
+        c.vy += (dy / dn) * strength;
+    }
+    function steerAway(c, tx, ty, strength) {
+        const dx = c.x - tx, dy = c.y - ty;
+        const dn = Math.sqrt(dx * dx + dy * dy) || 1;
+        c.vx += (dx / dn) * strength;
+        c.vy += (dy / dn) * strength;
+    }
+
+    for (const c of cells) {
+        if (!c.alive) continue;
+        c.aiTimer++;
+
+        if (c.type === 'passive') {
+            if (Math.random() < 0.01) { c.vx += rng(-0.15, 0.15); c.vy += rng(-0.15, 0.15); }
+        }
+        else if (c.type === 'fleeing') {
+            // Flee from anything bigger nearby (player AND other cells)
+            const dp = dist(c, playerCenter);
+            if (dp < c.fleeDist && totalPlayerMass > c.mass * 1.2) {
+                steerAway(c, playerCenter.x, playerCenter.y, 0.35);
+            }
+            // Also flee from hunters/predators
+            for (const other of cells) {
+                if (other === c || !other.alive) continue;
+                if ((other.type === 'hunter' || other.type === 'predator') && other.mass > c.mass) {
+                    const d2 = dist(c, other);
+                    if (d2 < 200) steerAway(c, other.x, other.y, 0.2);
+                }
+            }
+            if (Math.random() < 0.005) { c.vx += rng(-0.2, 0.2); c.vy += rng(-0.2, 0.2); }
+        }
+        else if (c.type === 'hunter') {
+            // Aggressive: chase anything edible — player or other cells
+            const dp = dist(c, playerCenter);
+            let chasing = false;
+
+            // Prioritize player if edible and in range
+            if (c.mass > totalPlayerMass * 0.9 && dp < c.aggroRange) {
+                steerToward(c, playerCenter.x, playerCenter.y, 0.15);
+                chasing = true;
+            }
+            // Also hunt other cells for food
+            if (!chasing && c.aiTimer % 30 === 0) {
+                let best = null, bestVal = 0;
+                for (const other of cells) {
+                    if (other === c || !other.alive || other.type === 'toxic') continue;
+                    if (c.mass > other.mass * 1.3) {
+                        const d2 = dist(c, other);
+                        if (d2 < c.aggroRange) {
+                            const val = other.mass / (d2 + 1);
+                            if (val > bestVal) { best = other; bestVal = val; }
+                        }
+                    }
+                }
+                c.targetCell = best;
+            }
+            if (!chasing && c.targetCell && c.targetCell.alive) {
+                steerToward(c, c.targetCell.x, c.targetCell.y, 0.2);
+            } else if (!chasing) {
+                if (Math.random() < 0.01) { c.vx += rng(-0.3, 0.3); c.vy += rng(-0.3, 0.3); }
+            }
+            // Flee from bigger things
+            if (totalPlayerMass > c.mass * 1.5 && dp < 300) {
+                steerAway(c, playerCenter.x, playerCenter.y, 0.15);
+            }
+            // Eat on contact
+            for (const other of cells) {
+                if (other === c || !other.alive || other.type === 'toxic') continue;
+                if (c.mass > other.mass * 1.2) {
+                    const d2 = dist(c, other);
+                    const rSum = massToRadius(c.mass) + massToRadius(other.mass);
+                    if (d2 < rSum * 0.85) {
+                        c.mass += other.mass * 0.6;
+                        other.alive = false;
+                        spawnAbsorbParticles(other.x, other.y, other.color, 4);
+                    }
+                }
+            }
+        }
+        else if (c.type === 'swarm') {
+            // Move in packs: flock toward nearby swarm cells, chase small food
+            let flockX = 0, flockY = 0, flockN = 0;
+            for (const other of cells) {
+                if (other === c || !other.alive || other.type !== 'swarm') continue;
+                const d2 = dist(c, other);
+                if (d2 < 250) { flockX += other.x; flockY += other.y; flockN++; }
+            }
+            if (flockN > 0) {
+                steerToward(c, flockX / flockN, flockY / flockN, 0.05); // cohesion
+            }
+            // Chase nearby small food (nutrients, fleeing)
+            const dp = dist(c, playerCenter);
+            if (totalPlayerMass < c.mass * 3 && dp < c.aggroRange) {
+                // Swarm the player if in a pack and player is small enough
+                if (flockN >= 2) steerToward(c, playerCenter.x, playerCenter.y, 0.12);
+            }
+            // Find food
+            if (c.aiTimer % 20 === 0) {
+                let best = null, bestD = Infinity;
+                for (const other of cells) {
+                    if (other === c || !other.alive || other.type === 'toxic' || other.type === 'swarm') continue;
+                    if (c.mass > other.mass * 1.1) {
+                        const d2 = dist(c, other);
+                        if (d2 < 300 && d2 < bestD) { best = other; bestD = d2; }
+                    }
+                }
+                c.targetCell = best;
+            }
+            if (c.targetCell && c.targetCell.alive) steerToward(c, c.targetCell.x, c.targetCell.y, 0.15);
+            else if (Math.random() < 0.02) { c.vx += rng(-0.3, 0.3); c.vy += rng(-0.3, 0.3); }
+            // Eat on contact
+            for (const other of cells) {
+                if (other === c || !other.alive || other.type === 'toxic' || other.type === 'swarm') continue;
+                if (c.mass > other.mass * 1.1) {
+                    const d2 = dist(c, other);
+                    if (d2 < (massToRadius(c.mass) + massToRadius(other.mass)) * 0.85) {
+                        c.mass += other.mass * 0.5;
+                        other.alive = false;
+                    }
+                }
+            }
+            // Flee from very large things
+            if (totalPlayerMass > c.mass * 2 && dp < 200) steerAway(c, playerCenter.x, playerCenter.y, 0.2);
+        }
+        else if (c.type === 'splitter') {
+            // Chase player or food, periodically split
+            const dp = dist(c, playerCenter);
+            if (c.mass > totalPlayerMass * 0.8 && dp < c.aggroRange) {
+                steerToward(c, playerCenter.x, playerCenter.y, 0.18);
+            } else if (c.mass < totalPlayerMass * 0.5 && dp < 300) {
+                steerAway(c, playerCenter.x, playerCenter.y, 0.15);
+            } else {
+                if (Math.random() < 0.008) { c.vx += rng(-0.25, 0.25); c.vy += rng(-0.25, 0.25); }
+            }
+            // Split periodically
+            if (c.aiTimer > 400 && c.mass > 60) {
+                c.aiTimer = 0;
+                const half = c.mass / 2;
+                c.mass = half;
+                const a = Math.random() * Math.PI * 2;
+                const pushR = massToRadius(half) * 2;
+                const baby = createCell(c.x + Math.cos(a) * pushR, c.y + Math.sin(a) * pushR, half, 'splitter', c.color);
+                baby.vx = Math.cos(a) * 3; baby.vy = Math.sin(a) * 3;
+                baby.aggroRange = c.aggroRange;
+                cells.push(baby);
+            }
+            // Eat on contact
+            for (const other of cells) {
+                if (other === c || !other.alive || other.type === 'toxic') continue;
+                if (c.mass > other.mass * 1.2) {
+                    const d2 = dist(c, other);
+                    if (d2 < (massToRadius(c.mass) + massToRadius(other.mass)) * 0.85) {
+                        c.mass += other.mass * 0.5;
+                        other.alive = false;
+                        spawnAbsorbParticles(other.x, other.y, other.color, 3);
+                    }
+                }
+            }
+        }
+        else if (c.type === 'toxic') {
+            // Wander, can't be eaten, damages on contact
+            if (Math.random() < 0.008) { c.vx += rng(-0.15, 0.15); c.vy += rng(-0.15, 0.15); }
+        }
+        else if (c.type === 'predator') {
+            // Large, slow, relentless pursuit
+            const dp = dist(c, playerCenter);
+            if (dp < c.aggroRange) {
+                // Always move toward player — predators are relentless
+                const speed = Math.max(0.08, 0.18 - massToRadius(c.mass) * 0.0003);
+                steerToward(c, playerCenter.x, playerCenter.y, speed);
+            } else {
+                if (Math.random() < 0.005) { c.vx += rng(-0.15, 0.15); c.vy += rng(-0.15, 0.15); }
+            }
+            // Eat everything on contact
+            for (const other of cells) {
+                if (other === c || !other.alive || other.type === 'toxic') continue;
+                if (c.mass > other.mass * 1.1) {
+                    const d2 = dist(c, other);
+                    const rSum = massToRadius(c.mass) + massToRadius(other.mass);
+                    if (d2 < rSum * 0.85) {
+                        c.mass += other.mass * 0.4;
+                        other.alive = false;
+                        spawnAbsorbParticles(other.x, other.y, other.color, 4);
+                    }
+                }
+            }
+        }
+    }
+
+    // --- Collision: player eats / gets eaten ---
+    const gridSize = 150;
+    const grid = buildGrid(cells.filter(c => c.alive), gridSize);
+
+    let nearDanger = false;
+    for (const part of playerParts) {
+        const nearby = getNearby(grid, part.x, part.y, gridSize);
+        for (const c of nearby) {
+            if (!c.alive) continue;
+            const d2 = dist(part, c);
+            const pr = massToRadius(part.mass);
+            const cr = massToRadius(c.mass);
+
+            // Check if close enough
+            if (d2 < (pr + cr) * 0.85) {
+                if (c.type === 'toxic') {
+                    // Toxic: damages player, can't be eaten
+                    part.mass *= 0.85;
+                    c.x += (c.x - part.x) * 0.3; c.y += (c.y - part.y) * 0.3;
+                    spawnAbsorbParticles(part.x, part.y, '#1abc9c', 8);
+                    if (!demoMode && part.mass < 20) {
+                        part.alive = false;
+                        playerParts = playerParts.filter(p => p !== part);
+                        if (playerParts.length === 0) {
+                            playDeath(); gameRunning = false; gameOver = true;
+                            stopAmbient(); stopDangerPulse();
+                            setTimeout(() => showGameOver(), 1500);
+                        } else player = playerParts[0];
+                    }
+                } else if (part.mass > c.mass * 1.15) {
+                    // Eat it
+                    const gained = c.mass * 0.7;
+                    part.mass += gained;
+                    c.alive = false;
+                    if (!demoMode) playAbsorb(c.mass);
+                    spawnAbsorbParticles(c.x, c.y, c.color, Math.min(8, Math.ceil(c.mass / 5)));
+                } else if (c.mass > part.mass * 1.15) {
+                    // Get eaten
+                    if (!demoMode) {
+                        c.mass += part.mass * 0.5;
+                        part.alive = false;
+                        playerParts = playerParts.filter(p => p !== part);
+                        spawnAbsorbParticles(part.x, part.y, part.color, 20);
+                        if (playerParts.length === 0) {
+                            playDeath();
+                            gameRunning = false;
+                            gameOver = true;
+                            stopAmbient();
+                            stopDangerPulse();
+                                                    setTimeout(() => showGameOver(), 1500);
+                        } else {
+                            player = playerParts[0];
+                        }
+                    } else {
+                        // Demo: restart
+                        setTimeout(() => { if (demoMode) initDemo(); }, 800);
+                        gameRunning = false;
+                        return;
+                    }
+                }
+            }
+
+            // Danger detection
+            if (c.type !== 'nutrient' && c.mass > part.mass * 1.1 && d2 < 350) nearDanger = true;
+            if (c.type === 'toxic' && d2 < 200) nearDanger = true;
+        }
+    }
+
+    if (nearDanger && !demoMode) startDangerPulse();
+    else stopDangerPulse();
+
+    // Passive mass loss
+    if (!gameOver && !demoMode && ticks % 60 === 0) {
+        for (const part of playerParts) {
+            if (part.mass > 55) part.mass *= 0.998;
+        }
+    }
+
+    // Boost mass drain — costs mass every few frames while held
+    if (boosting && !gameOver && !demoMode) {
+        for (const part of playerParts) {
+            if (part.mass > 30) {
+                part.mass *= 0.997;
+                // Trail particles while boosting
+                if (ticks % 3 === 0) {
+                    spawnAbsorbParticles(part.x, part.y, '#f39c12', 1);
+                }
+            } else {
+                boosting = false;
+                boostBtn.classList.remove('active');
+            }
+        }
+    }
+
+    // --- Respawn cells ---
+    const aliveCount = { nutrient: 0, passive: 0, fleeing: 0, hunter: 0, swarm: 0, splitter: 0, toxic: 0, predator: 0 };
+    cells = cells.filter(c => c.alive);
+    for (const c of cells) if (aliveCount[c.type] !== undefined) aliveCount[c.type]++;
+
+    if (aliveCount.nutrient < lvl.nutrients) cells.push(spawnNutrient(lvl, worldR));
+    if (aliveCount.passive < lvl.passive && Math.random() < 0.02) cells.push(spawnPassive(lvl, worldR));
+    if (aliveCount.fleeing < lvl.fleeing && Math.random() < 0.01) cells.push(spawnFleeing(lvl, worldR));
+    if (aliveCount.hunter < (lvl.hunters || 0) && Math.random() < 0.008) cells.push(spawnHunter(lvl, worldR, totalPlayerMass));
+    if (aliveCount.swarm < (lvl.swarm || 0) && Math.random() < 0.015) cells.push(spawnSwarm(lvl, worldR));
+    if (aliveCount.splitter < (lvl.splitters || 0) && Math.random() < 0.005) cells.push(spawnSplitter(lvl, worldR, totalPlayerMass));
+    if (aliveCount.toxic < (lvl.toxic || 0) && Math.random() < 0.003) cells.push(spawnToxic(lvl, worldR));
+    if (aliveCount.predator < lvl.predators && Math.random() < 0.004) cells.push(spawnPredator(lvl, worldR, totalPlayerMass));
+
+    // --- Level complete check ---
+    if (!gameOver && !demoMode && totalPlayerMass >= lvl.targetMass) {
+        if (currentLevel < LEVELS.length - 1) {
+            currentLevel++;
+            const newLvl = getLevel();
+            levelUpNotif = { text: `Level ${currentLevel + 1}`, subtext: newLvl.name, t: 0, duration: 150 };
+            playLevelUp();
+            // Expand world, add more cells
+            populateWorld();
+            initBgParticles(newLvl.worldR);
+            // Update player color
+            for (const part of playerParts) part.color = newLvl.color;
+        } else {
+            // Won the game
+            gameRunning = false;
+            gameOver = true;
+            stopAmbient();
+            stopDangerPulse();
+            const totalScore = Math.floor(totalPlayerMass);
+            if (totalScore > highScore) { highScore = totalScore; setHighScore(highScore); }
+            setTimeout(() => showWin(), 1000);
+        }
+    }
+
+    // --- Camera ---
+    const center = getPlayerCenter();
+    const totalMass = getPlayerTotalMass();
+    const targetZoom = clamp(30 / (massToRadius(totalMass) + 10), 0.15, 1.2);
+    camera.zoom += (targetZoom - camera.zoom) * 0.03;
+    camera.x += (center.x - camera.x) * 0.08;
+    camera.y += (center.y - camera.y) * 0.08;
+}
+
+// --- Drawing ---
+function worldToScreen(wx, wy) {
+    return {
+        x: (wx - camera.x) * camera.zoom + W / 2,
+        y: (wy - camera.y) * camera.zoom + H / 2
+    };
+}
+
+function drawCell(cell, isPlayer) {
+    const r = massToRadius(cell.mass);
+    const sr = r * camera.zoom;
+    if (sr < 0.5) return;
+
+    const pos = worldToScreen(cell.x, cell.y);
+    // Cull offscreen
+    if (pos.x + sr < -50 || pos.x - sr > W + 50 || pos.y + sr < -50 || pos.y - sr > H + 50) return;
+
+    const wobbleAmt = isPlayer ? 0.04 : 0.06;
+    const isThreat = cell.type === 'hunter' || cell.type === 'predator' || cell.type === 'splitter';
+    const isToxic = cell.type === 'toxic';
+
+    ctx.save();
+    ctx.translate(pos.x, pos.y);
+
+    // Threat glow
+    if (isThreat && sr > 6) {
+        ctx.shadowColor = cell.color;
+        ctx.shadowBlur = sr * 0.4;
+    }
+
+    // Draw blobby shape (or spiky for toxic)
+    ctx.beginPath();
+    const points = isToxic ? cell.spikes * 2 : 32;
+    for (let i = 0; i <= points; i++) {
+        const a = (i / points) * Math.PI * 2;
+        let wr;
+        if (isToxic) {
+            // Spiky shape
+            const spike = i % 2 === 0 ? 1.35 : 0.75;
+            wr = sr * spike * (1 + Math.sin(cell.wobblePhase) * 0.05);
+        } else {
+            const wobble = 1 + Math.sin(a * 3 + cell.wobblePhase) * wobbleAmt
+                             + Math.sin(a * 5 - cell.wobblePhase * 0.7) * wobbleAmt * 0.5;
+            wr = sr * wobble;
+        }
+        const px = Math.cos(a) * wr, py = Math.sin(a) * wr;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+
+    // Fill
+    const alpha = isPlayer ? 0.55 : isThreat ? 0.5 : isToxic ? 0.35 : (cell.type === 'nutrient' ? 0.4 : 0.45);
+    ctx.fillStyle = cell.color + Math.floor(alpha * 255).toString(16).padStart(2, '0');
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Inner glow
+    if (sr > 5) {
+        const innerGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, sr);
+        innerGrad.addColorStop(0, cell.color + '40');
+        innerGrad.addColorStop(0.7, cell.color + '10');
+        innerGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = innerGrad;
+        ctx.fill();
+    }
+
+    // Membrane
+    const memAlpha = isPlayer ? 'cc' : isThreat ? 'bb' : isToxic ? '99' : '88';
+    ctx.strokeStyle = cell.color + memAlpha;
+    ctx.lineWidth = isPlayer ? 3 : isThreat ? clamp(sr * 0.1, 1.5, 4) : clamp(sr * 0.08, 1, 3);
+    ctx.stroke();
+
+    // Predator/hunter: extra inner ring for menacing look
+    if (isThreat && sr > 10) {
+        ctx.beginPath(); ctx.arc(0, 0, sr * 0.7, 0, Math.PI * 2);
+        ctx.strokeStyle = cell.color + '33';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+    }
+
+    // Nucleus
+    if (sr > 8) {
+        const nx = cell.nucleusOff.x * sr, ny = cell.nucleusOff.y * sr;
+        const nr = sr * (isThreat ? 0.3 : 0.25);
+        ctx.beginPath(); ctx.arc(nx, ny, nr, 0, Math.PI * 2);
+        ctx.fillStyle = cell.color + (isThreat ? '77' : '55');
+        ctx.fill();
+        ctx.strokeStyle = cell.color + '44';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+
+    // Organelles
+    if (sr > 12) {
+        for (const org of cell.organelles) {
+            const ox = Math.cos(org.angle + cell.wobblePhase * 0.3) * sr * org.dist;
+            const oy = Math.sin(org.angle + cell.wobblePhase * 0.3) * sr * org.dist;
+            const or2 = sr * org.r;
+            ctx.beginPath(); ctx.arc(ox, oy, or2, 0, Math.PI * 2);
+            ctx.fillStyle = cell.color + '30';
+            ctx.fill();
+        }
+    }
+
+    // Swarm: small pulsing ring
+    if (cell.type === 'swarm' && sr > 4) {
+        const pulseR = sr * (1.2 + Math.sin(cell.wobblePhase * 2) * 0.15);
+        ctx.beginPath(); ctx.arc(0, 0, pulseR, 0, Math.PI * 2);
+        ctx.strokeStyle = cell.color + '30';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+
+    ctx.restore();
+}
+
+function drawBackground() {
+    const lvl = getLevel();
+    ctx.fillStyle = lvl.bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Grid
+    const gridSpace = 100;
+    const startX = Math.floor((camera.x - W / 2 / camera.zoom) / gridSpace) * gridSpace;
+    const startY = Math.floor((camera.y - H / 2 / camera.zoom) / gridSpace) * gridSpace;
+    const endX = camera.x + W / 2 / camera.zoom;
+    const endY = camera.y + H / 2 / camera.zoom;
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    for (let x = startX; x <= endX; x += gridSpace) {
+        const sx = (x - camera.x) * camera.zoom + W / 2;
+        ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, H); ctx.stroke();
+    }
+    for (let y = startY; y <= endY; y += gridSpace) {
+        const sy = (y - camera.y) * camera.zoom + H / 2;
+        ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(W, sy); ctx.stroke();
+    }
+
+    // Background particles
+    for (const p of bgParticles) {
+        const pos = worldToScreen(p.x, p.y);
+        if (pos.x < -10 || pos.x > W + 10 || pos.y < -10 || pos.y > H + 10) continue;
+        const tw = Math.sin(p.twinkle) * 0.5 + 0.5;
+        ctx.globalAlpha = p.alpha * tw;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(pos.x, pos.y, p.r * camera.zoom, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // World boundary
+    const center = worldToScreen(0, 0);
+    const worldR = lvl.worldR * camera.zoom;
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(center.x, center.y, worldR, 0, Math.PI * 2); ctx.stroke();
+}
+
+function drawVignette() {
+    const grad = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.7);
+    grad.addColorStop(0, 'transparent');
+    grad.addColorStop(1, 'rgba(0,0,0,0.5)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Lens circle hint
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(W / 2, H / 2, Math.min(W, H) * 0.48, 0, Math.PI * 2);
+    ctx.stroke();
+}
+
+function drawParticles() {
+    for (const p of particles) {
+        const pos = worldToScreen(p.x, p.y);
+        ctx.globalAlpha = p.life;
+        ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(pos.x, pos.y, p.r * camera.zoom * (0.5 + p.life * 0.5), 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+}
+
+function drawHUD() {
+    if (demoMode) return;
+    const lvl = getLevel();
+    const totalMass = getPlayerTotalMass();
+
+    // Mass display
+    ctx.font = "bold 22px 'Segoe UI', system-ui, sans-serif";
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath(); ctx.roundRect(W / 2 - 60, 14, 120, 36, 12); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 4;
+    ctx.fillText(Math.floor(totalMass), W / 2, 20);
+    ctx.shadowBlur = 0;
+
+    // Level progress bar
+    const barW2 = 200, barH2 = 10;
+    const barX = W / 2 - barW2 / 2, barY = 56;
+    const progress = clamp(totalMass / lvl.targetMass, 0, 1);
+
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.roundRect(barX, barY, barW2, barH2, 5); ctx.fill();
+
+    if (progress > 0) {
+        const grad = ctx.createLinearGradient(barX, 0, barX + barW2 * progress, 0);
+        grad.addColorStop(0, lvl.color);
+        grad.addColorStop(1, lvl.color + 'aa');
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.roundRect(barX, barY, barW2 * progress, barH2, 5); ctx.fill();
+    }
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(barX, barY, barW2, barH2, 5); ctx.stroke();
+
+    // Target label
+    ctx.font = "11px 'Segoe UI', system-ui, sans-serif";
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.fillText(`${lvl.name}  -  Target: ${lvl.targetMass}`, W / 2, barY + barH2 + 4);
+
+    // Level indicator
+    ctx.font = "bold 12px 'Segoe UI', system-ui, sans-serif";
+    ctx.textAlign = 'left';
+    ctx.fillStyle = lvl.color;
+    ctx.fillText(`Lv.${currentLevel + 1}`, barX - 40, barY - 1);
+    ctx.textAlign = 'center';
+
+    // High score
+    if (highScore > 0) {
+        ctx.font = "bold 11px 'Segoe UI', system-ui, sans-serif";
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.fillText(`Best: ${highScore}`, W / 2, barY + barH2 + 18);
+    }
+}
+
+function drawLevelUpNotif() {
+    if (!levelUpNotif) return;
+    const { text, subtext, t, duration } = levelUpNotif;
+    let alpha;
+    if (t < 20) alpha = t / 20;
+    else if (t > duration - 60) alpha = (duration - t) / 60;
+    else alpha = 1;
+    alpha *= 0.6;
+
+    const yOff = t * 0.12;
+    const cx = W / 2;
+    const cy = H * 0.4 + yOff;
+
+    ctx.globalAlpha = alpha;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = "bold 48px 'Segoe UI', system-ui, sans-serif";
+    const lvl = getLevel();
+    ctx.shadowColor = lvl.color; ctx.shadowBlur = 20;
+    ctx.fillStyle = '#fff';
+    ctx.fillText(text, cx, cy);
+    ctx.shadowBlur = 0;
+    ctx.font = "22px 'Segoe UI', system-ui, sans-serif";
+    ctx.fillStyle = lvl.color;
+    ctx.fillText(subtext, cx, cy + 38);
+    ctx.globalAlpha = 1;
+}
+
+function draw() {
+    drawBackground();
+
+    // Draw cells sorted by size (small on top)
+    const allVisible = [...cells.filter(c => c.alive), ...playerParts.filter(p => p.alive)];
+    allVisible.sort((a, b) => b.mass - a.mass);
+    for (const c of allVisible) {
+        drawCell(c, playerParts.includes(c));
+    }
+
+    drawParticles();
+    drawVignette();
+    drawHUD();
+    drawLevelUpNotif();
+    drawJoystick();
+}
+
+function drawJoystick() {
+    if (!joystick.active || demoMode) return;
+    const baseR = JOYSTICK_MAX;
+    const knobR = 22;
+
+    // Base circle
+    ctx.globalAlpha = 0.15;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(joystick.startX, joystick.startY, baseR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 0.25;
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Knob
+    const knobX = joystick.startX + joystick.dx * JOYSTICK_MAX;
+    const knobY = joystick.startY + joystick.dy * JOYSTICK_MAX;
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(knobX, knobY, knobR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.globalAlpha = 1;
+}
+
+// --- Game over / win ---
+function showGameOver() {
+    boosting = false;
+    boostBtn.classList.add('hidden');
+    const totalScore = Math.floor(getPlayerTotalMass() || 0);
+    if (totalScore > highScore) { highScore = totalScore; setHighScore(highScore); }
+    overlay.innerHTML = `
+        <h1>Consumed!</h1>
+        <div id="finalScore">Mass: ${totalScore}</div>
+        <div class="sub" style="color:rgba(255,255,255,0.4)">Lv.${currentLevel + 1} ${getLevel().name}</div>
+        <div class="sub" style="color:rgba(255,255,255,0.5)">Best: ${highScore}</div>
+        <button id="startBtn">Try Again</button>
+    `;
+    overlay.classList.remove('hidden');
+    document.getElementById('startBtn').addEventListener('click', startGame);
+    document.getElementById('startBtn').addEventListener('touchend', e => { e.preventDefault(); startGame(); });
+}
+
+function showWin() {
+    boosting = false;
+    boostBtn.classList.add('hidden');
+    const totalScore = Math.floor(getPlayerTotalMass());
+    if (totalScore > highScore) { highScore = totalScore; setHighScore(highScore); }
+    overlay.innerHTML = `
+        <h1>Apex Organism!</h1>
+        <div id="finalScore">Final Mass: ${totalScore}</div>
+        <div class="sub" style="color:#2ecc71">All levels complete!</div>
+        <div class="sub" style="color:rgba(255,255,255,0.5)">Best: ${highScore}</div>
+        <button id="startBtn">Play Again</button>
+    `;
+    overlay.classList.remove('hidden');
+    document.getElementById('startBtn').addEventListener('click', startGame);
+    document.getElementById('startBtn').addEventListener('touchend', e => { e.preventDefault(); startGame(); });
+}
+
+function startGame() {
+    resumeAudio();
+    overlay.classList.add('hidden');
+    currentLevel = 0;
+    initGame();
+}
+
+// --- Input ---
+let inputMode = 'mouse'; // 'mouse','keyboard','touch'
+let keys = { up: false, down: false, left: false, right: false };
+
+// Virtual joystick state
+let joystick = { active: false, startX: 0, startY: 0, curX: 0, curY: 0, dx: 0, dy: 0, touchId: null };
+const JOYSTICK_MAX = 60; // max drag distance in pixels
+
+window.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; inputMode = 'mouse'; });
+
+canvas.addEventListener('touchstart', e => {
+    if (!overlay.classList.contains('hidden')) return;
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    // Don't hijack touches on the boost button
+    if (e.target === boostBtn || boostBtn.contains(e.target)) return;
+    joystick.active = true;
+    joystick.touchId = t.identifier;
+    joystick.startX = t.clientX;
+    joystick.startY = t.clientY;
+    joystick.curX = t.clientX;
+    joystick.curY = t.clientY;
+    joystick.dx = 0;
+    joystick.dy = 0;
+    inputMode = 'touch';
+}, { passive: false });
+
+canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+        if (t.identifier === joystick.touchId) {
+            joystick.curX = t.clientX;
+            joystick.curY = t.clientY;
+            let dx = joystick.curX - joystick.startX;
+            let dy = joystick.curY - joystick.startY;
+            const d = Math.sqrt(dx * dx + dy * dy);
+            if (d > JOYSTICK_MAX) { dx = dx / d * JOYSTICK_MAX; dy = dy / d * JOYSTICK_MAX; }
+            joystick.dx = dx / JOYSTICK_MAX; // -1 to 1
+            joystick.dy = dy / JOYSTICK_MAX;
+        }
+    }
+}, { passive: false });
+
+canvas.addEventListener('touchend', e => {
+    for (const t of e.changedTouches) {
+        if (t.identifier === joystick.touchId) {
+            joystick.active = false;
+            joystick.dx = 0;
+            joystick.dy = 0;
+            joystick.touchId = null;
+        }
+    }
+});
+canvas.addEventListener('touchcancel', e => {
+    joystick.active = false;
+    joystick.dx = 0;
+    joystick.dy = 0;
+    joystick.touchId = null;
+});
+
+window.addEventListener('keydown', e => {
+    const k = e.key.toLowerCase();
+    if (k === 'w' || k === 'arrowup') { keys.up = true; inputMode = 'keyboard'; e.preventDefault(); }
+    if (k === 's' || k === 'arrowdown') { keys.down = true; inputMode = 'keyboard'; e.preventDefault(); }
+    if (k === 'a' || k === 'arrowleft') { keys.left = true; inputMode = 'keyboard'; e.preventDefault(); }
+    if (k === 'd' || k === 'arrowright') { keys.right = true; inputMode = 'keyboard'; e.preventDefault(); }
+    if (k === 'shift' || e.code === 'Space') { e.preventDefault(); startBoost(); }
+});
+window.addEventListener('keyup', e => {
+    const k = e.key.toLowerCase();
+    if (k === 'w' || k === 'arrowup') keys.up = false;
+    if (k === 's' || k === 'arrowdown') keys.down = false;
+    if (k === 'a' || k === 'arrowleft') keys.left = false;
+    if (k === 'd' || k === 'arrowright') keys.right = false;
+    if (k === 'shift' || e.code === 'Space') stopBoost();
+});
+
+startBtn.addEventListener('click', startGame);
+startBtn.addEventListener('touchend', e => { e.preventDefault(); startGame(); });
+
+// Boost: hold to activate
+let boostMouseDown = false;
+function startBoost() { if (gameRunning && !gameOver && !demoMode && getPlayerTotalMass() > 30) { boosting = true; boostBtn.classList.add('active'); } }
+function stopBoost() { boosting = false; boostBtn.classList.remove('active'); }
+document.addEventListener('mousedown', e => {
+    if (boostBtn.contains(e.target) || e.target === canvas) {
+        e.preventDefault();
+        boostMouseDown = true;
+        startBoost('mouse');
+    }
+});
+document.addEventListener('mouseup', e => {
+    if (boostMouseDown) { stopBoost(); boostMouseDown = false; }
+});
+boostBtn.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); startBoost(); });
+window.addEventListener('touchend', stopBoost);
+
+// Start demo
+initDemo();
+
+// --- Game loop ---
+function loop() { update(); draw(); requestAnimationFrame(loop); }
+loop();
+</script>
+</body>
+</html>

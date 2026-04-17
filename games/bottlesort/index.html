@@ -1,0 +1,1744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Bottle Sort - Caleb's Arcade</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0a0a2e; overflow:hidden; touch-action:none; font-family:'Segoe UI',system-ui,sans-serif; }
+canvas { display:block; width:100%; height:100%; cursor:default; }
+.hidden { display:none !important; }
+#backBtn { position:fixed; top:12px; left:12px; z-index:9999;
+  background:rgba(0,0,0,0.55); color:#fff; text-decoration:none;
+  padding:6px 18px; border-radius:20px;
+  font:bold 15px/1.4 'Segoe UI',system-ui,sans-serif;
+  border:1px solid rgba(255,255,255,0.18);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  transition:background 0.2s; cursor:pointer; }
+#backBtn:hover { background:rgba(0,0,0,0.75); }
+#overlay { position:fixed; inset:0; z-index:20; display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  background:rgba(0,0,0,0.55); color:#fff; text-align:center; }
+#overlay h1 { font-size:clamp(2rem,8vw,4rem); margin-bottom:0.5rem; }
+#overlay .sub { font-size:clamp(1rem,3vw,1.4rem); color:#a0c4ff; margin-bottom:1.5rem; }
+#overlay .info { font-size:clamp(0.85rem,2.5vw,1.1rem); color:rgba(255,255,255,0.7);
+  margin-bottom:2rem; max-width:500px; padding:0 1rem; line-height:1.5; }
+#overlay button { padding:14px 40px; font-size:1.3rem; border:none; border-radius:12px;
+  background:linear-gradient(135deg,#6c5ce7,#a29bfe); color:#fff;
+  cursor:pointer; font-weight:700;
+  box-shadow:0 4px 20px rgba(108,92,231,0.4); transition:transform 0.15s; }
+#overlay button:hover { transform:scale(1.05); }
+#overlay button:active { transform:scale(0.95); }
+#levelSelect { position:fixed; inset:0; z-index:30; touch-action:pan-y; background:linear-gradient(180deg,#0c0c24,#111140,#0c0c24);
+  color:#fff; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch;
+  scrollbar-width:thin; scrollbar-color:rgba(255,255,255,0.15) transparent; }
+#levelSelect .ls-stars { position:fixed; top:14px; right:16px; z-index:31;
+  font:bold 15px/1 'Segoe UI',system-ui,sans-serif; color:#ffd32a;
+  display:flex; align-items:center; gap:5px;
+  background:rgba(0,0,0,0.4); padding:5px 12px; border-radius:14px;
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
+#levelSelect .ls-stars .star-icon { font-size:14px; }
+#levelSelect .ls-sections { padding:52px 16px 24px; max-width:700px; margin:0 auto; }
+.ls-section { margin-bottom:14px; border-radius:12px; padding:10px 12px;
+  border:1px solid rgba(255,255,255,0.06); }
+.ls-section-hdr { display:flex; justify-content:space-between; align-items:center;
+  margin-bottom:8px; padding:0 2px; }
+.ls-section-hdr .theme-name { font-weight:700; font-size:14px; }
+.ls-section-hdr .theme-progress { font-size:12px; color:rgba(255,255,255,0.4); }
+.ls-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(48px,1fr)); gap:6px; }
+@media (min-width:600px) { .ls-grid { grid-template-columns:repeat(auto-fill, minmax(52px,1fr)); } }
+@media (min-width:900px) { .ls-grid { grid-template-columns:repeat(10,1fr); } }
+.ls-cell { aspect-ratio:1; border-radius:8px; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; cursor:pointer; border:1px solid rgba(255,255,255,0.08);
+  transition:transform 0.1s, box-shadow 0.3s; position:relative; user-select:none;
+  -webkit-tap-highlight-color:transparent; }
+.ls-cell:active { transform:scale(0.93); }
+.ls-cell.completed { border-color:rgba(255,255,255,0.12); }
+.ls-cell.locked { cursor:default; opacity:0.35; }
+.ls-cell.locked:active { transform:none; }
+.ls-cell.next-level { border-width:2px; animation:ls-pulse 1.5s ease-in-out infinite; }
+@keyframes ls-pulse { 0%,100% { box-shadow:0 0 6px var(--accent); } 50% { box-shadow:0 0 16px var(--accent); } }
+.ls-cell .lvl-num { font-weight:700; font-size:15px; line-height:1.1; }
+.ls-cell .lvl-stars { display:flex; gap:1px; margin-top:2px; font-size:9px; }
+.ls-cell .lvl-stars span { opacity:0.2; }
+.ls-cell .lvl-stars span.earned { opacity:1; color:#ffd32a; }
+.ls-cell .lvl-badges { display:flex; gap:3px; margin-top:2px; }
+.ls-cell .lvl-badges span { width:5px; height:5px; border-radius:50%; opacity:0.6; }
+.ls-cell .lock-icon { font-size:14px; opacity:0.3; }
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+<canvas id="c"></canvas>
+<div id="levelSelect" class="hidden"></div>
+<div id="overlay">
+  <h1>Bottle Sort</h1>
+  <div class="sub">Sort the liquids by color!</div>
+  <div class="info">Tap a bottle to pick it up, then tap another to pour. Only matching colors can stack. Sort every bottle to win!</div>
+  <button id="startBtn">Play</button>
+</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H;
+let demoMode = false;
+function resize() { W = canvas.width = innerWidth; H = canvas.height = innerHeight; }
+resize();
+window.addEventListener('resize', () => { resize(); drawCurrentState(); });
+
+// ─── Audio ───────────────────────────────────────────────────────────
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function playTone(freq, duration, type, vol, endFreq) {
+  const c = ensureAudio();
+  const osc = c.createOscillator(), gain = c.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.setValueAtTime(freq, c.currentTime);
+  if (endFreq) osc.frequency.exponentialRampToValueAtTime(Math.max(endFreq,20), c.currentTime+duration);
+  gain.gain.setValueAtTime(vol||0.1, c.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime+duration);
+  osc.connect(gain); gain.connect(c.destination);
+  osc.start(); osc.stop(c.currentTime+duration);
+}
+function playNoise(duration, vol) {
+  const c = ensureAudio();
+  const buf = c.createBuffer(1, c.sampleRate*duration, c.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i=0; i<d.length; i++) d[i] = Math.random()*2-1;
+  const src = c.createBufferSource(); src.buffer = buf;
+  const gain = c.createGain();
+  gain.gain.setValueAtTime(vol||0.08, c.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime+duration);
+  const filt = c.createBiquadFilter();
+  filt.type='bandpass'; filt.frequency.value=800; filt.Q.value=1;
+  src.connect(filt); filt.connect(gain); gain.connect(c.destination);
+  src.start(); src.stop(c.currentTime+duration);
+}
+function sfxSelect() { if (demoMode) return; playTone(600, 0.1, 'sine', 0.12); }
+function sfxPour() { if (demoMode) return; playTone(300, 0.3, 'sine', 0.1, 500); playNoise(0.2, 0.05); }
+function sfxInvalid() { if (demoMode) return; playTone(200, 0.15, 'square', 0.08, 100); }
+function sfxWin() {
+  if (demoMode) return;
+  [523, 659, 784, 1047, 1319].forEach((f, i) => {
+    setTimeout(() => playTone(f, 0.25, 'triangle', 0.1), i * 120);
+  });
+}
+function sfxUnlock() { if (demoMode) return; playTone(880, 0.15, 'triangle', 0.1); playTone(1100, 0.15, 'triangle', 0.08); }
+function sfxMerge() { if (demoMode) return; playTone(440, 0.2, 'sine', 0.12, 880); playNoise(0.15, 0.04); }
+function sfxTimerWarn() { if (demoMode) return; playTone(800, 0.08, 'square', 0.06); }
+function sfxCapPop() { if (demoMode) return; playNoise(0.15, 0.12); playTone(600, 0.1, 'triangle', 0.1); }
+function sfxTimeUp() { if (demoMode) return; playTone(200, 0.4, 'sawtooth', 0.1, 80); }
+
+// ─── Colors ──────────────────────────────────────────────────────────
+const COLORS = [
+  '#e74c3c','#3498db','#2ecc71','#f1c40f','#9b59b6','#e67e22',
+  '#1abc9c','#e91e63','#00bcd4','#8d6e63','#cddc39','#ff5722',
+];
+
+function generateRainbowPalette(n, hue) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const l = 30 + (55 / Math.max(n-1,1)) * i;
+    out.push(`hsl(${hue}, 78%, ${l.toFixed(1)}%)`);
+  }
+  return out;
+}
+
+// ─── Themes ──────────────────────────────────────────────────────────
+const THEMES = {
+  ocean:  { name:'Deep Ocean',       bg:['#0a1628','#0d2847','#0a3060'], glass:'rgba(100,180,255,0.08)', outline:'rgba(100,180,255,0.3)',  accent:'#3498db', confetti:['#3498db','#2980b9','#1abc9c','#a0c4ff','#74b9ff'], rainbowHue:210 },
+  forest: { name:'Enchanted Forest', bg:['#0a2010','#0d3318','#1a4a20'], glass:'rgba(100,200,100,0.08)', outline:'rgba(100,200,100,0.25)', accent:'#2ecc71', confetti:['#2ecc71','#27ae60','#a3cb38','#c4e538','#6ab04c'], rainbowHue:120 },
+  lava:   { name:'Volcanic Core',    bg:['#2a0a0a','#4a1010','#6a1a0a'], glass:'rgba(255,100,50,0.06)',  outline:'rgba(255,120,60,0.25)',  accent:'#e74c3c', confetti:['#e74c3c','#ff6348','#ff7979','#f9ca24','#ff5722'], rainbowHue:15  },
+  space:  { name:'Deep Space',       bg:['#05051a','#0a0a30','#12124a'], glass:'rgba(150,100,255,0.08)', outline:'rgba(150,120,255,0.25)', accent:'#9b59b6', confetti:['#9b59b6','#8e44ad','#a29bfe','#6c5ce7','#d63031'], rainbowHue:270 },
+  candy:  { name:'Candy Land',       bg:['#2a1028','#3a1840','#4a2058'], glass:'rgba(255,100,200,0.08)', outline:'rgba(255,120,200,0.25)', accent:'#e91e63', confetti:['#e91e63','#fd79a8','#fdcb6e','#00cec9','#55efc4'], rainbowHue:330 },
+};
+const THEME_ORDER = ['ocean','forest','lava','space','candy'];
+
+function themeForLevel(lvl) {
+  const idx = Math.floor((lvl - 1) / 10) % THEME_ORDER.length;
+  return THEME_ORDER[idx];
+}
+
+// ─── Level Config ────────────────────────────────────────────────────
+// Returns config for any level number
+function getLevelConfig(lvl) {
+  const theme = themeForLevel(lvl);
+  const numColors = Math.min(4 + Math.floor((lvl - 1) / 2), 12);
+  // Defaults
+  const cfg = {
+    level: lvl, theme, numColors,
+    maxLayers: 4, emptyBottles: 2,
+    lockedLayers: 0, cappedBottles: 0, capPours: 3,
+    mysteryLayers: 0, rainbow: false,
+    bombTimer: 0, parMoves: null,
+    limitedUndo: null,
+    colorMerge: null,
+    bonusEmptyReward: false,
+  };
+
+  // ── Ocean 1-10 ──
+  if (lvl === 4) cfg.limitedUndo = 3;
+  if (lvl === 6) cfg.emptyBottles = 1;
+  if (lvl === 7) cfg.mysteryLayers = 1;
+  if (lvl === 8) cfg.limitedUndo = 3;
+  if (lvl === 9) { cfg.emptyBottles = 1; cfg.mysteryLayers = 1; }
+  if (lvl === 10) cfg.bombTimer = 90;
+
+  // ── Forest 11-20 ──
+  if (lvl >= 12) cfg.maxLayers = 5;
+  if (lvl === 13) cfg.lockedLayers = 1;
+  if (lvl === 14) { cfg.maxLayers = 4; cfg.emptyBottles = 1; cfg.mysteryLayers = 2; }
+  if (lvl === 16) { cfg.emptyBottles = 1; cfg.lockedLayers = 1; cfg.limitedUndo = 3; }
+  if (lvl === 17) { cfg.maxLayers = 4; cfg.cappedBottles = 2; }
+  if (lvl === 18) { cfg.mysteryLayers = 2; cfg.cappedBottles = 1; }
+  if (lvl === 19) { cfg.emptyBottles = 1; cfg.lockedLayers = 1; }
+  if (lvl === 20) cfg.rainbow = true;
+
+  // ── Lava 21-30 ──
+  if (lvl === 21) { cfg.emptyBottles = 3; cfg.bonusEmptyReward = true; }
+  if (lvl === 22) { cfg.emptyBottles = 1; cfg.lockedLayers = 1; cfg.cappedBottles = 2; }
+  if (lvl >= 23 && lvl <= 30 && lvl !== 25 && lvl !== 27 && lvl !== 29) cfg.maxLayers = 6;
+  if (lvl === 24) cfg.mysteryLayers = 3;
+  if (lvl === 25) { cfg.maxLayers = 5; cfg.emptyBottles = 1; cfg.bombTimer = 75; }
+  if (lvl === 26) cfg.lockedLayers = 2;
+  if (lvl === 27) { cfg.maxLayers = 5; cfg.colorMerge = [[0,3,5]]; } // red+yellow=orange
+  if (lvl === 28) { cfg.emptyBottles = 1; cfg.cappedBottles = 3; cfg.limitedUndo = 3; }
+  if (lvl === 29) { cfg.maxLayers = 5; cfg.mysteryLayers = 2; cfg.colorMerge = [[1,3,6]]; } // blue+yellow=teal
+  if (lvl === 30) { cfg.rainbow = true; cfg.bombTimer = 60; }
+
+  // ── Space 31-40 ──
+  if (lvl === 31) { cfg.emptyBottles = 3; cfg.bonusEmptyReward = true; }
+  if (lvl === 32) { cfg.maxLayers = 6; cfg.emptyBottles = 1; cfg.lockedLayers = 2; cfg.mysteryLayers = 2; }
+  if (lvl === 33) { cfg.maxLayers = 5; cfg.colorMerge = [[0,1,4],[3,1,6]]; }
+  if (lvl === 34) { cfg.maxLayers = 6; cfg.cappedBottles = 3; cfg.capPours = 4; }
+  if (lvl === 35) { cfg.maxLayers = 6; cfg.emptyBottles = 1; cfg.bombTimer = 60; cfg.lockedLayers = 1; }
+  if (lvl === 36) { cfg.maxLayers = 5; cfg.mysteryLayers = 3; cfg.colorMerge = [[0,3,5]]; }
+  if (lvl === 37) { cfg.maxLayers = 6; cfg.emptyBottles = 1; cfg.lockedLayers = 2; cfg.cappedBottles = 2; }
+  if (lvl === 38) { cfg.maxLayers = 6; cfg.rainbow = true; cfg.mysteryLayers = 2; }
+  if (lvl === 39) { cfg.maxLayers = 6; cfg.emptyBottles = 1; cfg.lockedLayers = 2; cfg.cappedBottles = 2; cfg.mysteryLayers = 2; cfg.limitedUndo = 3; }
+  if (lvl === 40) { cfg.maxLayers = 6; cfg.bombTimer = 45; cfg.rainbow = true; }
+
+  // ── Candy 41-50 ──
+  if (lvl >= 41 && lvl <= 50) {
+    cfg.maxLayers = [5,6,5,6,6,5,6,6,6,6][lvl-41];
+    cfg.emptyBottles = [2,1,2,1,3,1,2,1,1,2][lvl-41];
+    if (lvl === 42 || lvl === 48) cfg.lockedLayers = 2;
+    if (lvl === 43) cfg.mysteryLayers = 3;
+    if (lvl === 44) { cfg.cappedBottles = 3; cfg.capPours = 4; }
+    if (lvl === 45) { cfg.bonusEmptyReward = true; cfg.bombTimer = 75; }
+    if (lvl === 46) { cfg.colorMerge = [[0,3,5],[1,3,6]]; cfg.lockedLayers = 1; }
+    if (lvl === 47) { cfg.rainbow = true; cfg.mysteryLayers = 2; }
+    if (lvl === 48) { cfg.limitedUndo = 3; cfg.cappedBottles = 2; }
+    if (lvl === 49) { cfg.lockedLayers = 2; cfg.mysteryLayers = 3; cfg.cappedBottles = 2; cfg.limitedUndo = 3; }
+    if (lvl === 50) { cfg.rainbow = true; cfg.bombTimer = 45; cfg.lockedLayers = 1; }
+  }
+
+  // ── 51+ procedural ──
+  if (lvl > 50) {
+    const d = Math.floor((lvl - 50) / 5);
+    cfg.maxLayers = d % 2 === 0 ? 5 : 6;
+    cfg.emptyBottles = (lvl % 7 === 0) ? 1 : 2;
+    if (lvl % 5 === 0) cfg.bombTimer = Math.max(40, 90 - d * 5);
+    if (lvl % 3 === 0) cfg.lockedLayers = Math.min(d + 1, 3);
+    if (lvl % 4 === 0) cfg.mysteryLayers = Math.min(d + 1, 3);
+    if (lvl % 6 === 0) cfg.cappedBottles = Math.min(d + 1, 3);
+    if (lvl % 8 === 0) cfg.limitedUndo = 3;
+    if (lvl % 10 === 0) cfg.rainbow = true;
+  }
+
+  // Compute par after all config overrides
+  if (lvl >= 2 && cfg.parMoves === null) {
+    cfg.parMoves = Math.round(cfg.numColors * cfg.maxLayers * 0.7);
+  }
+  return cfg;
+}
+
+// ─── Save / Load ─────────────────────────────────────────────────────
+function loadArcadeData() {
+  try { return JSON.parse(localStorage.getItem('calebArcadeData')) || {}; } catch(e) { return {}; }
+}
+function saveArcadeData(data) { localStorage.setItem('calebArcadeData', JSON.stringify(data)); }
+
+function loadSaveData() {
+  const d = loadArcadeData();
+  if (!d.bottlesort) d.bottlesort = {};
+  if (!d.bottlesort.levels) d.bottlesort.levels = {};
+  if (!d.bottlesort.bonusEmpties) d.bottlesort.bonusEmpties = 0;
+  return d.bottlesort;
+}
+function saveLevelResult(lvl, stars, movesUsed) {
+  const d = loadArcadeData();
+  if (!d.bottlesort) d.bottlesort = {};
+  if (!d.bottlesort.levels) d.bottlesort.levels = {};
+  const prev = d.bottlesort.levels[lvl] || { stars: 0, bestMoves: Infinity };
+  d.bottlesort.levels[lvl] = {
+    stars: Math.max(prev.stars, stars),
+    bestMoves: Math.min(prev.bestMoves, movesUsed)
+  };
+  saveArcadeData(d);
+}
+function getSaveData() { return loadSaveData(); }
+function isLevelUnlocked(lvl, save) {
+  if (lvl <= 1) return true;
+  const prev = save.levels[lvl - 1];
+  return prev && prev.stars > 0;
+}
+function addBonusEmpty() {
+  const d = loadArcadeData();
+  if (!d.bottlesort) d.bottlesort = {};
+  d.bottlesort.bonusEmpties = (d.bottlesort.bonusEmpties || 0) + 1;
+  saveArcadeData(d);
+}
+function useBonusEmpty() {
+  const d = loadArcadeData();
+  if (!d.bottlesort || !d.bottlesort.bonusEmpties) return false;
+  d.bottlesort.bonusEmpties--;
+  saveArcadeData(d);
+  return true;
+}
+function getBonusEmpties() { return loadSaveData().bonusEmpties || 0; }
+
+// ─── Game State ──────────────────────────────────────────────────────
+let state = 'menu'; // menu, levelselect, playing, animating, won, timesup
+let currentConfig = {};
+let level = 1;
+let bottles = [];
+let bottleRevealed = [];  // [bottleIdx][layerIdx] = bool
+let bottleLocked = [];    // [bottleIdx][layerIdx] = bool
+let bottleCapped = [];    // [bottleIdx] = pours remaining (0 = uncapped)
+let selectedBottle = -1;
+let moves = 0;
+let undoStack = [];
+let undosRemaining = null; // null = unlimited
+let anim = null;
+let activeColors = COLORS; // may be replaced with rainbow palette
+let timerRemaining = 0;
+let timerActive = false;
+let timerLastTick = 0;
+let pourParticles = [];
+
+// Drag-and-drop state
+let dragState = null; // { bottleIdx, originX, originY, curX, curY, w, h }
+
+// ─── Level Generation ────────────────────────────────────────────────
+function generateLevel(cfg) {
+  const { numColors, maxLayers, emptyBottles, rainbow, lockedLayers, cappedBottles, mysteryLayers, colorMerge } = cfg;
+
+  // Set active color palette
+  if (rainbow) {
+    const th = THEMES[cfg.theme];
+    activeColors = generateRainbowPalette(numColors, th.rainbowHue);
+  } else {
+    activeColors = COLORS.slice(0, numColors);
+  }
+
+  // Create solved state then shuffle
+  let layers = [];
+  for (let c = 0; c < numColors; c++) {
+    for (let i = 0; i < maxLayers; i++) layers.push(c);
+  }
+
+  // Fisher-Yates shuffle
+  for (let i = layers.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [layers[i], layers[j]] = [layers[j], layers[i]];
+  }
+
+  // Distribute into bottles
+  const b = [];
+  for (let i = 0; i < numColors; i++) {
+    b.push(layers.slice(i * maxLayers, (i + 1) * maxLayers));
+  }
+  for (let i = 0; i < emptyBottles; i++) b.push([]);
+
+  // Init metadata arrays
+  const revealed = b.map(bot => bot.map(() => false));
+  const locked = b.map(bot => bot.map(() => false));
+  const capped = b.map(() => 0);
+
+  // Apply locked layers (bottom N of each filled bottle)
+  if (lockedLayers > 0) {
+    for (let i = 0; i < numColors; i++) {
+      for (let j = 0; j < Math.min(lockedLayers, b[i].length); j++) {
+        locked[i][j] = true;
+      }
+    }
+  }
+
+  // Apply mystery layers (bottom N non-locked of each filled bottle, hide them)
+  // Reveal the topmost layer of each bottle always
+  if (mysteryLayers > 0) {
+    for (let i = 0; i < numColors; i++) {
+      let hidden = 0;
+      for (let j = 0; j < b[i].length && hidden < mysteryLayers; j++) {
+        if (!locked[i][j]) { revealed[i][j] = false; hidden++; }
+      }
+      // Always reveal top layer
+      if (b[i].length > 0) revealed[i][b[i].length - 1] = true;
+    }
+  } else {
+    // All revealed
+    for (let i = 0; i < b.length; i++) {
+      for (let j = 0; j < b[i].length; j++) revealed[i][j] = true;
+    }
+  }
+
+  // Apply capped bottles
+  if (cappedBottles > 0) {
+    const filled = [];
+    for (let i = 0; i < numColors; i++) filled.push(i);
+    // Shuffle and pick
+    for (let i = filled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [filled[i], filled[j]] = [filled[j], filled[i]];
+    }
+    for (let i = 0; i < Math.min(cappedBottles, filled.length); i++) {
+      capped[filled[i]] = cfg.capPours;
+    }
+  }
+
+  return { bottles: b, revealed, locked, capped };
+}
+
+function startLevel(lvl) {
+  hideLevelSelect();
+  level = lvl;
+  currentConfig = getLevelConfig(lvl);
+  const gen = generateLevel(currentConfig);
+  bottles = gen.bottles;
+  bottleRevealed = gen.revealed;
+  bottleLocked = gen.locked;
+  bottleCapped = gen.capped;
+  selectedBottle = -1;
+  moves = 0;
+  undoStack = [];
+  undosRemaining = currentConfig.limitedUndo;
+  pourParticles = [];
+  state = 'playing';
+
+  // Timer
+  if (currentConfig.bombTimer > 0) {
+    timerRemaining = currentConfig.bombTimer;
+    timerActive = true;
+    timerLastTick = performance.now();
+  } else {
+    timerRemaining = 0;
+    timerActive = false;
+  }
+
+  document.body.style.background = THEMES[currentConfig.theme].bg[0];
+  if (winAnimFrame) cancelAnimationFrame(winAnimFrame);
+  if (timerActive) requestAnimationFrame(timerLoop);
+  drawCurrentState();
+}
+
+// ─── Timer ───────────────────────────────────────────────────────────
+function timerLoop(now) {
+  if (!timerActive || state === 'won' || state === 'timesup' || state === 'levelselect' || state === 'menu') return;
+  // Only decrement during active play (not during pour animation)
+  if (state === 'playing') {
+    const dt = (now - timerLastTick) / 1000;
+    timerRemaining = Math.max(0, timerRemaining - dt);
+    if (timerRemaining <= 0) {
+      timerActive = false;
+      state = 'timesup';
+      sfxTimeUp();
+      drawCurrentState();
+      return;
+    }
+    drawCurrentState();
+  }
+  timerLastTick = now;
+  // Keep loop alive during animating state too (timer pauses but loop persists)
+  requestAnimationFrame(timerLoop);
+}
+
+// ─── Layout ──────────────────────────────────────────────────────────
+function getLayout() {
+  const n = bottles.length;
+  const ml = currentConfig.maxLayers || 4;
+  const maxPerRow = W > H ? Math.min(n, Math.ceil(n / 1)) : Math.min(n, 7);
+  const rows = Math.ceil(n / maxPerRow);
+  const cols = Math.ceil(n / rows);
+
+  const bottleW = Math.min(60, (W - 40) / (cols + 0.5));
+  const bottleH = bottleW * (1.6 + 0.3 * ml);
+  const gap = bottleW * 0.4;
+  const totalH = rows * bottleH + (rows - 1) * gap * 1.5;
+  const startY = (H - totalH) / 2 + 30;
+
+  const positions = [];
+  for (let i = 0; i < n; i++) {
+    const row = Math.floor(i / cols);
+    const col = i % cols;
+    const rowCount = Math.min(cols, n - row * cols);
+    const rowW = rowCount * bottleW + (rowCount - 1) * gap;
+    const rowStartX = (W - rowW) / 2;
+    positions.push({
+      x: rowStartX + col * (bottleW + gap),
+      y: startY + row * (bottleH + gap * 1.5),
+      w: bottleW, h: bottleH
+    });
+  }
+  return positions;
+}
+
+// ─── Drawing ─────────────────────────────────────────────────────────
+function drawBackground() {
+  const th = THEMES[currentConfig.theme || 'ocean'];
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, th.bg[0]);
+  grad.addColorStop(0.5, th.bg[1]);
+  grad.addColorStop(1, th.bg[2]);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+}
+
+// highlight: false=none, 'selected'=lift+accent, 'drop'=subtle glow no lift
+// partialTop: 0-1 fraction for how full the topmost layer is (1 = full, default)
+function drawBottle(x, y, w, h, layers, highlight, index, partialTop) {
+  if (partialTop === undefined) partialTop = 1;
+  const ml = currentConfig.maxLayers || 4;
+  const th = THEMES[currentConfig.theme || 'ocean'];
+  const r = w * 0.3;
+  const neckH = h * 0.18;
+  const neckW = w * 0.4;
+  const wallThick = 3;
+  const selected = highlight === 'selected' || highlight === true;
+  const dropTarget = highlight === 'drop';
+
+  const offsetY = selected ? -h * 0.15 : 0;
+  const dy = y + offsetY;
+
+  ctx.save();
+
+  // Glass body path
+  function glassPath() {
+    ctx.beginPath();
+    ctx.moveTo(x + (w - neckW) / 2, dy);
+    ctx.lineTo(x + (w - neckW) / 2, dy + neckH * 0.3);
+    ctx.quadraticCurveTo(x, dy + neckH, x, dy + neckH + r);
+    ctx.lineTo(x, dy + h - r);
+    ctx.quadraticCurveTo(x, dy + h, x + r, dy + h);
+    ctx.lineTo(x + w - r, dy + h);
+    ctx.quadraticCurveTo(x + w, dy + h, x + w, dy + h - r);
+    ctx.lineTo(x + w, dy + neckH + r);
+    ctx.quadraticCurveTo(x + w, dy + neckH, x + (w + neckW) / 2, dy + neckH * 0.3);
+    ctx.lineTo(x + (w + neckW) / 2, dy);
+    ctx.closePath();
+  }
+
+  // Glass fill
+  glassPath();
+  ctx.fillStyle = th.glass;
+  ctx.fill();
+
+  // Clip for liquid
+  ctx.save();
+  glassPath();
+  ctx.clip();
+
+  const liquidTop = dy + neckH + wallThick;
+  const liquidBot = dy + h - wallThick;
+  const liquidH = liquidBot - liquidTop;
+  const layerH = liquidH / ml;
+
+  for (let i = 0; i < layers.length; i++) {
+    const isTop = i === layers.length - 1;
+    const frac = (isTop && partialTop < 1) ? partialTop : 1;
+    const thisH = layerH * frac;
+    const ly = liquidBot - i * layerH - thisH;
+    const isRevealed = !bottleRevealed[index] || bottleRevealed[index][i] !== false;
+    const isLocked = bottleLocked[index] && bottleLocked[index][i];
+
+    if (isRevealed) {
+      const color = activeColors[layers[i]] || COLORS[layers[i] % COLORS.length];
+      ctx.fillStyle = color;
+      ctx.fillRect(x + wallThick, ly, w - wallThick * 2, thisH + 1);
+      // Highlight
+      const grad = ctx.createLinearGradient(x + wallThick, ly, x + w - wallThick, ly);
+      grad.addColorStop(0, 'rgba(255,255,255,0.15)');
+      grad.addColorStop(0.5, 'rgba(255,255,255,0.0)');
+      grad.addColorStop(1, 'rgba(255,255,255,0.05)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(x + wallThick, ly, w - wallThick * 2, thisH + 1);
+    } else {
+      // Mystery layer
+      ctx.fillStyle = '#333';
+      ctx.fillRect(x + wallThick, ly, w - wallThick * 2, thisH + 1);
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.font = `bold ${Math.max(10, thisH * 0.6)}px "Segoe UI",system-ui,sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('?', x + w / 2, ly + thisH / 2);
+    }
+
+    // Locked overlay
+    if (isLocked) {
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.fillRect(x + wallThick, ly, w - wallThick * 2, thisH + 1);
+      // Hash lines
+      ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+      ctx.lineWidth = 1;
+      const step = 6;
+      for (let lx = -thisH; lx < w; lx += step) {
+        ctx.beginPath();
+        ctx.moveTo(x + wallThick + lx, ly + thisH);
+        ctx.lineTo(x + wallThick + lx + thisH, ly);
+        ctx.stroke();
+      }
+    }
+  }
+  ctx.restore();
+
+  // Glass outline
+  glassPath();
+  if (dropTarget) {
+    // Subtle glow for drop target
+    ctx.shadowColor = th.accent;
+    ctx.shadowBlur = 12;
+    ctx.strokeStyle = th.accent + '88';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  } else {
+    ctx.strokeStyle = selected ? th.accent : th.outline;
+    ctx.lineWidth = selected ? 3 : 1.5;
+    ctx.stroke();
+  }
+
+  // Glass shine
+  ctx.beginPath();
+  ctx.moveTo(x + w * 0.2, dy + neckH + r + 5);
+  ctx.lineTo(x + w * 0.2, dy + h - r - 5);
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Neck opening
+  ctx.beginPath();
+  ctx.ellipse(x + w / 2, dy, neckW / 2, neckW * 0.2, 0, 0, Math.PI * 2);
+  ctx.strokeStyle = (selected || dropTarget) ? th.accent : 'rgba(255,255,255,0.2)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Cap
+  if (bottleCapped[index] && bottleCapped[index] > 0) {
+    const capW = neckW * 1.2;
+    const capH = neckW * 0.6;
+    ctx.fillStyle = '#8B4513';
+    ctx.beginPath();
+    ctx.roundRect(x + w / 2 - capW / 2, dy - capH * 0.6, capW, capH, 4);
+    ctx.fill();
+    ctx.strokeStyle = '#5D2F0E';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // Show pours remaining
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${Math.max(8, capH * 0.55)}px "Segoe UI",system-ui,sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(bottleCapped[index], x + w / 2, dy - capH * 0.1);
+  }
+
+  ctx.restore();
+}
+
+function drawHUD() {
+  const th = THEMES[currentConfig.theme || 'ocean'];
+  let text = `Level ${level}  |  Moves: ${moves}`;
+  if (undosRemaining !== null) text += `  |  Undo: ${undosRemaining}`;
+  ctx.font = 'bold 16px "Segoe UI", system-ui, sans-serif';
+  const tw = ctx.measureText(text).width;
+  const pw = tw + 40;
+  const ph = 38;
+  const px = (W - pw) / 2;
+  const py = 14;
+
+  ctx.beginPath();
+  ctx.roundRect(px, py, pw, ph, 14);
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 4;
+  ctx.fillText(text, W / 2, py + ph / 2);
+  ctx.shadowBlur = 0;
+
+  // Timer
+  if (currentConfig.bombTimer > 0) {
+    const secs = Math.ceil(timerRemaining);
+    const tColor = secs <= 10 ? '#e74c3c' : secs <= 20 ? '#f1c40f' : '#2ecc71';
+    const timerText = `${secs}s`;
+    ctx.font = 'bold 22px "Segoe UI", system-ui, sans-serif';
+    const timerW = ctx.measureText(timerText).width + 24;
+    const timerX = W - timerW - 16;
+    const timerY = 14;
+    ctx.beginPath();
+    ctx.roundRect(timerX, timerY, timerW, 38, 14);
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fill();
+    ctx.fillStyle = tColor;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    // Pulse effect for last 10 seconds
+    if (secs <= 10) {
+      const pulse = 1 + Math.sin(performance.now() / 150) * 0.1;
+      ctx.save();
+      ctx.translate(timerX + timerW / 2, timerY + 19);
+      ctx.scale(pulse, pulse);
+      ctx.fillText(timerText, 0, 0);
+      ctx.restore();
+    } else {
+      ctx.fillText(timerText, timerX + timerW / 2, timerY + 19);
+    }
+  }
+}
+
+// Returns button hit areas for the top-right toolbar
+function getToolbarLayout() {
+  ctx.font = 'bold 13px "Segoe UI", system-ui, sans-serif';
+  const btnH = 32, btnR = 10, gap = 6, topY = 14;
+  const th = THEMES[currentConfig.theme || 'ocean'];
+  const bonusCount = getBonusEmpties();
+
+  // Build buttons right-to-left from the right edge
+  const buttons = [];
+  let rx = W - 14; // right edge cursor
+
+  // Back button (rightmost)
+  const backW = 56;
+  rx -= backW;
+  buttons.push({ id: 'back', x: rx, y: topY, w: backW, h: btnH, label: 'Back' });
+  rx -= gap;
+
+  // Restart
+  const restW = 68;
+  rx -= restW;
+  buttons.push({ id: 'restart', x: rx, y: topY, w: restW, h: btnH, label: 'Restart' });
+  rx -= gap;
+
+  // Undo
+  const undoLabel = undosRemaining !== null ? `Undo (${undosRemaining})` : 'Undo';
+  const undoW = ctx.measureText(undoLabel).width + 22;
+  rx -= undoW;
+  buttons.push({ id: 'undo', x: rx, y: topY, w: undoW, h: btnH, label: undoLabel });
+  rx -= gap;
+
+  // Bonus empty (if available)
+  if (bonusCount > 0) {
+    const bonusLabel = `+Bottle (${bonusCount})`;
+    const bonusW = ctx.measureText(bonusLabel).width + 22;
+    rx -= bonusW;
+    buttons.push({ id: 'bonus', x: rx, y: topY, w: bonusW, h: btnH, label: bonusLabel });
+  }
+
+  return { buttons, btnH, btnR, topY };
+}
+
+function drawButtons() {
+  const { buttons, btnH, btnR } = getToolbarLayout();
+  const th = THEMES[currentConfig.theme || 'ocean'];
+  const undoEnabled = undoStack.length > 0 && (undosRemaining === null || undosRemaining > 0);
+
+  ctx.font = 'bold 13px "Segoe UI", system-ui, sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+
+  for (const btn of buttons) {
+    ctx.beginPath();
+    ctx.roundRect(btn.x, btn.y, btn.w, btn.h, btnR);
+    let enabled = true;
+    if (btn.id === 'undo') enabled = undoEnabled;
+    if (btn.id === 'bonus') {
+      ctx.fillStyle = '#f1c40f88';
+    } else {
+      ctx.fillStyle = enabled ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.25)';
+    }
+    ctx.fill();
+    ctx.strokeStyle = enabled ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = enabled ? '#fff' : 'rgba(255,255,255,0.3)';
+    ctx.fillText(btn.label, btn.x + btn.w / 2, btn.y + btn.h / 2);
+  }
+}
+
+// ─── Star Drawing ────────────────────────────────────────────────────
+function drawStar(cx, cy, outerR, innerR, filled) {
+  ctx.save();
+  ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const outerAngle = (i * 2 * Math.PI / 5) - Math.PI / 2;
+    const innerAngle = outerAngle + Math.PI / 5;
+    if (i === 0) ctx.moveTo(cx + Math.cos(outerAngle) * outerR, cy + Math.sin(outerAngle) * outerR);
+    else ctx.lineTo(cx + Math.cos(outerAngle) * outerR, cy + Math.sin(outerAngle) * outerR);
+    ctx.lineTo(cx + Math.cos(innerAngle) * innerR, cy + Math.sin(innerAngle) * innerR);
+  }
+  ctx.closePath();
+  ctx.fillStyle = filled ? '#ffd32a' : 'rgba(255,255,255,0.15)';
+  ctx.fill();
+  if (filled) {
+    ctx.strokeStyle = '#e6b800';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function getStars(movesUsed, par) {
+  if (!par) return 1;
+  if (movesUsed <= par) return 3;
+  if (movesUsed <= Math.ceil(par * 1.3)) return 2;
+  return 1;
+}
+
+// ─── Win Screen ──────────────────────────────────────────────────────
+let confetti = [];
+function initConfetti() {
+  confetti = [];
+  const th = THEMES[currentConfig.theme || 'ocean'];
+  const colors = th.confetti;
+  for (let i = 0; i < 80; i++) {
+    confetti.push({
+      x: Math.random() * W, y: Math.random() * H - H,
+      vx: (Math.random() - 0.5) * 4, vy: Math.random() * 3 + 2,
+      size: Math.random() * 8 + 4,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2, rotV: (Math.random() - 0.5) * 0.2
+    });
+  }
+}
+function drawConfetti() {
+  for (const c of confetti) {
+    ctx.save();
+    ctx.translate(c.x, c.y); ctx.rotate(c.rot);
+    ctx.fillStyle = c.color;
+    ctx.fillRect(-c.size / 2, -c.size / 4, c.size, c.size / 2);
+    ctx.restore();
+    c.x += c.vx; c.y += c.vy; c.rot += c.rotV;
+    if (c.y > H + 20) { c.y = -20; c.x = Math.random() * W; }
+  }
+}
+
+function drawWinScreen() {
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(0, 0, W, H);
+
+  const titleSize = Math.min(W * 0.1, 60);
+  ctx.font = `bold ${titleSize}px "Segoe UI", system-ui, sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.shadowColor = '#ffd32a'; ctx.shadowBlur = 30;
+  ctx.fillStyle = '#ffd32a';
+  ctx.fillText('Level Complete!', W / 2, H * 0.22);
+  ctx.shadowBlur = 0;
+
+  // Stars
+  const stars = getStars(moves, currentConfig.parMoves);
+  const starR = Math.min(W * 0.05, 28);
+  const starGap = starR * 2.8;
+  for (let i = 0; i < 3; i++) {
+    drawStar(W / 2 + (i - 1) * starGap, H * 0.33, starR, starR * 0.4, i < stars);
+  }
+
+  // Moves & par
+  const subSize = Math.min(W * 0.05, 28);
+  ctx.font = `bold ${subSize}px "Segoe UI", system-ui, sans-serif`;
+  ctx.fillStyle = '#fff';
+  ctx.fillText(`Moves: ${moves}`, W / 2, H * 0.43);
+  if (currentConfig.parMoves) {
+    ctx.font = `${Math.min(W * 0.035, 20)}px "Segoe UI", system-ui, sans-serif`;
+    ctx.fillStyle = moves <= currentConfig.parMoves ? '#2ecc71' : 'rgba(255,255,255,0.5)';
+    ctx.fillText(`Par: ${currentConfig.parMoves}`, W / 2, H * 0.49);
+  }
+
+  // Bonus empty earned?
+  if (currentConfig.bonusEmptyReward && stars === 3) {
+    ctx.font = `bold ${Math.min(W * 0.035, 18)}px "Segoe UI", system-ui, sans-serif`;
+    ctx.fillStyle = '#f1c40f';
+    ctx.fillText('+1 Bonus Bottle earned!', W / 2, H * 0.55);
+  }
+
+  // Next level button
+  const btnW = 200, btnH = 50, btnR = 12;
+  const btnX = (W - btnW) / 2, btnY = H * 0.62;
+  const th = THEMES[currentConfig.theme || 'ocean'];
+  const grad = ctx.createLinearGradient(btnX, btnY, btnX + btnW, btnY + btnH);
+  grad.addColorStop(0, th.accent);
+  grad.addColorStop(1, th.accent + '88');
+  ctx.beginPath();
+  ctx.roundRect(btnX, btnY, btnW, btnH, btnR);
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 18px "Segoe UI", system-ui, sans-serif';
+  ctx.fillText('Next Level', W / 2, btnY + btnH / 2);
+
+  // Level select button
+  const lsBtnY = btnY + btnH + 15;
+  ctx.beginPath();
+  ctx.roundRect(btnX, lsBtnY, btnW, btnH, btnR);
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillText('Level Select', W / 2, lsBtnY + btnH / 2);
+
+  drawConfetti();
+}
+
+function drawTimesUpScreen() {
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(0, 0, W, H);
+
+  const titleSize = Math.min(W * 0.1, 60);
+  ctx.font = `bold ${titleSize}px "Segoe UI", system-ui, sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#e74c3c';
+  ctx.shadowColor = '#e74c3c'; ctx.shadowBlur = 20;
+  ctx.fillText("Time's Up!", W / 2, H * 0.35);
+  ctx.shadowBlur = 0;
+
+  const btnW = 200, btnH = 50, btnR = 12;
+  const btnX = (W - btnW) / 2, btnY = H * 0.52;
+  ctx.beginPath();
+  ctx.roundRect(btnX, btnY, btnW, btnH, btnR);
+  ctx.fillStyle = '#e74c3c';
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 18px "Segoe UI", system-ui, sans-serif';
+  ctx.fillText('Retry', W / 2, btnY + btnH / 2);
+
+  const lsBtnY = btnY + btnH + 15;
+  ctx.beginPath();
+  ctx.roundRect(btnX, lsBtnY, btnW, btnH, btnR);
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.fill();
+  ctx.fillText('Level Select', W / 2, lsBtnY + btnH / 2);
+}
+
+// ─── Level Select (HTML) ─────────────────────────────────────────────
+const levelSelectEl = document.getElementById('levelSelect');
+
+function showLevelSelect() {
+  state = 'levelselect';
+  const save = getSaveData();
+  // Find highest completed level to determine how many to show
+  let highestCompleted = 0;
+  for (const k in save.levels) {
+    if (save.levels[k].stars > 0) highestCompleted = Math.max(highestCompleted, parseInt(k));
+  }
+  const totalLevels = Math.max(50, highestCompleted + 10);
+
+  // Total stars
+  let totalStars = 0;
+  for (let i = 1; i <= totalLevels; i++) {
+    if (save.levels[i]) totalStars += save.levels[i].stars;
+  }
+
+  let html = `<div class="ls-stars"><span class="star-icon">★</span> ${totalStars}</div>`;
+  html += '<div class="ls-sections">';
+
+  const numThemeGroups = Math.ceil(totalLevels / 10);
+  for (let ti = 0; ti < numThemeGroups; ti++) {
+    const themeName = THEME_ORDER[ti % THEME_ORDER.length];
+    const th = THEMES[themeName];
+    const startLvl = ti * 10 + 1;
+    const endLvl = Math.min(startLvl + 9, totalLevels);
+    const lvlCount = endLvl - startLvl + 1;
+
+    let themeStars = 0;
+    for (let l = startLvl; l <= endLvl; l++) {
+      if (save.levels[l]) themeStars += save.levels[l].stars;
+    }
+
+    html += `<div class="ls-section" style="background:linear-gradient(180deg,${th.bg[1]}30,${th.bg[2]}18);border-left:3px solid ${th.accent}aa;border-color:${th.accent}20;border-left-color:${th.accent}aa;">`;
+    html += `<div class="ls-section-hdr"><span class="theme-name" style="color:${th.accent}">${th.name}</span><span class="theme-progress">★ ${themeStars} / ${lvlCount * 3}</span></div>`;
+    html += '<div class="ls-grid">';
+
+    for (let l = startLvl; l <= endLvl; l++) {
+      const unlocked = isLevelUnlocked(l, save);
+      const levelData = save.levels[l];
+      const completed = levelData && levelData.stars > 0;
+      const isNext = unlocked && !completed && l === highestCompleted + 1;
+      const stars = levelData ? levelData.stars : 0;
+
+      let cls = 'ls-cell';
+      if (completed) cls += ' completed';
+      if (!unlocked) cls += ' locked';
+      if (isNext) cls += ' next-level';
+
+      let bg = 'rgba(255,255,255,0.03)';
+      if (completed) bg = `linear-gradient(180deg,${th.accent}35,${th.accent}15)`;
+      else if (unlocked) bg = 'rgba(255,255,255,0.07)';
+
+      let cellHtml = '';
+      if (unlocked) {
+        cellHtml += `<span class="lvl-num">${l}</span>`;
+        cellHtml += '<span class="lvl-stars">';
+        for (let s = 0; s < 3; s++) {
+          cellHtml += `<span class="${s < stars ? 'earned' : ''}">★</span>`;
+        }
+        cellHtml += '</span>';
+
+        // Mechanic badges
+        const cfg = getLevelConfig(l);
+        let badges = [];
+        if (cfg.bombTimer > 0) badges.push('#e74c3c');
+        if (cfg.mysteryLayers > 0) badges.push('#9b59b6');
+        if (cfg.lockedLayers > 0) badges.push('#95a5a6');
+        if (cfg.rainbow) badges.push('#f1c40f');
+        if (cfg.cappedBottles > 0) badges.push('#8d6e63');
+        if (badges.length > 0) {
+          cellHtml += '<span class="lvl-badges">';
+          for (const bc of badges) cellHtml += `<span style="background:${bc}"></span>`;
+          cellHtml += '</span>';
+        }
+      } else {
+        cellHtml += '<span class="lock-icon">🔒</span>';
+      }
+
+      const borderStyle = isNext && unlocked && !completed
+        ? `border-color:${th.accent};--accent:${th.accent}`
+        : unlocked ? `border-color:${th.accent}40` : '';
+
+      html += `<div class="${cls}" style="background:${bg};${borderStyle}" ${unlocked ? `data-lvl="${l}"` : ''}>${cellHtml}</div>`;
+    }
+
+    html += '</div></div>';
+  }
+
+  html += '</div>';
+  levelSelectEl.innerHTML = html;
+  levelSelectEl.classList.remove('hidden');
+  levelSelectEl.scrollTop = 0;
+
+  // Event delegation for level taps
+  levelSelectEl.onclick = (e) => {
+    const cell = e.target.closest('.ls-cell[data-lvl]');
+    if (cell) {
+      const lvl = parseInt(cell.dataset.lvl);
+      levelSelectEl.classList.add('hidden');
+      startLevel(lvl);
+    }
+  };
+}
+
+function hideLevelSelect() {
+  levelSelectEl.classList.add('hidden');
+}
+
+// ─── Pour Animation ──────────────────────────────────────────────────
+// startPos: optional {x, y} from drag-drop — bottle animates from there instead of grid slot
+function animatePour(srcIdx, dstIdx, count, colorIdx, callback, startPos) {
+  state = 'animating';
+  const positions = getLayout();
+  const sp = positions[srcIdx];
+  const dp = positions[dstIdx];
+  const ml = currentConfig.maxLayers || 4;
+
+  const srcLayers = bottles[srcIdx].splice(bottles[srcIdx].length - count, count);
+  const dstCountBefore = bottles[dstIdx].length;
+
+  const neckH = sp.h * 0.18;
+  const wallThick = 3;
+  const color = activeColors[colorIdx] || COLORS[colorIdx % COLORS.length];
+  const streamW = sp.w * 0.22;
+  const dstLayerH = (dp.h - neckH - wallThick * 2) / ml;
+  const dstLiquidBot = dp.y + dp.h - wallThick;
+
+  // Start position: from drag drop point or from grid slot
+  const srcNX = startPos ? startPos.x : sp.x + sp.w / 2;
+  const srcNY = startPos ? startPos.y : sp.y;
+  const homeNX = sp.x + sp.w / 2; // always return to grid slot
+  const homeNY = sp.y;
+  const dstNX = dp.x + dp.w / 2;
+
+  const tiltDir = srcNX < dstNX ? 1 : (srcNX > dstNX ? -1 : 1);
+  const maxAngle = tiltDir * Math.PI * 0.42;
+
+  const pourNX = dstNX - tiltDir * sp.w * 0.15;
+  const pourNY = dp.y - sp.h * 0.35;
+
+  const LIFT = 0.18, TILT = 0.28, POUR_END = 0.68, UNTILT = 0.78;
+  const totalDuration = 900 + count * 100;
+  const startTime = performance.now();
+  pourParticles = [];
+
+  function ease(t) { return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3)/2; }
+
+  let frame;
+  function step(now) {
+    const t = Math.min((now - startTime) / totalDuration, 1);
+    drawBackground();
+
+    let neckX, neckY, angle;
+    if (t <= LIFT) {
+      const p = ease(t / LIFT);
+      neckX = srcNX + (pourNX - srcNX) * p;
+      neckY = srcNY + (pourNY - srcNY) * p - Math.sin(p * Math.PI) * 40;
+      angle = 0;
+    } else if (t <= TILT) {
+      const p = ease((t - LIFT) / (TILT - LIFT));
+      neckX = pourNX; neckY = pourNY;
+      angle = maxAngle * p;
+    } else if (t <= POUR_END) {
+      neckX = pourNX; neckY = pourNY;
+      angle = maxAngle;
+    } else if (t <= UNTILT) {
+      const p = ease((t - POUR_END) / (UNTILT - POUR_END));
+      neckX = pourNX; neckY = pourNY;
+      angle = maxAngle * (1 - p);
+    } else {
+      const p = ease((t - UNTILT) / (1 - UNTILT));
+      neckX = pourNX + (homeNX - pourNX) * p;
+      neckY = pourNY + (homeNY - pourNY) * p - Math.sin(p * Math.PI) * 40;
+      angle = 0;
+    }
+
+    let pourT = 0, arrived = 0, pourFrac = 0;
+    if (t >= TILT && t <= POUR_END) {
+      pourT = (t - TILT) / (POUR_END - TILT);
+      const continuous = pourT * count;
+      arrived = Math.floor(continuous);
+      pourFrac = continuous - arrived; // fractional progress into the current layer
+    } else if (t > POUR_END) {
+      pourT = 1; arrived = count; pourFrac = 0;
+    }
+
+    const pos = getLayout();
+    for (let i = 0; i < bottles.length; i++) {
+      if (i === srcIdx) continue;
+      let layers = bottles[i];
+      let dstPartial = 1;
+      if (i === dstIdx) {
+        layers = [...bottles[i]];
+        for (let j = 0; j < arrived; j++) layers.push(srcLayers[j]);
+        // Add the partially-filling layer
+        if (arrived < count && pourFrac > 0) {
+          layers.push(srcLayers[arrived]);
+          dstPartial = pourFrac;
+        }
+      }
+      drawBottle(pos[i].x, pos[i].y, pos[i].w, pos[i].h, layers, false, i, i === dstIdx ? dstPartial : 1);
+    }
+
+    // Source bottle: remaining layers drain smoothly from the top
+    const srcVisual = [...bottles[srcIdx]];
+    let srcPartial = 1;
+    const srcRemaining = count - arrived;
+    if (srcRemaining > 0) {
+      for (let j = arrived; j < count; j++) srcVisual.push(srcLayers[j]);
+      srcPartial = pourFrac > 0 ? 1 - pourFrac : 1;
+    }
+
+    ctx.save();
+    ctx.translate(neckX, neckY);
+    ctx.rotate(angle);
+    ctx.translate(-neckX, -neckY);
+    drawBottle(neckX - sp.w / 2, neckY, sp.w, sp.h, srcVisual, false, srcIdx, srcPartial);
+    ctx.restore();
+
+    if (t >= TILT && t < UNTILT && pourT > 0) {
+      const fillLevel = dstCountBefore + arrived + (arrived < count ? pourFrac : 0);
+      const fillY = dstLiquidBot - fillLevel * dstLayerH;
+      const streamStartY = neckY + 4;
+      const streamH = fillY - streamStartY;
+      if (streamH > 0) {
+        let sAlpha = 1;
+        if (pourT < 0.08) sAlpha = pourT / 0.08;
+        else if (pourT > 0.92) sAlpha = (1 - pourT) / 0.08;
+        ctx.save();
+        ctx.globalAlpha = sAlpha * 0.85;
+        ctx.fillStyle = color;
+        ctx.fillRect(neckX - streamW / 2, streamStartY, streamW, streamH);
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.fillRect(neckX - streamW * 0.15, streamStartY, streamW * 0.3, streamH);
+        ctx.globalAlpha = 1;
+        ctx.restore();
+        if (Math.random() < 0.4) {
+          pourParticles.push({
+            x: neckX + (Math.random() - 0.5) * dp.w * 0.3, y: fillY,
+            vx: (Math.random() - 0.5) * 3, vy: -Math.random() * 3 - 1,
+            life: 15 + Math.random() * 10, maxLife: 25,
+            size: 2 + Math.random() * 3, color: color
+          });
+        }
+      }
+    }
+
+    for (let i = pourParticles.length - 1; i >= 0; i--) {
+      const p = pourParticles[i];
+      p.x += p.vx; p.y += p.vy; p.vy += 0.25; p.life--;
+      const alpha = p.life / p.maxLife;
+      ctx.globalAlpha = Math.max(alpha, 0);
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, Math.max(p.size * alpha, 0), 0, Math.PI * 2);
+      ctx.fill();
+      if (p.life <= 0) pourParticles.splice(i, 1);
+    }
+    ctx.globalAlpha = 1;
+    if (!demoMode) drawHUD();
+
+    if (t < 1) {
+      frame = requestAnimationFrame(step);
+    } else {
+      for (let i = 0; i < count; i++) bottles[dstIdx].push(srcLayers[i]);
+      // Update revealed for destination
+      revealTopLayers();
+      // Update locked
+      updateLockedLayers();
+      // Check color merge
+      checkColorMerge(dstIdx);
+      pourParticles = [];
+      state = 'playing';
+      callback();
+    }
+  }
+  frame = requestAnimationFrame(step);
+}
+
+// ─── Mechanic Updates ────────────────────────────────────────────────
+function revealTopLayers() {
+  for (let i = 0; i < bottles.length; i++) {
+    if (bottles[i].length > 0) {
+      const topIdx = bottles[i].length - 1;
+      if (!bottleRevealed[i]) bottleRevealed[i] = [];
+      while (bottleRevealed[i].length <= topIdx) bottleRevealed[i].push(true);
+      bottleRevealed[i][topIdx] = true;
+    }
+  }
+}
+
+function updateLockedLayers() {
+  for (let i = 0; i < bottles.length; i++) {
+    if (!bottleLocked[i]) continue;
+    // Unlock any locked layer that is now the topmost
+    if (bottles[i].length > 0) {
+      const topIdx = bottles[i].length - 1;
+      if (bottleLocked[i][topIdx]) {
+        bottleLocked[i][topIdx] = false;
+        sfxUnlock();
+      }
+    }
+  }
+}
+
+function decrementCaps() {
+  let popped = false;
+  for (let i = 0; i < bottleCapped.length; i++) {
+    if (bottleCapped[i] > 0) {
+      bottleCapped[i]--;
+      if (bottleCapped[i] === 0) popped = true;
+    }
+  }
+  if (popped) sfxCapPop();
+}
+
+function checkColorMerge(bottleIdx) {
+  if (!currentConfig.colorMerge) return;
+  const b = bottles[bottleIdx];
+  if (b.length < 2) return;
+  const top = b[b.length - 1];
+  const second = b[b.length - 2];
+  for (const rule of currentConfig.colorMerge) {
+    if ((top === rule[0] && second === rule[1]) || (top === rule[1] && second === rule[0])) {
+      // Merge!
+      b.pop(); b.pop();
+      b.push(rule[2]);
+      // Update metadata
+      if (bottleRevealed[bottleIdx]) {
+        bottleRevealed[bottleIdx].pop(); bottleRevealed[bottleIdx].pop();
+        bottleRevealed[bottleIdx].push(true);
+      }
+      if (bottleLocked[bottleIdx]) {
+        bottleLocked[bottleIdx].pop(); bottleLocked[bottleIdx].pop();
+        bottleLocked[bottleIdx].push(false);
+      }
+      sfxMerge();
+      break;
+    }
+  }
+}
+
+// ─── Game Logic ──────────────────────────────────────────────────────
+function canPour(srcIdx, dstIdx) {
+  if (srcIdx === dstIdx) return false;
+  const src = bottles[srcIdx];
+  const dst = bottles[dstIdx];
+  const ml = currentConfig.maxLayers || 4;
+  if (src.length === 0) return false;
+  if (dst.length >= ml) return false;
+  if (bottleCapped[srcIdx] > 0) return false;
+  // Check if top layer is locked
+  if (bottleLocked[srcIdx] && bottleLocked[srcIdx][src.length - 1]) return false;
+  if (dst.length === 0) return true;
+  return src[src.length - 1] === dst[dst.length - 1];
+}
+
+function getTopCount(bottle, bottleIdx) {
+  if (bottle.length === 0) return 0;
+  const topColor = bottle[bottle.length - 1];
+  let count = 0;
+  for (let i = bottle.length - 1; i >= 0; i--) {
+    if (bottle[i] !== topColor) break;
+    if (bottleLocked[bottleIdx] && bottleLocked[bottleIdx][i]) break;
+    count++;
+  }
+  return count;
+}
+
+// startPos: optional {x,y} for drag-drop start position
+function pourBottle(srcIdx, dstIdx, startPos) {
+  const src = bottles[srcIdx];
+  const dst = bottles[dstIdx];
+  const ml = currentConfig.maxLayers || 4;
+  const topColor = src[src.length - 1];
+  const topCount = getTopCount(src, srcIdx);
+  const space = ml - dst.length;
+  const pourCount = Math.min(topCount, space);
+
+  // Save undo state (deep copy metadata for the affected bottles)
+  undoStack.push({
+    src: srcIdx, dst: dstIdx, count: pourCount, color: topColor,
+    srcRevealed: bottleRevealed[srcIdx] ? [...bottleRevealed[srcIdx]] : [],
+    dstRevealed: bottleRevealed[dstIdx] ? [...bottleRevealed[dstIdx]] : [],
+    srcLocked: bottleLocked[srcIdx] ? [...bottleLocked[srcIdx]] : [],
+    dstLocked: bottleLocked[dstIdx] ? [...bottleLocked[dstIdx]] : [],
+    srcCap: bottleCapped[srcIdx],
+    dstLayers: [...dst],
+    srcLayers: [...src],
+    mergedResult: null,
+  });
+
+  moves++;
+  sfxPour();
+  decrementCaps();
+
+  animatePour(srcIdx, dstIdx, pourCount, topColor, () => {
+    if (checkWin()) {
+      timerActive = false;
+      state = 'won';
+      const stars = getStars(moves, currentConfig.parMoves);
+      saveLevelResult(level, stars, moves);
+      if (currentConfig.bonusEmptyReward && stars === 3) addBonusEmpty();
+      initConfetti();
+      sfxWin();
+    }
+    drawCurrentState();
+  }, startPos);
+}
+
+function undoMove() {
+  if (undoStack.length === 0) return;
+  if (undosRemaining !== null) {
+    if (undosRemaining <= 0) { sfxInvalid(); return; }
+    undosRemaining--;
+  }
+  const move = undoStack.pop();
+  // Restore full state
+  bottles[move.src] = move.srcLayers;
+  bottles[move.dst] = move.dstLayers;
+  bottleRevealed[move.src] = move.srcRevealed;
+  bottleRevealed[move.dst] = move.dstRevealed;
+  bottleLocked[move.src] = move.srcLocked;
+  bottleLocked[move.dst] = move.dstLocked;
+  bottleCapped[move.src] = move.srcCap;
+  moves--;
+  selectedBottle = -1;
+  sfxSelect();
+  drawCurrentState();
+}
+
+function checkWin() {
+  const ml = currentConfig.maxLayers || 4;
+  for (const b of bottles) {
+    if (b.length === 0) continue;
+    if (b.length !== ml) return false;
+    if (new Set(b).size !== 1) return false;
+  }
+  return true;
+}
+
+function useBonusEmptyInGame() {
+  if (!useBonusEmpty()) return;
+  bottles.push([]);
+  bottleRevealed.push([]);
+  bottleLocked.push([]);
+  bottleCapped.push(0);
+  sfxSelect();
+  drawCurrentState();
+}
+
+// ─── Scene Drawing ───────────────────────────────────────────────────
+function drawScene() {
+  drawBackground();
+  const positions = getLayout();
+  // Find which bottle the cursor is hovering over during drag
+  let hoverIdx = -1;
+  if (dragState) {
+    // Bottle center during drag
+    const dragCX = dragState.originX + dragState.w / 2 + dragState.dx;
+    const dragCY = dragState.originY + dragState.h * 0.5 + dragState.dy;
+    hoverIdx = getBottleAt(dragCX, dragCY);
+  }
+  for (let i = 0; i < bottles.length; i++) {
+    if (dragState && dragState.bottleIdx === i) continue; // draw dragged bottle on top
+    const p = positions[i];
+    let hl = false;
+    if (i === selectedBottle) hl = 'selected';
+    else if (dragState && i === hoverIdx && canPour(dragState.bottleIdx, i)) hl = 'drop';
+    drawBottle(p.x, p.y, p.w, p.h, bottles[i], hl, i);
+  }
+  // Draw dragged bottle offset from its original position by the drag delta
+  if (dragState) {
+    const db = dragState;
+    const dx = db.originX + db.dx;
+    const dy = db.originY + db.dy;
+    ctx.globalAlpha = 0.85;
+    drawBottle(dx, dy, db.w, db.h, bottles[db.bottleIdx], 'selected', db.bottleIdx);
+    ctx.globalAlpha = 1;
+  }
+  if (!demoMode) {
+    drawHUD();
+    if (state === 'playing') drawButtons();
+    if (state === 'won') drawWinScreen();
+    if (state === 'timesup') drawTimesUpScreen();
+  }
+}
+
+function drawCurrentState() {
+  if (state !== 'levelselect') drawScene();
+}
+
+// ─── Input Handling ──────────────────────────────────────────────────
+function getBottleAt(px, py) {
+  const positions = getLayout();
+  for (let i = 0; i < positions.length; i++) {
+    if (dragState && dragState.bottleIdx === i) continue; // skip dragged bottle
+    const p = positions[i];
+    const offsetY = i === selectedBottle ? -p.h * 0.15 : 0;
+    if (px >= p.x - 5 && px <= p.x + p.w + 5 &&
+        py >= p.y + offsetY - 10 && py <= p.y + p.h + 10) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+function canPickUp(idx) {
+  if (idx < 0 || idx >= bottles.length) return false;
+  if (bottles[idx].length === 0) return false;
+  if (bottleCapped[idx] > 0) return false;
+  if (bottleLocked[idx] && bottleLocked[idx][bottles[idx].length - 1]) return false;
+  return true;
+}
+
+function handleToolbarTap(px, py) {
+  const { buttons } = getToolbarLayout();
+  for (const btn of buttons) {
+    if (px >= btn.x && px <= btn.x + btn.w && py >= btn.y && py <= btn.y + btn.h) {
+      if (btn.id === 'undo') { undoMove(); return true; }
+      if (btn.id === 'restart') { startLevel(level); return true; }
+      if (btn.id === 'back') {
+        timerActive = false;
+        showLevelSelect();
+        return true;
+      }
+      if (btn.id === 'bonus') { useBonusEmptyInGame(); return true; }
+    }
+  }
+  return false;
+}
+
+function handlePlayingTap(px, py) {
+  if (handleToolbarTap(px, py)) return;
+
+  const idx = getBottleAt(px, py);
+  if (idx === -1) {
+    if (selectedBottle !== -1) { selectedBottle = -1; drawCurrentState(); }
+    return;
+  }
+
+  if (selectedBottle === -1) {
+    if (canPickUp(idx)) {
+      selectedBottle = idx;
+      sfxSelect();
+      drawCurrentState();
+    } else {
+      sfxInvalid();
+    }
+  } else if (selectedBottle === idx) {
+    selectedBottle = -1;
+    drawCurrentState();
+  } else {
+    if (canPour(selectedBottle, idx)) {
+      const src = selectedBottle;
+      selectedBottle = -1;
+      pourBottle(src, idx);
+    } else {
+      sfxInvalid();
+      if (canPickUp(idx)) {
+        selectedBottle = idx;
+        sfxSelect();
+      } else {
+        selectedBottle = -1;
+      }
+      drawCurrentState();
+    }
+  }
+}
+
+function handleWonTap(px, py) {
+  const btnW = 200, btnH = 50;
+  const btnX = (W - btnW) / 2, btnY = H * 0.62;
+  if (px >= btnX && px <= btnX + btnW && py >= btnY && py <= btnY + btnH) {
+    startLevel(level + 1);
+    return;
+  }
+  const lsBtnY = btnY + btnH + 15;
+  if (px >= btnX && px <= btnX + btnW && py >= lsBtnY && py <= lsBtnY + btnH) {
+    showLevelSelect();
+  }
+}
+
+function handleTimesUpTap(px, py) {
+  const btnW = 200, btnH = 50;
+  const btnX = (W - btnW) / 2, btnY = H * 0.52;
+  if (px >= btnX && px <= btnX + btnW && py >= btnY && py <= btnY + btnH) {
+    startLevel(level);
+    return;
+  }
+  const lsBtnY = btnY + btnH + 15;
+  if (px >= btnX && px <= btnX + btnW && py >= lsBtnY && py <= lsBtnY + btnH) {
+    showLevelSelect();
+  }
+}
+
+function handleTap(px, py) {
+  if (state === 'won') { handleWonTap(px, py); return; }
+  if (state === 'timesup') { handleTimesUpTap(px, py); return; }
+  if (state === 'playing') { handlePlayingTap(px, py); return; }
+}
+
+// ─── Pointer / Drag-and-Drop ─────────────────────────────────────────
+let pointerStart = null;
+let pointerMoved = false;
+const DRAG_THRESHOLD = 10;
+
+canvas.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  canvas.setPointerCapture(e.pointerId);
+  ensureAudio();
+  pointerStart = { x: e.clientX, y: e.clientY, time: Date.now(), pointerId: e.pointerId };
+  pointerMoved = false;
+  dragState = null;
+
+  // Pre-check: if pointer is on a bottle during play, prepare for potential drag
+  if (state === 'playing') {
+    const idx = getBottleAt(e.clientX, e.clientY);
+    if (idx !== -1 && canPickUp(idx)) {
+      const pos = getLayout();
+      const p = pos[idx];
+      pointerStart.bottleIdx = idx;
+      pointerStart.bottlePos = p;
+    }
+  }
+});
+
+canvas.addEventListener('pointermove', (e) => {
+  if (!pointerStart) return;
+  const dx = e.clientX - pointerStart.x;
+  const dy = e.clientY - pointerStart.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+
+  if (dist > DRAG_THRESHOLD) pointerMoved = true;
+
+  // Update cursor during drag
+  if (dragState) {
+    canvas.style.cursor = 'grabbing';
+  }
+
+  // Bottle drag during play
+  if (state === 'playing' && pointerMoved && pointerStart.bottleIdx !== undefined) {
+    const idx = pointerStart.bottleIdx;
+    const p = pointerStart.bottlePos;
+    const dx = e.clientX - pointerStart.x;
+    const dy = e.clientY - pointerStart.y;
+    if (!dragState) {
+      // Start dragging — track delta from grab point so bottle doesn't snap
+      dragState = { bottleIdx: idx, originX: p.x, originY: p.y, w: p.w, h: p.h, dx, dy };
+      selectedBottle = -1;
+      sfxSelect();
+    } else {
+      dragState.dx = dx;
+      dragState.dy = dy;
+    }
+    drawCurrentState();
+  }
+});
+
+canvas.addEventListener('pointerup', (e) => {
+  if (!pointerStart) return;
+
+  if (dragState && state === 'playing') {
+    // Drop: check destination at the dragged bottle's center
+    const dragCX = dragState.originX + dragState.w / 2 + dragState.dx;
+    const dragCY = dragState.originY + dragState.h * 0.5 + dragState.dy;
+    const dropIdx = getBottleAt(dragCX, dragCY);
+    const srcIdx = dragState.bottleIdx;
+    // Capture drop position as the neck center of the dragged bottle
+    const dropPos = { x: dragState.originX + dragState.w / 2 + dragState.dx, y: dragState.originY + dragState.dy };
+    dragState = null;
+
+    if (dropIdx !== -1 && dropIdx !== srcIdx && canPour(srcIdx, dropIdx)) {
+      pourBottle(srcIdx, dropIdx, dropPos);
+    } else {
+      if (dropIdx !== -1 && dropIdx !== srcIdx) sfxInvalid();
+      drawCurrentState();
+    }
+  } else if (!pointerMoved) {
+    handleTap(e.clientX, e.clientY);
+  }
+
+  pointerStart = null;
+
+  dragState = null;
+  canvas.style.cursor = 'default';
+});
+
+canvas.addEventListener('pointercancel', () => {
+  pointerStart = null;
+
+  dragState = null;
+  canvas.style.cursor = 'default';
+  if (state === 'playing') drawCurrentState();
+});
+
+// Hover cursor for bottles
+canvas.addEventListener('mousemove', (e) => {
+  if (dragState || pointerStart) return; // handled by drag logic
+  if (state === 'playing') {
+    const idx = getBottleAt(e.clientX, e.clientY);
+    if (idx !== -1 && canPickUp(idx)) {
+      canvas.style.cursor = 'grab';
+    } else {
+      // Check toolbar buttons
+      const { buttons } = getToolbarLayout();
+      let overBtn = false;
+      for (const btn of buttons) {
+        if (e.clientX >= btn.x && e.clientX <= btn.x + btn.w &&
+            e.clientY >= btn.y && e.clientY <= btn.y + btn.h) {
+          overBtn = true; break;
+        }
+      }
+      canvas.style.cursor = overBtn ? 'pointer' : 'default';
+    }
+  } else {
+    canvas.style.cursor = 'default';
+  }
+});
+
+// ─── Back Button (HTML) ──────────────────────────────────────────────
+// The HTML back button always goes to the arcade hub.
+// In-canvas "Back" toolbar button handles returning to level select.
+
+// ─── Win Animation Loop ─────────────────────────────────────────────
+let winAnimFrame;
+function winAnimLoop() {
+  if (state !== 'won') return;
+  drawScene();
+  winAnimFrame = requestAnimationFrame(winAnimLoop);
+}
+
+// ─── Start ───────────────────────────────────────────────────────────
+document.getElementById('startBtn').addEventListener('click', () => {
+  document.getElementById('overlay').classList.add('hidden');
+  demoMode = false;
+  ensureAudio();
+  showLevelSelect();
+});
+
+// Patch win state to trigger anim
+const _origSfxWin = sfxWin;
+sfxWin = function() { _origSfxWin(); winAnimLoop(); };
+
+// ─── Menu Auto-Play Background ──────────────────────────────────────
+let demoNextMove = 0;
+
+function initDemo() {
+  demoMode = true;
+  const cfg = getLevelConfig(3);
+  currentConfig = cfg;
+  const gen = generateLevel(cfg);
+  bottles = gen.bottles;
+  bottleRevealed = gen.revealed;
+  bottleLocked = gen.locked;
+  bottleCapped = gen.capped;
+  selectedBottle = -1;
+  moves = 0;
+  undoStack = [];
+  pourParticles = [];
+  demoNextMove = performance.now() + 750;
+}
+
+function demoPickMove() {
+  if (state === 'animating') return; // wait for current pour to finish
+  const ml = currentConfig.maxLayers || 4;
+  const validMoves = [];
+  for (let s = 0; s < bottles.length; s++) {
+    for (let d = 0; d < bottles.length; d++) {
+      if (canPour(s, d)) validMoves.push([s, d]);
+    }
+  }
+  if (validMoves.length === 0) { initDemo(); return; }
+  const [s, d] = validMoves[Math.floor(Math.random() * validMoves.length)];
+  const src = bottles[s];
+  const topColor = src[src.length - 1];
+  const topCount = getTopCount(src, s);
+  const space = ml - bottles[d].length;
+  const pourCount = Math.min(topCount, space);
+  // Use the real pour animation
+  state = 'animating';
+  animatePour(s, d, pourCount, topColor, () => {
+    // After pour completes
+    if (!demoMode) return;
+    state = 'menu';
+    // Check if solved — restart with new level
+    let solved = true;
+    for (const b of bottles) {
+      if (b.length === 0) continue;
+      if (b.length !== ml || new Set(b).size !== 1) { solved = false; break; }
+    }
+    if (solved) {
+      setTimeout(() => { if (demoMode) initDemo(); }, 2000);
+    } else {
+      demoNextMove = performance.now() + 600 + Math.random() * 400;
+    }
+    drawScene();
+  });
+}
+
+function menuAnimLoop() {
+  if (!demoMode) return;
+  if (state === 'menu') {
+    drawScene();
+    if (performance.now() >= demoNextMove) demoPickMove();
+  }
+  // animatePour has its own rAF drawing loop, so only keep ticking during 'menu'
+  if (demoMode) requestAnimationFrame(menuAnimLoop);
+}
+
+// Start demo
+initDemo();
+state = 'menu';
+menuAnimLoop();
+</script>
+</body>
+</html>
