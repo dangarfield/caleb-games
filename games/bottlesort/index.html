@@ -148,7 +148,7 @@ function sfxTimeUp() { if (demoMode) return; playTone(200, 0.4, 'sawtooth', 0.1,
 // ─── Colors ──────────────────────────────────────────────────────────
 const COLORS = [
   '#e74c3c','#3498db','#2ecc71','#f1c40f','#9b59b6','#e67e22',
-  '#8B4513','#e91e63','#a8d600','#1a1a2e','#e8e4df','#800020',
+  '#8B4513','#e91e63','#a8d600','#2d2d44','#e8e4df','#800020',
 ];
 
 function generateRainbowPalette(n, hue) {
@@ -320,6 +320,7 @@ let timerRemaining = 0;
 let timerActive = false;
 let timerLastTick = 0;
 let pourParticles = [];
+let stuckDismissed = false;
 
 // Drag-and-drop state
 let dragState = null; // { bottleIdx, originX, originY, curX, curY, w, h }
@@ -435,6 +436,7 @@ function startLevel(lvl) {
   bottleCapped = gen.capped;
   selectedBottle = -1;
   moves = 0;
+  stuckDismissed = false;
   undoStack = [];
   undosRemaining = currentConfig.limitedUndo;
   pourParticles = [];
@@ -596,12 +598,9 @@ function drawBottle(x, y, w, h, layers, highlight, index, partialTop) {
       ctx.fillText('?', x + w / 2, ly + thisH / 2);
     }
 
-    // Locked overlay
+    // Locked indicator — hash lines over full color
     if (isLocked) {
-      ctx.fillStyle = 'rgba(0,0,0,0.35)';
-      ctx.fillRect(x + wallThick, ly, w - wallThick * 2, thisH + 1);
-      // Hash lines
-      ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
       ctx.lineWidth = 1;
       const step = 6;
       for (let lx = -thisH; lx < w; lx += step) {
@@ -1006,6 +1005,11 @@ function drawStuckScreen() {
   ctx.fillStyle = 'rgba(255,255,255,0.15)';
   ctx.fill();
   ctx.fillText('Level Select', W / 2, lsBtnY + btnH / 2);
+
+  const contY = lsBtnY + btnH + 15;
+  ctx.font = '14px "Segoe UI", system-ui, sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.fillText('Continue anyway', W / 2, contY + 10);
 }
 
 function handleStuckTap(px, py) {
@@ -1030,6 +1034,13 @@ function handleStuckTap(px, py) {
   const lsBtnY = retryY + btnH + 15;
   if (px >= btnX && px <= btnX + btnW && py >= lsBtnY && py <= lsBtnY + btnH) {
     showLevelSelect();
+    return;
+  }
+  const contY = lsBtnY + btnH + 15;
+  if (px >= btnX - 40 && px <= btnX + btnW + 40 && py >= contY - 5 && py <= contY + 25) {
+    stuckDismissed = true;
+    state = 'playing';
+    drawCurrentState();
   }
 }
 
@@ -1428,10 +1439,25 @@ function isSolvable() {
   const ml = currentConfig.maxLayers || 4;
   const n = bottles.length;
 
-  // Encode state as a normalized string for deduplication.
-  // Each bottle → sorted position-independent key. Sort bottles so permutations match.
+  // Compute locked floor per bottle — these layers never move
+  const lockedFloor = [];
+  for (let i = 0; i < n; i++) {
+    let f = 0;
+    if (bottleLocked[i]) {
+      while (f < bottles[i].length && bottleLocked[i][f]) f++;
+    }
+    lockedFloor.push(f);
+  }
+
+  // If any bottles are capped, skip solvability check (cap mechanics too complex to simulate)
+  for (let i = 0; i < n; i++) {
+    if (bottleCapped[i] > 0) return true;
+  }
+
+  // Encode state: include locked floor per bottle so bottles with different
+  // locked properties aren't treated as interchangeable during dedup
   function encodeState(bots) {
-    const keys = bots.map(b => b.join(','));
+    const keys = bots.map((b, i) => lockedFloor[i] + ':' + b.join(','));
     keys.sort();
     return keys.join('|');
   }
@@ -1446,17 +1472,6 @@ function isSolvable() {
     return true;
   }
 
-  // Compute locked floor per bottle — these layers never move, solver skips them
-  const lockedFloor = [];
-  for (let i = 0; i < n; i++) {
-    let f = 0;
-    if (bottleLocked[i]) {
-      while (f < bottles[i].length && bottleLocked[i][f]) f++;
-    }
-    lockedFloor.push(f);
-  }
-
-  // Get top contiguous same-color count above locked layers
   function getTop(b, idx) {
     if (b.length <= lockedFloor[idx]) return { color: -1, count: 0 };
     const topColor = b[b.length - 1];
@@ -1468,39 +1483,31 @@ function isSolvable() {
     return { color: topColor, count };
   }
 
-  // Seed BFS with current bottle state (deep copy)
   const startBots = bottles.map(b => [...b]);
-  const startKey = encodeState(startBots);
-
   if (isWon(startBots)) return true;
 
   const visited = new Set();
-  visited.add(startKey);
+  visited.add(encodeState(startBots));
 
   let queue = [startBots];
-  const MAX_STATES = 8000;
+  const MAX_STATES = 15000;
 
   while (queue.length > 0 && visited.size < MAX_STATES) {
     const nextQueue = [];
     for (const bots of queue) {
       if (visited.size >= MAX_STATES) break;
-      // Generate all valid moves
       for (let s = 0; s < n; s++) {
         const top = getTop(bots[s], s);
         if (top.count === 0) continue;
-        if (bottleCapped[s] > 0) continue; // capped bottles can change during play, but approximate
         for (let d = 0; d < n; d++) {
           if (s === d) continue;
           if (bots[d].length >= ml) continue;
           if (bots[d].length === 0 || bots[d][bots[d].length - 1] === top.color) {
             const space = ml - bots[d].length;
             const pourCount = Math.min(top.count, space);
-            // Skip pointless moves: pouring entire bottle into empty (just swaps)
-            if (bots[d].length === 0 && bots[s].length - pourCount === lockedFloor[s] && pourCount === bots[s].length - lockedFloor[s]) {
-              // Only skip if source has nothing locked below (pure swap)
-              if (lockedFloor[s] === 0) continue;
-            }
-            // Apply move
+            // Skip pure swaps: pouring a single-color unlocked bottle into empty
+            if (bots[d].length === 0 && lockedFloor[s] === 0 && pourCount === bots[s].length) continue;
+
             const next = bots.map(b => [...b]);
             const moved = next[s].splice(next[s].length - pourCount, pourCount);
             for (const c of moved) next[d].push(c);
@@ -1519,8 +1526,7 @@ function isSolvable() {
     queue = nextQueue;
   }
 
-  // If we exhausted the search space → definitely stuck
-  // If we hit the limit → uncertain, assume solvable (don't false-alarm)
+  // Exhausted search space → stuck. Hit limit → assume solvable.
   return visited.size >= MAX_STATES;
 }
 
@@ -1572,7 +1578,7 @@ function pourBottle(srcIdx, dstIdx, startPos) {
       if (currentConfig.bonusEmptyReward && stars === 3) addBonusEmpty();
       initConfetti();
       sfxWin();
-    } else if (!isSolvable()) {
+    } else if (!stuckDismissed && !isSolvable()) {
       timerActive = false;
       state = 'stuck';
       sfxInvalid();
