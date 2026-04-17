@@ -67,6 +67,16 @@ canvas { display:block; width:100%; height:100%; cursor:default; }
 .ls-cell .lvl-badges { display:flex; gap:3px; margin-top:2px; }
 .ls-cell .lvl-badges span { width:5px; height:5px; border-radius:50%; opacity:0.6; }
 .ls-cell .lock-icon { font-size:14px; opacity:0.3; }
+.ls-cell .ls-tooltip { display:none; position:absolute; bottom:calc(100% + 8px); left:50%; transform:translateX(-50%);
+  background:rgba(0,0,0,0.92); color:#fff; font:11px/1.4 'Segoe UI',system-ui,sans-serif; padding:6px 10px;
+  border-radius:8px; white-space:nowrap; z-index:50; pointer-events:none;
+  border:1px solid rgba(255,255,255,0.15); box-shadow:0 4px 12px rgba(0,0,0,0.5); }
+.ls-cell .ls-tooltip::after { content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%);
+  border:5px solid transparent; border-top-color:rgba(0,0,0,0.92); }
+.ls-cell:hover .ls-tooltip, .ls-cell:focus .ls-tooltip { display:block; }
+.ls-tooltip .tt-row { display:flex; justify-content:space-between; gap:12px; }
+.ls-tooltip .tt-label { opacity:0.6; }
+.ls-tooltip .tt-specials { margin-top:3px; padding-top:3px; border-top:1px solid rgba(255,255,255,0.1); }
 </style>
 </head>
 <body>
@@ -138,7 +148,7 @@ function sfxTimeUp() { if (demoMode) return; playTone(200, 0.4, 'sawtooth', 0.1,
 // ─── Colors ──────────────────────────────────────────────────────────
 const COLORS = [
   '#e74c3c','#3498db','#2ecc71','#f1c40f','#9b59b6','#e67e22',
-  '#1abc9c','#e91e63','#00bcd4','#8d6e63','#cddc39','#ff5722',
+  '#8B4513','#e91e63','#a8d600','#1a1a2e','#e8e4df','#800020',
 ];
 
 function generateRainbowPalette(n, hue) {
@@ -169,7 +179,8 @@ function themeForLevel(lvl) {
 // Returns config for any level number
 function getLevelConfig(lvl) {
   const theme = themeForLevel(lvl);
-  const numColors = Math.min(4 + Math.floor((lvl - 1) / 2), 12);
+  // Colors ramp gently: +1 every 5 levels, capping at 12
+  const numColors = Math.min(4 + Math.floor((lvl - 1) / 5), 12);
   // Defaults
   const cfg = {
     level: lvl, theme, numColors,
@@ -182,74 +193,61 @@ function getLevelConfig(lvl) {
     bonusEmptyReward: false,
   };
 
-  // ── Ocean 1-10 ──
-  if (lvl === 4) cfg.limitedUndo = 3;
-  if (lvl === 6) cfg.emptyBottles = 1;
-  if (lvl === 7) cfg.mysteryLayers = 1;
-  if (lvl === 8) cfg.limitedUndo = 3;
-  if (lvl === 9) { cfg.emptyBottles = 1; cfg.mysteryLayers = 1; }
-  if (lvl === 10) cfg.bombTimer = 90;
+  // ── Ocean 1-10: Learn the basics (4-5 colors) ──
+  if (lvl === 8) cfg.limitedUndo = 5;
+  if (lvl === 10) cfg.mysteryLayers = 1;
 
-  // ── Forest 11-20 ──
-  if (lvl >= 12) cfg.maxLayers = 5;
-  if (lvl === 13) cfg.lockedLayers = 1;
-  if (lvl === 14) { cfg.maxLayers = 4; cfg.emptyBottles = 1; cfg.mysteryLayers = 2; }
-  if (lvl === 16) { cfg.emptyBottles = 1; cfg.lockedLayers = 1; cfg.limitedUndo = 3; }
-  if (lvl === 17) { cfg.maxLayers = 4; cfg.cappedBottles = 2; }
-  if (lvl === 18) { cfg.mysteryLayers = 2; cfg.cappedBottles = 1; }
-  if (lvl === 19) { cfg.emptyBottles = 1; cfg.lockedLayers = 1; }
-  if (lvl === 20) cfg.rainbow = true;
+  // ── Forest 11-20: Getting comfortable (6-7 colors) ──
+  if (lvl === 12) cfg.limitedUndo = 5;
+  if (lvl === 14) cfg.mysteryLayers = 1;
+  if (lvl === 17) cfg.mysteryLayers = 1;
+  if (lvl === 19) cfg.limitedUndo = 5;
 
-  // ── Lava 21-30 ──
-  if (lvl === 21) { cfg.emptyBottles = 3; cfg.bonusEmptyReward = true; }
-  if (lvl === 22) { cfg.emptyBottles = 1; cfg.lockedLayers = 1; cfg.cappedBottles = 2; }
-  if (lvl >= 23 && lvl <= 30 && lvl !== 25 && lvl !== 27 && lvl !== 29) cfg.maxLayers = 6;
-  if (lvl === 24) cfg.mysteryLayers = 3;
-  if (lvl === 25) { cfg.maxLayers = 5; cfg.emptyBottles = 1; cfg.bombTimer = 75; }
-  if (lvl === 26) cfg.lockedLayers = 2;
-  if (lvl === 27) { cfg.maxLayers = 5; cfg.colorMerge = [[0,3,5]]; } // red+yellow=orange
-  if (lvl === 28) { cfg.emptyBottles = 1; cfg.cappedBottles = 3; cfg.limitedUndo = 3; }
-  if (lvl === 29) { cfg.maxLayers = 5; cfg.mysteryLayers = 2; cfg.colorMerge = [[1,3,6]]; } // blue+yellow=teal
-  if (lvl === 30) { cfg.rainbow = true; cfg.bombTimer = 60; }
+  // ── Lava 21-30: Mild challenge (8 colors, ~old level 10) ──
+  if (lvl === 22) cfg.mysteryLayers = 1;
+  if (lvl === 24) cfg.mysteryLayers = 1;
+  if (lvl === 25) cfg.lockedLayers = 1;
+  if (lvl === 27) cfg.limitedUndo = 3;
+  if (lvl === 28) cfg.lockedLayers = 1;
+  if (lvl === 29) cfg.cappedBottles = 1;
+  if (lvl === 30) cfg.bombTimer = 90;
 
-  // ── Space 31-40 ──
+  // ── Space 31-40: Ramping up (9-10 colors, 5 layers) ──
+  if (lvl >= 31) cfg.maxLayers = 5;
   if (lvl === 31) { cfg.emptyBottles = 3; cfg.bonusEmptyReward = true; }
-  if (lvl === 32) { cfg.maxLayers = 6; cfg.emptyBottles = 1; cfg.lockedLayers = 2; cfg.mysteryLayers = 2; }
-  if (lvl === 33) { cfg.maxLayers = 5; cfg.colorMerge = [[0,1,4],[3,1,6]]; }
-  if (lvl === 34) { cfg.maxLayers = 6; cfg.cappedBottles = 3; cfg.capPours = 4; }
-  if (lvl === 35) { cfg.maxLayers = 6; cfg.emptyBottles = 1; cfg.bombTimer = 60; cfg.lockedLayers = 1; }
-  if (lvl === 36) { cfg.maxLayers = 5; cfg.mysteryLayers = 3; cfg.colorMerge = [[0,3,5]]; }
-  if (lvl === 37) { cfg.maxLayers = 6; cfg.emptyBottles = 1; cfg.lockedLayers = 2; cfg.cappedBottles = 2; }
-  if (lvl === 38) { cfg.maxLayers = 6; cfg.rainbow = true; cfg.mysteryLayers = 2; }
-  if (lvl === 39) { cfg.maxLayers = 6; cfg.emptyBottles = 1; cfg.lockedLayers = 2; cfg.cappedBottles = 2; cfg.mysteryLayers = 2; cfg.limitedUndo = 3; }
-  if (lvl === 40) { cfg.maxLayers = 6; cfg.bombTimer = 45; cfg.rainbow = true; }
+  if (lvl === 32) cfg.lockedLayers = 1;
+  if (lvl === 33) cfg.mysteryLayers = 2;
+  if (lvl === 34) cfg.limitedUndo = 3;
+  if (lvl === 35) cfg.bombTimer = 90;
+  if (lvl === 36) { cfg.cappedBottles = 2; cfg.capPours = 4; }
+  if (lvl === 37) { cfg.lockedLayers = 1; cfg.mysteryLayers = 1; }
+  if (lvl === 39) { cfg.lockedLayers = 1; cfg.cappedBottles = 1; cfg.limitedUndo = 3; }
+  if (lvl === 40) cfg.bombTimer = 75;
 
-  // ── Candy 41-50 ──
+  // ── Candy 41-50: Expert (11-12 colors, combos) ──
   if (lvl >= 41 && lvl <= 50) {
-    cfg.maxLayers = [5,6,5,6,6,5,6,6,6,6][lvl-41];
-    cfg.emptyBottles = [2,1,2,1,3,1,2,1,1,2][lvl-41];
-    if (lvl === 42 || lvl === 48) cfg.lockedLayers = 2;
-    if (lvl === 43) cfg.mysteryLayers = 3;
-    if (lvl === 44) { cfg.cappedBottles = 3; cfg.capPours = 4; }
+    cfg.maxLayers = [5,5,5,5,6,5,6,6,6,6][lvl-41];
+    cfg.emptyBottles = [2,2,2,2,3,2,2,2,2,2][lvl-41];
+    if (lvl === 42) cfg.lockedLayers = 1;
+    if (lvl === 43) { cfg.mysteryLayers = 2; cfg.limitedUndo = 3; }
+    if (lvl === 44) cfg.cappedBottles = 2;
     if (lvl === 45) { cfg.bonusEmptyReward = true; cfg.bombTimer = 75; }
-    if (lvl === 46) { cfg.colorMerge = [[0,3,5],[1,3,6]]; cfg.lockedLayers = 1; }
-    if (lvl === 47) { cfg.rainbow = true; cfg.mysteryLayers = 2; }
-    if (lvl === 48) { cfg.limitedUndo = 3; cfg.cappedBottles = 2; }
-    if (lvl === 49) { cfg.lockedLayers = 2; cfg.mysteryLayers = 3; cfg.cappedBottles = 2; cfg.limitedUndo = 3; }
-    if (lvl === 50) { cfg.rainbow = true; cfg.bombTimer = 45; cfg.lockedLayers = 1; }
+    if (lvl === 46) { cfg.colorMerge = [[0,3,5]]; cfg.lockedLayers = 1; }
+    if (lvl === 47) cfg.mysteryLayers = 1;
+    if (lvl === 48) { cfg.lockedLayers = 2; cfg.cappedBottles = 2; }
+    if (lvl === 49) { cfg.lockedLayers = 1; cfg.mysteryLayers = 2; cfg.cappedBottles = 1; cfg.limitedUndo = 3; }
+    if (lvl === 50) { cfg.bombTimer = 60; cfg.lockedLayers = 1; }
   }
 
   // ── 51+ procedural ──
   if (lvl > 50) {
     const d = Math.floor((lvl - 50) / 5);
     cfg.maxLayers = d % 2 === 0 ? 5 : 6;
-    cfg.emptyBottles = (lvl % 7 === 0) ? 1 : 2;
-    if (lvl % 5 === 0) cfg.bombTimer = Math.max(40, 90 - d * 5);
-    if (lvl % 3 === 0) cfg.lockedLayers = Math.min(d + 1, 3);
-    if (lvl % 4 === 0) cfg.mysteryLayers = Math.min(d + 1, 3);
-    if (lvl % 6 === 0) cfg.cappedBottles = Math.min(d + 1, 3);
+    if (lvl % 5 === 0) cfg.bombTimer = Math.max(45, 90 - d * 5);
+    if (lvl % 3 === 0) cfg.lockedLayers = Math.min(d + 1, 2);
+    if (lvl % 4 === 0) cfg.mysteryLayers = Math.min(d + 1, 2);
+    if (lvl % 6 === 0) cfg.cappedBottles = Math.min(d + 1, 2);
     if (lvl % 8 === 0) cfg.limitedUndo = 3;
-    if (lvl % 10 === 0) cfg.rainbow = true;
   }
 
   // Compute par after all config overrides
@@ -338,22 +336,42 @@ function generateLevel(cfg) {
     activeColors = COLORS.slice(0, numColors);
   }
 
-  // Create solved state then shuffle
-  let layers = [];
-  for (let c = 0; c < numColors; c++) {
-    for (let i = 0; i < maxLayers; i++) layers.push(c);
-  }
-
-  // Fisher-Yates shuffle
-  for (let i = layers.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [layers[i], layers[j]] = [layers[j], layers[i]];
-  }
-
-  // Distribute into bottles
+  // Create solved state then shuffle (keeping locked layers correct)
   const b = [];
-  for (let i = 0; i < numColors; i++) {
-    b.push(layers.slice(i * maxLayers, (i + 1) * maxLayers));
+  if (lockedLayers > 0) {
+    // Pre-place locked layers: bottom N of each bottle are its own color
+    // Then shuffle only the remaining layers above
+    let freeLayers = [];
+    for (let c = 0; c < numColors; c++) {
+      const bottle = [];
+      for (let j = 0; j < lockedLayers; j++) bottle.push(c);
+      for (let j = lockedLayers; j < maxLayers; j++) freeLayers.push(c);
+      b.push(bottle);
+    }
+    // Fisher-Yates shuffle the free layers
+    for (let i = freeLayers.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [freeLayers[i], freeLayers[j]] = [freeLayers[j], freeLayers[i]];
+    }
+    // Distribute free layers on top of locked ones
+    let fi = 0;
+    for (let c = 0; c < numColors; c++) {
+      const count = maxLayers - lockedLayers;
+      for (let j = 0; j < count; j++) b[c].push(freeLayers[fi++]);
+    }
+  } else {
+    let layers = [];
+    for (let c = 0; c < numColors; c++) {
+      for (let i = 0; i < maxLayers; i++) layers.push(c);
+    }
+    // Fisher-Yates shuffle
+    for (let i = layers.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [layers[i], layers[j]] = [layers[j], layers[i]];
+    }
+    for (let i = 0; i < numColors; i++) {
+      b.push(layers.slice(i * maxLayers, (i + 1) * maxLayers));
+    }
   }
   for (let i = 0; i < emptyBottles; i++) b.push([]);
 
@@ -673,32 +691,51 @@ function drawHUD() {
   ctx.fillText(text, W / 2, py + ph / 2);
   ctx.shadowBlur = 0;
 
-  // Timer
-  if (currentConfig.bombTimer > 0) {
-    const secs = Math.ceil(timerRemaining);
-    const tColor = secs <= 10 ? '#e74c3c' : secs <= 20 ? '#f1c40f' : '#2ecc71';
-    const timerText = `${secs}s`;
-    ctx.font = 'bold 22px "Segoe UI", system-ui, sans-serif';
-    const timerW = ctx.measureText(timerText).width + 24;
-    const timerX = W - timerW - 16;
-    const timerY = 14;
+  let belowY = py + ph + 6;
+
+  // Specials banner — brief descriptions of active mechanics
+  const specials = [];
+  if (currentConfig.bombTimer > 0) { const s = Math.ceil(timerRemaining); specials.push({ text: `${s}s — sort before time runs out!`, color: s <= 10 ? '#e74c3c' : s <= 20 ? '#f1c40f' : '#2ecc71', pulse: s <= 10 }); }
+  if (currentConfig.mysteryLayers > 0) specials.push({ text: 'Some layers hidden — pour to reveal', color: '#9b59b6' });
+  if (currentConfig.lockedLayers > 0) specials.push({ text: 'Bottom layers locked in place', color: '#95a5a6' });
+  if (currentConfig.cappedBottles > 0) specials.push({ text: `Caps block pours — ${currentConfig.capPours} pours to remove`, color: '#8d6e63' });
+  if (currentConfig.limitedUndo) specials.push({ text: `Only ${undosRemaining !== null ? undosRemaining : currentConfig.limitedUndo} undos — use wisely`, color: '#e67e22' });
+  if (currentConfig.colorMerge) specials.push({ text: 'Mix colors together to merge them', color: '#1abc9c' });
+
+  if (specials.length > 0) {
+    ctx.font = '11px "Segoe UI", system-ui, sans-serif';
+    const lineH = 18;
+    const pad = 8;
+    const sh = specials.length * lineH + pad * 2;
+    let maxW = 0;
+    for (const s of specials) maxW = Math.max(maxW, ctx.measureText(s.text).width);
+    const sw = maxW + 24;
+    const sx = (W - sw) / 2;
+
     ctx.beginPath();
-    ctx.roundRect(timerX, timerY, timerW, 38, 14);
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.roundRect(sx, belowY, sw, sh, 10);
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
     ctx.fill();
-    ctx.fillStyle = tColor;
+
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    // Pulse effect for last 10 seconds
-    if (secs <= 10) {
-      const pulse = 1 + Math.sin(performance.now() / 150) * 0.1;
-      ctx.save();
-      ctx.translate(timerX + timerW / 2, timerY + 19);
-      ctx.scale(pulse, pulse);
-      ctx.fillText(timerText, 0, 0);
-      ctx.restore();
-    } else {
-      ctx.fillText(timerText, timerX + timerW / 2, timerY + 19);
+    for (let i = 0; i < specials.length; i++) {
+      const s = specials[i];
+      const ly = belowY + pad + i * lineH + lineH / 2;
+      if (s.pulse) {
+        const p = 1 + Math.sin(performance.now() / 150) * 0.08;
+        ctx.save();
+        ctx.translate(W / 2, ly);
+        ctx.scale(p, p);
+        ctx.fillStyle = s.color;
+        ctx.fillText(s.text, 0, 0);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = s.color;
+        ctx.fillText(s.text, W / 2, ly);
+      }
     }
+
+    belowY += sh + 4;
   }
 }
 
@@ -992,13 +1029,31 @@ function showLevelSelect() {
         if (cfg.bombTimer > 0) badges.push('#e74c3c');
         if (cfg.mysteryLayers > 0) badges.push('#9b59b6');
         if (cfg.lockedLayers > 0) badges.push('#95a5a6');
-        if (cfg.rainbow) badges.push('#f1c40f');
+
         if (cfg.cappedBottles > 0) badges.push('#8d6e63');
         if (badges.length > 0) {
           cellHtml += '<span class="lvl-badges">';
           for (const bc of badges) cellHtml += `<span style="background:${bc}"></span>`;
           cellHtml += '</span>';
         }
+
+        // Tooltip
+        let tt = `<span class="ls-tooltip">`;
+        tt += `<div class="tt-row"><span class="tt-label">Colors</span><span>${cfg.numColors}</span></div>`;
+        tt += `<div class="tt-row"><span class="tt-label">Layers</span><span>${cfg.maxLayers}</span></div>`;
+        tt += `<div class="tt-row"><span class="tt-label">Empty</span><span>${cfg.emptyBottles}</span></div>`;
+        const specials = [];
+        if (cfg.bombTimer > 0) specials.push(`Timer ${cfg.bombTimer}s`);
+        if (cfg.mysteryLayers > 0) specials.push(`Mystery x${cfg.mysteryLayers}`);
+        if (cfg.lockedLayers > 0) specials.push(`Locked x${cfg.lockedLayers}`);
+        if (cfg.cappedBottles > 0) specials.push(`Capped x${cfg.cappedBottles}`);
+        if (cfg.limitedUndo) specials.push(`Undo x${cfg.limitedUndo}`);
+
+        if (cfg.colorMerge) specials.push('Color merge');
+        if (cfg.bonusEmptyReward) specials.push('Bonus reward');
+        if (specials.length > 0) tt += `<div class="tt-specials">${specials.join(' · ')}</div>`;
+        tt += `</span>`;
+        cellHtml += tt;
       } else {
         cellHtml += '<span class="lock-icon">🔒</span>';
       }
