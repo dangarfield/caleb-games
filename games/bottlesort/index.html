@@ -154,7 +154,7 @@ function sfxTimeUp() { if (demoMode) return; playTone(200, 0.4, 'sawtooth', 0.1,
 // ─── Colors ──────────────────────────────────────────────────────────
 const COLORS = [
   '#e74c3c','#3498db','#2ecc71','#f1c40f','#9b59b6','#e67e22',
-  '#8B4513','#e91e63','#a8d600','#2d2d44','#e8e4df','#800020',
+  '#8B4513','#e91e63','#2d2d44','#e8e4df','#800020','#a8d600',
 ];
 
 function generateRainbowPalette(n, hue) {
@@ -493,27 +493,35 @@ function timerLoop(now) {
 function getLayout() {
   const n = bottles.length;
   const ml = currentConfig.maxLayers || 4;
-  const maxPerRow = W > H ? Math.min(n, Math.ceil(n / 1)) : Math.min(n, 7);
+  // In landscape, cap bottles per row so they fit; in portrait, cap at 7
+  const maxPerRow = W > H ? Math.min(n, Math.floor((W - 20) / 50)) : Math.min(n, 7);
   const rows = Math.ceil(n / maxPerRow);
   const cols = Math.ceil(n / rows);
 
-  const bottleW = Math.min(60, (W - 40) / (cols + 0.5));
+  // bottleW * cols + gap * (cols - 1) + padding <= W
+  // bottleW * cols + bottleW * 0.4 * (cols - 1) + 40 <= W
+  // bottleW * (cols + 0.4 * (cols - 1)) <= W - 40
+  const bottleW = Math.min(60, (W - 40) / (cols + 0.4 * (cols - 1)));
   const bottleH = bottleW * (1.6 + 0.3 * ml);
   const gap = bottleW * 0.4;
   const totalH = rows * bottleH + (rows - 1) * gap * 1.5;
-  const startY = (H - totalH) / 2 + 30;
+  // Clamp so bottles don't overflow vertically — shrink if needed
+  const availH = H - 80;
+  const scale = totalH > availH ? availH / totalH : 1;
+  const startY = (H - totalH * scale) / 2 + 30;
 
+  const bw = bottleW * scale, bh = bottleH * scale, g = gap * scale;
   const positions = [];
   for (let i = 0; i < n; i++) {
     const row = Math.floor(i / cols);
     const col = i % cols;
     const rowCount = Math.min(cols, n - row * cols);
-    const rowW = rowCount * bottleW + (rowCount - 1) * gap;
+    const rowW = rowCount * bw + (rowCount - 1) * g;
     const rowStartX = (W - rowW) / 2;
     positions.push({
-      x: rowStartX + col * (bottleW + gap),
-      y: startY + row * (bottleH + gap * 1.5),
-      w: bottleW, h: bottleH
+      x: rowStartX + col * (bw + g),
+      y: startY + row * (bh + g * 1.5),
+      w: bw, h: bh
     });
   }
   return positions;
@@ -1898,7 +1906,8 @@ canvas.addEventListener('pointerup', (e) => {
       if (dropIdx !== -1 && dropIdx !== srcIdx) sfxInvalid();
       drawCurrentState();
     }
-  } else if (!pointerMoved) {
+  } else if (!pointerMoved || state !== 'playing') {
+    // Allow taps on overlay screens even if finger moved slightly
     handleTap(e.clientX, e.clientY);
   }
 
