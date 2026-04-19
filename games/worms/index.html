@@ -1,2210 +1,2526 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Worms Artillery</title>
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { width: 100%; height: 100%; overflow: hidden; background: #000; touch-action: none; font-family: 'Segoe UI', system-ui, sans-serif; }
-canvas { display: block; position: absolute; top: 0; left: 0; }
-#turnInfo {
-  position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
-  z-index: 100; background: rgba(0,0,0,0.55); color: #fff;
-  padding: 6px 20px; border-radius: 10px; font-size: 14px;
-  text-align: center; white-space: nowrap; backdrop-filter: blur(4px);
-  border: 1px solid rgba(255,255,255,0.2);
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title>Worms</title>
+    <style>
+* {
+  margin: 0;
+  padding: 0;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
-#windBar {
-  position: fixed; top: 42px; left: 50%; transform: translateX(-50%);
-  z-index: 100; background: rgba(0,0,0,0.45); color: #fff;
-  padding: 4px 16px; border-radius: 8px; font-size: 12px;
-  text-align: center; white-space: nowrap; backdrop-filter: blur(4px);
-  border: 1px solid rgba(255,255,255,0.15); display: flex; align-items: center; gap: 8px;
+
+::-webkit-scrollbar {
+  display: none;
 }
-#windArrow { display: inline-block; font-size: 16px; transition: transform 0.3s; }
-#weaponPanel {
-  position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%);
-  z-index: 100; display: flex; gap: 6px; background: rgba(0,0,0,0.55);
-  padding: 8px 12px; border-radius: 14px; backdrop-filter: blur(6px);
-  border: 1px solid rgba(255,255,255,0.15);
+
+body {
+  background: linear-gradient(#0068E0, #00B2E0) fixed;
+  overflow: hidden;
 }
-.wpnBtn {
-  width: 52px; height: 58px; border: 2px solid rgba(255,255,255,0.4); border-radius: 10px;
-  background: rgba(255,255,255,0.08); color: #fff; font-size: 10px; cursor: pointer;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  font-family: inherit; gap: 1px; transition: all 0.15s; user-select: none;
+
+body, #id0 {
+  width: 100vw;
+  height: 100vh;
 }
-.wpnBtn:hover { background: rgba(255,255,255,0.18); }
-.wpnBtn.sel { border-color: #ffe040; background: rgba(255,230,0,0.2); box-shadow: 0 0 10px rgba(255,230,0,0.3); }
-.wpnBtn .ico { font-size: 20px; line-height: 1; }
-.wpnBtn .ammo { font-size: 9px; opacity: 0.7; }
-#overlay {
-  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-  background: rgba(0,0,20,0.8); z-index: 200; display: flex;
-  align-items: center; justify-content: center; color: #fff;
-  backdrop-filter: blur(8px);
+
+#id2, #id19, #id20, #hp {
+  position: absolute;
+  top: 0;
+  left: 0;
 }
-#overlay .box {
-  background: rgba(10,20,60,0.9); border: 1px solid rgba(255,255,255,0.3);
-  border-radius: 20px; padding: 32px 36px; max-width: 480px; text-align: center;
-  line-height: 1.7; box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+
+/* Text panels */
+#id1, #id11, #id14, #id22, #id25, #id26, #wind, #hp, .weapon {
+  background: #000;
+  border: 2px solid var(--c, #fff);
+  box-shadow: 0 0 0 3px #000, inset 0 0 0 4px #000;
+  border-radius: 5px;
+  white-space: nowrap;
 }
-#overlay h2 { margin-bottom: 14px; font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
-#overlay p { font-size: 14px; margin-bottom: 6px; color: rgba(255,255,255,0.85); }
-#overlay .dismiss { margin-top: 18px; font-size: 12px; opacity: 0.5; }
-#overlay .key { display: inline-block; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; padding: 1px 6px; font-size: 12px; }
-#gameOver {
-  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-  background: rgba(0,0,20,0.85); z-index: 300; display: none;
-  align-items: center; justify-content: center; color: #fff;
-  flex-direction: column; gap: 24px; backdrop-filter: blur(10px);
+
+/* User interface */
+#id1, #id10, #id11, #id14 {
+  position: fixed;
+  left: 50vw;
+  z-index: 100;
 }
-#gameOver h1 { font-size: 40px; font-weight: 700; text-shadow: 0 4px 20px rgba(0,0,0,0.5); }
-#gameOver button {
-  padding: 12px 32px; font-size: 18px; border-radius: 12px;
-  border: 2px solid rgba(255,255,255,0.5); background: rgba(255,255,255,0.12);
-  color: #fff; cursor: pointer; font-family: inherit; transition: background 0.2s;
+
+#id1 {
+  left: auto;
+  right: 12px;
+  top: 12px;
+  bottom: auto;
+  padding: 8px 12px;
+  width: 32px;
+  transform: translate(0, -60px);
 }
-#gameOver button:hover { background: rgba(255,255,255,0.25); }
-  #backBtn {
-    position: fixed;
-    top: 10px;
-    left: 10px;
-    background: rgba(255,255,255,0.15);
-    color: #fff;
-    text-decoration: none;
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-size: 14px;
-    z-index: 9999;
-    backdrop-filter: blur(4px);
-    border: 1px solid rgba(255,255,255,0.2);
-    transition: background 0.2s;
+
+/* Weapons */
+#id10 {
+  top: 26px;
+  transform: translate(-50%, -150px);
+  white-space: nowrap;
+}
+
+#id11 {
+  top: 90px;
+  height: 14px;
+  padding: 8px 12px;
+  transform: translate(-50%, -150px);
+}
+
+.weapon {
+  display: inline-block;
+  height: 48px;
+  width: 48px;
+  margin-right: 12px;
+  box-shadow: 0 0 0 3px #222;
+  background: #fff;
+}
+
+.weapon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.weapon.active {
+  border-color: #8AE000;
+  background: #8AE000;
+}
+
+.weapon.inactive {
+  opacity: 0.5;
+}
+
+/* Messages/captions. */
+#id14 {
+  bottom: 68px;
+  height: 14px;
+  padding: 8px 12px;
+  transform: translate(-50%, 150px);
+}
+
+/* Wind wrapper */
+#wind-wrap {
+  position: fixed;
+  left: 50vw;
+  bottom: 4px;
+  transform: translate(-50%, 0);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Wind */
+#wind {
+  width: 398px;
+  height: 30px;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #ff0, #f00);
+  position: relative;
+}
+
+#wind * {
+  position: absolute;
+  top: 3px;
+  width: 100px;
+  height: 24px;
+  background: #000;
+}
+
+#id12 { left: 4px; }
+#id13 { right: 4px; }
+
+#winddiv {
+  top: 0;
+  width: 2px;
+  height: 30px;
+  background: #fff;
+  left: calc(50% - 1px);
+}
+
+/* Text glyphs */
+#id15 {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  background: url(data:image/gif;base64,R0lGODdhHwEHAIAAAAAAAP///yH5BAgKAAAALAAAAAAfAQcAAAL/BIKGG8r3IJvLTQNlxRpH31hhdlFiY3bnprZfkmiXxGXnCqJzR+mxXAv+LMEiiDR6bWAjh7D5izZzIWatklJKt8kltNrlUn22IdZJtKnVjyH6/WJPr1OWm07Nc8T7uv/41me1JmOiFYao9wRnd8bkxahz9JEDiFRI2EdzIGfkQdflKWf4twIGWahUlELY45ooohezU4bo05MWmyZl6YIF9sQ6aju3tyjqhatrSdkK2zmMOsmz44qkjIfGW0LKMsocuiwo7Asnnim6dqe5fOjkdjfbCMg3CC7fCA/8CF1Lj49p3iZ67LzxmvRM3qde69IdM8IlArdk5EwhbINxDCtVGtyCkaFBK6KxSOFqzcj36lapk6rGnHMYyGEBADs=);
+  background-size: auto 14px;
+  image-rendering: pixelated;
+  border-right: 2px solid #000;
+}
+
+.flash {
+  filter: brightness(100);
+}
+
+#hp {
+  transform: translate(var(--x), var(--y));
+  padding: 4px;
+  text-wrap: nowrap;
+  border: none;
+  background: var(--c);
+  will-change: transform;
+}
+
+#hp #id15 {
+  mix-blend-mode: multiply;
+}
+
+#waves {
+  animation: 500ms ease-in-out infinite alternate waves;
+}
+
+@keyframes waves {
+  from { d: path('M0,0 Q40,50 80,15 Q120,50 160,0 L160,200 L0,200 Z') }
+  to { d: path('M0,15 Q40,50 80,0 Q120,50 160,15 L160,200 L0,200 Z') }
+}
+
+.started :is(#id10, #id11, #id14) {
+  transform: translate(-50%, 0);
+  transition: transform 1s ease-out;
+}
+
+.started #id1 {
+  transform: translate(0, 0);
+  transition: transform 1s ease-out;
+}
+
+#w8 { filter: hue-rotate(220deg); }
+#w2 { filter: saturate(0) brightness(2.5); }
+
+#hide {
+  display: none;
+}
+
+#menu {
+  position: fixed;
+  top: calc(75px + max(75px, 5vh));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#id22, #id25, #id26 {
+  opacity: 0;
+  padding: 8px 12px;
+  transition: opacity .5s ease;
+  margin-bottom: 20px;
+  cursor: pointer;
+}
+
+/* Back button */
+#backBtn {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 9999;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  text-decoration: none;
+  padding: 6px 18px;
+  border-radius: 20px;
+  font: bold 15px/1.4 'Segoe UI', system-ui, sans-serif;
+  border: 1px solid rgba(255,255,255,0.18);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: background 0.2s;
+}
+
+#backBtn:hover, #backBtn:active {
+  background: rgba(0,0,0,0.75);
+}
+
+/* ====== Touch Controls ====== */
+#touch-controls {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 300;
+  pointer-events: none;
+}
+
+/* Left controls: 3 rows stacked */
+#touch-left {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.ctrl-row {
+  display: flex;
+  gap: 6px;
+}
+
+.aim-gap {
+  margin-bottom: 16px;
+}
+
+.move-gap {
+  margin-top: 16px;
+}
+
+.ctrl-btn {
+  width: 56px;
+  height: 50px;
+  border-radius: 5px;
+  border: 2px solid #fff;
+  background: #000;
+  box-shadow: 0 0 0 3px #000;
+  color: #fff;
+  font-size: 20px;
+  font-weight: bold;
+  font-family: sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.ctrl-btn:active {
+  background: #333;
+}
+
+
+/* Right side buttons */
+#touch-right {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 128px;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+#touch-right .fire-btn {
+  flex: 0 0 100%;
+  margin: 0 auto 4px;
+}
+
+.touch-btn {
+  width: auto;
+  height: auto;
+  padding: 8px 10px;
+  border-radius: 5px;
+  border: 2px solid #fff;
+  background: #000;
+  box-shadow: 0 0 0 3px #000;
+  color: #fff;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  pointer-events: auto;
+  white-space: nowrap;
+}
+
+.touch-btn:active {
+  background: #333;
+}
+
+.fire-btn {
+  padding: 12px 16px;
+  border-radius: 5px;
+  background: #000;
+  border-color: #f44;
+}
+
+/* Show touch controls on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  #touch-controls {
+    display: block;
   }
-  #backBtn:hover, #backBtn:active {
-    background: rgba(255,255,255,0.3);
+  #wind-wrap {
+    bottom: 4px !important;
   }
+  #id14 {
+    bottom: 220px !important;
+  }
+  /* Always show weapons on touch */
+  .started #id10 {
+    transform: translate(-50%, 0) !important;
+  }
+}
+
+/* Info button next to weapon label */
+#info-btn {
+  position: fixed;
+  z-index: 100;
+  top: 90px;
+  left: calc(50vw + 80px);
+  width: 28px;
+  height: 28px;
+  background: #000;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  color: #fff;
+  font: bold 14px/28px sans-serif;
+  text-align: center;
+  cursor: pointer;
+  display: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.started #info-btn {
+  display: block;
+}
+
+#info-popup {
+  display: none;
+  position: fixed;
+  z-index: 400;
+  top: 130px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #000;
+  border: 2px solid #fff;
+  border-radius: 8px;
+  padding: 12px 18px;
+  color: #fff;
+  font: 13px/1.5 sans-serif;
+  max-width: 280px;
+  box-shadow: 0 0 0 3px #000;
+}
+
+/* Windspeed label */
+/* Windspeed label */
+#windspeed-label {
+  opacity: 0.5;
+  margin-top: 2px;
+}
+#windspeed-label #id15 {
+  transform: scale(0.7);
+  transform-origin: left center;
+  margin-right: -4px;
+}
+
+/* Bitmap font style for touch buttons */
+.touch-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+}
     </style>
-</head>
-<body>
-<a id="backBtn" href="../../index.html">&larr; Games</a>
-<div id="turnInfo">Loading...</div>
-<div id="windBar"><span>WIND</span><span id="windArrow">&gt;</span><span id="windVal">0.0</span></div>
-<div id="weaponPanel"></div>
-<div id="overlay">
-  <div class="box">
-    <h2>Worms Artillery</h2>
-    <p><b>Move:</b> <span class="key">Arrow Left/Right</span> or <span class="key">A/D</span> to walk. <span class="key">W</span> to jump.</p>
-    <p><b>Aim:</b> <span class="key">Up/Down</span> arrows to aim. Hold <span class="key">Shift</span> for fine aim.</p>
-    <p><b>Fire:</b> Hold <span class="key">Space</span> to charge power, release to fire!</p>
-    <p><b>Weapons:</b> Click icons at bottom or press <span class="key">1-6</span>. <span class="key">Q/E</span> to cycle.</p>
-    <p><b>Touch:</b> Drag from your worm to aim &amp; set power (slingshot). Tap weapon icons to switch.</p>
-    <p>Destroy all enemy worms! Wind affects projectiles. Terrain is fully destructible!</p>
-    <p class="dismiss">Tap anywhere to start</p>
-  </div>
-</div>
-<div id="gameOver">
-  <h1 id="goText">Game Over</h1>
-  <button onclick="location.reload()">Play Again</button>
-  <button onclick="location.href='../../index.html'">Back to Games</button>
-</div>
-<script>
-'use strict';
+  </head>
+  <body>
+    <a id="backBtn" href="../../index.html">&larr; Games</a>
+    <div> <!-- viewport -->
+      <svg id="id2"> <!-- #svg -->
+        <defs>
+          <!-- Gradients -->
+          <linearGradient id="f0" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="#401D00" />
+            <stop offset="40%" stop-color="#401D00" />
+            <stop offset="100%" stop-color="#000000" />
+          </linearGradient>
+          <linearGradient id="f1" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%" stop-color="#00FF00" />
+            <stop offset="50%" stop-color="#FFFF00" />
+            <stop offset="100%" stop-color="#FF0000" />
+          </linearGradient>
+          <linearGradient id="f2" x1="0" x2="0" y1="0" y2="1"> <!-- water -->
+            <stop offset="0%" stop-color="#00B2E077" />
+            <stop offset="10%" stop-color="#0068E0" />
+            <stop offset="25%" stop-color="#002DC0" />
+            <stop offset="50%" stop-color="#0C0073" />
+            <stop offset="100%" stop-color="#000030" />
+          </linearGradient>
+          <linearGradient id="f3" x1="0" x2="0" y1="0" y2="1"> <!-- soil light -->
+            <stop offset="0%" stop-color="#622D00" />
+            <stop offset="100%" stop-color="#401D00" />
+          </linearGradient>
+          <linearGradient id="f4" x1="0" x2="0" y1="0" y2="1"> <!-- soil dark -->
+            <stop offset="0%" stop-color="#954400" />
+            <stop offset="75%" stop-color="#612C00" />
+          </linearGradient>
 
-// ============================================================
-// CONSTANTS (from artillery repo constants.js + worms-game)
-// ============================================================
-const WORLD_W = 1920;
-const WORLD_H = 720;
-const GRAVITY = 300;       // from worms-game Projectile.js
-const WIND_LIMIT = 10;     // max wind magnitude per turn
-const WIND_SCALE = 12;     // from worms-game Projectile.js
-const MIN_POWER = 150;
-const MAX_POWER = 500;
-const CHARGE_SPEED = 350;
-const TURN_DURATION = 30;
-const FIGURE_COUNT = 3;    // 3v3
-const BASE_HP = 100;
+          <!-- Repeating water pattern/fill. -->
+          <pattern id="p0" x="0" y="0" width="0.016" height="1">
+            <path id="waves" fill="url(#f2)" />
+          </pattern>
 
-// ============================================================
-// AUDIO - tiny WebAudio SFX (ported from worms-game SFX.js concept)
-// ============================================================
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-function resumeAudio() { if (audioCtx.state === 'suspended') audioCtx.resume(); }
+          <!-- Geometric pattern for the soil layers. -->
+          <pattern id="p1" width="100" height="100" patternUnits="userSpaceOnUse">
+            <path fill="#EE9200" opacity="0.1" d="M50 100L0 50V0l50 50 50-50h0v50l-50 50z" />
+            <circle fill="#EE9200" opacity=".1" r="13" cx="50" cy="70" />
+            <circle fill="#EE9200" opacity=".1" r="13" cx="100" cy="30" />
+            <circle fill="#EE9200" opacity=".1" r="13" cx="0" cy="30" />
+            <circle fill="#200D00" opacity=".1" r="13" cx="50" cy="20" />
+            <circle fill="#200D00" opacity=".1" r="13" cx="100" cy="80" />
+            <circle fill="#200D00" opacity=".1" r="13" cx="0" cy="80" />
+          </pattern>
 
-function playTone(freq, dur, vol, type) {
-    resumeAudio();
-    const g = audioCtx.createGain();
-    const o = audioCtx.createOscillator();
-    o.type = type || 'square';
-    o.frequency.value = freq;
-    g.gain.setValueAtTime(vol || 0.1, audioCtx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
-    o.connect(g); g.connect(audioCtx.destination);
-    o.start(); o.stop(audioCtx.currentTime + dur);
+          <!-- Hidden player prototype. -->
+          <g id="player">
+            <path fill="none" stroke="#EFB393" stroke-linecap="round" stroke-width="14" />
+            <ellipse cy="21" fill="#FFF" rx="5" ry="10"/>
+            <ellipse cy="22.5" fill="#2B2B2B" rx="2.5" ry="4.5"/>
+          </g>
+
+          <!-- Hidden missile prototype. -->
+          <g id="w0">
+            <g transform="scale(0.6) translate(-26 -16)">
+              <path fill="#24282F" d="M3 6c3-4 24-6 32-4 8 1 16 9 16 14s-9 14-16 15-29-1-32-4S0 9 3 6Z"/>
+              <path fill="#f00" d="M35 2c8 1 16 9 16 14s-9 13-16 15c-3-4-5-9-5-15s2-11 5-14Z"/>
+              <path fill="#FFC400" d="M48 9c2 2 3 5 3 7v2l-1 2-3 2c-3 0-5-3-5-6 0-4 2-7 5-7h1Z"/>
+            </g>
+          </g>
+
+          <!-- Shotgun image -->
+          <g id="w1">
+            <path fill="#E6E9ED" d="M27 27 59 0l2 3-32 27z"/>
+            <path fill="#CCD1D9" d="m25 34 16-14 5 5-17 14z"/>
+            <path fill="#965353" d="M41 20 54 9l5 5-13 11z"/>
+            <path fill="#7F4545" d="m44 18 3-3 4 6-3 2zM49 13l3-2 5 5-3 3z"/>
+            <path stroke="#434A54" stroke-linecap="round" stroke-width="8" d="m28 36 5 3"/>
+            <path fill="#965353" d="m3 51 15-15h3l3-7 6-5 3 3-4 19-5 1-8 16-13-9a2 2 0 0 1 0-3Z"/>
+          </g>
+
+          <!-- Uzi image -->
+          <g id="w2"><use href="#w7" /></g>
+
+          <!-- Hidden dynamite prototype. -->
+          <g id="w4">
+            <g transform="scale(0.6) translate(-27 -48)" fill="none">
+              <path fill="#9C0101" d="m33 58-3-36h24l-3 36c0 2-4 4-9 4s-9-2-9-4Z"/>
+              <ellipse cx="42" cy="22" fill="#F43C1E" rx="12" ry="5"/>
+              <path stroke="#F0C653" stroke-linecap="round" stroke-width="5" d="M41 20c7-12-16-1-13-16"/>
+              <path fill="#9C0101" d="M3 58 0 22h24l-3 36c0 2-4 4-9 4s-9-2-9-4Z"/>
+              <ellipse cx="12" cy="22" fill="#F43C1E" rx="12" ry="5"/>
+              <path stroke="#F0C653" stroke-linecap="round" stroke-width="5" d="M12 20C7 9 24 17 28 3"/>
+              <path fill="#DA2200" d="m18 62-3-36h24l-3 36c0 2-4 4-9 4s-9-2-9-4Z"/>
+              <ellipse cx="27" cy="26" fill="#F43C1E" rx="12" ry="5"/>
+              <path stroke="#FFDB75" stroke-linecap="round" stroke-width="5" d="M27 24c4-6-5-12 1-21"/>
+            </g>
+          </g>
+
+          <!-- Hidden grenade prototype. -->
+          <g id="w5">
+            <g transform="scale(0.6) translate(-21 -17)">
+              <path fill="none" stroke="#08846A" stroke-linecap="round" stroke-width="3" d="M21 2c12 0 19 6 19 19"/>
+              <path fill="#0B9B53" d="M16 0h9v5h-9z"/>
+              <ellipse cx="21" cy="18" fill="#06B559" rx="14" ry="16"/>
+              <path fill="#0B9B53" d="M7 17c0 8 5 14 12 14 6 0 11-6 11-14S25 3 20 2h1c8 0 14 7 14 16s-6 16-14 16S7 27 7 18v-1Z"/>
+              <path fill="none" stroke="#08846A" stroke-linecap="round" stroke-width="4" d="M7 19h28"/>
+            </g>
+          </g>
+
+          <!-- Hidden holy hand grenade prototype. -->
+          <g id="w6">
+            <g transform="scale(0.5) translate(-32 -35)">
+              <path fill="#222" fill-rule="nonzero" d="M64 40c1 10-3 18-11 23 0 0-8 6-21 6s-21-6-21-6C3 58-1 50 0 40l2-10C-2 16 1 5 4 1l4-1c3 1 3 10 13 14a40 40 0 0 1 22 0C53 10 53 1 56 0l4 1c3 4 6 15 2 29l2 10Z"/>
+              <path fill="#E30000" fill-rule="nonzero" d="M55 38c0-4-1-10-3-10h-2l-13 8c-5 4 2 13 8 14 6 0 10-6 10-12Z"/>
+              <path fill="#222" d="M41 42a4 4 0 0 0 7 0v2a4 4 0 1 1-7-2Z"/>
+              <path fill="#E30000" fill-rule="nonzero" d="M9 38c0-4 1-10 3-10h2l13 8c5 4-2 13-8 14-6 0-10-6-10-12Z"/>
+              <path fill="#222" d="M16 42a4 4 0 0 0 7 0l1 2a4 4 0 1 1-8-2Z"/>
+              <path fill="none" stroke="#9D9D9D" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 60c9 0 13-4 13-9 0 5 4 9 13 9"/>
+              <path fill="none" stroke="#9D9D9D" stroke-linecap="round" stroke-width="2" d="M57 6c1 9-3 13-3 14 0 2 1 3 4 5M7 6c-1 9 3 13 3 14 0 2-1 3-4 5"/>
+            </g>
+          </g>
+
+          <!-- Minigun image -->
+          <g id="w7">
+            <path fill="none" stroke="#D00" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="m40 41 7-8-6-5"/>
+            <path fill="none" stroke="#60001B" stroke-linecap="round" stroke-width="3" d="m36 33 3 2"/>
+            <path fill="#AC0000" d="m27 42 7-7 14 14-7 7z"/>
+            <path fill="#D00" d="M3 43 40 6l12 11-38 38z"/>
+            <path fill="#FF4D29" d="m44 9 7-7 4 5-7 7z"/>
+            <path fill="#D00" d="m47 12 7-7 1 2-7 7z"/>
+            <path fill="#8C000B" d="m3 43 5-5h14l25-25 5 4-38 38z"/>
+            <path fill="#FF4D29" d="m18 33 7-7 5 5-7 7zM39 7l-3-3-3 6 2 2z"/>
+            <path fill="#60001B" d="m42 55 5-5 7 6v2l-5 4h-1l-6-7ZM41 56l-4 4c-7-7-6-12-13-15l3-3 14 14Z"/>
+          </g>
+
+          <!-- Hidden homing missile prototype. -->
+          <g id="w8"><use href="#w0" /></g>
+
+          <!-- Hidden cluster bomb prototype. -->
+          <g id="w9">
+            <g transform="scale(0.6) translate(-21 -17)">
+              <path fill="#E57A06" d="M16 0h9v5h-9z"/>
+              <path fill="#FFB311" d="M21 34c14 0 14-7 14-16S35 2 21 2 7 9 7 18s0 16 14 16Z"/>
+              <path fill="#E57A06" d="M7 17c0 8 0 14 12 14 11 0 11-6 11-14S30 2 20 2h1c14 0 14 7 14 16s0 16-14 16S7 27 7 18v-1Z"/>
+              <path fill="#B33D00" stroke="#B33D00" stroke-linecap="round" stroke-width="4" d="M7 19h28"/>
+              <path fill="#E57A06" d="m4 3 9 3-4 5z"/>
+              <path fill="#B33D00" d="m9 23 4 5-8 3zM32 23l-3 5 9 2zM32 8l1 5 8-3z"/>
+              <path fill="#E57A06" d="m22 7 5 2 1-9zM18 7l-4 5 5 3z"/>
+              <path fill="#B33D00" d="m21 22-1 8 5-3z"/>
+            </g>
+          </g>
+
+          <!-- Hidden nyan cat prototype. -->
+          <g id="w10">
+            <g transform="scale(0.5) translate(-32 -35)">
+              <path fill="#9D9D9D" fill-rule="nonzero" d="M64 40c1 10-3 18-11 23 0 0-8 6-21 6s-21-6-21-6C3 58-1 50 0 40l2-10C-2 16 1 5 4 1l4-1c3 1 3 10 14 13l10-1 10 1C53 10 53 1 56 0l4 1c3 4 6 15 2 29l2 10Z"/>
+              <path fill="none" stroke="#222" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 55c0 4 13 4 13-4 0 8 12 8 13 4"/>
+              <path fill="none" stroke="#222" stroke-linecap="round" stroke-width="2" d="M57 6c1 9-3 13-3 14 0 2 1 3 4 5M7 6c-1 9 3 13 3 14 0 2-1 3-4 5"/>
+              <circle cx="10" cy="48" r="6" fill="#E8AC99"/>
+              <circle cx="54" cy="48" r="6" fill="#E8AC99"/>
+              <circle cx="20.5" cy="33.5" r="8.5" fill="#FFF"/>
+              <circle cx="43.5" cy="33.5" r="8.5" fill="#FFF"/>
+              <path fill="#222" d="M19 35a4 4 0 0 0 6 0l1 2a4 4 0 1 1-7-2ZM39 35a4 4 0 0 0 6 0l1 2a4 4 0 1 1-7-2Z"/>
+            </g>
+          </g>
+
+          <!-- Cricket bat image -->
+          <g id="w11">
+            <path fill="#5C6670" d="M2 57c0-1.3 5.7-7 17-17l5 5C14 56.3 8.3 62 7 62c-2 0-5-3-5-5Z"/>
+            <path fill="#454F58" d="m14 45 5-5 5 5-5 5z"/>
+            <path fill="#D3A97F" d="M16 36c0-4 29-33 33-33 2.7 0 5.7 1 9 3 2 3.3 3 6.3 3 9 0 4-29 33-33 33s-12-8-12-12Z"/>
+          </g>
+
+          <!-- Hidden tracer line prototype. -->
+          <line id="id17" stroke="#fff" stroke-width="2" />
+
+          <!-- Hidden explosion prototype. -->
+          <circle id="id16" fill="#fff" cx="0" cy="0" />
+
+          <!-- Home screen logo mask -->
+          <g id="id18">
+            <path fill="#fff" fill-rule="nonzero" d="M76 4v5l-9 50H44l-5-28-5 26-23 1L1 11V5l20-1 4 32 6-30h16l6 30 4-34 19 2Zm53 25c0 6-2 11-3 13l-9 10c-4 2-10 4-14 4l-7-1c-5-1-10-5-11-7l-4-5c-2-2-4-6-4-13s2-11 3-13 5-8 9-10c5-2 10-4 14-4l10 2a24 24 0 0 1 16 24Zm-19-2-1-3-2-2-4-1-6 3-1 2-1 4 2 6c1 1 3 3 6 3a8 8 0 0 0 7-6v-6Zm70-6-1 6a18 18 0 0 1-4 8l-5 4 9 14v5l-17 2-7-18-5 1-1 17h-17a9397 9397 0 0 0 1-56 53 53 0 0 1 17-4h6l9 1 8 4 5 7 2 9Zm-19 1v-3c-1-1-2-4-4-4l-3-1h-3l-1 16 6-1c2 0 3-2 4-3l1-4Zm93 11a183 183 0 0 1-1 23l-21 1a554 554 0 0 0 1-39l-1-2s-2-1-3 1l-2 5a51 51 0 0 0 0 6l1 4a259 259 0 0 1-2 25l-19 1a461 461 0 0 0 1-39v-2c-1-1-2-2-3 0l-2 5v7l-1 30h-21a5871 5871 0 0 1 4-55l19-1v4l5-4c2-2 4-2 5-2l7 1 4 6 5-5c3-2 6-2 7-2l7 2 5 4 3 5a44 44 0 0 1 2 14v7Zm46 6-2 10-5 7-8 4-10 1-4-1a53 53 0 0 1-10-3l-4-1 2-16 8 4 8 1c4 0 5-1 6-2v-5l-3-1a351 351 0 0 1-12-2c-2 0-3-1-5-3l-3-5-1-5a19 19 0 0 1 7-15l8-5 8-1a61 61 0 0 1 13 2l4 1-2 16a50 50 0 0 0-12-2h-5l-3 1v4l2 2a36 36 0 0 0 9 0l6 1 4 4 3 3 1 6ZM116 76l-2 58-18-1 1-39-7 5-6-11v-5l13-8zM161 114l-2 9-5 7-7 4a33 33 0 0 1-28-5l2-16a30 30 0 0 0 7 4 31 31 0 0 0 8 1h3c2 0 3-1 3-2l1-3-3-2-4-2-3 1-3-1V99h6l3-1 3-2 1-3-1-2-2-2h-2a18 18 0 0 0-15 4l-3-15 8-4a30 30 0 0 1 18-1l8 4a18 18 0 0 1 6 15v3a15 15 0 0 1-5 7l3 2 2 3 1 3v4ZM215 82v5l-18 16 17 29-20 3-12-17-1 16-17 1 1-59 20 1-2 17 12-17z"/>
+          </g>
+
+          <!-- Crosshairs icon. -->
+          <g id="id0" fill="#FFC300">
+            <path stroke="#000" transform="translate(-21, -21)" stroke-width="2" d="M5.5 25a8 8 0 0 1-3.2-.5c-1.7-1.1-1.7-4.8 0-5.9.4-.3 1.4-.4 3-.4 1-6.4 5.8-11 12.8-12.7a8 8 0 0 1 .6-3.2c1-1.7 4.8-1.7 5.8 0 .4.4.5 1.3.5 2.7 6.4.9 10.3 5.5 11.1 13 1.8.1 3 .3 3.4.6 1.7 1.1 1.7 4.8 0 5.9-.5.3-1.7.4-3.6.4-1.3 6-5.3 10-11 11.2 0 1.8-.2 3-.6 3.4-1 1.7-4.7 1.7-5.8 0C18 39 18 38 18 36c-6.5-1.4-11-5.2-12.5-11ZM18.4 30c.2-1.9.4-3.1.7-3.6 1.1-1.7 4.1-1.7 5.2 0 .3.4.5 1.5.6 3 2.1-.9 3.8-2.5 4.5-4.7a9.2 9.2 0 0 1-3.1-.7c-1.7-1.1-1.7-4.1 0-5.2.5-.3 1.6-.5 3.5-.6-.6-3.5-2.3-5.4-5.2-5.8-.2 2-.4 3.4-.7 4-1.1 1.6-4.1 1.6-5.2 0-.3-.5-.5-1.6-.6-3.2-3.1 1-5 2.9-5.8 5.4 2 .2 3.4.5 4 .8 1.6 1.1 1.6 4 0 5.2-.6.3-1.8.5-3.7.6.8 2.5 2.6 4 5.8 4.8Z"/>
+          </g>
+        </defs>
+
+        <!-- Masks that are used to punch holes. -->
+        <mask id="m0" mask-type="luminance" />
+        <mask id="m1" mask-type="luminance" />
+        <mask id="m2" mask-type="luminance" />
+        <mask id="m3" mask-type="luminance" />
+        <mask id="m4" mask-type="luminance" />
+
+        <!-- Background water layers. -->
+        <rect id="o1" fill="url(#p0)" x="0" height="200" />
+        <rect id="o2" fill="url(#p0)" x="0" height="200" />
+        <rect id="o3" fill="url(#p0)" x="0" height="200" />
+
+        <!-- Terrain layers. -->
+        <path id="l0" fill="url(#f0)" mask="url(#m0)" />
+        <path id="l1" fill="#4ABE00" mask="url(#m1)" />
+        <path id="l2" fill="#8AE000" mask="url(#m2)" />
+        <path id="l3" fill="url(#f3)" mask="url(#m3)" />
+        <path id="l4" fill="url(#f4)" mask="url(#m4)" />
+        <path id="l5" fill="url(#p1)" mask="url(#m4)" />
+      </svg>
+
+      <div id="id21"></div><!-- #names -->
+
+      <svg id="id19">
+        <g id="id3" /> <!-- #playersContainer -->
+        <g id="id4" /> <!-- #particles -->
+        <g id="id5" /> <!-- #objects -->
+      </svg>
+
+      <svg id="id20">
+        <!-- Foreground water layers. -->
+        <rect id="o4" fill="url(#p0)" x="0" height="200" />
+        <rect id="o5" fill="url(#p0)" x="0" height="200" />
+        <rect id="o6" fill="url(#p0)" x="0" height="200" />
+
+        <g id="id6"></g> <!-- #crosshairs -->
+        <g id="id7" fill="#fc4"></g> <!-- targetlock -->
+
+        <g id="id8"> <!-- #powerbar -->
+          <rect x="0" y="-5" width="80" height="10" rx="2" fill="url(#f1)" mask="url(#m-pb)" />
+        </g>
+
+        <g id="id27"> <!-- #arrow -->
+          <path stroke="#000" stroke-width="2" d="M8.7 14c-3 .7-9-9.1-7.4-11.5 1.4-2 11.8-1.8 14-.4 1.5 1 .5 3.3-1.6 6.6-1.8 2.7-3.7 5-5 5.2Z"/>
+        </g>
+
+        <g id="id28">
+          <path transform="translate(-15 -15)" fill="#FFD553" d="M16 23c-2 0-4 3-5 7 0-5 0-8-2-9-1-1-5-1-9 1 4-3 6-5 6-7s-2-5-6-7c5 2 8 2 9 1 2-1 3-4 2-9 1 5 3 7 5 8 2 0 5-1 8-5-3 4-4 7-3 9s4 3 9 3c-5 0-8 1-9 3-1 3 0 5 3 9-3-3-6-5-8-4Z"/>
+        </g>
+
+        <mask id="m-pb" mask-type="luminance">
+          <rect id="id9" x="0" y="-5" width="40" height="10" rx="2" fill="#fff" />
+        </mask>
+      </svg>
+    </div>
+
+    <!-- UI: Weapons -->
+    <div id="id10"></div>
+
+    <!-- UI: Current weapon. -->
+    <div id="id11"></div>
+    <div id="info-btn">i</div>
+    <div id="info-popup"></div>
+
+    <!-- UI: Wind direction indicator. -->
+    <div id="wind-wrap">
+      <div id="wind">
+        <div id="id12"></div>
+        <div id="id13"></div>
+        <div id="winddiv"></div>
+      </div>
+      <div id="windspeed-label"></div>
+    </div>
+
+    <!-- UI: Messages. -->
+    <div id="id14"></div>
+
+    <!-- UI: Home screen messages. -->
+    <div id="menu">
+      <div id="id25"></div>
+      <div id="id26"></div>
+      <div id="id22"></div>
+    </div>
+
+    <div id="id1"></div>
+
+    <!-- Hidden game elements that are cloned as needed. -->
+    <div id="hide">
+      <div id="id15"></div>
+      <div id="hp"></div>
+    </div>
+
+    <!-- Touch Controls -->
+    <div id="touch-controls">
+      <div id="touch-left">
+        <button id="btn-aim-up" class="ctrl-btn">&#9650;</button>
+        <button id="btn-aim-down" class="ctrl-btn aim-gap">&#9660;</button>
+        <div class="ctrl-row move-gap">
+          <button id="btn-left" class="ctrl-btn">&#9664;</button>
+          <button id="btn-right" class="ctrl-btn">&#9654;</button>
+        </div>
+      </div>
+      <div id="touch-right">
+        <button id="btn-fire" class="touch-btn fire-btn">FIRE</button>
+        <button id="btn-jump" class="touch-btn">JUMP</button>
+        <button id="btn-next" class="touch-btn">NEXT</button>
+      </div>
+    </div>
+
+    <script>
+// ZzFXMicro - Zuper Zmall Zound Zynth - v1.3.1 by Frank Force ~ 1000 bytes
+var zzfxV=.3;
+var zzfxX;
+function zzfx(p,k,b,e,r,t,q,D,u,y,v,z,l,E,A,F,c,w,m,B,N){
+  if(!zzfxX)zzfxX=new AudioContext;
+  let M=Math,d=2*M.PI,R=44100,G=u*=500*d/R/R,C=b*=(1-k+2*k*M.random(k=[]))*d/R,
+  g=0,H=0,a=0,n=1,I=0,J=0,f=0,h=N<0?-1:1,x=d*h*N*2/R,L=M.cos(x),Z=M.sin,K=Z(x)/4,O=1+K,
+  X=-2*L/O,Y=(1-K)/O,P=(1+h*L)/2/O,Q=-(h+L)/O,S=P,T=0,U=0,V=0,W=0;e=R*e+9;m*=R;r*=R;t*=
+  R;c*=R;y*=500*d/R**3;A*=d/R;v*=d/R;z*=R;l=R*l|0;p*=zzfxV;for(h=e+m+r+t+c|0;a<h;k[a++]
+  =f*p)++J%(100*F|0)||(f=q?1<q?2<q?3<q?Z(g**3):M.max(M.min(M.tan(g),1),-1):1-(2*g/d%2+2)
+  %2:1-4*M.abs(M.round(g/d)-g/d):Z(g),f=(l?1-B+B*Z(d*a/l):1)*(f<0?-1:1)*M.abs(f)**D*(a<
+  e?a/e:a<e+m?1-(a-e)/m*(1-w):a<e+m+r?w:a<h-c?(h-a-c)/t*w:0),f=c?f/2+(c>a?0:(a<h-c?1:(h
+  -a)/c)*k[a-c|0]/2/p):f,N?f=W=S*T+Q*(T=U)+P*(U=f)-Y*V-X*(V=W):0),x=(b+=u+=y)*M.cos(A*
+  H++),g+=x+x*E*Z(a**5),n&&++n>z&&(b+=v,C+=v,n=0),!l||++I%l||(b=C,u=G,n=n||1);p=zzfxX.
+  createBuffer(1,h,R);p.getChannelData(0).set(k);b=zzfxX.createBufferSource();
+  b.buffer=p;b.connect(zzfxX.destination);b.start()
+}
+    </script>
+    <script>
+// Simplex noise - open-simplex-noise
+const SQRT3 = Math.sqrt(3.0);
+const F2 = 0.5 * (SQRT3 - 1.0);
+const G2 = (3.0 - SQRT3) / 6.0;
+const fastFloor = (x) => Math.floor(x) | 0;
+const grad2 = new Float64Array([1,1,-1,1,1,-1,-1,-1,1,0,-1,0,1,0,-1,0,0,1,0,-1,0,1,0,-1]);
+
+function createNoise2D(random) {
+  if (!random) random = Math.random;
+  const perm = buildPermutationTable(random);
+  const permGrad2x = new Float64Array(perm).map(v => grad2[(v % 12) * 2]);
+  const permGrad2y = new Float64Array(perm).map(v => grad2[(v % 12) * 2 + 1]);
+  return function noise2D(x, y) {
+    let n0 = 0, n1 = 0, n2 = 0;
+    const s = (x + y) * F2;
+    const i = fastFloor(x + s);
+    const j = fastFloor(y + s);
+    const t = (i + j) * G2;
+    const X0 = i - t;
+    const Y0 = j - t;
+    const x0 = x - X0;
+    const y0 = y - Y0;
+    let i1, j1;
+    if (x0 > y0) { i1 = 1; j1 = 0; }
+    else { i1 = 0; j1 = 1; }
+    const x1 = x0 - i1 + G2;
+    const y1 = y0 - j1 + G2;
+    const x2 = x0 - 1.0 + 2.0 * G2;
+    const y2 = y0 - 1.0 + 2.0 * G2;
+    const ii = i & 255;
+    const jj = j & 255;
+    let t0 = 0.5 - x0 * x0 - y0 * y0;
+    if (t0 >= 0) {
+      const gi0 = ii + perm[jj];
+      t0 *= t0;
+      n0 = t0 * t0 * (permGrad2x[gi0] * x0 + permGrad2y[gi0] * y0);
+    }
+    let t1 = 0.5 - x1 * x1 - y1 * y1;
+    if (t1 >= 0) {
+      const gi1 = ii + i1 + perm[jj + j1];
+      t1 *= t1;
+      n1 = t1 * t1 * (permGrad2x[gi1] * x1 + permGrad2y[gi1] * y1);
+    }
+    let t2 = 0.5 - x2 * x2 - y2 * y2;
+    if (t2 >= 0) {
+      const gi2 = ii + 1 + perm[jj + 1];
+      t2 *= t2;
+      n2 = t2 * t2 * (permGrad2x[gi2] * x2 + permGrad2y[gi2] * y2);
+    }
+    return 70.0 * (n0 + n1 + n2);
+  };
 }
 
-function playNoise(dur, vol) {
-    resumeAudio();
-    const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * dur, audioCtx.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1);
-    const src = audioCtx.createBufferSource();
-    src.buffer = buf;
-    const g = audioCtx.createGain();
-    g.gain.setValueAtTime(vol || 0.08, audioCtx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
-    src.connect(g); g.connect(audioCtx.destination);
-    src.start();
+function buildPermutationTable(random) {
+  const tableSize = 512;
+  const p = new Uint8Array(tableSize);
+  for (let i = 0; i < tableSize / 2; i++) p[i] = i;
+  for (let i = 0; i < tableSize / 2 - 1; i++) {
+    const r = i + ~~(random() * (256 - i));
+    const aux = p[i]; p[i] = p[r]; p[r] = aux;
+  }
+  for (let i = 256; i < tableSize; i++) p[i] = p[i - 256];
+  return p;
+}
+    </script>
+    <script>
+// Worms - Local multiplayer only
+// Based on worms-13k by nickyvanurk, converted to vanilla JS, multiplayer removed, touch added.
+
+// ================================================================================================
+// DATA
+// ================================================================================================
+
+const ANIMATIONS = [
+  [['M45 19c3 27 1 40-4 40-8 0-5-11-11-11s-7 11-16 11', 49, 51.5]],
+  [
+    ['M51 19c3 27 1 40-4 40-8 0-8-11-18-11S21 59 7 59', 55, 57.5],
+    ['M45 19c3 27 1 40-4 40-8 0-5-11-11-11s-7 11-16 11', 49, 51.5],
+    ['M39 19c3 27 1 40-4 40-8 0-1-11-6-11s-3 11-13 11', 43, 45.5],
+    ['M43 19c3 27 1 40-4 40-8 0-5-11-11-11s-7 11-16 11', 47, 49.5],
+  ],
+  [['M54 18c2 27-3 45-16 56', 55, 57.5]]
+];
+
+const WEAPONS = [
+  [0, 1, 1, 0, 0, 'BAZOOKA',    [[24,24,-45,1.55,0]]],
+  [1, 0, 1, 0, 0, 'SHOTGUN',    [[,,,.75,1]]],
+  [2, 0, 1, 0, 0, 'UZI',        [[,,,.75,2]]],
+  [3, 0, 0, 1, 0, 'AIR STRIKE', [[24,28,90,.8,0],[12,20,90,.8,0],[36,20,90,.8,0]]],
+  [4, 0, 0, 0, 1, 'DYNAMITE',   [[24,32,,1.1,4]]],
+  [5, 1, 1, 0, 0, 'GRENADE',    [[22,24,,1.9,5]]],
+  [6, 1, 1, 0, 0, 'UNHOLY BLACK CAT', [[24,24,,1.2,6]]],
+  [7, 0, 1, 0, 0, 'MINIGUN',    [[,,,.75,7]]],
+  [8, 1, 1, 1, 0, 'HOMING MISSILE', [[32,16,,.75,'id0'],[16,32,-45,,8]]],
+  [9, 1, 1, 0, 0, 'CLUSTER BOMB', [[24,24,,1.9,9]]],
+  [10, 0, 0, 1, 0, 'NYAN CATS',  [[24,24,,1.2,10]]],
+  [11, 0, 1, 0, 0, 'CRICKET BAT',[[,,,.75,11]]],
+];
+
+// ================================================================================================
+// SHORTCUTS & ELEMENT REFERENCES
+// ================================================================================================
+
+const docElem = document.getElementById.bind(document);
+const docElems = (count) => new Array(count).fill(0).map((_, i) => docElem('id' + i));
+
+const [
+  ch, timer, svg, playersContainer, particles, objects, crosshairs, targetlock,
+  powerbar, powerbarMask, weapons, weaponLabel, windleft, windright, captions,
+  glyph, explosion, tracer, logo, svg2, svg3, names, menu1, _menu2, _menu3,
+  menu4, menu5, arrow, muzzle,
+] = docElems(29);
+
+// ================================================================================================
+// CONSTANTS
+// ================================================================================================
+
+const NAMES = 'ALICE|CLIVE|BORIS|RICHARD|MIKE|SARAH|PAULINE|HENRY'.split('|');
+const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 \'!:-';
+const HALF_PI = Math.PI / 2;
+const WW = 8000;
+const WH = 2000;
+const GROUND = WH + 400;
+const OCEAN_SIZE = 10000;
+const WORLD_SCALE = 0.00075;
+const NOISE_AMPLITUDE = 1500;
+const AIR_RESISTANCE = 0.002;
+const PLAYER_GRAVITY = 0.002;
+const MISSILE_GRAVITY = 0.001;
+
+// Sound effects
+const SFX_EXPLOSION = [1.3,,50,.08,.18,.36,4,2.9,-5,,,,,1.2,20,.6,.16,.4,.12,,1689];
+const SFX_JUMP = [,,369,.02,.05,.09,1,1.5,2,157,,,,,,.1,,.72,,,926];
+const SFX_SHOOT = [1.7,,185,.03,.01,.06,3,3.2,-16,-9,50,,,,,.4,.2,.67,.1,,-1376];
+const SFX_GUNSHOT = [.6,,328,.01,.01,.03,3,3.7,7,,-50,,.01,.1,7.4,,,.74,,,193];
+const SFX_BOUNCE = [,324,,.05,.09,1,3.1,-3,-8,,,,.8,38,.3,,.42,.09,,-2385];
+const SFX_SPLASH = [5,,244,.01,.01,.01,1,.7,,,,,,,,,.07,.56,.01,.04,-978];
+
+// Noise
+const rngf = splitmix32((Math.random() * 2 ** 32) >>> 0);
+const simplex = createNoise2D(rngf);
+
+// ================================================================================================
+// GAME STATE
+// ================================================================================================
+
+let time = 0;
+let vw = innerWidth;
+let vh = innerHeight;
+let holes = [];
+let heights = [];
+let masks = [];
+let started = false;
+let gameover = false;
+let teams = [];
+let players = [];
+let activePlayer = 0;
+let activeTeam = 0;
+let activeWeapon = 0;
+let muzzlettl = 0;
+let gameoverttl = 0;
+let captionsttl = 0;
+let roundtime = 0;
+let timerstr = '';
+let paused = false;
+let windSpeed = 0;
+let explosions = new Map();
+let missiles = new Map();
+let grenades = new Map();
+let dynamites = new Map();
+let tracers = new Map();
+let destroyed = [];
+let elements = [];
+let timeout = null;
+let weaponsVisible = false;
+
+let camera = { x: 1350, y: WH - 600, to: { x: 1350, y: WH - 600 }, free: true, ttl: 0 };
+let cameraZoom = 1;
+
+// mouse/touch shared pointer
+const mouse = { x: vw / 2, y: vh / 2, over: false };
+
+// ================================================================================================
+// EVENTS
+// ================================================================================================
+
+const keys = new Set();
+const isTouchDevice = matchMedia('(hover: none) and (pointer: coarse)').matches;
+
+let mouseDrag = false;
+let mouseDragStartX = 0, mouseDragStartY = 0;
+let mouseDragCamX = 0, mouseDragCamY = 0;
+
+addEventListener('mousemove', (e) => {
+  mouse.x = e.clientX; mouse.y = e.clientY;
+  if (!isTouchDevice && mouseDrag) {
+    const dx = e.clientX - mouseDragStartX;
+    const dy = e.clientY - mouseDragStartY;
+    const scale = 1 / cameraZoom;
+    if (!camera.free) {
+      camera.free = true;
+      camera.to = { x: camera.to.x, y: camera.to.y };
+    }
+    camera.to.x = mouseDragCamX - dx * scale;
+    camera.to.y = mouseDragCamY - dy * scale;
+  }
+});
+
+addEventListener('mousedown', (e) => {
+  if (isTouchDevice) return;
+  if (e.target.closest('#touch-controls, #touch-left, #touch-right, #id10, .weapon, #menu, #backBtn, #info-btn')) return;
+  mouseDrag = true;
+  mouseDragStartX = e.clientX;
+  mouseDragStartY = e.clientY;
+  mouseDragCamX = camera.to.x;
+  mouseDragCamY = camera.to.y;
+});
+
+addEventListener('mouseup', (e) => {
+  if (isTouchDevice) return;
+  if (mouseDrag) {
+    const dx = Math.abs(e.clientX - mouseDragStartX);
+    const dy = Math.abs(e.clientY - mouseDragStartY);
+    // If barely moved, treat as click (for targeted weapons)
+    if (dx < 5 && dy < 5 && started && WEAPONS[activeWeapon][3] && e.clientY > 100) {
+      fireWeapon();
+    }
+    mouseDrag = false;
+  }
+});
+
+addEventListener('keydown', (e) => {
+  if (e.keyCode === 32) e.preventDefault();
+  if (started) { keys.add(e.code); keys.add(e.key); }
+  if (e.code === 'KeyN') activateNextPlayer();
+  if (e.code === 'KeyX') gameover = true;
+});
+
+addEventListener('keyup', (e) => { keys.delete(e.code); keys.delete(e.key); });
+addEventListener('resize', () => { vw = innerWidth; vh = innerHeight; });
+addEventListener('wheel', (e) => {
+  e.preventDefault();
+  cameraZoom = clamp(cameraZoom - e.deltaY * 0.001, 0.4, 2.0);
+}, { passive: false });
+document.body.addEventListener('mouseenter', () => { if (!isTouchDevice) mouse.over = true; });
+document.body.addEventListener('mouseleave', () => { mouse.over = false; });
+
+// ================================================================================================
+// TOUCH CONTROLS
+// ================================================================================================
+
+function setupTouchControls() {
+  // D-pad: hold for move left/right and aim up/down
+  const hold = (id, key) => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    const start = (e) => { e.preventDefault(); keys.add(key); };
+    const end = (e) => { e.preventDefault(); keys.delete(key); };
+    btn.addEventListener('touchstart', start, { passive: false });
+    btn.addEventListener('touchend', end, { passive: false });
+    btn.addEventListener('touchcancel', end, { passive: false });
+  };
+
+  hold('btn-left', 'KeyA');
+  hold('btn-right', 'KeyD');
+  hold('btn-aim-up', 'KeyW');
+  hold('btn-aim-down', 'KeyS');
+
+  // Action buttons
+  hold('btn-jump', 'Space');
+  hold('btn-fire', 'KeyP');
+
+  // Next worm button
+  const nextBtn = document.getElementById('btn-next');
+  if (nextBtn) {
+    nextBtn.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      activateNextPlayer();
+    }, { passive: false });
+  }
+
+
+  // --- Gesture handling: drag to pan, pinch to zoom, tap to target ---
+  let gestureState = null; // null, 'pan', 'pinch', 'tap'
+  let lastPinchDist = 0;
+  let panStartX = 0, panStartY = 0;
+  let camStartX = 0, camStartY = 0;
+  let tapTimeout = null;
+
+  const viewport = document.querySelector('#id2').parentElement;
+
+  function pinchDist(t1, t2) {
+    const dx = t1.clientX - t2.clientX;
+    const dy = t1.clientY - t2.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  viewport.addEventListener('touchstart', (e) => {
+    if (e.target.closest('#touch-controls, #touch-left, #touch-right, #id10, .weapon, #menu, #backBtn')) return;
+
+    if (e.touches.length === 2) {
+      gestureState = 'pinch';
+      lastPinchDist = pinchDist(e.touches[0], e.touches[1]);
+      e.preventDefault();
+      return;
+    }
+
+    if (e.touches.length === 1) {
+      gestureState = 'tap';
+      panStartX = e.touches[0].clientX;
+      panStartY = e.touches[0].clientY;
+      camStartX = camera.to.x;
+      camStartY = camera.to.y;
+    }
+  }, { passive: false });
+
+  viewport.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2 && gestureState === 'pinch') {
+      const dist = pinchDist(e.touches[0], e.touches[1]);
+      const delta = dist - lastPinchDist;
+      cameraZoom += delta * 0.002;
+      cameraZoom = clamp(cameraZoom, 0.4, 2.0);
+      lastPinchDist = dist;
+      e.preventDefault();
+      return;
+    }
+
+    if (e.touches.length === 1 && (gestureState === 'tap' || gestureState === 'pan')) {
+      const dx = e.touches[0].clientX - panStartX;
+      const dy = e.touches[0].clientY - panStartY;
+      if (gestureState === 'tap' && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+        gestureState = 'pan';
+        camera.free = true;
+        camera.to = { x: camera.to.x, y: camera.to.y };
+      }
+      if (gestureState === 'pan') {
+        const scale = 1 / cameraZoom;
+        camera.to.x = camStartX - dx * scale;
+        camera.to.y = camStartY - dy * scale;
+        e.preventDefault();
+      }
+    }
+  }, { passive: false });
+
+  viewport.addEventListener('touchend', (e) => {
+    if (e.touches.length === 0) {
+      // Single tap ended without drag = set target / fire air strike
+      if (gestureState === 'tap' && started) {
+        mouse.x = panStartX;
+        mouse.y = panStartY;
+        if (WEAPONS[activeWeapon][3] && panStartY > 100) {
+          fireWeapon();
+        }
+      }
+      gestureState = null;
+    }
+    if (e.touches.length === 1) {
+      // Went from 2 fingers to 1 — start pan from current position
+      gestureState = 'pan';
+      panStartX = e.touches[0].clientX;
+      panStartY = e.touches[0].clientY;
+      camStartX = camera.to.x;
+      camStartY = camera.to.y;
+    }
+  }, { passive: false });
 }
 
-const SFX = {
-    shoot() { playTone(400, 0.15, 0.12, 'sawtooth'); playNoise(0.1, 0.06); },
-    explosion(s) { playNoise(0.3 + (s || 1) * 0.15, 0.12); playTone(80, 0.25, 0.1, 'sine'); },
-    bounce() { playTone(600, 0.06, 0.05, 'triangle'); },
-    hit() { playTone(200, 0.1, 0.08, 'square'); },
-    death() { playTone(120, 0.4, 0.1, 'sawtooth'); },
-    splash() { playNoise(0.3, 0.1); playTone(300, 0.15, 0.04, 'sine'); },
-    teleport() { playTone(800, 0.2, 0.08, 'sine'); playTone(1200, 0.15, 0.06, 'sine'); },
-    shotgunBlast() { playNoise(0.15, 0.15); playTone(250, 0.1, 0.1, 'sawtooth'); },
-    turnStart() { playTone(660, 0.08, 0.06, 'triangle'); playTone(880, 0.08, 0.04, 'triangle'); },
-    victory() { playTone(523, 0.2, 0.08, 'triangle'); setTimeout(() => playTone(659, 0.2, 0.08, 'triangle'), 200); setTimeout(() => playTone(784, 0.3, 0.1, 'triangle'), 400); },
+function toggleWeaponsPanel() {
+  weaponsVisible = !weaponsVisible;
+  const el = document.getElementById('id10');
+  if (el) {
+    el.style.transform = weaponsVisible
+      ? 'translate(-50%, 0)'
+      : 'translate(-50%, -150px)';
+    el.style.transition = 'transform 0.3s ease';
+  }
+}
+
+// ================================================================================================
+// GAME LOOP
+// ================================================================================================
+
+function tick(t) {
+  requestAnimationFrame(tick);
+  const delta = clamp(t - time, 0, 33);
+  time = t;
+
+  updatePlayers(delta);
+  updateCrosshairs(delta);
+  updatePowerbar(delta);
+  updateExplosions(delta);
+  updateMuzzleFlash(delta);
+  updateTracers(delta);
+  updateMissiles(delta);
+  updateDynamites(delta);
+  updateGrenades(delta);
+  updateCamera(delta);
+  updateWind();
+  updateDestroyedElement();
+  updateCaptions(delta);
+  updateGameOver(delta);
+  updateTimer(delta);
+}
+
+function initGame() {
+  initSvg();
+  initMenu();
+  setupTouchControls();
+  setupInfoButton();
+  setupBitmapButtons();
+  requestAnimationFrame(tick);
+  initTerrain(true);
+  initWeaponsUI();
+}
+
+function setupBitmapButtons() {
+  // Render bitmap pixel font into touch buttons
+  const btnMap = { 'btn-fire': 'FIRE', 'btn-jump': 'JUMP', 'btn-next': 'NEXT' };
+  for (const [id, label] of Object.entries(btnMap)) {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = ''; text(el, label); }
+  }
+  // Windspeed label
+  const wsLabel = document.getElementById('windspeed-label');
+  if (wsLabel) text(wsLabel, 'WINDSPEED');
+}
+
+function startLocalGame() {
+  if (!started) {
+    initHeights();
+    initTerrain(false);
+    initTerrainDamage();
+    initTeams();
+    initPlayers();
+    randomiseWind();
+    unlockCamera();
+    menuShow(menu1, false);
+    menuShow(menu4, false);
+    menuShow(menu5, false);
+    document.body.classList.add('started');
+    started = true;
+    roundtime = 60;
+    caption("TEAM 1 IT'S YOUR TURN");
+  }
+}
+
+// ================================================================================================
+// TIMER & GAME OVER
+// ================================================================================================
+
+function updateTimer(delta) {
+  if (!paused) {
+    if (started) {
+      roundtime -= delta / 1000;
+      const str = ('' + Math.ceil(roundtime)).padStart(2, '0');
+      if (roundtime <= 0) {
+        activateNextTeam();
+        caption('OOPS, YOU RAN OUT OF TIME!');
+      }
+      if (timerstr !== str) {
+        timerstr = str;
+        text(timer, str);
+      }
+    } else {
+      text(timer, '30');
+    }
+  }
+}
+
+async function updateGameOver(delta) {
+  if (gameover) {
+    gameoverttl += delta;
+    if (gameoverttl > 500) {
+      gameoverttl -= 500;
+      const x = camera.x - (vw / 2) + rngi(0, vw);
+      const m = await fireMissileRound(getId(), x, 0, rngf() * 0.4 - 0.4, 0.2, rngi(60, 80), 150);
+      m.grav = true;
+      m.wind = true;
+    }
+  }
+}
+
+// ================================================================================================
+// ENVIRONMENT
+// ================================================================================================
+
+function randomiseWind() {
+  const dir = Math.random() < 0.5 ? 1 : -1;
+  windSpeed = clamp(Math.pow(Math.random(), 1.8) + 0.1, 0.1, 0.9) * dir;
+}
+
+function updateWind() {
+  windleft.style.width = clamp((1 + windSpeed) * 200, 0, 200) + 'px';
+  windright.style.width = clamp((1 - windSpeed) * 200, 0, 200) + 'px';
+}
+
+// ================================================================================================
+// PLAYERS
+// ================================================================================================
+
+function initTeams() {
+  teams[0] = [,,,2,2,,1,1,1,3,1,,];
+  teams[1] = [,,,2,2,,1,1,1,3,1,,];
+}
+
+function initPlayers() {
+  for (let i = 0; i < 8; i++) {
+    const p = initPlayer(i);
+    players.push(p);
+    updatePlayerHealth(p);
+    text(getPlayerInfoElement(p, 2), NAMES[i]);
+  }
+}
+
+function initPlayer(i) {
+  let x = -1;
+  while (x === -1) {
+    const cx = Math.random() * (WW - 500) + 250;
+    if (getTerrainHeight(cx) < WH - 210) x = cx;
+  }
+  const y = getTerrainHeight(x);
+  const dir = Math.random() > 0.5 ? 1 : -1;
+  return { id: getId(), i, x, y, hp: 100, dx: 0, dy: 0, ix: 0, jumping: false, r: 0, vr: 0, aim: 0, dir, power: 0, team: i % 2, anim: 0 };
+}
+
+function getPlayerElement(p) {
+  return getElement(playersContainer, 'player', p.id);
+}
+
+function getPlayerInfoElement(p, offset) {
+  return getElement(names, 'hp', p.id + offset, (el) => {
+    sprop(el, '--c', p.team === 0 ? '#FF418B' : '#00EAFF');
+  });
+}
+
+function updatePlayers(delta) {
+  for (let p of players) {
+    updatePlayer(p, p.i === activePlayer, delta);
+  }
+}
+
+function updatePlayer(p, active, delta) {
+  const el1 = getPlayerElement(p);
+  const el2 = getPlayerInfoElement(p, 1);
+  const el3 = getPlayerInfoElement(p, 2);
+
+  if (!p.gone) {
+    // Keyboard input
+    p.ix = active && (p.cooldown || 0) <= 0 ? +keys.has('KeyD') - +keys.has('KeyA') : 0;
+    p.jumping = !!(active ? keys.has('Space') && p.onGround && (p.cooldown || 0) <= 0 : false);
+
+    if (p.ix !== 0) unlockCamera();
+
+    p.dx = p.dx + (p.onGround ? p.ix * 0.1 : 0);
+    p.dy = p.dy + (p.jumping ? -0.6 : 0);
+
+    if (p.onGround && !p.ragdoll) {
+      p.dx = clamp(p.dx, -0.125, 0.125);
+    }
+
+    if (p.jumping) {
+      p.dx += p.dir * 0.2;
+      p.cooldown = 500;
+    }
+
+    if (!p.jumping && p.onGround) {
+      p.dx *= 0.5;
+      p.jumped = false;
+    }
+
+    if (p.jumping && p.onGround) {
+      sfx(SFX_JUMP);
+      p.jumped = true;
+    }
+
+    p.dy += delta * PLAYER_GRAVITY;
+    p.x += p.dx * delta;
+    p.y += p.dy * delta;
+
+    p.vr = lerp(p.vr, 0, 0.01);
+    p.r += p.vr * delta;
+
+    if (p.onGround) {
+      p.r = 0;
+      p.cooldown = (p.cooldown || 0) - delta;
+    }
+
+    if (p.vr < 1) p.vr = 0;
+
+    p.dir = p.ix === 0 ? p.dir : p.ix > 0 ? 1 : -1;
+
+    if (Math.abs(p.dx) < 0.01) p.dx = 0;
+
+    // Collision
+    if (checkCollision(p.x, p.y)) {
+      const [up] = raycast(p.x, p.y, 0, -1);
+      const [down] = raycast(p.x, p.y - 20, 0, 1);
+      const [right] = raycast(p.x - 5, p.y - 10, 1, 0);
+      const [left] = raycast(p.x + 5, p.y - 10, -1, 0);
+
+      if (up !== Infinity && up > 0 && p.dy > 0) {
+        p.y -= up;
+        p.dy = p.ragdoll ? -(p.dy * 0.5) : 0;
+        p.onGround = true;
+      }
+      if (down !== Infinity && down > 0 && p.dy < 0) {
+        p.y += down;
+        p.dy = p.ragdoll ? -(p.dy * 0.5) : 0;
+      }
+      if (left !== Infinity && left > 0 && p.dx > 0) {
+        p.x -= left;
+        p.dx = p.ragdoll || !p.onGround ? -(p.dx * 0.5) : 0;
+      }
+      if (right !== Infinity && right > 0 && p.dx < 0) {
+        p.x += right;
+        p.dx = p.ragdoll || !p.onGround ? -(p.dx * 0.5) : 0;
+      }
+    } else {
+      p.onGround = false;
+    }
+
+    // Ocean death
+    if (p.y >= WH - 190) {
+      killPlayer(p, false, true);
+      sfx(SFX_SPLASH);
+    }
+
+    // Render
+    const scale = 0.75;
+    const x = p.x - (p.dir * 32 * scale);
+    const sx = p.dir * scale;
+    transform(el1, x, p.y - 60 * scale, [p.r, 32 * sx, 32 * scale], [sx, scale]);
+
+    const anim = p.jumped ? 2 : p.ix ? 1 : 0;
+    if (p.anim !== anim) {
+      p.anim = anim;
+      p.frame = 0;
+      p.adt = 0;
+      updatePlayerAnimation(p);
+    }
+
+    p.adt = (p.adt || 0) + delta;
+    if (p.adt > 250) {
+      p.adt -= 250;
+      p.frame = (p.frame || 0) + 1;
+      updatePlayerAnimation(p);
+    }
+
+    const px = ~~p.x;
+    const py = ~~p.y;
+
+    let x1 = px - el2.children.length * 8 - 4;
+    let y1 = py - 75;
+    el2.style.transform = `translate(${x1}px, ${y1}px)`;
+
+    let x2 = px - el3.children.length * 8 - 4;
+    let y2 = py - 97;
+    el3.style.transform = `translate(${x2}px, ${y2}px)`;
+
+    if (p.i === activePlayer) {
+      transform(arrow, p.x - 7.5, p.y - 120);
+      arrow.style.fill = p.team === 0 ? '#FF418B' : '#00EAFF';
+    }
+  } else {
+    el2.style.display = 'none';
+    el3.style.display = 'none';
+  }
+}
+
+function updatePlayerAnimation(p) {
+  const el1 = getPlayerElement(p);
+  const anim = ANIMATIONS[p.anim || 0];
+  p.frame = (p.frame || 0) % anim.length;
+  const frame = anim[p.frame];
+  const children = [...el1.children];
+  attrNS(children[0], 'd', frame[0]);
+  attrNS(children[1], 'cx', frame[1]);
+  attrNS(children[2], 'cx', frame[2]);
+}
+
+function updatePlayerHealth(p) {
+  const el2 = getPlayerInfoElement(p, 1);
+  text(el2, '' + p.hp);
+  if (p.hp < 1 && !p.dead) killPlayer(p, true, false);
+}
+
+function updateCrosshairs(delta) {
+  if (WEAPONS[activeWeapon][2]) {
+    const p = players[activePlayer];
+    if (p) {
+      const vertical = +keys.has('KeyS') - +keys.has('KeyW');
+      if (vertical !== 0) unlockCamera();
+      p.aim = clamp(p.aim + (vertical * delta * 0.001), -HALF_PI, HALF_PI);
+      const [x, y] = rpos(p, 0, -10, 150);
+      transform(powerbar, p.x, p.y, [p.aim, 0, 0]);
+      showCrosshairs(false, x, y);
+      crosshairs.style.fill = p.team === 0 ? '#FF418B' : '#00EAFF';
+    } else {
+      hideCrosshairs(false);
+    }
+  }
+}
+
+function showCrosshairs(lock, x, y) {
+  transform(lock ? targetlock : crosshairs, x, y);
+  (lock ? targetlock : crosshairs).style.visibility = 'visible';
+}
+
+function hideCrosshairs(lock) {
+  (lock ? targetlock : crosshairs).style.visibility = 'hidden';
+}
+
+function updatePowerbar(delta) {
+  const p = players[activePlayer];
+  const w = WEAPONS[activeWeapon];
+  let width = 0;
+
+  if (p) {
+    if (!p.hasFired && (w[2] || w[4])) {
+      const isFireKeyDown = keys.has('KeyP');
+      if (w[1]) {
+        if (isFireKeyDown) {
+          p.power = clamp(p.power + delta * 0.001, 0, 1);
+        } else if (p.power > 0) {
+          fireWeapon();
+          p.hasFired = true;
+          p.power = 0;
+        }
+      } else if (isFireKeyDown) {
+        fireWeapon();
+        p.hasFired = true;
+      }
+    }
+
+    const [x, y] = rpos(p, 0, -10, 40);
+    width = p.power * 80;
+
+    const angle = p.dir === 1
+      ? p.aim * 180 / Math.PI
+      : 180 - p.aim * 180 / Math.PI;
+
+    transform(powerbar, x, y, [angle, 0, 0]);
+  }
+
+  attrNS(powerbarMask, 'width', width);
+}
+
+function activateNextPlayer() {
+  do {
+    activePlayer = (activePlayer + 2) % players.length;
+  } while (players[activePlayer].dead);
+  unlockCamera();
+}
+
+function activateRandomPlayer() {
+  activePlayer = rngi(0, 4) * 2 + activeTeam;
+  activateNextPlayer();
+}
+
+function activateNextTeam() {
+  let count = 0;
+  for (const p of players) {
+    if (p.dead && !p.gone) count++;
+  }
+
+  if (count === 0) {
+    if (!checkForGameOver()) {
+      activeWeapon = 0;
+      activeTeam = 1 - activeTeam;
+      roundtime = 60;
+      paused = false;
+      activateRandomPlayer();
+      randomiseWind();
+      resetPlayers();
+      caption(`TEAM ${activeTeam + 1} IT'S YOUR TURN`);
+    }
+  }
+
+  unlockCamera();
+  updateWeaponUI();
+}
+
+function checkForGameOver() {
+  const counts = [0, 0];
+  for (const p of players) {
+    if (!p.gone) counts[p.team]++;
+  }
+  if (!counts[0] && !counts[1]) { caption("WHOA, IT'S A DRAW!"); gameover = true; }
+  else if (!counts[0]) { caption("CONGRATULATIONS TEAM 2! YOU WIN!"); gameover = true; }
+  else if (!counts[1]) { caption("CONGRATULATIONS TEAM 1! YOU WIN!"); gameover = true; }
+  return gameover;
+}
+
+function requestEndTurn() {
+  cancelEndTurn();
+  timeout = setTimeout(activateNextTeam, 4000);
+}
+
+function cancelEndTurn() {
+  if (timeout) clearTimeout(timeout);
+}
+
+function resetPlayers() {
+  for (const player of players) {
+    player.hasFired = false;
+    player.ragdoll = false;
+  }
+}
+
+function killPlayer(p, explode, immediately) {
+  const delay = immediately ? 0 : 2001;
+  p.dead = true;
+
+  setTimeout(() => {
+    p.gone = true;
+    const el1 = getPlayerElement(p);
+    attrNS(el1, 'opacity', '0');
+    const el2 = getPlayerInfoElement(p, 1);
+    el2.style.display = 'none';
+
+    if (explode) {
+      caption(`GOOD BYE ${NAMES[p.i]}!`);
+      sfx(SFX_EXPLOSION);
+      const id = getId();
+      const r = rngi(60, 70);
+      addBlast(id, p.x, p.y - 10, r, 1);
+    } else {
+      caption(`${NAMES[p.i]} IS SLEEPING WITH THE FISHES!`);
+    }
+
+    lockCamera(p);
+    if (!immediately) requestEndTurn();
+  }, delay);
+}
+
+// ================================================================================================
+// EXPLOSIONS
+// ================================================================================================
+
+function updateExplosions(delta) {
+  for (const [id, e] of explosions) {
+    e.ttl -= delta;
+    attrNS(e.el, 'opacity', e.ttl > 400 ? '1' : (e.ttl / 400));
+    attrNS(e.el, 'r', (e.r * (((500 - e.ttl) / 600) + 1)));
+    if (e.ttl <= 0) { e.el.remove(); explosions.delete(id); }
+  }
+}
+
+function addExplosion(x, y, r, hue = false) {
+  const el = explosion.cloneNode(true);
+  const fill = hue === false ? '#fff' : `hsl(${hue}, 100%, 50%)`;
+  const ttl = hue === false ? 500 : 1000;
+  attrNS(el, 'cx', x); attrNS(el, 'cy', y); attrNS(el, 'r', r); attrNS(el, 'fill', fill);
+  particles.append(el);
+  explosions.set(getId(), { x, y, r, el, ttl });
+}
+
+function addSmoke(x, y, hue = false) {
+  for (let i = 0; i < 5; i++) {
+    const a = Math.PI * 0.4 * i;
+    const d = Math.random() * 5 + 5;
+    addExplosion(x + Math.sin(a) * d, y + Math.cos(a) * d, rngi(6, 9), hue);
+  }
+}
+
+// ================================================================================================
+// WEAPONS
+// ================================================================================================
+
+function initWeaponsUI() {
+  for (let i = 0; i < WEAPONS.length; i++) {
+    const el = document.createElement('div');
+    el.className = 'weapon';
+    let icon = '';
+    for (const [a,b,c,d,e] of WEAPONS[i][6]) {
+      const href = Number.isInteger(e) ? 'w' + e : e;
+      icon += `<g transform="translate(${a||0} ${b||0}) rotate(${c||0}) scale(${d||1})"><use href="#${href}" /></g>`;
+    }
+    el.innerHTML = `<svg>${icon}</svg>`;
+    el.addEventListener('mousedown', function() {
+      if (started && teams[activeTeam][i] !== 0) {
+        activeWeapon = i;
+        updateWeaponUI();
+        hideCrosshairs(false);
+      }
+    });
+    el.addEventListener('touchstart', function(e) {
+      e.preventDefault();
+      if (started && teams[activeTeam][i] !== 0) {
+        activeWeapon = i;
+        updateWeaponUI();
+        hideCrosshairs(false);
+        // Auto-hide weapons panel on mobile after selection
+        weaponsVisible = false;
+        const wpnEl = document.getElementById('id10');
+        if (wpnEl) wpnEl.style.transform = 'translate(-50%, -150px)';
+      }
+    }, { passive: false });
+    weapons.append(el);
+  }
+  updateWeaponUI();
+}
+
+function updateWeaponUI() {
+  const qty = teams[activeTeam]?.[activeWeapon];
+  const label = WEAPONS[activeWeapon][5];
+  text(weaponLabel, `${label}${qty === undefined ? '' : ' X ' + qty}`);
+
+  // Position info button after the weapon label
+  requestAnimationFrame(() => {
+    const infoBtn = document.getElementById('info-btn');
+    if (infoBtn && weaponLabel) {
+      const r = weaponLabel.getBoundingClientRect();
+      infoBtn.style.left = (r.right + 6) + 'px';
+      infoBtn.style.top = (r.top - 2) + 'px';
+    }
+  });
+
+  for (let i = 0; i < WEAPONS.length; i++) {
+    const el = weapons.children.item(i)?.classList;
+    el?.toggle('active', i === activeWeapon);
+    el?.toggle('inactive', teams[activeTeam]?.[i] === 0);
+  }
+}
+
+const WEAPON_INFO = {
+  0: 'AIM AND SET POWER - FIRES A ROCKET',
+  1: 'AIM AT TARGET - FIRES TWO SHOTS',
+  2: 'AIM AT TARGET - RAPID FIRE BURST',
+  3: 'TAP TO SET TARGET - BOMBS FROM ABOVE',
+  4: 'WALK TO SPOT - DROPS DYNAMITE AT FEET',
+  5: 'AIM AND SET POWER - BOUNCES THEN EXPLODES',
+  6: 'AIM AND SET POWER - BIG EXPLOSION!',
+  7: 'AIM AT TARGET - RAPID FIRE BULLETS',
+  8: 'TAP TARGET THEN AIM - HOMES IN ON TARGET',
+  9: 'AIM AND SET POWER - SPLITS INTO CLUSTERS',
+  10: 'TAP TO SET TARGET - NYAN CATS RAIN DOWN',
+  11: 'FACE YOUR ENEMY - WHACKS THEM AWAY',
 };
 
-// ============================================================
-// WEAPON DEFINITIONS (ported from worms-game WeaponSystem.js)
-// ============================================================
-const WEAPONS = {
-    bazooka:   { name: 'Bazooka',   icon: '\uD83D\uDE80', key: 'bazooka',   ammo: Infinity, damage: 50, radius: 45, desc: 'Wind-affected rocket', instant: false },
-    grenade:   { name: 'Grenade',   icon: '\uD83D\uDCA3', key: 'grenade',   ammo: 5,        damage: 65, radius: 60, desc: 'Bouncing explosive (3s fuse)', instant: false },
-    shotgun:   { name: 'Shotgun',   icon: '\uD83D\uDD2B', key: 'shotgun',   ammo: 2,        damage: 15, radius: 0,  desc: '6 pellets, no terrain damage', instant: true },
-    dynamite:  { name: 'Dynamite',  icon: '\uD83E\uDDE8', key: 'dynamite',  ammo: 1,        damage: 80, radius: 80, desc: 'Placed, 5s fuse, huge blast', instant: true },
-    airstrike: { name: 'Airstrike', icon: '\u2708\uFE0F', key: 'airstrike', ammo: 1,        damage: 40, radius: 40, desc: '5 bombs from above', instant: true },
-    teleport:  { name: 'Teleport',  icon: '\u26A1',       key: 'teleport',  ammo: 2,        damage: 0,  radius: 0,  desc: 'Click to relocate', instant: true },
-};
-const WEAPON_KEYS = Object.keys(WEAPONS);
+function setupInfoButton() {
+  const infoBtn = document.getElementById('info-btn');
+  const infoPopup = document.getElementById('info-popup');
+  if (!infoBtn || !infoPopup) return;
 
-function getNextWeapon(currentKey, direction, team) {
-    let idx = WEAPON_KEYS.indexOf(currentKey);
-    const len = WEAPON_KEYS.length;
-    for (let i = 0; i < len; i++) {
-        idx = (idx + direction + len) % len;
-        const key = WEAPON_KEYS[idx];
-        if (team.getAmmo(key) > 0) return key;
+  function toggleInfo(e) {
+    e.stopPropagation();
+    if (infoPopup.style.display === 'block') {
+      infoPopup.style.display = 'none';
+      return;
     }
-    return currentKey;
+    const desc = WEAPON_INFO[activeWeapon] || 'NO INFO';
+    infoPopup.textContent = desc;
+    infoPopup.style.display = 'block';
+    setTimeout(() => { infoPopup.style.display = 'none'; }, 3000);
+  }
+  infoBtn.addEventListener('mousedown', toggleInfo);
+  infoBtn.addEventListener('touchstart', (e) => { e.preventDefault(); toggleInfo(e); }, { passive: false });
+  document.addEventListener('mousedown', () => { infoPopup.style.display = 'none'; });
+  document.addEventListener('touchstart', () => { infoPopup.style.display = 'none'; });
 }
 
-// ============================================================
-// BIOMES (from worms-game Terrain.js)
-// ============================================================
-const BIOMES = {
-    grasslands: { name: 'Grasslands', sky: ['#87CEEB', '#c9e8f7'], surface: ['#4a8c3f', '#3a7c2f'], dirt: ['#8B6E3C', '#7a5e2c', '#6B4E2C'], rock: ['#5a5a5a', '#4a4a4a', '#3a3a3a'], grass: true },
-    desert:     { name: 'Desert',     sky: ['#f4a460', '#ffe4b5'], surface: ['#d2a95e', '#c49a4e'], dirt: ['#c4944e', '#b4843e', '#a4742e'], rock: ['#8B7355', '#7a6345', '#6a5335'], grass: false },
-    arctic:     { name: 'Arctic',     sky: ['#b0c4de', '#dce8f4'], surface: ['#e8e8f0', '#d8d8e4'], dirt: ['#c0c0d0', '#a8a8b8', '#9090a0'], rock: ['#7888a0', '#687890', '#586880'], grass: false },
-};
-const BIOME_KEYS = Object.keys(BIOMES);
+function fireWeapon() {
+  const { id: pid, x, y, dir, aim, power } = players[activePlayer];
+  const id = getId();
+  const tx = (mouse.x - vw / 2) / cameraZoom + camera.x;
+  const ty = (mouse.y - vh / 2) / cameraZoom + camera.y;
+  const seed = (Math.random() * 2 ** 32) >>> 0;
 
-// ============================================================
-// TERRAIN CLASS (from worms-game Terrain.js + artillery terrain destruction)
-// ============================================================
-class Terrain {
-    constructor(worldW, worldH, biomeKey) {
-        this.W = worldW;
-        this.H = worldH;
-        this.biome = BIOMES[biomeKey || BIOME_KEYS[Math.floor(Math.random() * BIOME_KEYS.length)]];
+  paused = true;
 
-        // Terrain canvas (off-screen)
-        this.canvas = document.createElement('canvas');
-        this.canvas.width = worldW;
-        this.canvas.height = worldH;
-        this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
-
-        this.heights = new Float32Array(worldW);
-        this._generate();
-        this._bakeSolidMap();
-    }
-
-    // Ported from worms-game Terrain.js _generate()
-    _generate() {
-        const ctx = this.ctx;
-        const W = this.W, H = this.H;
-        const biome = this.biome;
-
-        ctx.clearRect(0, 0, W, H);
-
-        // Generate heightmap with layered sine waves
-        const baseY = H * 0.48;
-        const seed = Math.random() * 100;
-
-        for (let x = 0; x < W; x++) {
-            this.heights[x] = baseY
-                + Math.sin((x + seed) * 0.006) * 90
-                + Math.sin((x + seed) * 0.018 + 1.2) * 50
-                + Math.sin((x + seed) * 0.045 + 2.7) * 25
-                + Math.sin((x + seed) * 0.1 + 0.5) * 12
-                + Math.sin((x + seed) * 0.25 + 3.1) * 6;
-
-            // Create flat plateau areas for figures to stand on
-            if (Math.sin((x + seed) * 0.015) > 0.7) {
-                const plateauY = baseY + Math.sin((x + seed) * 0.006) * 90;
-                this.heights[x] = this.heights[x] * 0.3 + plateauY * 0.7;
-            }
-        }
-
-        // Smooth the heightmap
-        const smoothed = new Float32Array(W);
-        for (let x = 0; x < W; x++) {
-            let sum = 0, count = 0;
-            for (let dx = -3; dx <= 3; dx++) {
-                const sx = x + dx;
-                if (sx >= 0 && sx < W) { sum += this.heights[sx]; count++; }
-            }
-            smoothed[x] = sum / count;
-        }
-        this.heights = smoothed;
-
-        // Draw terrain column by column (ported from worms-game)
-        for (let x = 0; x < W; x++) {
-            const surfaceY = Math.floor(this.heights[x]);
-            const depth = H - surfaceY;
-
-            // Surface layer
-            const surfIdx = (x * 7) % biome.surface.length;
-            ctx.fillStyle = biome.surface[surfIdx < biome.surface.length ? surfIdx : 0];
-            const surfaceThickness = biome.grass ? 6 : 4;
-            ctx.fillRect(x, surfaceY, 1, surfaceThickness);
-
-            // Grass blades
-            if (biome.grass && x % 3 === 0) {
-                ctx.fillStyle = '#5aac4f';
-                ctx.fillRect(x, surfaceY - 1, 1, 2);
-            }
-
-            // Sub-surface edge
-            ctx.fillStyle = biome.surface[1] || biome.surface[0];
-            ctx.fillRect(x, surfaceY + surfaceThickness, 1, 3);
-
-            // Dirt layers
-            const dirtStart = surfaceY + surfaceThickness + 3;
-            const dirtDepth = Math.min(50, depth * 0.4);
-            for (let d = 0; d < biome.dirt.length; d++) {
-                const layerH = dirtDepth / biome.dirt.length;
-                ctx.fillStyle = biome.dirt[d];
-                ctx.fillRect(x, dirtStart + d * layerH, 1, layerH + 1);
-            }
-
-            // Rock layer
-            const rockStart = dirtStart + dirtDepth;
-            const rockH = H - rockStart;
-            if (rockH > 0) {
-                const rockIdx = (x * 13 + Math.floor(rockStart * 7)) % biome.rock.length;
-                ctx.fillStyle = biome.rock[rockIdx < biome.rock.length ? rockIdx : 0];
-                ctx.fillRect(x, rockStart, 1, rockH);
-            }
-
-            // Random stone details
-            if (Math.random() < 0.02 && rockH > 10) {
-                ctx.fillStyle = 'rgba(255,255,255,0.06)';
-                const stoneY = rockStart + Math.random() * (rockH - 5);
-                ctx.fillRect(x, stoneY, 2, 2);
-            }
-        }
-    }
-
-    // Ported from worms-game: pixel-level solid map via getImageData
-    _bakeSolidMap() {
-        const data = this.ctx.getImageData(0, 0, this.W, this.H).data;
-        this.solidMap = new Uint8Array(this.W * this.H);
-        for (let i = 0; i < this.W * this.H; i++) {
-            this.solidMap[i] = data[i * 4 + 3] > 10 ? 1 : 0;
-        }
-    }
-
-    isSolid(x, y) {
-        const ix = Math.floor(x), iy = Math.floor(y);
-        if (ix < 0 || ix >= this.W || iy < 0 || iy >= this.H) return false;
-        return this.solidMap[iy * this.W + ix] === 1;
-    }
-
-    getSurfaceY(x) {
-        const ix = Math.floor(x);
-        if (ix < 0 || ix >= this.W) return this.H;
-        for (let y = 0; y < this.H; y++) {
-            if (this.solidMap[y * this.W + ix] === 1) return y;
-        }
-        return this.H;
-    }
-
-    // Ported from worms-game Terrain.js explode() with destination-out compositing
-    // Enhanced with artillery repo's jagged crater path concept
-    explode(cx, cy, radius) {
-        const ctx = this.ctx;
-
-        // Erase circle using destination-out (from both repos)
-        ctx.globalCompositeOperation = 'destination-out';
-
-        // Draw jagged crater path (inspired by artillery Terrain.js drawJaggedCraterPath)
-        ctx.beginPath();
-        const segments = Math.max(14, Math.round(radius * 0.9));
-        const jaggedness = 0.2;
-        const phaseA = Math.random() * Math.PI * 2;
-        const phaseB = Math.random() * Math.PI * 2;
-        for (let i = 0; i <= segments; i++) {
-            const t = i / segments;
-            const angle = t * Math.PI * 2;
-            const waveA = Math.sin(angle * 3 + phaseA) * jaggedness * 0.42;
-            const waveB = Math.sin(angle * 5 + phaseB) * jaggedness * 0.26;
-            const jitter = (Math.random() - 0.5) * jaggedness * 0.4;
-            const scale = 1 + waveA + waveB + jitter;
-            const px = cx + Math.cos(angle) * radius * scale;
-            const py = cy + Math.sin(angle) * radius * scale * 0.9;
-            if (i === 0) ctx.moveTo(px, py);
-            else ctx.lineTo(px, py);
-        }
-        ctx.closePath();
-        ctx.fill();
-        ctx.globalCompositeOperation = 'source-over';
-
-        // Scorched edge around crater (from worms-game)
-        ctx.strokeStyle = 'rgba(40, 25, 10, 0.7)';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Inner scorch
-        ctx.strokeStyle = 'rgba(80, 50, 20, 0.4)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(cx, cy, radius - 2, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Dirt shading inside crater (from artillery Terrain.js rim gradient)
-        ctx.save();
-        ctx.globalCompositeOperation = 'source-atop';
-        const rimGrad = ctx.createRadialGradient(cx, cy + radius * 0.22, radius * 0.2, cx, cy, radius * 1.16);
-        rimGrad.addColorStop(0, 'rgba(68, 49, 33, 0.44)');
-        rimGrad.addColorStop(0.52, 'rgba(84, 59, 39, 0.24)');
-        rimGrad.addColorStop(1, 'rgba(53, 38, 27, 0.0)');
-        ctx.fillStyle = rimGrad;
-        ctx.beginPath();
-        ctx.arc(cx, cy, radius * 1.16, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-
-        // Update solid map in affected area
-        const margin = 4;
-        const x0 = Math.max(0, Math.floor(cx - radius - margin));
-        const x1 = Math.min(this.W - 1, Math.ceil(cx + radius + margin));
-        const y0 = Math.max(0, Math.floor(cy - radius - margin));
-        const y1 = Math.min(this.H - 1, Math.ceil(cy + radius + margin));
-
-        const patchW = x1 - x0 + 1;
-        const patch = this.ctx.getImageData(x0, y0, patchW, y1 - y0 + 1).data;
-
-        for (let py = y0; py <= y1; py++) {
-            for (let px = x0; px <= x1; px++) {
-                const localI = (py - y0) * patchW + (px - x0);
-                this.solidMap[py * this.W + px] = patch[localI * 4 + 3] > 10 ? 1 : 0;
-            }
-        }
-
-        return this.biome;
-    }
-
-    draw(destCtx) {
-        destCtx.drawImage(this.canvas, 0, 0);
-    }
+  switch (activeWeapon) {
+    case 0: return fireBazooka(id, x, y, dir, aim, power);
+    case 1: return fireShotgun(id, x, y, dir, aim, seed);
+    case 2: return fireUzi(id, x, y, dir, aim, seed);
+    case 3: return fireAirStrike(id, x, tx, ty);
+    case 4: return placeDynamite(id, x, y);
+    case 5: return fireGrenade(id, x, y, dir, aim, power);
+    case 6: return fireHolyHandGrenade(id, x, y, dir, aim, power);
+    case 7: return fireMinigun(id, x, y, dir, aim, seed);
+    case 8: return fireHomingMissile(id, x, y, dir, aim, power, tx, ty);
+    case 9: return fireClusterBomb(id, x, y, dir, aim, power);
+    case 10: return fireNyanCats(id, tx, ty, seed);
+    case 11: return fireCricketBat(pid, x, y, dir, aim);
+  }
 }
 
-// ============================================================
-// FIGURE CLASS (ported from worms-game Figure.js)
-// ============================================================
-class Figure {
-    constructor(x, y, team, index) {
-        this.x = x;
-        this.y = y;
-        this.team = team;
-        this.index = index;
-        this.hp = BASE_HP;
-        this.maxHp = BASE_HP;
-        this.alive = true;
-        this.vy = 0;
-        this.vx = 0;
-        this.isActive = false;
-        this.aimAngle = -Math.PI / 4;
-        this.facingRight = true;
-        this.damageFlash = 0;
-        this.deathTimer = 0;
-        this.walkCycle = 0;
-        this.idleBob = Math.random() * Math.PI * 2;
-        this.grounded = false;
-    }
-
-    update(dt, terrain) {
-        if (!this.alive) {
-            this.deathTimer -= dt;
-            return;
-        }
-
-        this.idleBob += dt * 2;
-
-        // Gravity (from worms-game Figure.js)
-        if (!terrain.isSolid(this.x, this.y + 1)) {
-            this.vy += 500 * dt;
-            this.grounded = false;
-        } else {
-            if (this.vy > 350) {
-                const fallDamage = Math.floor((this.vy - 350) * 0.1);
-                this.takeDamage(fallDamage);
-                SFX.hit();
-            }
-            this.vy = 0;
-            this.grounded = true;
-            let safety = 0;
-            while (terrain.isSolid(this.x, this.y - 1) && safety < 20) {
-                this.y--;
-                safety++;
-            }
-        }
-
-        this.y += this.vy * dt;
-        this.x += this.vx * dt;
-        this.vx *= 0.9;
-        this.x = Math.max(10, Math.min(terrain.W - 10, this.x));
-
-        // Water death
-        if (this.y >= terrain.H - 25) {
-            SFX.splash();
-            this.takeDamage(this.hp);
-        }
-
-        if (this.damageFlash > 0) this.damageFlash -= dt;
-    }
-
-    takeDamage(amount) {
-        if (!this.alive || amount <= 0) return;
-        const dmg = Math.round(amount);
-        this.hp = Math.max(0, this.hp - dmg);
-        this.damageFlash = 0.4;
-        game.effects.showDamage(this.x, this.y - 30, dmg);
-        if (this.hp <= 0) this.die();
-    }
-
-    die() {
-        this.alive = false;
-        this.deathTimer = 1.5;
-        SFX.death();
-        game.effects.spawnDebris(this.x, this.y - 10, 12, [this.team.colorHex]);
-    }
-
-    applyExplosionForce(cx, cy, radius) {
-        const dx = this.x - cx;
-        const dy = this.y - cy;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < radius && dist > 0) {
-            const force = (1 - dist / radius) * 250;
-            this.vx += (dx / dist) * force;
-            this.vy = -(force * 1.2);
-        }
-    }
-
-    // Drawing (ported from worms-game Figure.js _drawBody)
-    draw(ctx) {
-        if (!this.alive && this.deathTimer <= 0) return;
-
-        const alpha = !this.alive ? Math.max(0, this.deathTimer / 1.5) : 1;
-        const flash = this.damageFlash > 0 && Math.floor(this.damageFlash * 15) % 2 === 0;
-        const dead = !this.alive;
-
-        ctx.save();
-        ctx.globalAlpha = alpha;
-
-        const x = this.x, yBase = this.y;
-        const bob = dead ? 0 : Math.sin(this.idleBob) * 0.5;
-        const y = yBase + bob;
-        const color = flash ? '#ffffff' : this.team.colorHex;
-        const headColor = flash ? '#ffffff' : '#ffddbb';
-
-        // Shadow
-        ctx.fillStyle = 'rgba(0,0,0,0.15)';
-        ctx.beginPath();
-        ctx.ellipse(x, yBase + 1, 7, 2, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Legs
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2.5;
-        ctx.lineCap = 'round';
-        if (dead) {
-            ctx.beginPath(); ctx.moveTo(x, y - 4); ctx.lineTo(x - 8, y + 3); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(x, y - 4); ctx.lineTo(x + 8, y + 3); ctx.stroke();
-        } else {
-            const la = this.isActive ? Math.sin(this.walkCycle) * 2 : 0;
-            ctx.beginPath(); ctx.moveTo(x, y - 4); ctx.lineTo(x - 5 + la, y); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(x, y - 4); ctx.lineTo(x + 5 - la, y); ctx.stroke();
-            // Feet
-            ctx.lineWidth = 2;
-            ctx.globalAlpha = alpha * 0.8;
-            ctx.beginPath(); ctx.moveTo(x - 5 + la, y); ctx.lineTo(x - 3 + la, y); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(x + 5 - la, y); ctx.lineTo(x + 7 - la, y); ctx.stroke();
-            ctx.globalAlpha = alpha;
-        }
-
-        // Body
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.moveTo(x, y - 15); ctx.lineTo(x, y - 4); ctx.stroke();
-
-        // Arms
-        ctx.lineWidth = 2.5;
-        if (this.isActive && !dead) {
-            const dir = this.facingRight ? 1 : -1;
-            const armX = Math.cos(this.aimAngle) * 9 * dir;
-            const armY = Math.sin(this.aimAngle) * 9;
-            ctx.beginPath(); ctx.moveTo(x, y - 12); ctx.lineTo(x + armX, y - 12 + armY); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(x, y - 12); ctx.lineTo(x - dir * 5, y - 9); ctx.stroke();
-        } else if (!dead) {
-            const ab = Math.sin(this.idleBob * 0.7);
-            ctx.beginPath(); ctx.moveTo(x - 7, y - 12 + ab); ctx.lineTo(x + 7, y - 12 - ab); ctx.stroke();
-        } else {
-            ctx.beginPath(); ctx.moveTo(x, y - 12); ctx.lineTo(x - 9, y - 6); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(x, y - 12); ctx.lineTo(x + 9, y - 6); ctx.stroke();
-        }
-
-        // Head
-        ctx.fillStyle = headColor;
-        ctx.beginPath();
-        ctx.arc(x, y - 19, 5.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-
-        // Face
-        if (!dead) {
-            const ed = this.facingRight ? 1 : -1;
-            ctx.fillStyle = '#000';
-            ctx.beginPath(); ctx.arc(x + 1.5 * ed, y - 20, 1.2, 0, Math.PI * 2); ctx.fill();
-            ctx.beginPath(); ctx.arc(x + 4 * ed, y - 20, 1.2, 0, Math.PI * 2); ctx.fill();
-            if (this.damageFlash > 0) {
-                ctx.beginPath(); ctx.arc(x + 2 * ed, y - 17, 1.5, 0, Math.PI * 2); ctx.fill();
-            } else {
-                ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-                ctx.lineWidth = 1;
-                ctx.beginPath(); ctx.moveTo(x + 1 * ed, y - 17); ctx.lineTo(x + 3.5 * ed, y - 17); ctx.stroke();
-            }
-        } else {
-            // X eyes
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 1.2;
-            ctx.beginPath(); ctx.moveTo(x - 3, y - 21); ctx.lineTo(x - 1, y - 19); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(x - 1, y - 21); ctx.lineTo(x - 3, y - 19); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(x + 1, y - 21); ctx.lineTo(x + 3, y - 19); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(x + 3, y - 21); ctx.lineTo(x + 1, y - 19); ctx.stroke();
-            ctx.strokeStyle = 'rgba(255,68,68,0.8)';
-            ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.moveTo(x, y - 17); ctx.lineTo(x + 2, y - 15); ctx.stroke();
-        }
-
-        // Active indicator
-        if (this.isActive && !dead) {
-            const bobY = Math.sin(Date.now() * 0.006) * 3;
-            ctx.fillStyle = 'rgba(255,255,255,0.9)';
-            ctx.beginPath();
-            ctx.moveTo(x, y - 32 + bobY);
-            ctx.lineTo(x - 5, y - 39 + bobY);
-            ctx.lineTo(x + 5, y - 39 + bobY);
-            ctx.closePath();
-            ctx.fill();
-
-            // Aim crosshair dots
-            const aimLen = 35;
-            const dir = this.facingRight ? 1 : -1;
-            const aimX = x + Math.cos(this.aimAngle) * aimLen * dir;
-            const aimY = y - 14 + Math.sin(this.aimAngle) * aimLen;
-
-            for (let i = 1; i < 6; i++) {
-                const t = i / 6;
-                const px = x + (aimX - x) * t;
-                const py = (y - 14) + (aimY - (y - 14)) * t;
-                ctx.fillStyle = `rgba(255,68,68,${0.3 + t * 0.6})`;
-                ctx.beginPath();
-                ctx.arc(px, py, 1.5, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            // Crosshair
-            ctx.strokeStyle = 'rgba(255,68,68,0.9)';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath(); ctx.arc(aimX, aimY, 5, 0, Math.PI * 2); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(aimX - 7, aimY); ctx.lineTo(aimX + 7, aimY); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(aimX, aimY - 7); ctx.lineTo(aimX, aimY + 7); ctx.stroke();
-        }
-
-        ctx.restore();
-
-        // Name tag & HP bar
-        if (this.alive) {
-            ctx.save();
-            ctx.font = '9px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillStyle = '#fff';
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 3;
-            const label = `${this.team.name} #${this.index + 1}`;
-            ctx.strokeText(label, x, y - 44);
-            ctx.fillText(label, x, y - 44);
-
-            // HP bar (ported from worms-game Figure.js)
-            const bx = x - 14, by = y - 36, bw = 28, bh = 3;
-            const pct = this.hp / this.maxHp;
-            ctx.fillStyle = 'rgba(0,0,0,0.6)';
-            ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
-            ctx.fillStyle = pct > 0.6 ? '#44dd44' : pct > 0.3 ? '#dddd44' : '#dd4444';
-            ctx.fillRect(bx, by, bw * pct, bh);
-            ctx.restore();
-        }
-    }
+function reduceWeaponCount() {
+  const t = teams[activeTeam];
+  if (t[activeWeapon] !== undefined) t[activeWeapon] -= 1;
 }
 
-// ============================================================
-// TEAM CLASS (ported from worms-game Team.js)
-// ============================================================
-class Team {
-    constructor(name, colorHex, isAI) {
-        this.name = name;
-        this.colorHex = colorHex;
-        this.isAI = isAI;
-        this.figures = [];
-        this.ammo = {};
-        for (const [key, w] of Object.entries(WEAPONS)) {
-            this.ammo[key] = w.ammo;
-        }
-    }
-
-    spawnFigures(terrain, zoneStart, zoneEnd, count) {
-        const spacing = (zoneEnd - zoneStart) / (count + 1);
-        for (let i = 0; i < count; i++) {
-            const x = Math.floor(zoneStart + spacing * (i + 1));
-            const y = terrain.getSurfaceY(x);
-            const fig = new Figure(x, y, this, i);
-            if (!this.isAI) fig.facingRight = true;
-            else fig.facingRight = false;
-            this.figures.push(fig);
-        }
-    }
-
-    get aliveFigures() { return this.figures.filter(f => f.alive); }
-    get isEliminated() { return this.aliveFigures.length === 0; }
-    getAmmo(key) { return this.ammo[key] ?? 0; }
-
-    useAmmo(key) {
-        if (this.ammo[key] !== Infinity) {
-            this.ammo[key] = Math.max(0, this.ammo[key] - 1);
-        }
-    }
+function updateMuzzleFlash(delta) {
+  if (muzzlettl > 0) {
+    muzzlettl -= delta;
+    if (muzzlettl <= 0) { muzzlettl = 0; transform(muzzle, 0, 0); }
+  }
 }
 
-// ============================================================
-// EFFECTS SYSTEM (ported from worms-game Effects.js)
-// ============================================================
-class Effects {
-    constructor() {
-        this.shakeX = 0;
-        this.shakeY = 0;
-        this.shakeIntensity = 0;
-        this.shakeDecay = 0;
-        this.debris = [];
-        this.damageNumbers = [];
-        this.explosionFlashes = [];
-    }
-
-    update(dt) {
-        // Screen shake (from worms-game Effects.js)
-        if (this.shakeIntensity > 0.5) {
-            this.shakeX = (Math.random() - 0.5) * this.shakeIntensity;
-            this.shakeY = (Math.random() - 0.5) * this.shakeIntensity;
-            this.shakeIntensity *= (1 - this.shakeDecay * dt);
-            if (this.shakeIntensity < 0.5) { this.shakeIntensity = 0; this.shakeX = 0; this.shakeY = 0; }
-        }
-
-        // Debris particles (from worms-game Effects.js)
-        for (let i = this.debris.length - 1; i >= 0; i--) {
-            const d = this.debris[i];
-            d.vy += 400 * dt;
-            d.x += d.vx * dt;
-            d.y += d.vy * dt;
-            d.life -= dt;
-            d.rot += d.rotSpeed * dt;
-            if (d.life <= 0) this.debris.splice(i, 1);
-        }
-
-        // Damage numbers (from worms-game Effects.js)
-        for (let i = this.damageNumbers.length - 1; i >= 0; i--) {
-            const dn = this.damageNumbers[i];
-            dn.y -= 40 * dt;
-            dn.life -= dt;
-            if (dn.life <= 0) this.damageNumbers.splice(i, 1);
-        }
-
-        // Explosion flashes
-        for (let i = this.explosionFlashes.length - 1; i >= 0; i--) {
-            const f = this.explosionFlashes[i];
-            f.t += dt * 3.3;
-            if (f.t >= 1) this.explosionFlashes.splice(i, 1);
-        }
-    }
-
-    draw(ctx) {
-        // Draw debris
-        for (const d of this.debris) {
-            const alpha = Math.min(1, d.life * 2);
-            ctx.fillStyle = d.color;
-            ctx.globalAlpha = alpha;
-            ctx.fillRect(d.x - d.size / 2, d.y - d.size / 2, d.size, d.size);
-        }
-        ctx.globalAlpha = 1;
-
-        // Draw damage numbers
-        for (const dn of this.damageNumbers) {
-            const alpha = Math.min(1, dn.life * 2);
-            const scale = 1 + (1 - dn.life / dn.maxLife) * 0.3;
-            ctx.save();
-            ctx.globalAlpha = alpha;
-            ctx.font = `bold ${Math.round(dn.size * scale)}px sans-serif`;
-            ctx.textAlign = 'center';
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 3;
-            ctx.strokeText(`-${dn.amount}`, dn.x, dn.y);
-            ctx.fillStyle = dn.color;
-            ctx.fillText(`-${dn.amount}`, dn.x, dn.y);
-            ctx.restore();
-        }
-
-        // Draw explosion flashes (ported from worms-game Effects.js _flash)
-        for (const f of this.explosionFlashes) {
-            const t = f.t;
-            const cr = f.radius * (0.4 + t * 0.6);
-            const alpha = 1 - t;
-
-            ctx.globalAlpha = alpha * 0.5;
-            ctx.fillStyle = '#ff4400';
-            ctx.beginPath(); ctx.arc(f.x, f.y, cr, 0, Math.PI * 2); ctx.fill();
-
-            ctx.globalAlpha = alpha * 0.6;
-            ctx.fillStyle = '#ff8800';
-            ctx.beginPath(); ctx.arc(f.x, f.y, cr * 0.65, 0, Math.PI * 2); ctx.fill();
-
-            ctx.globalAlpha = alpha * 0.7;
-            ctx.fillStyle = '#ffeecc';
-            ctx.beginPath(); ctx.arc(f.x, f.y, cr * 0.3, 0, Math.PI * 2); ctx.fill();
-
-            if (t > 0.3) {
-                ctx.globalAlpha = (1 - t) * 0.3;
-                ctx.fillStyle = '#333';
-                ctx.beginPath(); ctx.arc(f.x, f.y, cr * 1.2, 0, Math.PI * 2); ctx.fill();
-            }
-        }
-        ctx.globalAlpha = 1;
-    }
-
-    shake(intensity, decay) {
-        this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
-        this.shakeDecay = decay || 8;
-    }
-
-    spawnDebris(x, y, count, colors, radius) {
-        for (let i = 0; i < count; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const speed = 100 + Math.random() * 300;
-            this.debris.push({
-                x, y,
-                vx: Math.cos(angle) * speed,
-                vy: Math.sin(angle) * speed - 150,
-                size: 2 + Math.random() * 4,
-                color: colors[Math.floor(Math.random() * colors.length)],
-                life: 0.5 + Math.random() * 1.5,
-                rot: Math.random() * Math.PI * 2,
-                rotSpeed: (Math.random() - 0.5) * 10,
-            });
-        }
-    }
-
-    showDamage(x, y, amount) {
-        if (amount <= 0) return;
-        const color = amount >= 40 ? '#ff2222' : amount >= 20 ? '#ffaa00' : '#ffff44';
-        const size = amount >= 40 ? 18 : amount >= 20 ? 15 : 12;
-        const maxLife = 1.2;
-        this.damageNumbers.push({
-            x: x + (Math.random() - 0.5) * 10,
-            y: y - 20,
-            amount: Math.round(amount), color, size, life: maxLife, maxLife
-        });
-    }
-
-    explosionEffect(x, y, radius) {
-        this.shake(radius * 0.3, 6);
-        this.spawnDebris(x, y, Math.floor(radius * 0.8), ['#8B6E3C', '#6B4E2C', '#5a5a5a', '#4a8c3f'], radius);
-        SFX.explosion(radius / 50);
-        this.explosionFlashes.push({ x, y, radius, t: 0 });
-    }
-
-    bigExplosion(x, y, radius) {
-        this.explosionEffect(x, y, radius);
-    }
+function flashMuzzle(x, y) {
+  const r = rngf() * 0.4 + 1.5;
+  transform(muzzle, x, y, [rngi(0, 360), 0, 0], [r, r]);
+  muzzlettl = 150;
 }
 
-// ============================================================
-// PROJECTILE (ported from worms-game Projectile.js)
-// ============================================================
-class Projectile {
-    constructor(x, y, angle, power, wind, config) {
-        this.x = x;
-        this.y = y;
-        this.vx = Math.cos(angle) * power;
-        this.vy = Math.sin(angle) * power;
-        this.wind = wind;
-        this.alive = true;
-        this.age = 0;
-        this.trail = [];
-        this.maxTrail = config.maxTrail ?? 15;
-        this.GRAVITY = config.gravity ?? GRAVITY;
-        this.WIND_SCALE = config.windScale ?? WIND_SCALE;
-        this.damage = config.damage ?? 50;
-        this.blastRadius = config.blastRadius ?? 45;
-        this.color = config.color ?? '#ff6600';
-        this.size = config.size ?? 4;
-        this.destroysTerrain = config.destroysTerrain !== false;
-    }
+// ================================================================================================
+// MISSILES
+// ================================================================================================
 
-    update(dt, terrain, figures) {
-        if (!this.alive) return null;
-
-        this.age += dt;
-        this.trail.push({ x: this.x, y: this.y });
-        if (this.trail.length > this.maxTrail) this.trail.shift();
-
-        this.vy += this.GRAVITY * dt;
-        this.vx += this.wind * this.WIND_SCALE * dt;
-        this.x += this.vx * dt;
-        this.y += this.vy * dt;
-
-        // Out of bounds
-        if (this.x < -50 || this.x > terrain.W + 50 || this.y > terrain.H + 50) {
-            this.alive = false;
-            return 'miss';
-        }
-
-        // Terrain collision
-        if (this.y > 0 && terrain.isSolid(this.x, this.y)) {
-            return this.onHitTerrain(terrain, figures);
-        }
-
-        // Figure collision
-        for (const fig of figures) {
-            if (!fig.alive) continue;
-            const dx = this.x - fig.x;
-            const dy = this.y - (fig.y - 10);
-            if (Math.abs(dx) < 8 && Math.abs(dy) < 14) {
-                return this.onHitTerrain(terrain, figures);
-            }
-        }
-
-        return null;
-    }
-
-    onHitTerrain(terrain, figures) {
-        if (this.destroysTerrain && this.blastRadius > 0) {
-            terrain.explode(this.x, this.y, this.blastRadius);
-        }
-        this._damageNearby(figures);
-        game.effects.explosionEffect(this.x, this.y, this.blastRadius);
-        this.alive = false;
-        return 'hit';
-    }
-
-    _damageNearby(figures) {
-        for (const fig of figures) {
-            if (!fig.alive) continue;
-            const dx = fig.x - this.x;
-            const dy = (fig.y - 10) - this.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < this.blastRadius) {
-                const dmg = this.damage * (1 - dist / this.blastRadius);
-                fig.takeDamage(dmg);
-                fig.applyExplosionForce(this.x, this.y, this.blastRadius);
-            }
-        }
-    }
-
-    draw(ctx) {
-        // Trail
-        for (let i = 0; i < this.trail.length; i++) {
-            const t = i / this.trail.length;
-            const size = this.size * t * 0.6;
-            ctx.globalAlpha = t * 0.5;
-            ctx.fillStyle = this.color;
-            ctx.beginPath();
-            ctx.arc(this.trail[i].x, this.trail[i].y, Math.max(0.5, size), 0, Math.PI * 2);
-            ctx.fill();
-        }
-        ctx.globalAlpha = 1;
-
-        // Body
-        ctx.fillStyle = this.color;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Hot core
-        ctx.fillStyle = '#ffcc00';
-        ctx.globalAlpha = 0.8;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size * 0.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha = 1;
-    }
+function getMissileElement(m) {
+  return m.invis ? null : getElement(objects, m.nyan ? 'w10' : m.homing ? 'w8' : 'w0', m.id);
 }
 
-// ============================================================
-// GRENADE PROJECTILE (from worms-game weapons/Grenade.js)
-// ============================================================
-class GrenadeProjectile extends Projectile {
-    constructor(x, y, angle, power, wind) {
-        super(x, y, angle, power, wind, {
-            damage: 65, blastRadius: 60, color: '#44aa44', size: 5,
-            maxTrail: 10, gravity: 350
-        });
-        this.fuseTimer = 3.0;
-        this.bounces = 0;
-        this.maxBounces = 3;
-        this.BOUNCE_DAMPEN = 0.5;
+function updateMissiles(delta) {
+  for (const [_, m] of missiles) {
+    const el = getMissileElement(m);
+    m.dt = (m.dt || 0) + delta;
+    if (m.dt >= 30) { m.dt -= 30; addSmoke(m.x, m.y, m.nyan ? ((m.ttl || 0) / 10) % 360 : false); }
+    m.ttl = (m.ttl || 0) + delta;
+
+    if (m.ttl < 500 || !m.tx || !m.ty) {
+      if (m.grav) m.dy += delta * MISSILE_GRAVITY;
+      if (m.grav) { m.dx *= 1 - AIR_RESISTANCE; m.dy *= 1 - AIR_RESISTANCE; }
+      if (m.wind) m.dx += windSpeed * 0.015;
     }
 
-    update(dt, terrain, figures) {
-        if (!this.alive) return null;
-
-        this.fuseTimer -= dt;
-        this.age += dt;
-
-        if (this.fuseTimer <= 0) {
-            return this.onHitTerrain(terrain, figures);
-        }
-
-        this.trail.push({ x: this.x, y: this.y });
-        if (this.trail.length > this.maxTrail) this.trail.shift();
-
-        this.vy += this.GRAVITY * dt;
-        this.vx += this.wind * this.WIND_SCALE * dt;
-
-        const newX = this.x + this.vx * dt;
-        const newY = this.y + this.vy * dt;
-
-        if (newX < -50 || newX > terrain.W + 50 || newY > terrain.H + 50) {
-            this.alive = false;
-            return 'miss';
-        }
-
-        // Bounce logic (from worms-game Grenade.js)
-        if (newY > 0 && terrain.isSolid(newX, newY)) {
-            this.bounces++;
-            if (this.bounces >= this.maxBounces) {
-                this.x = newX; this.y = newY;
-                return this.onHitTerrain(terrain, figures);
-            }
-            if (terrain.isSolid(newX, this.y)) this.vx = -this.vx * this.BOUNCE_DAMPEN;
-            if (terrain.isSolid(this.x, newY)) this.vy = -this.vy * this.BOUNCE_DAMPEN;
-            this.vx *= 0.9;
-            SFX.bounce();
-        } else {
-            this.x = newX;
-            this.y = newY;
-        }
-        return null;
+    if (m.ttl > 500 && m.tx && m.ty) {
+      const mag = magnitude([m.dx, m.dy]);
+      const [nx, ny] = multiply(normalize([m.tx - m.x, m.ty - m.y]), mag * 1.02);
+      const [dx, dy] = normalize([lerp(m.dx, nx, 0.05), lerp(m.dy, ny, 0.05)]);
+      const mag2 = magnitude([dx, dy]);
+      m.dx = dx * mag2;
+      m.dy = dy * mag2;
     }
 
-    draw(ctx) {
-        // Trail
-        for (let i = 0; i < this.trail.length; i++) {
-            const alpha = i / this.trail.length * 0.3;
-            ctx.globalAlpha = alpha;
-            ctx.fillStyle = '#44aa44';
-            ctx.beginPath();
-            ctx.arc(this.trail[i].x, this.trail[i].y, 2, 0, Math.PI * 2);
-            ctx.fill();
-        }
-        ctx.globalAlpha = 1;
+    m.x += m.dx * delta;
+    m.y += m.dy * delta;
 
-        // Body
-        ctx.fillStyle = '#336633';
-        ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#44aa44';
-        ctx.beginPath(); ctx.arc(this.x, this.y, this.size * 0.7, 0, Math.PI * 2); ctx.fill();
+    if (checkCollision(m.x, m.y, 999)) explodeMissile(m);
 
-        // Fuse timer
-        ctx.font = 'bold 10px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 2;
-        ctx.fillStyle = '#ff4444';
-        const txt = Math.ceil(this.fuseTimer).toString();
-        ctx.strokeText(txt, this.x, this.y - 12);
-        ctx.fillText(txt, this.x, this.y - 12);
+    if (el) {
+      const angle = m.nyan ? 0 : Math.atan2(m.dy, m.dx);
+      transform(el, m.x, m.y, [angle * 180 / Math.PI, 0, 0]);
     }
+  }
 }
 
-// ============================================================
-// SHOTGUN BLAST (from worms-game weapons/Shotgun.js)
-// ============================================================
-class ShotgunBlast {
-    constructor(figure) {
-        this.alive = true;
-        this.figure = figure;
-        this.age = 0;
-        this.blastRadius = 0;
-
-        const dir = figure.facingRight ? 1 : -1;
-        const baseAngle = figure.aimAngle * dir;
-
-        this.pellets = [];
-        for (let i = 0; i < 6; i++) {
-            const spread = (Math.random() - 0.5) * 0.5;
-            const angle = baseAngle + spread;
-            const speed = 600 + Math.random() * 100;
-            this.pellets.push({
-                x: figure.x + Math.cos(baseAngle) * 10,
-                y: figure.y - 14 + Math.sin(baseAngle) * 10,
-                vx: Math.cos(angle) * speed,
-                vy: Math.sin(angle) * speed,
-                alive: true, dist: 0,
-            });
-        }
-        this.damagePerPellet = 15;
-        this.maxRange = 250;
-    }
-
-    update(dt, terrain, figures) {
-        if (!this.alive) return null;
-        this.age += dt;
-        let anyAlive = false;
-
-        for (const p of this.pellets) {
-            if (!p.alive) continue;
-            p.x += p.vx * dt;
-            p.y += p.vy * dt;
-            p.dist += Math.sqrt((p.vx * dt) ** 2 + (p.vy * dt) ** 2);
-
-            if (p.dist > this.maxRange) { p.alive = false; continue; }
-            if (terrain.isSolid(p.x, p.y)) { p.alive = false; continue; }
-
-            for (const fig of figures) {
-                if (!fig.alive || fig === this.figure) continue;
-                const dx = p.x - fig.x;
-                const dy = p.y - (fig.y - 10);
-                if (Math.abs(dx) < 8 && Math.abs(dy) < 14) {
-                    fig.takeDamage(this.damagePerPellet);
-                    fig.x += (dx > 0 ? 1 : -1) * 5;
-                    fig.vy = -50;
-                    p.alive = false;
-                    break;
-                }
-            }
-            if (p.alive) anyAlive = true;
-        }
-
-        if (!anyAlive) { this.alive = false; return 'hit'; }
-        return null;
-    }
-
-    draw(ctx) {
-        for (const p of this.pellets) {
-            if (!p.alive) continue;
-            ctx.fillStyle = 'rgba(255,221,68,0.8)';
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
-            ctx.fill();
-        }
-    }
+function explodeMissile(m) {
+  const id = getId();
+  addBlast(id, m.x, m.y, m.power, 1.2);
+  sfx(SFX_EXPLOSION);
+  destroyed.push(m.id);
+  missiles.delete(m.id);
+  if (missiles.size === 0) { hideCrosshairs(true); requestEndTurn(); }
 }
 
-// ============================================================
-// DYNAMITE (from worms-game weapons/Dynamite.js)
-// ============================================================
-class DynamiteItem {
-    constructor(x, y, terrain, figures) {
-        this.x = x; this.y = y;
-        this.terrain = terrain;
-        this.figures = figures;
-        this.alive = true;
-        this.fuseTimer = 5.0;
-        this.damage = 80;
-        this.blastRadius = 80;
-    }
-
-    update(dt) {
-        if (!this.alive) return null;
-        this.fuseTimer -= dt;
-
-        // Gravity
-        if (!this.terrain.isSolid(this.x, this.y + 1)) {
-            this.y += 100 * dt;
-        }
-
-        if (this.fuseTimer <= 0) return this.explode();
-        return null;
-    }
-
-    explode() {
-        this.terrain.explode(this.x, this.y, this.blastRadius);
-        for (const fig of this.figures) {
-            if (!fig.alive) continue;
-            const dx = fig.x - this.x;
-            const dy = (fig.y - 10) - this.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < this.blastRadius) {
-                const dmg = this.damage * (1 - dist / this.blastRadius);
-                fig.takeDamage(dmg);
-                fig.applyExplosionForce(this.x, this.y, this.blastRadius);
-            }
-        }
-        game.effects.bigExplosion(this.x, this.y, this.blastRadius);
-        this.alive = false;
-        return 'hit';
-    }
-
-    draw(ctx) {
-        // Dynamite stick
-        ctx.fillStyle = '#cc2222';
-        ctx.fillRect(this.x - 3, this.y - 10, 6, 12);
-        // Fuse spark
-        if ((Date.now() % 200) / 200 < 0.5) {
-            ctx.fillStyle = '#ffff00';
-            ctx.beginPath(); ctx.arc(this.x, this.y - 12, 2, 0, Math.PI * 2); ctx.fill();
-        }
-        // Label
-        ctx.fillStyle = 'rgba(255,255,255,0.8)';
-        ctx.fillRect(this.x - 2, this.y - 7, 4, 2);
-        // Timer
-        ctx.font = 'bold 12px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
-        ctx.fillStyle = '#ff2222';
-        const t = Math.ceil(this.fuseTimer).toString();
-        ctx.strokeText(t, this.x, this.y - 18);
-        ctx.fillText(t, this.x, this.y - 18);
-    }
+function fireCharge(id, x, y, dx, dy, power) {
+  missiles.set(id, { id, x, y, dx, dy, power, wind: false, grav: true, invis: true });
+  cancelEndTurn();
 }
 
-// ============================================================
-// AIRSTRIKE (from worms-game weapons/Airstrike.js)
-// ============================================================
-class AirstrikeBomb extends Projectile {
-    constructor(x, y) {
-        super(x, y, Math.PI / 2, 0, 0, {
-            damage: 40, blastRadius: 40, color: '#444444', size: 4,
-            maxTrail: 8, gravity: 400, windScale: 0
-        });
-    }
+function fireBazooka(id, x, y, dir, aim, power) {
+  const m = fireMissile(id, x, y, dir, aim, power * 1.5);
+  m.wind = true;
+  m.grav = true;
+  reduceWeaponCount();
 }
 
-class AirstrikeController {
-    constructor(targetX, terrain, figures) {
-        this.alive = true;
-        this.bombs = [];
-        this.terrain = terrain;
-        this.figures = figures;
-        this.bombsToSpawn = 5;
-        this.spawnTimer = 0;
-        this.spawnInterval = 0.15;
-        this.targetX = targetX;
-        this.bombIndex = 0;
-        this.blastRadius = 40;
-
-        this.planeX = targetX > terrain.W / 2 ? -50 : terrain.W + 50;
-        this.planeY = 30;
-        this.planeDir = targetX > terrain.W / 2 ? 1 : -1;
-    }
-
-    update(dt, terrain, figures) {
-        if (!this.alive) return null;
-
-        this.planeX += this.planeDir * 300 * dt;
-        this.spawnTimer -= dt;
-
-        if (this.bombIndex < this.bombsToSpawn && this.spawnTimer <= 0) {
-            if (Math.abs(this.planeX - this.targetX) < 60) {
-                const offsetX = (this.bombIndex - 2) * 25;
-                const bomb = new AirstrikeBomb(this.targetX + offsetX, this.planeY);
-                this.bombs.push(bomb);
-                this.bombIndex++;
-                this.spawnTimer = this.spawnInterval;
-            }
-        }
-
-        let activeBombs = 0;
-        for (const bomb of this.bombs) {
-            if (!bomb.alive) continue;
-            const result = bomb.update(dt, this.terrain, this.figures);
-            if (result) continue;
-            activeBombs++;
-        }
-
-        if (this.bombIndex >= this.bombsToSpawn && activeBombs === 0) {
-            this.alive = false;
-            return 'hit';
-        }
-        if ((this.planeX > this.terrain.W + 100 || this.planeX < -100) && activeBombs === 0 && this.bombIndex > 0) {
-            this.alive = false;
-            return 'hit';
-        }
-        return null;
-    }
-
-    draw(ctx) {
-        // Draw plane
-        const x = this.planeX, y = this.planeY, d = this.planeDir;
-        ctx.fillStyle = '#888';
-        ctx.fillRect(x - 15 * d, y - 3, 30, 6);
-        ctx.beginPath();
-        ctx.moveTo(x - 5 * d, y - 3); ctx.lineTo(x + 5 * d, y - 3); ctx.lineTo(x, y - 12);
-        ctx.closePath(); ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(x - 15 * d, y - 3); ctx.lineTo(x - 15 * d, y - 10); ctx.lineTo(x - 10 * d, y - 3);
-        ctx.closePath(); ctx.fill();
-
-        // Draw bombs
-        for (const bomb of this.bombs) {
-            if (bomb.alive) bomb.draw(ctx);
-        }
-    }
+function fireHomingMissile(id, x, y, dir, aim, power, tx, ty) {
+  const p = players[activePlayer];
+  if (power === 0) {
+    p.tx = tx;
+    p.ty = ty;
+    showCrosshairs(true, tx, ty);
+  } else if (p.tx && p.ty) {
+    const m = fireMissile(id, x, y, dir, aim, power * 1.5);
+    m.tx = p.tx;
+    m.ty = p.ty;
+    m.homing = true;
+    p.tx = p.ty = undefined;
+    reduceWeaponCount();
+  }
 }
 
-// ============================================================
-// TELEPORT ACTION (from worms-game weapons/Teleport.js)
-// ============================================================
-class TeleportAction {
-    constructor(figure, terrain) {
-        this.figure = figure;
-        this.terrain = terrain;
-        this.alive = true;
-        this.phase = 'targeting';
-        this.targetX = 0;
-        this.targetY = 0;
-        this.blastRadius = 0;
-        this.animTimer = 0;
-    }
-
-    handleClick(worldX, worldY) {
-        if (this.phase !== 'targeting') return;
-        this.targetX = worldX;
-        this.targetY = worldY;
-
-        // Don't teleport into solid terrain
-        if (this.terrain.isSolid(this.targetX, this.targetY)) {
-            let surfY = this.targetY;
-            while (surfY > 0 && this.terrain.isSolid(this.targetX, surfY)) surfY--;
-            this.targetY = surfY;
-        }
-
-        this.phase = 'animating';
-        this.animTimer = 0;
-        SFX.teleport();
-    }
-
-    update(dt) {
-        if (!this.alive) return null;
-
-        if (this.phase === 'animating') {
-            this.animTimer += dt;
-            if (this.animTimer > 0.25 && this.figure.x !== this.targetX) {
-                this.figure.x = this.targetX;
-                this.figure.y = this.targetY;
-                this.figure.vy = 0;
-            }
-            if (this.animTimer > 0.5) {
-                this.alive = false;
-                return 'hit';
-            }
-        }
-        return null;
-    }
-
-    draw(ctx) {
-        if (this.phase === 'animating') {
-            const t = this.animTimer / 0.5;
-            // Sparkle effect (from worms-game Teleport.js)
-            for (let i = 0; i < 5; i++) {
-                const angle = (i / 5) * Math.PI * 2 + t * 10;
-                const r = 15 * t;
-                ctx.fillStyle = `rgba(68,170,255,${1 - t})`;
-                ctx.beginPath();
-                ctx.arc(
-                    this.figure.x + Math.cos(angle) * r,
-                    this.figure.y - 10 + Math.sin(angle) * r,
-                    2, 0, Math.PI * 2
-                );
-                ctx.fill();
-            }
-        }
-    }
+function fireMissile(id, x, y, dir, aim, power) {
+  const dx = Math.cos(aim) * power * 2 * dir;
+  const dy = Math.sin(aim) * power * 2;
+  const sx = x + (dx * 10);
+  const sy = y - 10 + (dy * 10);
+  const dmg = rngi(70, 80);
+  const missile = { id, x: sx, y: sy, dx, dy, power: dmg };
+  missiles.set(id, missile);
+  lockCamera(missile);
+  sfx(SFX_SHOOT);
+  flashMuzzle(sx, sy);
+  cancelEndTurn();
+  return missile;
 }
 
-// ============================================================
-// TURN MANAGER (ported from worms-game TurnManager.js)
-// ============================================================
-class TurnManager {
-    constructor(teams, turnDuration) {
-        this.teams = teams;
-        this.turnDuration = turnDuration;
-        this.teamIndex = 0;
-        this.figureIndices = new Map();
-        this.timer = turnDuration;
-        this.phase = 'aiming'; // aiming | firing | projectile | settling | game-over
-        this.settleCooldown = 0;
-        this.currentWind = 0;
-
-        for (const team of teams) this.figureIndices.set(team, 0);
-        this._newWind();
-        this._activateFigure();
+async function fireAirStrike(id, x, tx, ty) {
+  lockCamera({ x: tx, y: ty });
+  showCrosshairs(true, tx, ty);
+  reduceWeaponCount();
+  setTimeout(async () => {
+    for (let i = 0; i < 5; i++) {
+      const dir = x < tx ? 1 : -1;
+      const dx = 0.2 * dir;
+      const offset = ((i - 2.5) * 50 - 150) * dir;
+      const m = await fireMissileRound(id + i, tx + offset, -50, dx, 0.2, rngi(55, 65), 150);
+      m.grav = true;
     }
-
-    get activeTeam() { return this.teams[this.teamIndex]; }
-
-    get activeFigure() {
-        const team = this.activeTeam;
-        if (!team) return null;
-        const figures = team.aliveFigures;
-        if (figures.length === 0) return null;
-        const idx = this.figureIndices.get(team) % figures.length;
-        return figures[idx];
-    }
-
-    update(dt) {
-        if (this.phase === 'aiming') {
-            this.timer -= dt;
-            if (this.timer <= 0) this.endTurn();
-        }
-
-        if (this.phase === 'settling') {
-            this.settleCooldown -= dt;
-            if (this.settleCooldown <= 0) this._advanceTurn();
-        }
-    }
-
-    onFired() { this.phase = 'projectile'; }
-
-    onProjectileLanded() {
-        this.phase = 'settling';
-        this.settleCooldown = 1.5;
-    }
-
-    endTurn() {
-        if (this.phase === 'projectile') return;
-        this.phase = 'settling';
-        this.settleCooldown = 0.5;
-    }
-
-    _advanceTurn() {
-        if (this.activeFigure) this.activeFigure.isActive = false;
-
-        this.teams = this.teams.filter(t => !t.isEliminated);
-
-        if (this.teams.length <= 1) {
-            this.phase = 'game-over';
-            return;
-        }
-
-        this.teamIndex = (this.teamIndex + 1) % this.teams.length;
-        const team = this.activeTeam;
-        const currentIdx = this.figureIndices.get(team) || 0;
-        this.figureIndices.set(team, currentIdx + 1);
-
-        this.timer = this.turnDuration;
-        this.phase = 'aiming';
-        this._newWind();
-        this._activateFigure();
-        SFX.turnStart();
-    }
-
-    _newWind() {
-        this.currentWind = Math.round((Math.random() * WIND_LIMIT * 2 - WIND_LIMIT) * 10) / 10;
-    }
-
-    _activateFigure() {
-        const figure = this.activeFigure;
-        if (figure) figure.isActive = true;
-    }
+  }, 1000);
 }
 
-// ============================================================
-// MAIN GAME OBJECT
-// ============================================================
-const game = {
-    terrainCanvas: null,
-    gameCanvas: null,
-    terrainCtx: null,
-    gameCtx: null,
-    terrain: null,
-    teams: [],
-    allFigures: [],
-    turnManager: null,
-    effects: new Effects(),
-    activeProjectile: null,
-    currentWeaponKey: 'bazooka',
-    charging: false,
-    chargePower: 0,
-    chargeDirection: 1,
-    gameOver: false,
-    camera: { x: 0, y: 0, zoom: 1 },
-    lastTime: 0,
-    keys: {},
-    slingshot: null, // {startX, startY, active}
-    teleportMode: false,
-    started: false,
-
-    init() {
-        // Create dual canvas system
-        this.terrainCanvas = document.createElement('canvas');
-        this.terrainCanvas.width = WORLD_W;
-        this.terrainCanvas.height = WORLD_H;
-        this.terrainCanvas.style.zIndex = '1';
-        document.body.appendChild(this.terrainCanvas);
-        this.terrainCtx = this.terrainCanvas.getContext('2d');
-
-        this.gameCanvas = document.createElement('canvas');
-        this.gameCanvas.width = window.innerWidth;
-        this.gameCanvas.height = window.innerHeight;
-        this.gameCanvas.style.zIndex = '2';
-        document.body.appendChild(this.gameCanvas);
-        this.gameCtx = this.gameCanvas.getContext('2d');
-
-        // Resize handler
-        window.addEventListener('resize', () => this._resize());
-        this._resize();
-
-        // Terrain
-        this.terrain = new Terrain(WORLD_W, WORLD_H);
-
-        // Teams (Red player vs Blue AI) - ported from worms-game Team.js
-        const redTeam = new Team('Red', '#e84040', false);
-        const blueTeam = new Team('Blue', '#4080e8', true);
-        const zoneW = WORLD_W / 2;
-        redTeam.spawnFigures(this.terrain, 60, zoneW - 60, FIGURE_COUNT);
-        blueTeam.spawnFigures(this.terrain, zoneW + 60, WORLD_W - 60, FIGURE_COUNT);
-        this.teams = [redTeam, blueTeam];
-        this.allFigures = this.teams.flatMap(t => t.figures);
-
-        // Turn manager
-        this.turnManager = new TurnManager(this.teams, TURN_DURATION);
-        this._updateHUD();
-
-        // Build weapon panel
-        this._buildWeaponPanel();
-
-        // Input
-        this._setupInput();
-
-        // Overlay dismiss
-        const overlay = document.getElementById('overlay');
-        overlay.addEventListener('click', () => {
-            overlay.style.display = 'none';
-            this.started = true;
-            resumeAudio();
-        });
-        overlay.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            overlay.style.display = 'none';
-            this.started = true;
-            resumeAudio();
-        });
-
-        // Camera focus
-        const fig = this.turnManager.activeFigure;
-        if (fig) {
-            this.camera.x = fig.x - window.innerWidth / (2 * this.camera.zoom);
-            this.camera.y = fig.y - window.innerHeight / (2 * this.camera.zoom) - 30;
-        }
-
-        // Start loop
-        this.lastTime = performance.now();
-        requestAnimationFrame((t) => this._loop(t));
-    },
-
-    _resize() {
-        this.gameCanvas.width = window.innerWidth;
-        this.gameCanvas.height = window.innerHeight;
-        const idealZoom = Math.max(1, (window.innerHeight / WORLD_H) * 1.4);
-        this.camera.zoom = idealZoom;
-    },
-
-    _buildWeaponPanel() {
-        const panel = document.getElementById('weaponPanel');
-        panel.innerHTML = '';
-        WEAPON_KEYS.forEach((key, i) => {
-            const w = WEAPONS[key];
-            const btn = document.createElement('button');
-            btn.className = 'wpnBtn' + (key === this.currentWeaponKey ? ' sel' : '');
-            btn.id = 'wpn_' + key;
-            const team = this.turnManager.activeTeam;
-            const ammoVal = team ? team.getAmmo(key) : w.ammo;
-            const ammoStr = ammoVal === Infinity ? 'INF' : ammoVal;
-            btn.innerHTML = `<span class="ico">${w.icon}</span><span>${w.name}</span><span class="ammo">${ammoStr}</span>`;
-            btn.title = w.desc;
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this._selectWeapon(key);
-            });
-            panel.appendChild(btn);
-        });
-    },
-
-    _selectWeapon(key) {
-        const team = this.turnManager.activeTeam;
-        if (!team || team.getAmmo(key) <= 0) return;
-        this.currentWeaponKey = key;
-        this.teleportMode = (key === 'teleport');
-        document.querySelectorAll('.wpnBtn').forEach(b => b.classList.remove('sel'));
-        const btn = document.getElementById('wpn_' + key);
-        if (btn) btn.classList.add('sel');
-    },
-
-    _updateWeaponPanel() {
-        const team = this.turnManager.activeTeam;
-        if (!team) return;
-        WEAPON_KEYS.forEach(key => {
-            const btn = document.getElementById('wpn_' + key);
-            if (!btn) return;
-            const w = WEAPONS[key];
-            const ammoVal = team.getAmmo(key);
-            const ammoStr = ammoVal === Infinity ? 'INF' : ammoVal;
-            btn.querySelector('.ammo').textContent = ammoStr;
-            btn.classList.toggle('sel', key === this.currentWeaponKey);
-            btn.style.opacity = ammoVal > 0 ? '1' : '0.35';
-        });
-    },
-
-    _setupInput() {
-        // Keyboard
-        window.addEventListener('keydown', (e) => {
-            this.keys[e.code] = true;
-            // Number keys for weapons
-            if (e.code >= 'Digit1' && e.code <= 'Digit6') {
-                const idx = parseInt(e.code.replace('Digit', '')) - 1;
-                if (idx < WEAPON_KEYS.length) this._selectWeapon(WEAPON_KEYS[idx]);
-            }
-        });
-        window.addEventListener('keyup', (e) => {
-            this.keys[e.code] = false;
-        });
-
-        // Touch/mouse slingshot aiming
-        const canvas = this.gameCanvas;
-
-        const getWorldPos = (clientX, clientY) => {
-            const z = this.camera.zoom;
-            return {
-                x: clientX / z + this.camera.x,
-                y: clientY / z + this.camera.y
-            };
-        };
-
-        // Pointer down
-        canvas.addEventListener('pointerdown', (e) => {
-            if (!this.started || this.gameOver) return;
-            resumeAudio();
-            const world = getWorldPos(e.clientX, e.clientY);
-
-            // Teleport mode: click destination
-            if (this.activeProjectile && this.activeProjectile instanceof TeleportAction) {
-                this.activeProjectile.handleClick(world.x, world.y);
-                return;
-            }
-
-            // Only allow when aiming
-            if (this.turnManager.phase !== 'aiming') return;
-            const fig = this.turnManager.activeFigure;
-            if (!fig || this.turnManager.activeTeam.isAI) return;
-
-            // Start slingshot
-            this.slingshot = { startX: e.clientX, startY: e.clientY, active: true };
-        });
-
-        canvas.addEventListener('pointermove', (e) => {
-            if (!this.slingshot || !this.slingshot.active) return;
-            // Update power/angle from drag
-            const dx = this.slingshot.startX - e.clientX;
-            const dy = this.slingshot.startY - e.clientY;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist > 5) {
-                const fig = this.turnManager.activeFigure;
-                if (!fig) return;
-                // Calculate angle from drag direction
-                const angle = Math.atan2(dy, dx);
-                fig.aimAngle = -angle; // invert for slingshot feel
-                fig.facingRight = dx > 0;
-                // Power from distance
-                this.chargePower = Math.min(MAX_POWER, MIN_POWER + (dist / 150) * (MAX_POWER - MIN_POWER));
-                this.charging = true;
-            }
-        });
-
-        canvas.addEventListener('pointerup', (e) => {
-            if (!this.slingshot || !this.slingshot.active) return;
-            this.slingshot.active = false;
-            this.slingshot = null;
-
-            if (this.charging && this.turnManager.phase === 'aiming') {
-                const fig = this.turnManager.activeFigure;
-                if (fig && !this.turnManager.activeTeam.isAI) {
-                    const weapon = WEAPONS[this.currentWeaponKey];
-                    if (weapon.instant) {
-                        this._fireWeapon(fig, 0);
-                    } else {
-                        this._fireWeapon(fig, this.chargePower);
-                    }
-                }
-            }
-            this.charging = false;
-            this.chargePower = 0;
-        });
-    },
-
-    _handleKeyboardInput(dt) {
-        const fig = this.turnManager.activeFigure;
-        if (!fig || !fig.alive || this.turnManager.activeTeam.isAI) return;
-
-        const fineAim = this.keys['ShiftLeft'] || this.keys['ShiftRight'];
-        const aimSpeed = fineAim ? 0.8 : 2.5;
-
-        // Aim
-        if (this.keys['ArrowUp']) fig.aimAngle = Math.max(-Math.PI / 2, fig.aimAngle - aimSpeed * dt);
-        if (this.keys['ArrowDown']) fig.aimAngle = Math.min(Math.PI / 2, fig.aimAngle + aimSpeed * dt);
-
-        // Movement (blocked while charging)
-        if (!this.charging) {
-            const moveSpeed = 70;
-            if (this.keys['ArrowLeft'] || this.keys['KeyA']) {
-                fig.facingRight = false;
-                fig.walkCycle += dt * 8;
-                const newX = fig.x - moveSpeed * dt;
-                if (!this.terrain.isSolid(newX, fig.y - 5) && newX > 5) {
-                    fig.x = newX;
-                    if (this.terrain.isSolid(newX, fig.y)) {
-                        let steps = 0;
-                        while (this.terrain.isSolid(newX, fig.y - 1) && steps < 6) { fig.y--; steps++; }
-                        if (steps >= 6) fig.x += moveSpeed * dt;
-                    }
-                }
-            }
-            if (this.keys['ArrowRight'] || this.keys['KeyD']) {
-                fig.facingRight = true;
-                fig.walkCycle += dt * 8;
-                const newX = fig.x + moveSpeed * dt;
-                if (!this.terrain.isSolid(newX, fig.y - 5) && newX < WORLD_W - 5) {
-                    fig.x = newX;
-                    if (this.terrain.isSolid(newX, fig.y)) {
-                        let steps = 0;
-                        while (this.terrain.isSolid(newX, fig.y - 1) && steps < 6) { fig.y--; steps++; }
-                        if (steps >= 6) fig.x -= moveSpeed * dt;
-                    }
-                }
-            }
-            // Jump
-            if (this.keys['KeyW'] && fig.grounded) {
-                fig.vy = -200;
-                fig.grounded = false;
-            }
-
-            // Weapon switch Q/E
-            if (this.keys['KeyQ']) {
-                this._selectWeapon(getNextWeapon(this.currentWeaponKey, -1, this.turnManager.activeTeam));
-                this.keys['KeyQ'] = false;
-            }
-            if (this.keys['KeyE']) {
-                this._selectWeapon(getNextWeapon(this.currentWeaponKey, 1, this.turnManager.activeTeam));
-                this.keys['KeyE'] = false;
-            }
-        }
-
-        const weapon = WEAPONS[this.currentWeaponKey];
-        const usesPower = !weapon.instant;
-
-        if (usesPower) {
-            // Hold space to charge, release to fire
-            if (this.keys['Space'] || this.keys['Enter']) {
-                if (!this.charging) {
-                    this.charging = true;
-                    this.chargePower = MIN_POWER;
-                    this.chargeDirection = 1;
-                }
-                this.chargePower += CHARGE_SPEED * dt * this.chargeDirection;
-                if (this.chargePower >= MAX_POWER) { this.chargePower = MAX_POWER; this.chargeDirection = -1; }
-                if (this.chargePower <= MIN_POWER) { this.chargePower = MIN_POWER; this.chargeDirection = 1; }
-            } else if (this.charging) {
-                this._fireWeapon(fig, this.chargePower);
-                this.charging = false;
-                this.chargePower = 0;
-            }
-        } else {
-            if (this.keys['Space']) {
-                this.keys['Space'] = false;
-                this._fireWeapon(fig, 0);
-            }
-        }
-    },
-
-    _fireWeapon(figure, power) {
-        const team = this.turnManager.activeTeam;
-        const weaponKey = this.currentWeaponKey;
-        if (!team || team.getAmmo(weaponKey) <= 0) return;
-
-        team.useAmmo(weaponKey);
-        this.turnManager.onFired();
-
-        const dir = figure.facingRight ? 1 : -1;
-        const angle = figure.aimAngle * dir;
-        const wind = this.turnManager.currentWind;
-
-        switch (weaponKey) {
-            case 'bazooka': {
-                SFX.shoot();
-                this.effects.shake(3, 12);
-                const sx = figure.x + Math.cos(angle) * 15;
-                const sy = figure.y - 14 + Math.sin(angle) * 15;
-                this.activeProjectile = new Projectile(sx, sy, angle, power, wind, {
-                    damage: 50, blastRadius: 45, color: '#ff6600', size: 4, maxTrail: 15
-                });
-                break;
-            }
-            case 'grenade': {
-                SFX.shoot();
-                const sx = figure.x + Math.cos(angle) * 12;
-                const sy = figure.y - 14 + Math.sin(angle) * 12;
-                this.activeProjectile = new GrenadeProjectile(sx, sy, angle, power, wind);
-                break;
-            }
-            case 'shotgun': {
-                SFX.shotgunBlast();
-                this.effects.shake(8, 10);
-                this.activeProjectile = new ShotgunBlast(figure);
-                break;
-            }
-            case 'dynamite': {
-                this.activeProjectile = new DynamiteItem(figure.x, figure.y - 2, this.terrain, this.allFigures);
-                break;
-            }
-            case 'airstrike': {
-                SFX.shoot();
-                const targetX = figure.x + Math.cos(angle) * 200;
-                this.activeProjectile = new AirstrikeController(targetX, this.terrain, this.allFigures);
-                break;
-            }
-            case 'teleport': {
-                this.activeProjectile = new TeleportAction(figure, this.terrain);
-                break;
-            }
-        }
-        this._updateWeaponPanel();
-    },
-
-    // ============================================================
-    // AI LOGIC (simple but functional)
-    // ============================================================
-    _runAI(dt) {
-        const team = this.turnManager.activeTeam;
-        const fig = this.turnManager.activeFigure;
-        if (!team || !fig || !team.isAI || this.turnManager.phase !== 'aiming') return;
-
-        // AI delay
-        if (!this._aiTimer) this._aiTimer = 1.5;
-        this._aiTimer -= dt;
-        if (this._aiTimer > 0) return;
-        this._aiTimer = null;
-
-        // Find nearest enemy
-        let bestTarget = null, bestDist = Infinity;
-        for (const f of this.allFigures) {
-            if (!f.alive || f.team === team) continue;
-            const d = Math.abs(f.x - fig.x);
-            if (d < bestDist) { bestDist = d; bestTarget = f; }
-        }
-        if (!bestTarget) { this.turnManager.endTurn(); return; }
-
-        // Aim at target
-        fig.facingRight = bestTarget.x > fig.x;
-        const dx = bestTarget.x - fig.x;
-        const dy = (bestTarget.y - 10) - (fig.y - 14);
-        const dist = Math.sqrt(dx * dx + dy * dy);
-
-        // Choose weapon
-        if (dist < 60 && team.getAmmo('dynamite') > 0) {
-            this.currentWeaponKey = 'dynamite';
-        } else if (dist < 150 && team.getAmmo('shotgun') > 0) {
-            this.currentWeaponKey = 'shotgun';
-        } else if (team.getAmmo('grenade') > 0 && Math.random() < 0.3) {
-            this.currentWeaponKey = 'grenade';
-        } else {
-            this.currentWeaponKey = 'bazooka';
-        }
-
-        // Calculate firing angle (simple ballistic approximation)
-        const power = MIN_POWER + Math.random() * (MAX_POWER - MIN_POWER) * 0.6 + 50;
-        // Rough angle calculation
-        let aimAngle = Math.atan2(dy, Math.abs(dx));
-        // Adjust for distance - lob higher for farther targets
-        aimAngle -= (dist / WORLD_W) * 0.5;
-        // Add some inaccuracy
-        aimAngle += (Math.random() - 0.5) * 0.15;
-        fig.aimAngle = aimAngle;
-
-        this._fireWeapon(fig, power);
-    },
-
-    // ============================================================
-    // CAMERA (smooth follow)
-    // ============================================================
-    _updateCamera(dt) {
-        let targetX, targetY;
-
-        if (this.activeProjectile && this.activeProjectile.alive &&
-            !(this.activeProjectile instanceof TeleportAction) &&
-            !(this.activeProjectile instanceof DynamiteItem)) {
-            if (this.activeProjectile.x !== undefined) {
-                targetX = this.activeProjectile.x;
-                targetY = this.activeProjectile.y;
-            } else if (this.activeProjectile.planeX !== undefined) {
-                targetX = this.activeProjectile.planeX;
-                targetY = this.activeProjectile.planeY;
-            }
-        }
-
-        if (!targetX) {
-            const fig = this.turnManager.activeFigure;
-            if (fig) { targetX = fig.x; targetY = fig.y - 30; }
-            else { targetX = WORLD_W / 2; targetY = WORLD_H / 2; }
-        }
-
-        const z = this.camera.zoom;
-        const vw = window.innerWidth / z;
-        const vh = window.innerHeight / z;
-        const destX = targetX - vw / 2;
-        const destY = targetY - vh / 2;
-
-        // Smooth interpolation
-        const speed = 3;
-        this.camera.x += (destX - this.camera.x) * speed * dt;
-        this.camera.y += (destY - this.camera.y) * speed * dt;
-
-        // Clamp
-        this.camera.x = Math.max(0, Math.min(WORLD_W - vw, this.camera.x));
-        this.camera.y = Math.max(0, Math.min(WORLD_H - vh, this.camera.y));
-    },
-
-    // ============================================================
-    // HUD UPDATE
-    // ============================================================
-    _updateHUD() {
-        const tm = this.turnManager;
-        const fig = tm.activeFigure;
-        const team = tm.activeTeam;
-
-        const turnInfo = document.getElementById('turnInfo');
-        if (team && fig) {
-            const timeLeft = Math.max(0, Math.ceil(tm.timer));
-            turnInfo.innerHTML = `<span style="color:${team.colorHex}">${team.name}</span> #${fig.index + 1} &mdash; ${timeLeft}s`;
-        }
-
-        const windVal = document.getElementById('windVal');
-        const windArrow = document.getElementById('windArrow');
-        windVal.textContent = Math.abs(tm.currentWind).toFixed(1);
-        if (tm.currentWind > 0.5) {
-            windArrow.textContent = '\u27A1';
-            windArrow.style.transform = '';
-        } else if (tm.currentWind < -0.5) {
-            windArrow.textContent = '\u2B05';
-            windArrow.style.transform = '';
-        } else {
-            windArrow.textContent = '\u2022';
-        }
-    },
-
-    // ============================================================
-    // SKY DRAWING
-    // ============================================================
-    _drawSky(ctx) {
-        const biome = this.terrain.biome;
-        const grad = ctx.createLinearGradient(0, 0, 0, WORLD_H);
-        grad.addColorStop(0, biome.sky[0]);
-        grad.addColorStop(1, biome.sky[1]);
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, WORLD_W, WORLD_H);
-
-        // Clouds
-        ctx.fillStyle = 'rgba(255,255,255,0.15)';
-        for (let i = 0; i < 8; i++) {
-            // Deterministic cloud positions based on seed
-            const cx = ((i * 237 + 47) % WORLD_W);
-            const cy = 15 + ((i * 113 + 23) % 80);
-            const w = 50 + ((i * 71) % 120);
-            const h = 12 + ((i * 37) % 20);
-            ctx.beginPath();
-            ctx.ellipse(cx, cy, w, h, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.ellipse(cx + w * 0.3, cy - 4, w * 0.5, h * 0.7, 0, 0, Math.PI * 2);
-            ctx.fill();
-        }
-    },
-
-    // ============================================================
-    // WATER DRAWING
-    // ============================================================
-    _drawWater(ctx, time) {
-        const waterTop = WORLD_H - 30;
-        const t = time * 0.001;
-
-        ctx.fillStyle = 'rgba(10,48,96,0.9)';
-        ctx.fillRect(0, waterTop + 8, WORLD_W, WORLD_H - waterTop);
-        ctx.fillStyle = 'rgba(30,100,200,0.7)';
-        ctx.fillRect(0, waterTop + 3, WORLD_W, 10);
-
-        ctx.fillStyle = 'rgba(48,144,224,0.6)';
-        for (let x = 0; x < WORLD_W; x += 2) {
-            const waveY = waterTop + Math.sin(x * 0.025 + t * 2) * 4 + Math.sin(x * 0.06 + t * 3) * 2;
-            ctx.fillRect(x, waveY, 2, 8);
-        }
-
-        ctx.fillStyle = 'rgba(136,204,255,0.25)';
-        for (let x = 0; x < WORLD_W; x += 4) {
-            const waveY = waterTop + Math.sin(x * 0.025 + t * 2) * 4;
-            ctx.fillRect(x, waveY, 3, 1);
-        }
-    },
-
-    // ============================================================
-    // TRAJECTORY PREVIEW (from worms-game GameScene.js)
-    // ============================================================
-    _drawTrajectoryPreview(ctx, figure) {
-        if (this.turnManager.activeTeam.isAI) return;
-
-        const dir = figure.facingRight ? 1 : -1;
-        const angle = figure.aimAngle * dir;
-        const power = this.charging ? this.chargePower : (MIN_POWER + MAX_POWER) * 0.4;
-        const alpha = this.charging ? 0.7 : 0.25;
-
-        let px = figure.x + Math.cos(angle) * 15;
-        let py = figure.y - 14 + Math.sin(angle) * 15;
-        let vx = Math.cos(angle) * power;
-        let vy = Math.sin(angle) * power;
-
-        const gravity = this.currentWeaponKey === 'grenade' ? 350 : GRAVITY;
-        const simDt = 0.025;
-        const maxDots = 40;
-
-        for (let i = 0; i < maxDots; i++) {
-            vy += gravity * simDt;
-            vx += this.turnManager.currentWind * WIND_SCALE * simDt;
-            px += vx * simDt;
-            py += vy * simDt;
-
-            if (px < 0 || px > WORLD_W || py > WORLD_H) break;
-            if (py > 0 && this.terrain.isSolid(px, py)) {
-                // Impact marker
-                ctx.strokeStyle = `rgba(255,68,68,${alpha * 0.8})`;
-                ctx.lineWidth = 1.5;
-                ctx.beginPath(); ctx.arc(px, py, 6, 0, Math.PI * 2); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(px - 4, py - 4); ctx.lineTo(px + 4, py + 4); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(px + 4, py - 4); ctx.lineTo(px - 4, py + 4); ctx.stroke();
-                break;
-            }
-
-            if (i % 2 === 0) {
-                const fade = (1 - i / maxDots) * alpha;
-                const size = 2 - (i / maxDots) * 1.2;
-                ctx.fillStyle = this.charging ? `rgba(255,102,68,${fade})` : `rgba(255,255,255,${fade})`;
-                ctx.beginPath();
-                ctx.arc(px, py, Math.max(0.5, size), 0, Math.PI * 2);
-                ctx.fill();
-            }
-        }
-    },
-
-    // ============================================================
-    // POWER BAR (from worms-game GameScene.js)
-    // ============================================================
-    _drawPowerBar(ctx, figure) {
-        if (!this.charging) return;
-
-        const pct = (this.chargePower - MIN_POWER) / (MAX_POWER - MIN_POWER);
-        const barX = figure.x - 22;
-        const barY = figure.y + 10;
-        const barW = 44;
-        const barH = 6;
-
-        ctx.fillStyle = 'rgba(0,0,0,0.75)';
-        ctx.beginPath();
-        ctx.roundRect(barX - 2, barY - 2, barW + 4, barH + 4, 3);
-        ctx.fill();
-
-        let color;
-        if (pct < 0.35) color = '#44dd44';
-        else if (pct < 0.65) color = '#dddd44';
-        else color = '#ff4444';
-
-        ctx.fillStyle = color;
-        ctx.globalAlpha = 0.95;
-        ctx.beginPath();
-        ctx.roundRect(barX, barY, barW * pct, barH, 2);
-        ctx.fill();
-        ctx.globalAlpha = 1;
-
-        // Tick marks
-        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-        ctx.lineWidth = 1;
-        for (let t = 0.25; t < 1; t += 0.25) {
-            const tx = barX + barW * t;
-            ctx.beginPath(); ctx.moveTo(tx, barY); ctx.lineTo(tx, barY + barH); ctx.stroke();
-        }
-
-        // Border
-        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.roundRect(barX - 2, barY - 2, barW + 4, barH + 4, 3);
-        ctx.stroke();
-    },
-
-    // ============================================================
-    // MAIN GAME LOOP
-    // ============================================================
-    _loop(timestamp) {
-        const rawDt = Math.min(0.05, (timestamp - this.lastTime) / 1000);
-        this.lastTime = timestamp;
-
-        if (this.started && !this.gameOver) {
-            const dt = rawDt;
-
-            // Update effects
-            this.effects.update(dt);
-
-            // Update turn manager
-            this.turnManager.update(dt);
-
-            // Update all figures
-            for (const fig of this.allFigures) {
-                fig.update(dt, this.terrain);
-            }
-
-            // Update active projectile
-            if (this.activeProjectile) {
-                let result;
-                if (this.activeProjectile instanceof AirstrikeController) {
-                    result = this.activeProjectile.update(dt, this.terrain, this.allFigures);
-                } else if (this.activeProjectile instanceof DynamiteItem) {
-                    result = this.activeProjectile.update(dt);
-                } else if (this.activeProjectile instanceof TeleportAction) {
-                    result = this.activeProjectile.update(dt);
-                } else if (this.activeProjectile instanceof ShotgunBlast) {
-                    result = this.activeProjectile.update(dt, this.terrain, this.allFigures);
-                } else {
-                    result = this.activeProjectile.update(dt, this.terrain, this.allFigures);
-                }
-
-                if (result) {
-                    this.activeProjectile = null;
-                    this.turnManager.onProjectileLanded();
-                }
-            }
-
-            // AI logic
-            if (this.turnManager.activeTeam && this.turnManager.activeTeam.isAI) {
-                this._runAI(dt);
-            }
-
-            // Input
-            if (this.turnManager.phase === 'aiming' && this.turnManager.activeTeam && !this.turnManager.activeTeam.isAI) {
-                this._handleKeyboardInput(dt);
-            }
-
-            // Camera
-            this._updateCamera(dt);
-
-            // Check game over
-            if (this.turnManager.phase === 'game-over') {
-                this.gameOver = true;
-                const winner = this.turnManager.teams[0];
-                const goEl = document.getElementById('gameOver');
-                const goText = document.getElementById('goText');
-                goText.textContent = winner ? `${winner.name} Team Wins!` : 'Draw!';
-                goText.style.color = winner ? winner.colorHex : '#fff';
-                goEl.style.display = 'flex';
-                SFX.victory();
-            }
-        }
-
-        // ============ RENDER ============
-        const ctx = this.gameCtx;
-        const z = this.camera.zoom;
-        const w = window.innerWidth;
-        const h = window.innerHeight;
-
-        ctx.clearRect(0, 0, w, h);
-        ctx.save();
-
-        // Apply camera transform with screen shake
-        const shakeX = this.effects.shakeX || 0;
-        const shakeY = this.effects.shakeY || 0;
-        ctx.setTransform(z, 0, 0, z, -this.camera.x * z + shakeX, -this.camera.y * z + shakeY);
-
-        // Sky
-        this._drawSky(ctx);
-
-        // Terrain
-        this.terrain.draw(ctx);
-
-        // Water
-        this._drawWater(ctx, timestamp);
-
-        // Trajectory preview
-        if (this.turnManager.phase === 'aiming' && !WEAPONS[this.currentWeaponKey].instant) {
-            const fig = this.turnManager.activeFigure;
-            if (fig) {
-                this._drawTrajectoryPreview(ctx, fig);
-                this._drawPowerBar(ctx, fig);
-            }
-        }
-
-        // Draw figures
-        for (const fig of this.allFigures) {
-            fig.draw(ctx);
-        }
-
-        // Draw active projectile
-        if (this.activeProjectile) {
-            if (this.activeProjectile.draw) this.activeProjectile.draw(ctx);
-        }
-
-        // Draw effects (debris, damage numbers, flashes)
-        this.effects.draw(ctx);
-
-        ctx.restore();
-
-        // Update HUD
-        if (this.started) this._updateHUD();
-        this._updateWeaponPanel();
-
-        requestAnimationFrame((t) => this._loop(t));
+async function fireNyanCats(id, tx, ty, seed) {
+  lockCamera({ x: tx, y: ty });
+  showCrosshairs(true, tx, ty);
+  reduceWeaponCount();
+  const rng = splitmix32(seed);
+  setTimeout(async () => {
+    for (let i = 0; i < 5; i++) {
+      const angle = Math.PI / 2 + (rng() * 0.2 - 0.1);
+      const dx = Math.cos(angle) * 0.4;
+      const dy = Math.sin(angle) * 0.4;
+      const m = await fireMissileRound(id + i, tx - dx * 100, -20, dx, dy, rngi(75, 90), 1250);
+      m.nyan = true;
     }
-};
+  }, 1000);
+}
 
-// Start
-game.init();
-</script>
-</body>
+async function fireMissileRound(id, x, y, dx, dy, power, delay) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      const missile = { id, x, y, dx, dy, power };
+      missiles.set(id, missile);
+      cancelEndTurn();
+      resolve(missile);
+    }, delay);
+  });
+}
+
+// ================================================================================================
+// GUNS
+// ================================================================================================
+
+function updateTracers(delta) {
+  for (const [id, t] of tracers) {
+    t.ttl -= delta;
+    t.el.style.opacity = '' + (t.ttl / 50);
+    if (t.ttl <= 0) { t.el.remove(); tracers.delete(id); }
+  }
+}
+
+function addTracer(x1, y1, x2, y2) {
+  const el = tracer.cloneNode(true);
+  attrNS(el, 'x1', x1); attrNS(el, 'y1', y1); attrNS(el, 'x2', x2); attrNS(el, 'y2', y2);
+  objects.appendChild(el);
+  tracers.set(getId(), { el, ttl: 50 });
+}
+
+function fireShotgun(id, x, y, dir, aim, seed) {
+  fireGun(id, x, y, dir, aim, seed, 1, [40, 45], 0.05, 1000, 12);
+  reduceWeaponCount();
+}
+
+function fireUzi(id, x, y, dir, aim, seed) {
+  fireGun(id, x, y, dir, aim, seed, 8, [12, 16], 0.1, 50, 13);
+  reduceWeaponCount();
+}
+
+function fireMinigun(id, x, y, dir, aim, seed) {
+  fireGun(id, x, y, dir, aim, seed, 30, [16, 20], 0.125, 40, 18);
+  reduceWeaponCount();
+}
+
+async function fireGun(id, x, y, dir, aim, seed, rounds, power, spread, delay) {
+  const sx = x;
+  const sy = y - 10;
+  const angle = dir === 1 ? aim : Math.PI - aim;
+  const rng = splitmix32(seed);
+
+  for (let i = 0; i < rounds; i++) {
+    const r = (rng() * spread * 2) - spread;
+    await fireRound(id + i, sx, sy, angle + r, power, delay, i === 0);
+  }
+  requestEndTurn();
+}
+
+async function fireRound(id, x, y, angle, power, delay, lock) {
+  return new Promise((resolve) => {
+    const player = players[activePlayer];
+    const nx = Math.cos(angle);
+    const ny = Math.sin(angle);
+    const dist = raycastBrute(x, y, nx, ny, player.i);
+
+    if (dist !== Infinity) {
+      const sx = x + nx * 20;
+      const sy = y + ny * 20;
+      const tx = x + nx * dist;
+      const ty = y + ny * dist;
+      if (lock) lockCamera({ x: tx, y: ty });
+
+      setTimeout(() => {
+        addTracer(sx, sy, tx, ty);
+        flashMuzzle(sx, sy);
+        sfx(SFX_GUNSHOT);
+        const dmg = rngi(power[0], power[1]);
+        addBlast(id, tx, ty, dmg, 0.25, activePlayer);
+        resolve();
+      }, lock ? 1000 : delay);
+    } else {
+      resolve();
+    }
+  });
+}
+
+// ================================================================================================
+// DYNAMITE
+// ================================================================================================
+
+function getDynamiteElement(d) {
+  return getElement(objects, 'w4', d.id, (el) => {
+    transform(el, d.x, d.y, [Math.random() * 10 - 5, 0, 0]);
+  });
+}
+
+function updateDynamites(delta) {
+  for (const [_, d] of dynamites) {
+    const el = getDynamiteElement(d);
+    d.ttl -= delta;
+    el.classList.toggle('flash', d.ttl < 2000 && !!(~~(d.ttl / 250) % 2));
+    if (d.ttl <= 0) explodeDynamite(d);
+  }
+}
+
+function placeDynamite(id, x, y) {
+  const d = { id, x, y: y - 5, dmg: rngi(90, 100), ttl: 5000 };
+  dynamites.set(id, d);
+  cancelEndTurn();
+  reduceWeaponCount();
+}
+
+function explodeDynamite(d) {
+  const el = getDynamiteElement(d);
+  const id = getId();
+  addBlast(id, d.x, d.y, d.dmg, 2.4);
+  sfx(SFX_EXPLOSION);
+  el.remove();
+  dynamites.delete(d.id);
+  requestEndTurn();
+}
+
+// ================================================================================================
+// GRENADES
+// ================================================================================================
+
+function getGrenadeElement(g) {
+  const type = g.holy ? 'w6' : g.cluster ? 'w9' : 'w5';
+  return getElement(objects, type, g.id, (el) => { transform(el, g.x, g.y); });
+}
+
+function updateGrenades(delta) {
+  for (const [_, g] of grenades) {
+    const el = getGrenadeElement(g);
+    g.ttl -= delta;
+    g.dy += delta * MISSILE_GRAVITY;
+    g.x += g.dx * delta;
+    g.y += g.dy * delta;
+    transform(el, g.x, g.y);
+    el.classList.toggle('flash', g.ttl < 2000 && !!(~~(g.ttl / 250) % 2));
+
+    if (checkCollision(g.x, g.y + 8)) {
+      const mag = magnitude([g.dx, g.dy]);
+      if (mag > 0.4) addSmoke(g.x, g.y);
+      if (mag > 0.2) sfx([mag * 3, ...SFX_BOUNCE]);
+
+      const [dist, type, payload] = raycast(g.x, g.y + 8, 0, -1);
+      if (dist !== Infinity && dist > 0) g.y -= dist;
+
+      let surface = [1, 0];
+      if (type === 0) {
+        const j = Math.floor(g.x / 10);
+        const g1 = [j * 10, GROUND + heights[j]];
+        const g2 = [(j + 1) * 10, GROUND + heights[j + 1]];
+        surface = subtract(g2, g1);
+      }
+      if (type === 1) {
+        const h = payload;
+        surface = perpendicular(subtract([g.x, g.y], [h.x, h.y]));
+      }
+      const bounce = invert(reflect([g.dx, g.dy], surface));
+      g.dx = bounce[0] * 0.6;
+      g.dy = bounce[1] * 0.6;
+    }
+
+    if (g.ttl <= 0) explodeGrenade(g);
+  }
+}
+
+function fireGrenade(id, x, y, dir, aim, power, holy = false, cluster = false) {
+  const dx = Math.cos(aim) * power * 1.25 * dir;
+  const dy = Math.sin(aim) * power * 1.25;
+  const dmg = rngi(55, 65) * (holy ? 3 : 1);
+  const g = { id, x, y: y - 10, dx, dy, holy, cluster, power: dmg, ttl: 5000 };
+  grenades.set(id, g);
+  lockCamera(g);
+  cancelEndTurn();
+  reduceWeaponCount();
+}
+
+function fireHolyHandGrenade(id, x, y, dir, aim, power) {
+  fireGrenade(id, x, y, dir, aim, power, true, false);
+}
+
+function fireClusterBomb(id, x, y, dir, aim, power) {
+  fireGrenade(id, x, y, dir, aim, power, false, true);
+}
+
+function explodeGrenade(g) {
+  const id = getId();
+  addBlast(id, g.x, g.y, g.power, 1.2);
+  sfx(SFX_EXPLOSION);
+  destroyed.push(g.id);
+  grenades.delete(g.id);
+
+  const clusters = g.holy ? 10 : g.cluster ? 5 : 0;
+  const power = g.holy ? rngi(70, 90) : g.cluster ? rngi(40, 60) : 0;
+  for (let i = 0; i < clusters; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dx = Math.sin(angle) * 0.25;
+    const dy = Math.cos(angle) * 0.25 - 0.5;
+    fireCharge(g.id + i, g.x, g.y, dx, dy, power);
+  }
+  requestEndTurn();
+}
+
+// ================================================================================================
+// MELEE
+// ================================================================================================
+
+function fireCricketBat(pid, x, y, dir, aim) {
+  let hit = false;
+  for (let i = 0; i < players.length; i++) {
+    const p2 = players[i];
+    if (pid === p2.id || p2.dead) continue;
+    const d2 = sqdist(x, y, p2.x, p2.y);
+    if (d2 < 2000) {
+      p2.ragdoll = true;
+      p2.dx = Math.cos(aim) * dir;
+      p2.dy = Math.sin(aim);
+      p2.vr = Math.max(20, 20 * p2.dir);
+      p2.hp -= 15;
+      updatePlayerHealth(p2);
+      lockCamera(p2);
+      requestEndTurn();
+      flashMuzzle(p2.x, p2.y - 10);
+      hit = true;
+    }
+  }
+  if (!hit) paused = false;
+}
+
+// ================================================================================================
+// CAMERA
+// ================================================================================================
+
+function updateCamera(delta) {
+  let horizontal = 0, vertical = 0;
+
+  if (mouse.over && !mouseDrag && !isTouchDevice) {
+    if (mouse.x > vw - 100) horizontal = 1;
+    else if (mouse.x < 100) horizontal = -1;
+    if (mouse.y > vh - 100) vertical = 1;
+    else if (mouse.y < 100) {
+      const min = vw / 2 - 420;
+      const max = vw / 2 + 420;
+      if (mouse.x < min || mouse.x > max) vertical = -1;
+    }
+  }
+
+  // Arrow keys for camera on keyboard
+  if (keys.has('ArrowLeft')) horizontal = -1;
+  if (keys.has('ArrowRight')) horizontal = 1;
+  if (keys.has('ArrowUp')) vertical = -1;
+  if (keys.has('ArrowDown')) vertical = 1;
+
+  const dx = horizontal * delta / 2;
+  const dy = vertical * delta / 2;
+  const minx = vw / 2, maxx = WW - minx;
+  const miny = vh / 2, maxy = WH - miny;
+
+  if (horizontal !== 0 || vertical !== 0) {
+    if (!camera.free) {
+      camera.free = true;
+      camera.to = { x: camera.to.x, y: camera.to.y };
+    }
+    camera.to.x = clamp(camera.to.x + dx, minx, maxx);
+    camera.to.y = clamp(camera.to.y + dy, miny, maxy);
+  }
+
+  const tx = clamp(camera.to.x, minx, maxx);
+  const ty = clamp(camera.to.y, miny, maxy);
+
+  camera.x = lerp(camera.x, tx, 0.0075 * delta);
+  if (Math.abs(camera.x - tx) < 0.1) camera.x = tx;
+
+  camera.y = lerp(camera.y, ty, 0.0075 * delta);
+  if (Math.abs(camera.y - ty) < 0.1) camera.y = ty;
+
+  camera.ttl = Math.max(camera.ttl - delta, 0);
+  const shake = camera.ttl > 0 ? Math.sin(camera.ttl / 15) * (camera.ttl / 20) : 0;
+
+  const cx = clamp(camera.x, minx, maxx) - (vw / 2) + shake;
+  const cy = clamp(camera.y, miny, maxy) - (vh / 2);
+
+  const tx2 = -~~cx;
+  const ty2 = -~~cy;
+  const viewport = svg.parentElement;
+  if (cameraZoom === 1) {
+    viewport.style.transform = `translate(${tx2}px, ${ty2}px)`;
+  } else {
+    const ox = vw / 2;
+    const oy = vh / 2;
+    viewport.style.transform = `translate(${tx2}px, ${ty2}px) translate(${ox}px, ${oy}px) scale(${cameraZoom}) translate(${-ox}px, ${-oy}px)`;
+  }
+}
+
+function lockCamera(to) { camera.free = false; camera.to = to; }
+function unlockCamera() { camera.free = false; camera.to = players[activePlayer]; }
+function shakeCamera() { camera.ttl = 500; }
+
+// ================================================================================================
+// COLLISIONS
+// ================================================================================================
+
+function checkCollision(x, y, includePlayers = -1) {
+  if (includePlayers >= 0) {
+    for (const p of players) {
+      if (p.i !== includePlayers) {
+        const d2 = Math.pow(x - p.x, 2) + Math.pow(y - (p.y - 10), 2);
+        if (d2 <= 120) return true;
+      }
+    }
+  }
+  if (y < getTerrainHeight(x)) return false;
+  for (const hole of holes) {
+    if (insideCircle(x, y, hole.x, hole.y, hole.r2)) return false;
+  }
+  return true;
+}
+
+function raycast(x, y, dx, dy) {
+  let dist = Infinity, type = -1, payload = null;
+
+  if (checkCollision(x, y)) {
+    const [nx, ny] = normalize([dx, dy]);
+    const ray = { x, y, nx, ny };
+
+    for (const h of holes) {
+      const d = distToHole(ray, h);
+      if (d < dist) { dist = d; type = 1; payload = h; }
+    }
+
+    if (dy === -1) {
+      const d = y - getTerrainHeight(x);
+      if (d < dist) { dist = d; type = 0; }
+    }
+
+    if (dx === 1) {
+      let x1 = 0, y1 = 0, x2 = x - (x % 10), y2 = 0;
+      while (x2 < WW) {
+        x1 = x2; y1 = y2; x2 = x1 + 10; y2 = getTerrainHeight(x2);
+        if (y >= y1 && y <= y2) {
+          const d = lerp(x1, x2, unlerp(y, y1, y2)) - x;
+          if (d < dist) { dist = d; type = 0; }
+        }
+      }
+    }
+
+    if (dx === -1) {
+      let x1 = 0, y1 = 0, x2 = x - (x % 10) + 10, y2 = 0;
+      while (x2 > 0) {
+        x1 = x2; y1 = y2; x2 = x1 - 10; y2 = getTerrainHeight(x2);
+        if (y >= y1 && y <= y2) {
+          const d = x - lerp(x1, x2, unlerp(y, y1, y2));
+          if (d < dist) { dist = d; type = 0; }
+        }
+      }
+    }
+  }
+  return [dist, type, payload];
+}
+
+function raycastBrute(x, y, nx, ny, includePlayers = -1) {
+  let dist = 1, ix = x + nx, iy = y + ny;
+  while (true) {
+    dist++; ix += nx; iy += ny;
+    if (ix < 0 || ix > WW || iy < 0 || iy > WH) { dist = Infinity; break; }
+    if (checkCollision(ix, iy, includePlayers)) break;
+  }
+  return dist;
+}
+
+function distToHole(ray, hole) {
+  const vcx = ray.x - hole.x;
+  const vcy = ray.y - hole.y;
+  const v = -2 * (vcx * ray.nx + vcy * ray.ny);
+  const dist = v - Math.sqrt(v * v - 4 * (vcx * vcx + vcy * vcy - hole.r2));
+  return isNaN(dist) || dist < 0 ? Infinity : dist / 2;
+}
+
+function insideCircle(x, y, cx, cy, r2) {
+  return sqdist(x, y, cx, cy) < r2;
+}
+
+// ================================================================================================
+// TERRAIN
+// ================================================================================================
+
+function initHeights() {
+  heights = [];
+  for (let i = 0; i < WW + 10; i += 10) {
+    const base = 0 - Math.sin(i / WW * Math.PI);
+    const aux = Math.abs(noise(i, 5, WORLD_SCALE, 0.4));
+    heights.push(Math.round((base * NOISE_AMPLITUDE) - (aux * NOISE_AMPLITUDE / 2)));
+  }
+}
+
+function initTerrain(home = false) {
+  holes = [];
+  initMasks(home);
+  let t = 0;
+  for (let offset of [10,0,0,20,35,35]) {
+    initTerrainLayer('l' + t++, home, offset);
+  }
+  if (home) {
+    for (let i = 0; i < 6; i++) initWater('o' + (6 - i), i * 20);
+    addHoles(1300, WH - 820, 80);
+    addHoles(690, WH - 650, 80);
+    addHoles(1970, WH - 520, 80);
+  }
+}
+
+function initTerrainDamage() {
+  for (let i = 0; i < 10; i++) {
+    const cx = rngi(1000, WW - 1000);
+    const cy = getTerrainHeight(cx);
+    if (checkCollision(cx, cy + 10)) addHoles(cx, cy, rngi(60, 120));
+  }
+}
+
+function initTerrainLayer(id, home = false, offset) {
+  const layer = docElem(id);
+  layer.innerHTML = '';
+  let d = `M0 ${WH}`;
+  if (home) {
+    d += `L0 ${WH - 900}L${WW} ${WH - 900}`;
+  } else {
+    let j = 0;
+    for (let h of heights) d += `L${j++ * 10} ${GROUND + offset + h}`;
+  }
+  d += `L${WW} ${WH}Z`;
+  attr(layer, 'd', d);
+  return layer;
+}
+
+function initMasks(home = false) {
+  masks = [];
+  for (const offset of [10,0,0,15,25]) masks.push(initMask('m' + masks.length, home, offset));
+}
+
+function initMask(id, home = false, offset) {
+  const layer = docElem(id);
+  const path = elemSVG('path');
+  attrNS(path, 'd', `M-10,0 L${WW},0 L${WW},${WH + 10} L-10,${WH + 10} Z`);
+  attrNS(path, 'fill', home ? 'black' : 'white');
+  layer.appendChild(path);
+  if (home) {
+    const logoBBox = logo.getBBox();
+    const logoCenterX = camera.x - (logoBBox.x + logoBBox.width / 2) * 4.5;
+    const logo1 = logo.cloneNode(true);
+    attrNS(logo1, 'transform', `translate(${logoCenterX}, ${WH - 820 + offset}) scale(4.5)`);
+    layer.appendChild(logo1);
+    const logo2 = logo.cloneNode(true);
+    attrNS(logo2, 'transform', `translate(${logoCenterX}, ${WH - 790}) scale(4.5)`);
+    layer.appendChild(logo2);
+  }
+  return layer;
+}
+
+function initWater(id, offset) {
+  const rect = docElem(id);
+  attrNS(rect, 'x', (-offset * 2.7 + rngi(-40, 0)));
+  attrNS(rect, 'y', (WH - 200 - offset));
+  attrNS(rect, 'width', OCEAN_SIZE);
+}
+
+function getTerrainHeight(x) {
+  const j = Math.floor(x / 10);
+  const g1 = GROUND + heights[j];
+  const g2 = GROUND + heights[j + 1];
+  const k = (x / 10) - j;
+  return lerp(g1, g2, k) + 2;
+}
+
+function addBlast(_, x, y, r, kb, ignorePlayer) {
+  addHoles(x, y, r);
+  addExplosion(x, y, r * 0.9);
+  shakeCamera();
+
+  const r2 = Math.pow(r * 1.5, 2);
+  let fi = null, fv = 0;
+
+  for (let i = 0; i < players.length; i++) {
+    const p = players[i];
+    if (ignorePlayer === i || p.dead) continue;
+    const d2 = sqdist(x, y, p.x, p.y);
+    if (d2 < r2) {
+      const damage = (1 - (d2 / r2)) * r / 2;
+      const force = Math.log2((1 - (d2 / r2)) * r) / 2;
+      const angle = Math.atan2(p.y - y, p.x - x);
+      const velocity = kb * force * 0.2;
+      if (velocity > fv) { fv = velocity; fi = i; }
+      p.ragdoll = true;
+      p.dx = velocity * Math.cos(angle);
+      p.dy = velocity * Math.sin(angle) - 0.1;
+      p.vr = Math.max(10, force * 10 * p.dir);
+      p.hp = Math.max(Math.floor(p.hp - damage), 0);
+      updatePlayerHealth(p);
+    }
+  }
+  if (fi !== null) lockCamera(players[fi]);
+}
+
+function addHoles(x, y, r) {
+  if (r > 50) addHole(masks[0], x, y, r - 20);
+  addHole(masks[1], x, y, r);
+  addHole(masks[2], x, y, r + 10);
+  addHole(masks[3], x, y, r);
+  addHole(masks[4], x, y, r + 10);
+  holes.push({ x, y, r, r2: r * r });
+}
+
+function addHole(layer, x, y, r) {
+  const circle = elemSVG('circle');
+  attrNS(circle, 'cx', x); attrNS(circle, 'cy', y); attrNS(circle, 'r', r);
+  attrNS(circle, 'fill', 'black');
+  layer.appendChild(circle);
+}
+
+// ================================================================================================
+// INIT
+// ================================================================================================
+
+function initSvg() {
+  attr(svg, 'width', WW); attr(svg, 'height', WH);
+  attr(svg2, 'width', WW); attr(svg2, 'height', WH);
+  attr(svg3, 'width', WW); attr(svg3, 'height', WH);
+  crosshairs.innerHTML = ch.innerHTML;
+  targetlock.innerHTML = ch.innerHTML;
+}
+
+function initMenu() {
+  text(menu4, 'VS COMPUTER - EASY');
+  text(menu5, 'VS COMPUTER - HARD');
+  text(menu1, 'VS PLAYER');
+  menuShow(menu4, true);
+  menuShow(menu5, true);
+  menuShow(menu1, true);
+
+  // VS COMPUTER buttons (not yet implemented)
+  function comingSoon(e) { e.preventDefault(); caption('COMING SOON!'); }
+  menu4.onclick = comingSoon;
+  menu4.addEventListener('touchstart', (e) => { e.preventDefault(); comingSoon(e); }, { passive: false });
+  menu5.onclick = comingSoon;
+  menu5.addEventListener('touchstart', (e) => { e.preventDefault(); comingSoon(e); }, { passive: false });
+
+  // VS PLAYER
+  menu1.onclick = startLocalGame;
+  menu1.addEventListener('touchstart', (e) => { e.preventDefault(); startLocalGame(); }, { passive: false });
+}
+
+// ================================================================================================
+// UTILITIES
+// ================================================================================================
+
+function splitmix32(a) {
+  return function() {
+    a |= 0; a = a + 0x9e3779b9 | 0;
+    let t = a ^ a >>> 16; t = Math.imul(t, 0x21f0aaad);
+    t = t ^ t >>> 15; t = Math.imul(t, 0x735a2d97);
+    return ((t = t ^ t >>> 15) >>> 0) / 4294967296;
+  }
+}
+
+function rngi(a, b) { return Math.floor(a + (rngf() * (b - a))); }
+function sqdist(x1, y1, x2, y2) { return ((x1-x2)*(x1-x2))+((y1-y2)*(y1-y2)); }
+function lerp(x, y, a) { return x * (1 - a) + y * a; }
+function unlerp(x, a, b) { return (x - a) / (b - a); }
+function clamp(a, min, max) { return Math.min(max, Math.max(min, a)); }
+
+function noise(x, iterations, scale, persistence) {
+  let result = 0, amplitude = 1, frequency = scale, max = 0;
+  for (let i = 0; i < iterations; i++) {
+    result += simplex((x + 1000) * frequency, 0) * amplitude;
+    max += amplitude;
+    amplitude *= persistence;
+    frequency *= 2;
+  }
+  return result / max;
+}
+
+function rpos(p, ox, oy, dist) {
+  return [p.x + ox + Math.cos(p.aim) * dist * p.dir, p.y + oy + Math.sin(p.aim) * dist];
+}
+
+// Vectors
+function reflect(v, n) { const nn = normalize(n); return subtract(v, multiply(nn, 2 * dot(v, nn))); }
+function magnitude(v) { return Math.sqrt(v[0]*v[0] + v[1]*v[1]); }
+function normalize(v) { const l = magnitude(v); return l === 0 ? v : [v[0]/l, v[1]/l]; }
+function subtract(v1, v2) { return [v1[0]-v2[0], v1[1]-v2[1]]; }
+function multiply(v1, i) { return [v1[0]*i, v1[1]*i]; }
+function dot(v1, v2) { return (v1[0]*v2[0])+(v1[1]*v2[1]); }
+function invert(v) { return [-v[0], -v[1]]; }
+function perpendicular(v) { return [-v[1], v[0]]; }
+
+// DOM
+function attr(element, name, value) { element.setAttribute(name, '' + value); }
+function attrNS(element, name, value) { element?.setAttributeNS(null, name, '' + value); }
+function sprop(element, name, value) { element.style.setProperty(name, '' + value); }
+function elemSVG(tag) { return document.createElementNS('http://www.w3.org/2000/svg', tag); }
+
+function transform(el, x, y, angle = [0,0,0], scale = [1,1]) {
+  attr(el, 'transform', `translate(${x} ${y}) rotate(${angle[0]} ${angle[1]} ${angle[2]}) scale(${scale[0]} ${scale[1]})`);
+}
+
+function getElement(container, key, id, cb) {
+  let el = elements[id];
+  if (!el) {
+    el = docElem(key).cloneNode(true);
+    if (cb) cb(el);
+    container.appendChild(el);
+    elements[id] = el;
+  }
+  return el;
+}
+
+function getId() { return rngi(0, 999999999); }
+
+function updateDestroyedElement() {
+  for (const id of destroyed) elements[id]?.remove();
+  destroyed = [];
+}
+
+function menuShow(el, show) {
+  if (!el) return;
+  el.style.opacity = show ? '1' : '0';
+  el.style.pointerEvents = show ? 'auto' : 'none';
+}
+
+// Bitmap text
+function text(el, str) {
+  if (!el) return;
+  el.innerHTML = '';
+  for (let i = 0; i < str.length; i++) {
+    const char = glyph.cloneNode();
+    char.style.backgroundPositionX = `${0 - CHARS.indexOf(str[i]) * 14}px`;
+    el.append(char);
+  }
+}
+
+function caption(str) {
+  text(captions, str);
+  captionsttl = 2500;
+  captions.style.display = 'block';
+}
+
+function updateCaptions(delta) {
+  if (captionsttl > 0) captionsttl -= delta;
+  if (captionsttl <= 0) captions.style.display = 'none';
+}
+
+function sfx(params) { try { zzfx(...params); } catch(e) {} }
+
+// ================================================================================================
+// START
+// ================================================================================================
+
+setTimeout(initGame);
+    </script>
+  </body>
 </html>
