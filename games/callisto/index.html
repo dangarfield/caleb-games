@@ -1,0 +1,6311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Captain Callisto</title>
+<style>
+*{touch-action:none;}
+html,body{width:100%;height:100%;margin:0;border:0;overflow:hidden;display:block;background:#000;}
+canvas{position:absolute;}
+#touch-controls{position:fixed;bottom:0;left:0;width:100%;height:100%;z-index:999;pointer-events:none;}
+#dpad{position:absolute;bottom:20px;left:20px;width:160px;height:160px;pointer-events:none;}
+.dpad-btn{position:absolute;pointer-events:auto;width:50px;height:50px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;color:rgba(255,255,255,0.8);background:rgba(255,255,255,0.1);border:2px solid rgba(255,255,255,0.25);user-select:none;-webkit-user-select:none;}
+.dpad-btn:active{background:rgba(255,255,255,0.25);}
+#dpad-up{top:0;left:55px;}
+#dpad-down{bottom:0;left:55px;}
+#dpad-left{top:55px;left:0;}
+#dpad-right{top:55px;right:0;}
+.touch-btn{position:absolute;pointer-events:auto;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:bold;color:rgba(255,255,255,0.8);user-select:none;-webkit-user-select:none;}
+.touch-btn:active{opacity:0.9;}
+#btn-jump{bottom:30px;right:30px;width:80px;height:80px;background:rgba(100,200,255,0.2);border:2px solid rgba(100,200,255,0.4);font-size:28px;}
+#btn-jetpack{bottom:125px;right:30px;width:80px;height:80px;background:rgba(255,160,0,0.2);border:2px solid rgba(255,160,0,0.4);font-size:28px;}
+#btn-restart{top:18px;right:70px;width:44px;height:44px;background:rgba(255,80,80,0.2);border:2px solid rgba(255,80,80,0.3);font-size:20px;}
+#btn-mute{top:18px;right:18px;width:44px;height:44px;background:rgba(200,200,200,0.15);border:2px solid rgba(200,200,200,0.3);font-size:20px;}
+#btn-menu{bottom:80px;right:125px;width:44px;height:44px;background:rgba(200,200,200,0.15);border:2px solid rgba(200,200,200,0.3);font-size:10px;display:none;}
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html" style="position:fixed;top:12px;left:12px;z-index:1000;background:rgba(0,0,0,0.55);color:#fff;text-decoration:none;padding:6px 18px;border-radius:20px;font:bold 15px/1.4 'Segoe UI',system-ui,sans-serif;border:1px solid rgba(255,255,255,0.18);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);">&larr; Games</a>
+<canvas></canvas>
+<canvas></canvas>
+<div id="touch-controls">
+  <div id="dpad">
+    <div class="dpad-btn" id="dpad-up">&#9650;</div>
+    <div class="dpad-btn" id="dpad-down">&#9660;</div>
+    <div class="dpad-btn" id="dpad-left">&#9664;</div>
+    <div class="dpad-btn" id="dpad-right">&#9654;</div>
+  </div>
+  <div class="touch-btn" id="btn-jump">&#x2B06;&#xFE0F;</div>
+  <div class="touch-btn" id="btn-jetpack">&#x1F525;</div>
+  <div class="touch-btn" id="btn-restart">&#x1F504;</div>
+  <div class="touch-btn" id="btn-mute">&#x1F50A;</div>
+  <div class="touch-btn" id="btn-menu">ESC</div>
+</div>
+<script>
+
+// ============================================================
+// FILE: lib/debug.js
+// ============================================================
+
+/**
+ * Controls logging level.
+ * When false, all logging becomes no-op, so compiled to nothing.
+ * @const {boolean}
+ */
+const DEBUG = false;
+
+/**
+ * Logs to std out.
+ * Only if debug is enabled.
+ * @param {string} str
+ */
+function log(str) {
+  if (DEBUG) {
+    console.log(str);
+  }
+}
+
+
+// ============================================================
+// FILE: lib/codegolf.js
+// ============================================================
+
+// This file is for silly code optimizations.
+// See: https://xem.github.io/articles/webgl_quest.html
+// See: https://github.com/carlini/js13k2019-yet-another-doom-clone/blob/master/make.py
+
+/**
+ * Builds a shortcut name for a property.
+ * @param {string} name The original name.
+ * @return {string} The abbreviated name.
+ */
+const buildShortcut = (name) => name.substr(0, 3) + name.substr(-3) + (name[name.length - 8] || '_');
+
+/**
+ * Builds shortcut properties for all existing properties on an object.
+ * @param {!Object} obj
+ */
+const buildShortcuts = (obj) => {
+  for (const key in obj) {
+    const s = buildShortcut(key);
+    if (!(s in obj)) {
+      log(`Shortcut '${s}' for '${key}'`);
+      obj[s] = obj[key];
+    }
+  }
+};
+
+
+// ============================================================
+// FILE: lib/os13k.js
+// ============================================================
+
+const icon = '👨‍🚀';
+
+const gameName = 'Captain Callisto';
+
+/**
+ * Adds an OS13k trophy.
+ * @param {string} trophyName
+ * @param {string=} message
+ */
+const addTrophy = (trophyName, message = '') => {
+  localStorage[`OS13kTrophy,${icon},${gameName},${trophyName}`] = message;
+};
+
+/**
+ * Registers a song with OS13k.
+ * @param {string} songName
+ * @param {!Object} song
+ */
+const registerSong = (songName, song) => {
+  localStorage[`OS13kMusic,${songName}`] = JSON.stringify(song);
+};
+
+
+// ============================================================
+// FILE: lib/rng.js
+// ============================================================
+
+/**
+ * Random number generator.
+ *
+ * LCG
+ * https://stackoverflow.com/a/424445/2051724
+ */
+class RNG {
+  /**
+     * Creates a new random number generator.
+     * @param {number} seed  The integer seed.
+     */
+  constructor(seed) {
+    // LCG using GCC's constants
+    this.m = 0x80000000; // 2**31;
+    this.a = 1103515245;
+    this.c = 12345;
+    this.state = seed;
+  }
+
+  /**
+     * @return {number}
+     */
+  nextInt() {
+    this.state = (this.a * this.state + this.c) % this.m;
+    return this.state;
+  }
+
+  /**
+     * @return {number}
+     */
+  nextFloat() {
+    // returns in range [0,1]
+    return this.nextInt() / (this.m - 1);
+  }
+
+  /**
+     * @param {number} start
+     * @param {number} end
+     * @return {number}
+     */
+  nextRange(start, end) {
+    // returns in range [start, end): including start, excluding end
+    // can't modulu nextInt because of weak randomness in lower bits
+    const rangeSize = end - start;
+    const randomUnder1 = this.nextInt() / this.m;
+    return start + ((randomUnder1 * rangeSize) | 0);
+  }
+}
+
+
+// ============================================================
+// FILE: lib/vec3.js
+// ============================================================
+// glMatrix - vec3
+// https://github.com/toji/gl-matrix/blob/master/src/gl-matrix/vec3.js
+
+/** @typedef {!Float32Array} */
+const vec3 = {};
+
+/**
+ * Creates a new, empty vec3
+ *
+ * @return {!vec3} a new 3D vector
+ */
+vec3.create = () => new Float32Array(3);
+
+/**
+ * Creates a new vec3 initialized with values from an existing vector
+ *
+ * @param {!vec3} a vector to clone
+ * @return {!vec3} a new 3D vector
+ */
+vec3.clone = (a) => new Float32Array(a);
+
+/**
+ * Calculates the magnitude of a vec3
+ *
+ * @param {!vec3} a vector to calculate length of
+ * @return {number} length of a
+ */
+vec3.magnitude = (a) => Math.hypot(a[0], a[1], a[2]);
+
+/**
+ * Creates a new vec3 initialized with the given values
+ *
+ * @param {number} x X component
+ * @param {number} y Y component
+ * @param {number} z Z component
+ * @return {!vec3} a new 3D vector
+ * @noinline
+ */
+vec3.fromValues = (x, y, z) => new Float32Array([x, y, z]);
+
+/**
+ * Copy the values from one vec3 to another
+ *
+ * @param {!vec3} out the receiving vector
+ * @param {!vec3} a the source vector
+ * @return {!vec3} out
+ */
+vec3.copy = (out, a) => {
+  out[0] = a[0];
+  out[1] = a[1];
+  out[2] = a[2];
+  return out;
+};
+
+/**
+ * Set the components of a vec3 to the given values
+ *
+ * @param {!vec3} out the receiving vector
+ * @param {number} x X component
+ * @param {number} y Y component
+ * @param {number} z Z component
+ * @return {!vec3} out
+ */
+vec3.set = (out, x, y, z) => {
+  out[0] = x;
+  out[1] = y;
+  out[2] = z;
+  return out;
+};
+
+/**
+ * Adds two vec3's
+ *
+ * @param {!vec3} out the receiving vector
+ * @param {!vec3} a the first operand
+ * @param {!vec3} b the second operand
+ * @return {!vec3} out
+ */
+vec3.add = (out, a, b) => {
+  out[0] = a[0] + b[0];
+  out[1] = a[1] + b[1];
+  out[2] = a[2] + b[2];
+  return out;
+};
+
+/**
+ * Subtracts vector b from vector a
+ *
+ * @param {!vec3} out the receiving vector
+ * @param {!vec3} a the first operand
+ * @param {!vec3} b the second operand
+ * @return {!vec3} out
+ */
+vec3.subtract = (out, a, b) => {
+  out[0] = a[0] - b[0];
+  out[1] = a[1] - b[1];
+  out[2] = a[2] - b[2];
+  return out;
+};
+
+/**
+ * Multiplies two vec3's
+ *
+ * @param {!vec3} out the receiving vector
+ * @param {!vec3} a the first operand
+ * @param {!vec3} b the second operand
+ * @return {!vec3} out
+ */
+vec3.multiply = (out, a, b) => {
+  out[0] = a[0] * b[0];
+  out[1] = a[1] * b[1];
+  out[2] = a[2] * b[2];
+  return out;
+};
+
+/**
+ * Divides two vec3's
+ *
+ * @param {!vec3} out the receiving vector
+ * @param {!vec3} a the first operand
+ * @param {!vec3} b the second operand
+ * @return {!vec3} out
+ */
+vec3.divide = (out, a, b) => {
+  out[0] = a[0] / b[0];
+  out[1] = a[1] / b[1];
+  out[2] = a[2] / b[2];
+  return out;
+};
+
+/**
+ * Math.ceil the components of a vec3
+ *
+ * @param {!vec3} out the receiving vector
+ * @param {!vec3} a vector to ceil
+ * @return {!vec3} out
+ */
+vec3.ceil = (out, a) => {
+  out[0] = Math.ceil(a[0]);
+  out[1] = Math.ceil(a[1]);
+  out[2] = Math.ceil(a[2]);
+  return out;
+};
+
+/**
+ * Returns the minimum of two vec3's
+ *
+ * @param {!vec3} out the receiving vector
+ * @param {!vec3} a the first operand
+ * @param {!vec3} b the second operand
+ * @return {!vec3} out
+ */
+vec3.min = (out, a, b) => {
+  out[0] = Math.min(a[0], b[0]);
+  out[1] = Math.min(a[1], b[1]);
+  out[2] = Math.min(a[2], b[2]);
+  return out;
+};
+
+/**
+ * Returns the maximum of two vec3's
+ *
+ * @param {!vec3} out the receiving vector
+ * @param {!vec3} a the first operand
+ * @param {!vec3} b the second operand
+ * @return {!vec3} out
+ */
+vec3.max = (out, a, b) => {
+  out[0] = Math.max(a[0], b[0]);
+  out[1] = Math.max(a[1], b[1]);
+  out[2] = Math.max(a[2], b[2]);
+  return out;
+};
+
+/**
+ * Scales a vec3 by a scalar number
+ *
+ * @param {!vec3} out the receiving vector
+ * @param {!vec3} a the vector to scale
+ * @param {number} b amount to scale the vector by
+ * @return {!vec3} out
+ */
+vec3.scale = (out, a, b) => {
+  out[0] = a[0] * b;
+  out[1] = a[1] * b;
+  out[2] = a[2] * b;
+  return out;
+};
+
+/**
+ * Adds two vec3's after scaling the second operand by a scalar value
+ *
+ * @param {!vec3} out the receiving vector
+ * @param {!vec3} a the first operand
+ * @param {!vec3} b the second operand
+ * @param {number} scale the amount to scale b by before adding
+ * @return {!vec3} out
+ */
+vec3.scaleAndAdd = (out, a, b, scale) => {
+  out[0] = a[0] + (b[0] * scale);
+  out[1] = a[1] + (b[1] * scale);
+  out[2] = a[2] + (b[2] * scale);
+  return out;
+};
+
+/**
+ * Calculates the euclidian distance between two vec3's
+ *
+ * @param {!vec3} a the first operand
+ * @param {!vec3} b the second operand
+ * @return {number} distance between a and b
+ */
+vec3.distance = (a, b) => {
+  const x = b[0] - a[0];
+  const y = b[1] - a[1];
+  const z = b[2] - a[2];
+  return Math.hypot(x, y, z);
+};
+
+/**
+ * Calculates the squared euclidian distance between two vec3's
+ *
+ * @param {!vec3} a the first operand
+ * @param {!vec3} b the second operand
+ * @return {number} squared distance between a and b
+ */
+vec3.squaredDistance = (a, b) => {
+  const x = b[0] - a[0];
+  const y = b[1] - a[1];
+  const z = b[2] - a[2];
+  return x * x + y * y + z * z;
+};
+
+/**
+ * Calculates the squared length of a vec3
+ *
+ * @param {!vec3} a vector to calculate squared length of
+ * @return {number} squared length of a
+ */
+vec3.squaredLength = (a) => {
+  const x = a[0];
+  const y = a[1];
+  const z = a[2];
+  return x * x + y * y + z * z;
+};
+
+/**
+ * Negates the components of a vec3
+ *
+ * @param {!vec3} out the receiving vector
+ * @param {!vec3} a vector to negate
+ * @return {!vec3} out
+ */
+vec3.negate = (out, a) => {
+  out[0] = -a[0];
+  out[1] = -a[1];
+  out[2] = -a[2];
+  return out;
+};
+
+/**
+ * Returns the inverse of the components of a vec3
+ *
+ * @param {!vec3} out the receiving vector
+ * @param {!vec3} a vector to invert
+ * @return {!vec3} out
+ */
+vec3.inverse = (out, a) => {
+  out[0] = 1.0 / a[0];
+  out[1] = 1.0 / a[1];
+  out[2] = 1.0 / a[2];
+  return out;
+};
+
+/**
+ * Normalize a vec3
+ *
+ * @param {!vec3} out the receiving vector
+ * @param {!vec3} a vector to normalize
+ * @return {!vec3} out
+ */
+vec3.normalize = (out, a) => {
+  const len = vec3.magnitude(a);
+  return len > 0 ? vec3.scale(out, a, 1 / len) : vec3.copy(out, a);
+};
+
+/**
+ * Calculates the dot product of two vec3's
+ *
+ * @param {!vec3} a the first operand
+ * @param {!vec3} b the second operand
+ * @return {number} dot product of a and b
+ */
+vec3.dot = (a, b) => {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+};
+
+/**
+ * Computes the cross product of two vec3's
+ *
+ * @param {!vec3} out the receiving vector
+ * @param {!vec3} a the first operand
+ * @param {!vec3} b the second operand
+ * @return {!vec3} out
+ */
+vec3.cross = (out, a, b) => {
+  const ax = a[0]; const ay = a[1]; const az = a[2];
+  const bx = b[0]; const by = b[1]; const bz = b[2];
+
+  out[0] = ay * bz - az * by;
+  out[1] = az * bx - ax * bz;
+  out[2] = ax * by - ay * bx;
+  return out;
+};
+
+/**
+ * Computes the cross product of two vec3's
+ *
+ * @param {!vec3} out the receiving vector
+ * @param {!vec3} origin the relative origin point for a and b
+ * @param {!vec3} a the first operand
+ * @param {!vec3} b the second operand
+ * @return {!vec3} out
+ */
+vec3.cross2 = (out, origin, a, b) => {
+  const ax = a[0] - origin[0]; const ay = a[1] - origin[1]; const az = a[2] - origin[2];
+  const bx = b[0] - origin[0]; const by = b[1] - origin[1]; const bz = b[2] - origin[2];
+
+  out[0] = ay * bz - az * by;
+  out[1] = az * bx - ax * bz;
+  out[2] = ax * by - ay * bx;
+  return out;
+};
+
+/**
+ * Performs a linear interpolation between two vec3's
+ *
+ * @param {!vec3} out the receiving vector
+ * @param {!vec3} a the first operand
+ * @param {!vec3} b the second operand
+ * @param {number} t interpolation amount, in the range [0-1], between the two inputs
+ * @return {!vec3} out
+ */
+vec3.lerp = (out, a, b, t) => {
+  out[0] = a[0] + t * (b[0] - a[0]);
+  out[1] = a[1] + t * (b[1] - a[1]);
+  out[2] = a[2] + t * (b[2] - a[2]);
+  return out;
+};
+
+/**
+ * Transforms the vec3 with a mat4.
+ * 4th vector component is implicitly '1'
+ *
+ * @param {!vec3} out the receiving vector
+ * @param {!vec3} a the vector to transform
+ * @param {!mat4} m matrix to transform with
+ * @return {!vec3} out
+ */
+vec3.transformMat4 = (out, a, m) => {
+  const x = a[0]; const y = a[1]; const z = a[2];
+  let w = m[3] * x + m[7] * y + m[11] * z + m[15];
+  w = w || 1.0;
+  out[0] = (m[0] * x + m[4] * y + m[8] * z + m[12]) / w;
+  out[1] = (m[1] * x + m[5] * y + m[9] * z + m[13]) / w;
+  out[2] = (m[2] * x + m[6] * y + m[10] * z + m[14]) / w;
+  return out;
+};
+
+/**
+ * Rotate a 3D vector around the x-axis
+ * @param {!vec3} out The receiving vec3
+ * @param {!vec3} a The vec3 point to rotate
+ * @param {!vec3} b The origin of the rotation
+ * @param {number} c The angle of rotation
+ * @return {!vec3} out
+ */
+vec3.rotateX = (out, a, b, c) => {
+  const p = []; const r = [];
+  // Translate point to the origin
+  p[0] = a[0] - b[0];
+  p[1] = a[1] - b[1];
+  p[2] = a[2] - b[2];
+
+  // perform rotation
+  r[0] = p[0];
+  r[1] = p[1] * Math.cos(c) - p[2] * Math.sin(c);
+  r[2] = p[1] * Math.sin(c) + p[2] * Math.cos(c);
+
+  // translate to correct position
+  out[0] = r[0] + b[0];
+  out[1] = r[1] + b[1];
+  out[2] = r[2] + b[2];
+
+  return out;
+};
+
+/**
+ * Rotate a 3D vector around the y-axis
+ * @param {!vec3} out The receiving vec3
+ * @param {!vec3} a The vec3 point to rotate
+ * @param {!vec3} b The origin of the rotation
+ * @param {number} c The angle of rotation
+ * @return {!vec3} out
+ */
+vec3.rotateY = (out, a, b, c) => {
+  const p = []; const r = [];
+  // Translate point to the origin
+  p[0] = a[0] - b[0];
+  p[1] = a[1] - b[1];
+  p[2] = a[2] - b[2];
+
+  // perform rotation
+  r[0] = p[2] * Math.sin(c) + p[0] * Math.cos(c);
+  r[1] = p[1];
+  r[2] = p[2] * Math.cos(c) - p[0] * Math.sin(c);
+
+  // translate to correct position
+  out[0] = r[0] + b[0];
+  out[1] = r[1] + b[1];
+  out[2] = r[2] + b[2];
+
+  return out;
+};
+
+/**
+ * Rotate a 3D vector around the z-axis
+ * @param {!vec3} out The receiving vec3
+ * @param {!vec3} a The vec3 point to rotate
+ * @param {!vec3} b The origin of the rotation
+ * @param {number} c The angle of rotation
+ * @return {!vec3} out
+ */
+vec3.rotateZ = (out, a, b, c) => {
+  const p = []; const r = [];
+  // Translate point to the origin
+  p[0] = a[0] - b[0];
+  p[1] = a[1] - b[1];
+  p[2] = a[2] - b[2];
+
+  // perform rotation
+  r[0] = p[0] * Math.cos(c) - p[1] * Math.sin(c);
+  r[1] = p[0] * Math.sin(c) + p[1] * Math.cos(c);
+  r[2] = p[2];
+
+  // translate to correct position
+  out[0] = r[0] + b[0];
+  out[1] = r[1] + b[1];
+  out[2] = r[2] + b[2];
+
+  return out;
+};
+
+/**
+ * Get the angle between two 3D vectors
+ * @param {!vec3} a The first operand
+ * @param {!vec3} b The second operand
+ * @return {number} The angle in radians
+ */
+vec3.angle = (a, b) => {
+  const tempA = vec3.fromValues(a[0], a[1], a[2]);
+  const tempB = vec3.fromValues(b[0], b[1], b[2]);
+
+  vec3.normalize(tempA, tempA);
+  vec3.normalize(tempB, tempB);
+
+  const cosine = vec3.dot(tempA, tempB);
+
+  if (cosine > 1.0) {
+    return 0;
+  } else if (cosine < -1.0) {
+    return Math.PI;
+  } else {
+    return Math.acos(cosine);
+  }
+};
+
+/**
+ * Returns a string representation of a vector
+ *
+ * @param {!vec3} a vector to represent as a string
+ * @return {string} string representation of the vector
+ */
+vec3.str = (a) => {
+  return 'vec3(' + a[0].toFixed(4) + ', ' + a[1].toFixed(4) + ', ' + a[2].toFixed(4) + ')';
+};
+
+/**
+ * Returns whether or not the vectors have exactly the same elements in the same position (when compared with ===)
+ *
+ * @param {!vec3} a The first vector.
+ * @param {!vec3} b The second vector.
+ * @return {boolean} True if the vectors are equal, false otherwise.
+ */
+vec3.exactEquals = (a, b) => {
+  return a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
+};
+
+/**
+ * Returns whether or not the vectors have approximately the same elements in the same position.
+ *
+ * @param {!vec3} a The first vector.
+ * @param {!vec3} b The second vector.
+ * @return {boolean} True if the vectors are equal, false otherwise.
+ */
+vec3.equals = (a, b) => {
+  const a0 = a[0]; const a1 = a[1]; const a2 = a[2];
+  const b0 = b[0]; const b1 = b[1]; const b2 = b[2];
+  return (Math.abs(a0 - b0) <= EPSILON * Math.max(1.0, Math.abs(a0), Math.abs(b0)) &&
+    Math.abs(a1 - b1) <= EPSILON * Math.max(1.0, Math.abs(a1), Math.abs(b1)) &&
+    Math.abs(a2 - b2) <= EPSILON * Math.max(1.0, Math.abs(a2), Math.abs(b2)));
+};
+
+
+// ============================================================
+// FILE: lib/mat4.js
+// ============================================================
+// glMatrix - mat4
+// https://github.com/toji/gl-matrix/blob/master/src/gl-matrix/mat4.js
+
+/** @typedef {!Float32Array} */
+const mat4 = {};
+
+/**
+ * Creates a new identity mat4
+ *
+ * @return {!mat4} a new 4x4 matrix
+ */
+mat4.create = () => {
+  const out = new Float32Array(16);
+  out[0] = 1;
+  out[5] = 1;
+  out[10] = 1;
+  out[15] = 1;
+  return out;
+};
+
+/**
+ * Creates a new mat4 initialized with values from an existing matrix
+ *
+ * @param {!mat4} a matrix to clone
+ * @return {!mat4} a new 4x4 matrix
+ */
+mat4.clone = (a) => {
+  const out = new Float32Array(16);
+  out[0] = a[0];
+  out[1] = a[1];
+  out[2] = a[2];
+  out[3] = a[3];
+  out[4] = a[4];
+  out[5] = a[5];
+  out[6] = a[6];
+  out[7] = a[7];
+  out[8] = a[8];
+  out[9] = a[9];
+  out[10] = a[10];
+  out[11] = a[11];
+  out[12] = a[12];
+  out[13] = a[13];
+  out[14] = a[14];
+  out[15] = a[15];
+  return out;
+};
+
+/**
+ * Copy the values from one mat4 to another
+ *
+ * @param {!mat4} out the receiving matrix
+ * @param {!mat4} a the source matrix
+ * @return {!mat4} out
+ */
+mat4.copy = (out, a) => {
+  out[0] = a[0];
+  out[1] = a[1];
+  out[2] = a[2];
+  out[3] = a[3];
+  out[4] = a[4];
+  out[5] = a[5];
+  out[6] = a[6];
+  out[7] = a[7];
+  out[8] = a[8];
+  out[9] = a[9];
+  out[10] = a[10];
+  out[11] = a[11];
+  out[12] = a[12];
+  out[13] = a[13];
+  out[14] = a[14];
+  out[15] = a[15];
+  return out;
+};
+
+/**
+ * Create a new mat4 with the given values
+ *
+ * @param {number} m00 Component in column 0, row 0 position (index 0)
+ * @param {number} m01 Component in column 0, row 1 position (index 1)
+ * @param {number} m02 Component in column 0, row 2 position (index 2)
+ * @param {number} m03 Component in column 0, row 3 position (index 3)
+ * @param {number} m10 Component in column 1, row 0 position (index 4)
+ * @param {number} m11 Component in column 1, row 1 position (index 5)
+ * @param {number} m12 Component in column 1, row 2 position (index 6)
+ * @param {number} m13 Component in column 1, row 3 position (index 7)
+ * @param {number} m20 Component in column 2, row 0 position (index 8)
+ * @param {number} m21 Component in column 2, row 1 position (index 9)
+ * @param {number} m22 Component in column 2, row 2 position (index 10)
+ * @param {number} m23 Component in column 2, row 3 position (index 11)
+ * @param {number} m30 Component in column 3, row 0 position (index 12)
+ * @param {number} m31 Component in column 3, row 1 position (index 13)
+ * @param {number} m32 Component in column 3, row 2 position (index 14)
+ * @param {number} m33 Component in column 3, row 3 position (index 15)
+ * @return {!mat4} A new mat4
+ */
+mat4.fromValues = (m00, m01, m02, m03, m10, m11, m12, m13, m20, m21, m22, m23, m30, m31, m32, m33) => {
+  const out = new Float32Array(16);
+  out[0] = m00;
+  out[1] = m01;
+  out[2] = m02;
+  out[3] = m03;
+  out[4] = m10;
+  out[5] = m11;
+  out[6] = m12;
+  out[7] = m13;
+  out[8] = m20;
+  out[9] = m21;
+  out[10] = m22;
+  out[11] = m23;
+  out[12] = m30;
+  out[13] = m31;
+  out[14] = m32;
+  out[15] = m33;
+  return out;
+};
+
+/**
+ * Set the components of a mat4 to the given values
+ *
+ * @param {!mat4} out the receiving matrix
+ * @param {number} m00 Component in column 0, row 0 position (index 0)
+ * @param {number} m01 Component in column 0, row 1 position (index 1)
+ * @param {number} m02 Component in column 0, row 2 position (index 2)
+ * @param {number} m03 Component in column 0, row 3 position (index 3)
+ * @param {number} m10 Component in column 1, row 0 position (index 4)
+ * @param {number} m11 Component in column 1, row 1 position (index 5)
+ * @param {number} m12 Component in column 1, row 2 position (index 6)
+ * @param {number} m13 Component in column 1, row 3 position (index 7)
+ * @param {number} m20 Component in column 2, row 0 position (index 8)
+ * @param {number} m21 Component in column 2, row 1 position (index 9)
+ * @param {number} m22 Component in column 2, row 2 position (index 10)
+ * @param {number} m23 Component in column 2, row 3 position (index 11)
+ * @param {number} m30 Component in column 3, row 0 position (index 12)
+ * @param {number} m31 Component in column 3, row 1 position (index 13)
+ * @param {number} m32 Component in column 3, row 2 position (index 14)
+ * @param {number} m33 Component in column 3, row 3 position (index 15)
+ * @return {!mat4} out
+ */
+mat4.set = (out, m00, m01, m02, m03, m10, m11, m12, m13, m20, m21, m22, m23, m30, m31, m32, m33) => {
+  out[0] = m00;
+  out[1] = m01;
+  out[2] = m02;
+  out[3] = m03;
+  out[4] = m10;
+  out[5] = m11;
+  out[6] = m12;
+  out[7] = m13;
+  out[8] = m20;
+  out[9] = m21;
+  out[10] = m22;
+  out[11] = m23;
+  out[12] = m30;
+  out[13] = m31;
+  out[14] = m32;
+  out[15] = m33;
+  return out;
+};
+
+/**
+ * Set a mat4 to the identity matrix
+ *
+ * @param {!mat4} out the receiving matrix
+ * @return {!mat4} out
+ */
+mat4.identity = (out) => {
+  out[0] = 1;
+  out[1] = 0;
+  out[2] = 0;
+  out[3] = 0;
+  out[4] = 0;
+  out[5] = 1;
+  out[6] = 0;
+  out[7] = 0;
+  out[8] = 0;
+  out[9] = 0;
+  out[10] = 1;
+  out[11] = 0;
+  out[12] = 0;
+  out[13] = 0;
+  out[14] = 0;
+  out[15] = 1;
+  return out;
+};
+
+/**
+ * Transpose the values of a mat4
+ *
+ * @param {!mat4} out the receiving matrix
+ * @param {!mat4} a the source matrix
+ * @return {!mat4} out
+ */
+mat4.transpose = (out, a) => {
+  // If we are transposing ourselves we can skip a few steps but have to cache some values
+  if (out === a) {
+    const a01 = a[1];
+    const a02 = a[2];
+    const a03 = a[3];
+    const a12 = a[6];
+    const a13 = a[7];
+    const a23 = a[11];
+
+    out[1] = a[4];
+    out[2] = a[8];
+    out[3] = a[12];
+    out[4] = a01;
+    out[6] = a[9];
+    out[7] = a[13];
+    out[8] = a02;
+    out[9] = a12;
+    out[11] = a[14];
+    out[12] = a03;
+    out[13] = a13;
+    out[14] = a23;
+  } else {
+    out[0] = a[0];
+    out[1] = a[4];
+    out[2] = a[8];
+    out[3] = a[12];
+    out[4] = a[1];
+    out[5] = a[5];
+    out[6] = a[9];
+    out[7] = a[13];
+    out[8] = a[2];
+    out[9] = a[6];
+    out[10] = a[10];
+    out[11] = a[14];
+    out[12] = a[3];
+    out[13] = a[7];
+    out[14] = a[11];
+    out[15] = a[15];
+  }
+
+  return out;
+};
+
+/**
+ * Inverts a mat4
+ *
+ * @param {!mat4} out the receiving matrix
+ * @param {!mat4} a the source matrix
+ * @return {?mat4} out
+ */
+mat4.invert = (out, a) => {
+  const a00 = a[0];
+  const a01 = a[1];
+  const a02 = a[2];
+  const a03 = a[3];
+  const a10 = a[4];
+  const a11 = a[5];
+  const a12 = a[6];
+  const a13 = a[7];
+  const a20 = a[8];
+  const a21 = a[9];
+  const a22 = a[10];
+  const a23 = a[11];
+  const a30 = a[12];
+  const a31 = a[13];
+  const a32 = a[14];
+  const a33 = a[15];
+
+  const b00 = a00 * a11 - a01 * a10;
+  const b01 = a00 * a12 - a02 * a10;
+  const b02 = a00 * a13 - a03 * a10;
+  const b03 = a01 * a12 - a02 * a11;
+  const b04 = a01 * a13 - a03 * a11;
+  const b05 = a02 * a13 - a03 * a12;
+  const b06 = a20 * a31 - a21 * a30;
+  const b07 = a20 * a32 - a22 * a30;
+  const b08 = a20 * a33 - a23 * a30;
+  const b09 = a21 * a32 - a22 * a31;
+  const b10 = a21 * a33 - a23 * a31;
+  const b11 = a22 * a33 - a23 * a32;
+
+  // Calculate the determinant
+  let det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
+
+  if (!det) {
+    return null;
+  }
+  det = 1.0 / det;
+
+  out[0] = (a11 * b11 - a12 * b10 + a13 * b09) * det;
+  out[1] = (a02 * b10 - a01 * b11 - a03 * b09) * det;
+  out[2] = (a31 * b05 - a32 * b04 + a33 * b03) * det;
+  out[3] = (a22 * b04 - a21 * b05 - a23 * b03) * det;
+  out[4] = (a12 * b08 - a10 * b11 - a13 * b07) * det;
+  out[5] = (a00 * b11 - a02 * b08 + a03 * b07) * det;
+  out[6] = (a32 * b02 - a30 * b05 - a33 * b01) * det;
+  out[7] = (a20 * b05 - a22 * b02 + a23 * b01) * det;
+  out[8] = (a10 * b10 - a11 * b08 + a13 * b06) * det;
+  out[9] = (a01 * b08 - a00 * b10 - a03 * b06) * det;
+  out[10] = (a30 * b04 - a31 * b02 + a33 * b00) * det;
+  out[11] = (a21 * b02 - a20 * b04 - a23 * b00) * det;
+  out[12] = (a11 * b07 - a10 * b09 - a12 * b06) * det;
+  out[13] = (a00 * b09 - a01 * b07 + a02 * b06) * det;
+  out[14] = (a31 * b01 - a30 * b03 - a32 * b00) * det;
+  out[15] = (a20 * b03 - a21 * b01 + a22 * b00) * det;
+
+  return out;
+};
+
+/**
+ * Multiplies two mat4s
+ *
+ * @param {!mat4} out the receiving matrix
+ * @param {!mat4} a the first operand
+ * @param {!mat4} b the second operand
+ * @return {!mat4} out
+ */
+mat4.multiply = (out, a, b) => {
+  const a00 = a[0];
+  const a01 = a[1];
+  const a02 = a[2];
+  const a03 = a[3];
+  const a10 = a[4];
+  const a11 = a[5];
+  const a12 = a[6];
+  const a13 = a[7];
+  const a20 = a[8];
+  const a21 = a[9];
+  const a22 = a[10];
+  const a23 = a[11];
+  const a30 = a[12];
+  const a31 = a[13];
+  const a32 = a[14];
+  const a33 = a[15];
+
+  // Cache only the current line of the second matrix
+  let b0 = b[0];
+  let b1 = b[1];
+  let b2 = b[2];
+  let b3 = b[3];
+  out[0] = b0 * a00 + b1 * a10 + b2 * a20 + b3 * a30;
+  out[1] = b0 * a01 + b1 * a11 + b2 * a21 + b3 * a31;
+  out[2] = b0 * a02 + b1 * a12 + b2 * a22 + b3 * a32;
+  out[3] = b0 * a03 + b1 * a13 + b2 * a23 + b3 * a33;
+
+  b0 = b[4]; b1 = b[5]; b2 = b[6]; b3 = b[7];
+  out[4] = b0 * a00 + b1 * a10 + b2 * a20 + b3 * a30;
+  out[5] = b0 * a01 + b1 * a11 + b2 * a21 + b3 * a31;
+  out[6] = b0 * a02 + b1 * a12 + b2 * a22 + b3 * a32;
+  out[7] = b0 * a03 + b1 * a13 + b2 * a23 + b3 * a33;
+
+  b0 = b[8]; b1 = b[9]; b2 = b[10]; b3 = b[11];
+  out[8] = b0 * a00 + b1 * a10 + b2 * a20 + b3 * a30;
+  out[9] = b0 * a01 + b1 * a11 + b2 * a21 + b3 * a31;
+  out[10] = b0 * a02 + b1 * a12 + b2 * a22 + b3 * a32;
+  out[11] = b0 * a03 + b1 * a13 + b2 * a23 + b3 * a33;
+
+  b0 = b[12]; b1 = b[13]; b2 = b[14]; b3 = b[15];
+  out[12] = b0 * a00 + b1 * a10 + b2 * a20 + b3 * a30;
+  out[13] = b0 * a01 + b1 * a11 + b2 * a21 + b3 * a31;
+  out[14] = b0 * a02 + b1 * a12 + b2 * a22 + b3 * a32;
+  out[15] = b0 * a03 + b1 * a13 + b2 * a23 + b3 * a33;
+  return out;
+};
+
+/**
+ * Translate a mat4 by the given vector
+ *
+ * @param {!mat4} out the receiving matrix
+ * @param {!mat4} a the matrix to translate
+ * @param {!vec3} v vector to translate by
+ * @return {!mat4} out
+ */
+mat4.translate = (out, a, v) => {
+  const x = v[0];
+  const y = v[1];
+  const z = v[2];
+  let a00 = void 0;
+  let a01 = void 0;
+  let a02 = void 0;
+  let a03 = void 0;
+  let a10 = void 0;
+  let a11 = void 0;
+  let a12 = void 0;
+  let a13 = void 0;
+  let a20 = void 0;
+  let a21 = void 0;
+  let a22 = void 0;
+  let a23 = void 0;
+
+  if (a === out) {
+    out[12] = a[0] * x + a[4] * y + a[8] * z + a[12];
+    out[13] = a[1] * x + a[5] * y + a[9] * z + a[13];
+    out[14] = a[2] * x + a[6] * y + a[10] * z + a[14];
+    out[15] = a[3] * x + a[7] * y + a[11] * z + a[15];
+  } else {
+    a00 = a[0]; a01 = a[1]; a02 = a[2]; a03 = a[3];
+    a10 = a[4]; a11 = a[5]; a12 = a[6]; a13 = a[7];
+    a20 = a[8]; a21 = a[9]; a22 = a[10]; a23 = a[11];
+
+    out[0] = a00; out[1] = a01; out[2] = a02; out[3] = a03;
+    out[4] = a10; out[5] = a11; out[6] = a12; out[7] = a13;
+    out[8] = a20; out[9] = a21; out[10] = a22; out[11] = a23;
+
+    out[12] = a00 * x + a10 * y + a20 * z + a[12];
+    out[13] = a01 * x + a11 * y + a21 * z + a[13];
+    out[14] = a02 * x + a12 * y + a22 * z + a[14];
+    out[15] = a03 * x + a13 * y + a23 * z + a[15];
+  }
+
+  return out;
+};
+
+/**
+ * Scales the mat4 by the dimensions in the given vec3 not using vectorization
+ *
+ * @param {!mat4} out the receiving matrix
+ * @param {!mat4} a the matrix to scale
+ * @param {!vec3} v the vec3 to scale the matrix by
+ * @return {!mat4} out
+ **/
+mat4.scale = (out, a, v) => {
+  const x = v[0];
+  const y = v[1];
+  const z = v[2];
+
+  out[0] = a[0] * x;
+  out[1] = a[1] * x;
+  out[2] = a[2] * x;
+  out[3] = a[3] * x;
+  out[4] = a[4] * y;
+  out[5] = a[5] * y;
+  out[6] = a[6] * y;
+  out[7] = a[7] * y;
+  out[8] = a[8] * z;
+  out[9] = a[9] * z;
+  out[10] = a[10] * z;
+  out[11] = a[11] * z;
+  out[12] = a[12];
+  out[13] = a[13];
+  out[14] = a[14];
+  out[15] = a[15];
+  return out;
+};
+
+/**
+ * Rotates a mat4 by the given angle around the given axis
+ *
+ * @param {!mat4} out the receiving matrix
+ * @param {!mat4} a the matrix to rotate
+ * @param {number} rad the angle to rotate the matrix by
+ * @param {!vec3} axis the axis to rotate around
+ * @return {?mat4} out
+ */
+mat4.rotate = (out, a, rad, axis) => {
+  let x = axis[0];
+  let y = axis[1];
+  let z = axis[2];
+  let len = Math.sqrt(x * x + y * y + z * z);
+  let s = void 0;
+  let c = void 0;
+  let t = void 0;
+  let a00 = void 0;
+  let a01 = void 0;
+  let a02 = void 0;
+  let a03 = void 0;
+  let a10 = void 0;
+  let a11 = void 0;
+  let a12 = void 0;
+  let a13 = void 0;
+  let a20 = void 0;
+  let a21 = void 0;
+  let a22 = void 0;
+  let a23 = void 0;
+  let b00 = void 0;
+  let b01 = void 0;
+  let b02 = void 0;
+  let b10 = void 0;
+  let b11 = void 0;
+  let b12 = void 0;
+  let b20 = void 0;
+  let b21 = void 0;
+  let b22 = void 0;
+
+  if (Math.abs(len) < EPSILON) {
+    return null;
+  }
+
+  len = 1 / len;
+  x *= len;
+  y *= len;
+  z *= len;
+
+  s = Math.sin(rad);
+  c = Math.cos(rad);
+  t = 1 - c;
+
+  a00 = a[0]; a01 = a[1]; a02 = a[2]; a03 = a[3];
+  a10 = a[4]; a11 = a[5]; a12 = a[6]; a13 = a[7];
+  a20 = a[8]; a21 = a[9]; a22 = a[10]; a23 = a[11];
+
+  // Construct the elements of the rotation matrix
+  b00 = x * x * t + c; b01 = y * x * t + z * s; b02 = z * x * t - y * s;
+  b10 = x * y * t - z * s; b11 = y * y * t + c; b12 = z * y * t + x * s;
+  b20 = x * z * t + y * s; b21 = y * z * t - x * s; b22 = z * z * t + c;
+
+  // Perform rotation-specific matrix multiplication
+  out[0] = a00 * b00 + a10 * b01 + a20 * b02;
+  out[1] = a01 * b00 + a11 * b01 + a21 * b02;
+  out[2] = a02 * b00 + a12 * b01 + a22 * b02;
+  out[3] = a03 * b00 + a13 * b01 + a23 * b02;
+  out[4] = a00 * b10 + a10 * b11 + a20 * b12;
+  out[5] = a01 * b10 + a11 * b11 + a21 * b12;
+  out[6] = a02 * b10 + a12 * b11 + a22 * b12;
+  out[7] = a03 * b10 + a13 * b11 + a23 * b12;
+  out[8] = a00 * b20 + a10 * b21 + a20 * b22;
+  out[9] = a01 * b20 + a11 * b21 + a21 * b22;
+  out[10] = a02 * b20 + a12 * b21 + a22 * b22;
+  out[11] = a03 * b20 + a13 * b21 + a23 * b22;
+
+  if (a !== out) {
+    // If the source and destination differ, copy the unchanged last row
+    out[12] = a[12];
+    out[13] = a[13];
+    out[14] = a[14];
+    out[15] = a[15];
+  }
+  return out;
+};
+
+/**
+ * Rotates a matrix by the given angle around the X axis
+ *
+ * @param {!mat4} out the receiving matrix
+ * @param {!mat4} a the matrix to rotate
+ * @param {number} rad the angle to rotate the matrix by
+ * @return {!mat4} out
+ */
+mat4.rotateX = (out, a, rad) => {
+  const s = Math.sin(rad);
+  const c = Math.cos(rad);
+  const a10 = a[4];
+  const a11 = a[5];
+  const a12 = a[6];
+  const a13 = a[7];
+  const a20 = a[8];
+  const a21 = a[9];
+  const a22 = a[10];
+  const a23 = a[11];
+
+  if (a !== out) {
+    // If the source and destination differ, copy the unchanged rows
+    out[0] = a[0];
+    out[1] = a[1];
+    out[2] = a[2];
+    out[3] = a[3];
+    out[12] = a[12];
+    out[13] = a[13];
+    out[14] = a[14];
+    out[15] = a[15];
+  }
+
+  // Perform axis-specific matrix multiplication
+  out[4] = a10 * c + a20 * s;
+  out[5] = a11 * c + a21 * s;
+  out[6] = a12 * c + a22 * s;
+  out[7] = a13 * c + a23 * s;
+  out[8] = a20 * c - a10 * s;
+  out[9] = a21 * c - a11 * s;
+  out[10] = a22 * c - a12 * s;
+  out[11] = a23 * c - a13 * s;
+  return out;
+};
+
+/**
+ * Rotates a matrix by the given angle around the Y axis
+ *
+ * @param {!mat4} out the receiving matrix
+ * @param {!mat4} a the matrix to rotate
+ * @param {number} rad the angle to rotate the matrix by
+ * @return {!mat4} out
+ */
+mat4.rotateY = (out, a, rad) => {
+  const s = Math.sin(rad);
+  const c = Math.cos(rad);
+  const a00 = a[0];
+  const a01 = a[1];
+  const a02 = a[2];
+  const a03 = a[3];
+  const a20 = a[8];
+  const a21 = a[9];
+  const a22 = a[10];
+  const a23 = a[11];
+
+  if (a !== out) {
+    // If the source and destination differ, copy the unchanged rows
+    out[4] = a[4];
+    out[5] = a[5];
+    out[6] = a[6];
+    out[7] = a[7];
+    out[12] = a[12];
+    out[13] = a[13];
+    out[14] = a[14];
+    out[15] = a[15];
+  }
+
+  // Perform axis-specific matrix multiplication
+  out[0] = a00 * c - a20 * s;
+  out[1] = a01 * c - a21 * s;
+  out[2] = a02 * c - a22 * s;
+  out[3] = a03 * c - a23 * s;
+  out[8] = a00 * s + a20 * c;
+  out[9] = a01 * s + a21 * c;
+  out[10] = a02 * s + a22 * c;
+  out[11] = a03 * s + a23 * c;
+  return out;
+};
+
+/**
+ * Rotates a matrix by the given angle around the Z axis
+ *
+ * @param {!mat4} out the receiving matrix
+ * @param {!mat4} a the matrix to rotate
+ * @param {number} rad the angle to rotate the matrix by
+ * @return {!mat4} out
+ */
+mat4.rotateZ = (out, a, rad) => {
+  const s = Math.sin(rad);
+  const c = Math.cos(rad);
+  const a00 = a[0];
+  const a01 = a[1];
+  const a02 = a[2];
+  const a03 = a[3];
+  const a10 = a[4];
+  const a11 = a[5];
+  const a12 = a[6];
+  const a13 = a[7];
+
+  if (a !== out) {
+    // If the source and destination differ, copy the unchanged last row
+    out[8] = a[8];
+    out[9] = a[9];
+    out[10] = a[10];
+    out[11] = a[11];
+    out[12] = a[12];
+    out[13] = a[13];
+    out[14] = a[14];
+    out[15] = a[15];
+  }
+
+  // Perform axis-specific matrix multiplication
+  out[0] = a00 * c + a10 * s;
+  out[1] = a01 * c + a11 * s;
+  out[2] = a02 * c + a12 * s;
+  out[3] = a03 * c + a13 * s;
+  out[4] = a10 * c - a00 * s;
+  out[5] = a11 * c - a01 * s;
+  out[6] = a12 * c - a02 * s;
+  out[7] = a13 * c - a03 * s;
+  return out;
+};
+
+/**
+ * Returns the translation vector component of a transformation
+ *  matrix. If a matrix is built with fromRotationTranslation,
+ *  the returned vector will be the same as the translation vector
+ *  originally supplied.
+ * @param  {!vec3} out Vector to receive translation component
+ * @param  {!mat4} mat Matrix to be decomposed (input)
+ * @return {!vec3} out
+ */
+mat4.getTranslation = (out, mat) => {
+  out[0] = mat[12];
+  out[1] = mat[13];
+  out[2] = mat[14];
+
+  return out;
+};
+
+/**
+ * Generates a perspective projection matrix with the given bounds
+ *
+ * @param {!mat4} out mat4 frustum matrix will be written into
+ * @param {number} fovy Vertical field of view in radians
+ * @param {number} aspect Aspect ratio. typically viewport width/height
+ * @param {number} near Near bound of the frustum
+ * @param {number} far Far bound of the frustum
+ * @return {!mat4} out
+ */
+mat4.perspective = (out, fovy, aspect, near, far) => {
+  const f = 1.0 / Math.tan(fovy / 2);
+  const nf = 1 / (near - far);
+  out[0] = f / aspect;
+  out[1] = 0;
+  out[2] = 0;
+  out[3] = 0;
+  out[4] = 0;
+  out[5] = f;
+  out[6] = 0;
+  out[7] = 0;
+  out[8] = 0;
+  out[9] = 0;
+  out[10] = -(far + near) * nf;
+  out[11] = 1;
+  out[12] = 0;
+  out[13] = 0;
+  out[14] = 2 * far * near * nf;
+  out[15] = 0;
+  return out;
+};
+
+
+// ============================================================
+// FILE: lib/geometry.js
+// ============================================================
+
+/**
+ * Identity transform.
+ * Uniform face distribution.
+ * @param {number} x
+ * @return {number}
+ */
+const identityTransform = (x) => x;
+
+/**
+ * Sigmoid transform.
+ * Can be used as the densityTransform in buildFace.
+ * Pushes more faces to the corners.
+ * @param {number} x
+ * @return {number}
+ */
+const sigmoidTransform = (x) => 0.5 + 0.5 * Math.tanh((x - 0.5) * 10);
+
+/**
+ * Builds a rounded cube.
+ * @param {number} n Number of quads per axis per face.
+ * @param {number} maxRadius Maximum distance of a point from the origin.
+ * @param {function(number): number} densityTransform
+ * @return {!Float32Array}
+ */
+const buildRoundedCube = (n, maxRadius, densityTransform) => {
+  // Output data
+  const data = [];
+
+  // The 8 corners of the unit cube
+  const p1 = vec3.fromValues(-1, 1, -1);
+  const p2 = vec3.fromValues(1, 1, -1);
+  const p3 = vec3.fromValues(1, 1, 1);
+  const p4 = vec3.fromValues(-1, 1, 1);
+  const p5 = vec3.fromValues(-1, -1, -1);
+  const p6 = vec3.fromValues(1, -1, -1);
+  const p7 = vec3.fromValues(1, -1, 1);
+  const p8 = vec3.fromValues(-1, -1, 1);
+
+  // Temp variables for face edges
+  const di = vec3.create();
+  const dj = vec3.create();
+
+  // Temp variables for 4 corners of a single quad
+  const tmp1 = vec3.create();
+  const tmp2 = vec3.create();
+  const tmp3 = vec3.create();
+  const tmp4 = vec3.create();
+
+  /**
+   * Builds a rounded face.
+   * @param {!vec3} origin
+   * @param {!vec3} topRight
+   * @param {!vec3} bottomLeft
+   */
+  const buildFace = (origin, topRight, bottomLeft) => {
+    vec3.subtract(di, topRight, origin);
+    vec3.subtract(dj, bottomLeft, origin);
+
+    /**
+     * Builds a point for the given i and j.
+     * @param {!vec3} out
+     * @param {number} i
+     * @param {number} j
+     */
+    const buildPoint = (out, i, j) => {
+      vec3.scaleAndAdd(out, origin, di, densityTransform(i / n));
+      vec3.scaleAndAdd(out, out, dj, densityTransform(j / n));
+      const len = vec3.magnitude(out);
+      if (len > maxRadius) {
+        vec3.scale(out, out, maxRadius / len);
+      }
+    };
+
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        buildPoint(tmp1, i, j);
+        buildPoint(tmp2, i + 1, j);
+        buildPoint(tmp3, i + 1, j + 1);
+        buildPoint(tmp4, i, j + 1);
+        addQuad(data, tmp1, tmp2, tmp3, tmp4);
+      }
+    }
+  };
+
+  // Top
+  buildFace(p1, p2, p4);
+
+  // Bottom
+  buildFace(p8, p7, p5);
+
+  // Back / South
+  buildFace(p2, p1, p6);
+
+  // Front / North
+  buildFace(p4, p3, p8);
+
+  // Left / West
+  buildFace(p1, p4, p5);
+
+  // Right / East
+  buildFace(p3, p2, p7);
+
+  return new Float32Array(data);
+};
+
+/**
+ * Adds a quad to the buffer set.
+ * @param {!Array.<number>} data
+ * @param {!vec3} p1
+ * @param {!vec3} p2
+ * @param {!vec3} p3
+ * @param {!vec3} p4
+ */
+const addQuad = (data, p1, p2, p3, p4) => {
+  addTriangle(data, p1, p2, p3);
+  addTriangle(data, p1, p3, p4);
+};
+
+/**
+ * Adds a triangle to the buffer set.
+ * @param {!Array.<number>} data
+ * @param {!vec3} p1
+ * @param {!vec3} p2
+ * @param {!vec3} p3
+ */
+const addTriangle = (data, p1, p2, p3) => {
+  addPoint(data, p1);
+  addPoint(data, p2);
+  addPoint(data, p3);
+};
+
+/**
+ * Adds a point
+ * @param {!Array.<number>} data
+ * @param {!vec3} p
+ * @return {number}
+ */
+const addPoint = (data, p) => data.push(...p);
+
+
+// ============================================================
+// FILE: lib/bufferset.js
+// ============================================================
+/**
+ * Components refer to the GLSL inputs.
+ * They can be 32 bit floats (for vec3 coordinates and transformation matrices),
+ * or they can be 32 bit unsigned integers (for colors).
+ * @const {number}
+ */
+const BYTES_PER_COMPONENT = 4;
+
+/**
+ * Vertices are simple 3-dimensional vectors.
+ * No color or texture data is on the vertex.
+ * @const {number}
+ */
+const COMPONENTS_PER_VERTEX = 3;
+
+/** @const {number} */
+const BYTES_PER_VERTEX = COMPONENTS_PER_VERTEX * BYTES_PER_COMPONENT;
+
+/** @const {number} */
+const COMPONENTS_PER_MATRIX = 4 * 4;
+
+/** @const {number} */
+const BYTES_PER_MATRIX = COMPONENTS_PER_MATRIX * BYTES_PER_COMPONENT;
+
+/**
+ * Each instance has one 32-bit color and one 4x4 transofrmation matrix.
+ * @const {number}
+ */
+const COMPONENTS_PER_INSTANCE = 1 + COMPONENTS_PER_MATRIX;
+
+/** @const {number} */
+const BYTES_PER_INSTANCE = COMPONENTS_PER_INSTANCE * BYTES_PER_COMPONENT;
+
+/** @typedef {number} */
+let GLenum;
+
+/**
+ * The BufferSet class represents a collection of WebGL buffers for a render pass.
+ *
+ * There are 2 buffers:
+ * 1) Geometry data.  This is the same for each instance.
+ * 2) Instance data.  This is different for each instance.
+ *
+ * Geometry data includes:
+ * 1) Position coordinates (x, y, z) in unit space.
+ * 2) That's it.  No color or texture data.
+ *
+ * Geometry therefore is 3 float components = 12 bytes.
+ *
+ * Instance data includes:
+ * 1) A 32-bit color.
+ * 2) Model matrix (4x4 transformation)
+ *
+ * Instance data therefore is 17 float components = 68 bytes.
+ */
+class BufferSet {
+  /**
+   * Creates a new buffer set.
+   *
+   * @param {!GLenum} usage The usage pattern (either STATIC_DRAW or DYNAMIC_DRAW).
+   * @param {!Float32Array} geometry The unit geometry for a single instance.
+   * @param {number} maxInstances Maximum number of instances.
+   */
+  constructor(usage, geometry, maxInstances) {
+    /** @const {!GLenum} */
+    this.usage = usage;
+
+    /** @const {number} */
+    this.verticesPerInstance = geometry.length / COMPONENTS_PER_VERTEX;
+
+    /** @type {number}  */
+    this.instanceCount = 0;
+
+    /** @const {!WebGLVertexArrayObject} */
+    this.vao = /** @type {!WebGLVertexArrayObject} */ (gl.createVertexArray());
+    gl.bindVertexArray(this.vao);
+
+    /** @const {!WebGLBuffer} */
+    this.geometryBuffer = /** @type {!WebGLBuffer} */ (gl.createBuffer());
+
+    gl.bindBuffer(ARRAY_BUFFER, this.geometryBuffer);
+    gl.bufferData(ARRAY_BUFFER, geometry, STATIC_DRAW);
+
+    // Geometry attributes
+    // One vertex is [x, y, z], 3 components, 12 bytes
+    gl.enableVertexAttribArray(positionAttrib);
+    gl.vertexAttribPointer(positionAttrib, 3, FLOAT, false, BYTES_PER_VERTEX, 0);
+
+    /** @const {!Uint32Array} */
+    this.instanceData = new Uint32Array(maxInstances * COMPONENTS_PER_INSTANCE);
+
+    /** @const {!WebGLBuffer} */
+    this.instanceBuffer = /** @type {!WebGLBuffer} */ (gl.createBuffer());
+
+    gl.bindBuffer(ARRAY_BUFFER, this.instanceBuffer);
+    gl.bufferData(ARRAY_BUFFER, this.instanceData, usage);
+
+    // Instance attributes
+    // Colors and model matrices are interleaved
+    // One vertex is [color, mat4], 17 components, 68 bytes
+    // Actually...
+    // In JavaScript code, we refer to color as a single 32-bit number
+    // In GLSL code, we refer to color as a vec4, composed of 4 unsigned bytes.
+    gl.enableVertexAttribArray(colorAttrib);
+    gl.vertexAttribPointer(colorAttrib, 4, UNSIGNED_BYTE, true, BYTES_PER_INSTANCE, 0);
+    gl.vertexAttribDivisor(colorAttrib, 1);
+
+    /** @const {!Array.<!mat4>} */
+    this.matrices = new Array(maxInstances);
+    for (let i = 0; i < maxInstances; i++) {
+      // Find the offset for the matrix...
+      // Jump to the offset for the instance (i * BYTES_PER_INSTANCE)
+      // plus one component for the color (1 * BYTES_PER_COMPONENT)
+      const byteOffsetToMatrix = 1 * BYTES_PER_COMPONENT + i * BYTES_PER_INSTANCE;
+      this.matrices[i] = new Float32Array(
+          this.instanceData.buffer,
+          byteOffsetToMatrix,
+          COMPONENTS_PER_MATRIX);
+    }
+
+    gl.enableVertexAttribArray(worldMatrixAttrib);
+
+    // Set all 4 attributes for matrix
+    // Technically a matrix is passed in as 4 separate vec4's
+    for (let i = 0; i < 4; i++) {
+      const loc = worldMatrixAttrib + i;
+      gl.enableVertexAttribArray(loc);
+      // Calculate the stride and offset for each matrix row
+      // Stride is simple: one stride per instance -> BYTES_PER_INSTANCE
+      // Offset is a little more tricky:
+      // First, 8 bytes for the texture offset (2 components * 4 bytes per float)
+      // Plus i * 16 for 4 floats per row * 4 bytes per float
+      const offset = 4 + i * 16;
+      gl.vertexAttribPointer(
+          loc, // location
+          4, // size (num values to pull from buffer per iteration)
+          FLOAT, // type of data in buffer
+          false, // normalize
+          BYTES_PER_INSTANCE, // stride, num bytes to advance to get to next set of values
+          offset, // offset in buffer
+      );
+      // this line says this attribute only changes for each 1 instance
+      gl.vertexAttribDivisor(loc, 1);
+    }
+  }
+
+  /**
+   * Resets the buffers to empty state.
+   */
+  resetBuffers() {
+    this.instanceCount = 0;
+  }
+
+  /**
+   * Adds a new instance to the set.
+   * @param {number} color The 32-bit color.
+   * @return {!mat4}
+   */
+  addInstance(color) {
+    const i = this.instanceCount++;
+    if (DEBUG) {
+      if (i * COMPONENTS_PER_INSTANCE >= this.instanceData.length) {
+        throw new Error('Out of instances ' +
+          '(i=' + i + ', max=' + (this.instanceData.length / COMPONENTS_PER_INSTANCE) + ')');
+      }
+    }
+    this.instanceData[i * COMPONENTS_PER_INSTANCE] = color;
+    return mat4.identity(this.matrices[i]);
+  }
+
+  /**
+   * Updates the WebGL buffers with the current data.
+   */
+  updateBuffers() {
+    gl.bindBuffer(ARRAY_BUFFER, this.instanceBuffer);
+    gl.bufferData(ARRAY_BUFFER, this.instanceData, this.usage);
+  }
+
+  /**
+   * Draws the buffer set.
+   */
+  render() {
+    gl.bindVertexArray(this.vao);
+
+    if (this.usage === DYNAMIC_DRAW) {
+      // TODO:  Combine this with updateBuffers
+      // Can these be called before bindVertex array?
+      // TODO:  Use overload to only update minimum number of elements
+      // Use bufferSubData for number of instances * BYTES_PER_INSTANCE
+      gl.bindBuffer(ARRAY_BUFFER, this.instanceBuffer);
+      // gl.bufferData(ARRAY_BUFFER, this.instanceData, this.usage);
+      // void gl.bufferSubData(target, dstByteOffset, ArrayBufferView srcData, srcOffset, length);
+      gl.bufferSubData(ARRAY_BUFFER, 0, this.instanceData, 0, this.instanceCount * COMPONENTS_PER_INSTANCE);
+    }
+
+    gl.drawArraysInstanced(TRIANGLES, 0, this.verticesPerInstance, this.instanceCount);
+  }
+}
+
+
+// ============================================================
+// FILE: lib/events.js
+// ============================================================
+
+/**
+ * Kills an event by preventing default behavior and stopping all propagation.
+ * @param {!Event} e
+ */
+const killEvent = (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+};
+
+
+// ============================================================
+// FILE: lib/keyboard.js
+// ============================================================
+
+/**
+ * Flag to control whether keyboard inputs are enabled.
+ * @const {boolean}
+ */
+const KEYBOARD_ENABLED = true;
+
+const KEY_COUNT = 256;
+const KEY_ENTER = 13;
+const KEY_SHIFT = 16;
+const KEY_ESCAPE = 27;
+const KEY_SPACE = 32;
+const KEY_LEFT = 37;
+const KEY_UP = 38;
+const KEY_RIGHT = 39;
+const KEY_DOWN = 40;
+const KEY_1 = 49;
+const KEY_2 = 50;
+const KEY_3 = 51;
+const KEY_4 = 52;
+const KEY_5 = 53;
+const KEY_6 = 54;
+const KEY_7 = 55;
+const KEY_8 = 56;
+const KEY_9 = 57;
+const KEY_A = 65;
+const KEY_D = 68;
+const KEY_M = 77;
+const KEY_Q = 81;
+const KEY_R = 82;
+const KEY_S = 83;
+const KEY_W = 87;
+const KEY_X = 88;
+const KEY_Z = 90;
+
+
+/**
+ * @typedef {{
+ *            down:boolean,
+ *            downCount:number,
+ *            upCount:number
+ *          }}
+ */
+let Key;
+
+/**
+ * Array of keyboard keys.
+ * @const {!Array.<!Key>}
+ */
+const keys = new Array(256).fill(undefined).map(() => ({down: false, downCount: 0, upCount: 1}));
+
+/**
+ * All keys update this key.
+ */
+const anyKey = {down: false, downCount: 0, upCount: 1};
+
+/**
+ * Updates keyboard state.
+ */
+const updateKeys = () => {
+  anyKey.down = false;
+  keys.forEach((k) => {
+    if (k.down) {
+      anyKey.down = true;
+      k.upCount = 0;
+      k.downCount++;
+    } else {
+      k.upCount++;
+      k.downCount = 0;
+    }
+  });
+
+  if (anyKey.down) {
+    anyKey.upCount = 0;
+    anyKey.downCount++;
+  } else {
+    anyKey.upCount++;
+    anyKey.downCount = 0;
+  }
+};
+
+/**
+ * Resets keyboard to all keys unpressed.
+ */
+const resetKeys = () => {
+  anyKey.down = false;
+  keys.forEach((k) => k.down = false);
+  updateKeys();
+};
+
+/**
+ * Returns if the key is down.
+ * @param {number} keyCode
+ * @return {boolean}
+ */
+const isKeyDown = (keyCode) => KEYBOARD_ENABLED && keys[keyCode].down;
+
+/**
+ * Returns if the key is down.
+ * @param {number} keyCode
+ * @return {boolean}
+ */
+const isKeyPressed = (keyCode) => KEYBOARD_ENABLED && keys[keyCode].upCount === 1;
+
+document.addEventListener('keydown', (e) => {
+  killEvent(e);
+  keys[e.keyCode].down = true;
+});
+
+document.addEventListener('keyup', (e) => {
+  killEvent(e);
+  keys[e.keyCode].down = false;
+});
+
+window.addEventListener('blur', resetKeys);
+
+
+// ============================================================
+// FILE: lib/glconstants.js
+// ============================================================
+
+// Use custom GL constants for minifier.
+// https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Constants
+
+/** @const {!GLenum} */
+const ZERO = 0;
+
+/** @const {!GLenum} */
+const ONE = 1;
+
+/** @const {!GLenum} */
+const DEPTH_BUFFER_BIT = 0x00000100;
+
+/** @const {!GLenum} */
+const COLOR_BUFFER_BIT = 0x00004000;
+
+/** @const {!GLenum} */
+const TRIANGLES = 0x0004;
+
+/** @const {!GLenum} */
+const LEQUAL = 0x0203;
+
+/** @const {!GLenum} */
+const SRC_ALPHA = 0x0302;
+
+/** @const {!GLenum} */
+const ONE_MINUS_SRC_ALPHA = 0x0303;
+
+/** @const {!GLenum} */
+const CULL_FACE = 0x0B44;
+
+/** @const {!GLenum} */
+const DEPTH_TEST = 0x0B71;
+
+/** @const {!GLenum} */
+const BLEND = 0x0BE2;
+
+/** @const {!GLenum} */
+const TEXTURE_2D = 0x0DE1;
+
+/** @const {!GLenum} */
+const UNSIGNED_BYTE = 0x1401;
+
+/** @const {!GLenum} */
+const UNSIGNED_SHORT = 0x1403;
+
+/** @const {!GLenum} */
+const FLOAT = 0x1406;
+
+/** @const {!GLenum} */
+const DEPTH_COMPONENT = 0x1902;
+
+/** @const {!GLenum} */
+const RGBA = 0x1908;
+
+/** @const {!GLenum} */
+const NEAREST = 0x2600;
+
+/** @const {!GLenum} */
+const LINEAR = 0x2601;
+
+/** @const {!GLenum} */
+const TEXTURE_MAG_FILTER = 0x2800;
+
+/** @const {!GLenum} */
+const TEXTURE_MIN_FILTER = 0x2801;
+
+/** @const {!GLenum} */
+const TEXTURE_WRAP_S = 0x2802;
+
+/** @const {!GLenum} */
+const TEXTURE_WRAP_T = 0x2803;
+
+/** @const {!GLenum} */
+const CLAMP_TO_EDGE = 0x812F;
+
+/** @const {!GLenum} */
+const DEPTH_COMPONENT16 = 0x81A5;
+
+/** @const {!GLenum} */
+const TEXTURE0 = 0x84C0;
+
+/** @const {!GLenum} */
+const TEXTURE1 = 0x84C1;
+
+/** @const {!GLenum} */
+const TEXTURE2 = 0x84C2;
+
+/** @const {!GLenum} */
+const ARRAY_BUFFER = 0x8892;
+
+/** @const {!GLenum} */
+const ELEMENT_ARRAY_BUFFER = 0x8893;
+
+/** @const {!GLenum} */
+const STATIC_DRAW = 0x88E4;
+
+/** @const {!GLenum} */
+const DYNAMIC_DRAW = 0x88E8;
+
+/** @const {!GLenum} */
+const FRAGMENT_SHADER = 0x8B30;
+
+/** @const {!GLenum} */
+const VERTEX_SHADER = 0x8B31;
+
+/** @const {!GLenum} */
+const COMPILE_STATUS = 0x8B81;
+
+/** @const {!GLenum} */
+const LINK_STATUS = 0x8B82;
+
+/** @const {!GLenum} */
+const DEPTH_COMPONENT32F = 0x8CAC;
+
+/** @const {!GLenum} */
+const COLOR_ATTACHMENT0 = 0x8CE0;
+
+/** @const {!GLenum} */
+const DEPTH_ATTACHMENT = 0x8D00;
+
+/** @const {!GLenum} */
+const FRAMEBUFFER = 0x8D40;
+
+/** @const {!GLenum} */
+const RENDERBUFFER = 0x8D41;
+
+/**
+ * Epsilon for vec3 and mat4 comparisons.
+ * @const {number}
+ */
+const EPSILON = 0.00001;
+
+
+// ============================================================
+// FILE: lib/overlay.js
+// ============================================================
+
+const OVERLAY_WHITE = '#f0f0f0';
+const OVERLAY_BLACK = '#000';
+const OVERLAY_LIGHT_GRAY = '#aaa';
+const OVERLAY_DARK_GRAY = '#444';
+const OVERLAY_YELLOW = '#fffe37';
+const OVERLAY_DARK_YELLOW = '#881';
+const OVERLAY_GREEN = '#0c0';
+const OVERLAY_DARK_GREEN = '#080';
+const OVERLAY_ORANGE = '#fe9400';
+
+const ALIGN_LEFT = 'left';
+const ALIGN_CENTER = 'center';
+const ALIGN_RIGHT = 'right';
+
+// /**
+//  * Draws a transparent black overlay.
+//  * Used for menus.
+//  */
+// function drawDarkBackground() {
+//   overlayCtx.fillStyle = 'rgba(0,0,0,0.5)';
+//   overlayCtx.fillRect(0, 0, WIDTH, HEIGHT);
+// }
+
+/**
+ * Draws white text with a black shadow.
+ * @param {string} str
+ * @param {number} x
+ * @param {number} y
+ * @param {string=} fillColor
+ */
+function drawText(str, x, y, fillColor = OVERLAY_BLACK) {
+  overlayCtx.fillStyle = fillColor;
+  overlayCtx.fillText(str, x, y);
+}
+
+/**
+ * Draws white text with a black shadow.
+ * @param {string} str
+ * @param {number} x
+ * @param {number} y
+ * @param {string=} fillColor
+ */
+function drawShadowText(str, x, y, fillColor = OVERLAY_WHITE) {
+  drawText(str, x + 2, y + 2);
+  drawText(str, x, y, fillColor);
+}
+
+/**
+ * Sets the overlay context font size.
+ * @param {number} size
+ * @param {string=} style
+ */
+function setFontSize(size, style = '') {
+  // overlayCtx.font = size + 'px Verdana';
+  overlayCtx.font = `bold ${style} ${size}px Comic Sans MS`;
+}
+
+/**
+ * Sets the overlay context text alignment.
+ * @param {string} align
+ */
+function setTextAlign(align) {
+  overlayCtx.textAlign = align;
+}
+
+/**
+ * Draws a keyboard key icon.
+ * @param {string} str
+ * @param {number} x
+ * @param {number} y
+ * @param {number=} width Optional width in pixels.
+ */
+function drawKeyIcon(str, x, y, width = 36) {
+  drawRectangle(x - width / 2, y - 8, width, 36, 'rgba(0,0,0,0.5)', OVERLAY_WHITE);
+  drawShadowText(str, x, y);
+}
+
+/**
+ * Draws a rectangle.
+ * @param {number} x
+ * @param {number} y
+ * @param {number} width
+ * @param {number} height
+ * @param {string} fillStyle
+ * @param {string} strokeStyle
+ */
+function drawRectangle(x, y, width, height, fillStyle, strokeStyle) {
+  overlayCtx.fillStyle = fillStyle;
+  overlayCtx.fillRect(x, y, width, height);
+  overlayCtx.strokeStyle = strokeStyle;
+  overlayCtx.lineWidth = 3;
+  overlayCtx.strokeRect(x, y, width, height);
+}
+
+
+// ============================================================
+// FILE: lib/fbo.js
+// ============================================================
+
+/**
+ * @typedef {{
+ *            size:number,
+ *            colorTexture:!WebGLTexture,
+ *            depthTexture:!WebGLTexture,
+ *            frameBuffer:!WebGLFramebuffer
+ *          }}
+ */
+let FBO;
+
+/**
+ * Creates a FBO.
+ * @param {number} size Size in pixels, both width and height.
+ * @return {!FBO}
+ */
+const createFbo = (size) => {
+  const colorTexture = gl.createTexture();
+  gl.bindTexture(TEXTURE_2D, colorTexture);
+
+  const level = 0;
+  {
+    // define size and format of level 0
+    const internalFormat = RGBA;
+    const border = 0;
+    const format = RGBA;
+    const type = UNSIGNED_BYTE;
+    const data = null;
+    gl.texImage2D(TEXTURE_2D, level, internalFormat,
+        size, size, border,
+        format, type, data);
+
+    // set the filtering so we don't need mips
+    gl.texParameteri(TEXTURE_2D, TEXTURE_MIN_FILTER, LINEAR);
+    gl.texParameteri(TEXTURE_2D, TEXTURE_WRAP_S, CLAMP_TO_EDGE);
+    gl.texParameteri(TEXTURE_2D, TEXTURE_WRAP_T, CLAMP_TO_EDGE);
+  }
+
+  const depthTexture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, depthTexture);
+  gl.texImage2D(
+      TEXTURE_2D, // target
+      0, // mip level
+      DEPTH_COMPONENT32F,
+      size, // width
+      size, // height
+      0, // border
+      DEPTH_COMPONENT, // format
+      FLOAT, // type
+      null); // data
+  gl.texParameteri(TEXTURE_2D, TEXTURE_MAG_FILTER, NEAREST);
+  gl.texParameteri(TEXTURE_2D, TEXTURE_MIN_FILTER, NEAREST);
+  gl.texParameteri(TEXTURE_2D, TEXTURE_WRAP_S, CLAMP_TO_EDGE);
+  gl.texParameteri(TEXTURE_2D, TEXTURE_WRAP_T, CLAMP_TO_EDGE);
+
+  const framebuffer = gl.createFramebuffer();
+  gl.bindFramebuffer(FRAMEBUFFER, framebuffer);
+  gl.framebufferTexture2D(
+      FRAMEBUFFER, // target
+      COLOR_ATTACHMENT0, // attachment point
+      TEXTURE_2D, // texture target
+      colorTexture, // texture
+      0); // mip level
+  gl.framebufferTexture2D(
+      FRAMEBUFFER, // target
+      DEPTH_ATTACHMENT, // attachment point
+      TEXTURE_2D, // texture target
+      depthTexture, // texture
+      0); // mip level
+
+  return {
+    size: size,
+    colorTexture: colorTexture,
+    depthTexture: depthTexture,
+    frameBuffer: framebuffer,
+  };
+};
+
+/**
+ * Binds an FBO as the render target.
+ * @param {!FBO} fbo
+ */
+const bindFbo = (fbo) => {
+  gl.bindFramebuffer(FRAMEBUFFER, fbo.frameBuffer);
+  gl.viewport(0, 0, fbo.size, fbo.size);
+};
+
+/**
+ * Binds the screen as the render target.
+ */
+const bindScreen = () => {
+  gl.bindFramebuffer(FRAMEBUFFER, null);
+  gl.viewport(0, 0, WIDTH, HEIGHT);
+};
+
+
+// ============================================================
+// FILE: lib/camera.js
+// ============================================================
+
+/**
+ * @typedef {{
+  *            source:!vec3,
+  *            pitch:number,
+  *            yaw:number,
+  *            fov:number,
+  *            distance:number
+  *          }}
+  */
+let Camera;
+
+/**
+ * Creates a new camera.
+ * @return {!Camera}
+ */
+const createCamera = () => ({
+  source: vec3.create(),
+  pitch: 0,
+  yaw: 0,
+  fov: 0,
+  distance: 0,
+});
+
+/**
+ * Sets the camera configuration.
+ * @param {!Camera} camera
+ * @param {number} x
+ * @param {number} y
+ * @param {number} z
+ * @param {number} pitch
+ * @param {number} yaw
+ * @param {number} fov
+ */
+const setCamera = (camera, x, y, z, pitch, yaw, fov) => {
+  vec3.set(camera.source, x, y, z);
+  camera.pitch = pitch;
+  camera.yaw = yaw;
+  camera.fov = fov;
+};
+
+/**
+ * Configures the camera to look from the source to the target.
+ * @param {!Camera} camera
+ * @param {!vec3} source
+ * @param {!vec3} target
+ * @param {number} fov
+ */
+const lookAt = (camera, source, target, fov) => {
+  vec3.copy(camera.source, source);
+  vec3.subtract(tempVec, target, source);
+  camera.distance = vec3.magnitude(tempVec);
+  camera.yaw = Math.atan2(tempVec[0], tempVec[2]);
+  camera.pitch = Math.atan2(tempVec[1], Math.hypot(tempVec[0], tempVec[2]));
+  camera.fov = fov;
+};
+
+
+// ============================================================
+// FILE: lib/shaders.js
+// ============================================================
+// Autogenerated by shadermin.js
+// Do not modify manually
+
+const ATTRIBUTE_COLOR = 'a';
+const ATTRIBUTE_POSITION = 'b';
+const ATTRIBUTE_TEXCOORD = 'c';
+const ATTRIBUTE_WORLDMATRIX = 'd';
+const UNIFORM_BLOOMTEXTURE = 'f';
+const UNIFORM_COLORTEXTURE = 'g';
+const UNIFORM_DEPTHTEXTURE = 'h';
+const UNIFORM_ITERATION = 'i';
+const UNIFORM_LIGHTCOLORS = 'j';
+const UNIFORM_LIGHTPOSITIONS = 'k';
+const UNIFORM_PROJECTIONMATRIX = 'l';
+const UNIFORM_SHADOWMAPMATRIX = 'm';
+const UNIFORM_VIEWMATRIX = 'n';
+
+const GLSL_PREFIX =
+  '#version 300 es\n' +
+  'precision highp float;';
+
+const BLOOM_FRAG =
+  GLSL_PREFIX +
+  'uniform sampler2D g;' +
+  'uniform int i;' +
+  'in vec2 s;' +
+  'out vec4 e;' +
+  'float w=0.99;' +
+  'float x[11]=float[11](0.01,0.02,0.04,0.08,0.16,0.38,0.16,0.08,0.04,0.02,0.01);' +
+  'void main(){' +
+  'if(i==0){' +
+  'vec4 t=texture(g,s);' +
+  'if(t.r>w||t.g>w||t.b>w){' +
+  'e=t;' +
+  '}' +
+  'else{' +
+  'discard;' +
+  '}' +
+  '}' +
+  'else if(i==1||i==3){' +
+  'vec4 u=vec4(0);' +
+  'float v=0.0;' +
+  'for(int xi=-5;' +
+  'xi<=5;' +
+  'xi++){' +
+  'vec4 t=texture(g,s+vec2(float(xi)/512.0,0.0));' +
+  'u.rgb+=x[xi+5]*t.rgb*t.a;' +
+  'v+=x[xi+5]*t.a;' +
+  '}' +
+  'if(v==0.0){' +
+  'e=vec4(0,0,0,1);' +
+  '}' +
+  'else{' +
+  'u.rgb/=v;' +
+  'u.a=v;' +
+  'e=u;' +
+  '}' +
+  '}' +
+  'else{' +
+  'vec4 u=vec4(0);' +
+  'float v=0.0;' +
+  'for(int yi=-5;' +
+  'yi<=5;' +
+  'yi++){' +
+  'vec4 t=texture(g,s+vec2(0.0,float(yi)/512.0));' +
+  'u.rgb+=x[yi+5]*t.rgb*t.a;' +
+  'v+=x[yi+5]*t.a;' +
+  '}' +
+  'if(v==0.0){' +
+  'e=vec4(0,0,0,1);' +
+  '}' +
+  'else{' +
+  'u.rgb/=v;' +
+  'u.a=v;' +
+  'e=u;' +
+  '}' +
+  '}' +
+  '}';
+
+const BLOOM_VERT =
+  GLSL_PREFIX +
+  'in vec2 b;' +
+  'in vec2 c;' +
+  'out vec2 s;' +
+  'void main(){' +
+  'gl_Position=vec4(b,0,1);' +
+  's=c;' +
+  '}';
+
+const MAIN_FRAG =
+  GLSL_PREFIX +
+  'uniform sampler2D g;' +
+  'uniform sampler2D h;' +
+  'uniform vec3 k[16];' +
+  'uniform vec3 j[16];' +
+  'in vec4 o;' +
+  'in float p;' +
+  'in vec4 q;' +
+  'in vec4 r;' +
+  'out vec4 e;' +
+  'void main(){' +
+  'if(o.r>0.99||o.g>0.99||o.b>0.99){' +
+  'e=o;' +
+  'return;' +
+  '}' +
+  'if(o.r<0.1&&o.g<0.1&&o.b<0.1){' +
+  'vec3 v=normalize(normalize((-q).xyz)-.5);' +
+  'float w,cody_a=w=0.;' +
+  'for(int cody_i=0;' +
+  'cody_i<15;' +
+  'cody_i+=1){' +
+  'v=abs(v)/dot(v,v)-.49;' +
+  'cody_a+=abs(length(v)-w);' +
+  'w=length(v);' +
+  '}' +
+  'cody_a*=cody_a*cody_a;' +
+  'e.rgb=.5*clamp((pow(vec3(cody_a/2e5,cody_a/2e5,cody_a/1e5),vec3(.9))),0.,2.)+vec3(0.03,0.0,0.12);' +
+  'e.a=1.0;' +
+  'return;' +
+  '}' +
+  'vec3 S=normalize(cross(dFdx(q.xyz),dFdy(q.xyz)));' +
+  'vec3 E=vec3(-.25,-.75,.2);' +
+  'vec3 N=E-2.0*dot(E,S)*S;' +
+  'vec3 t=normalize(vec3(0,0,1));' +
+  'float P=20.0;' +
+  'vec3 K=r.xyz/r.w;' +
+  'float H=0.0;' +
+  'float u=0.0;' +
+  'for(float M=-3.0;' +
+  'M<=3.0;' +
+  'M+=1.0){' +
+  'for(float L=-3.0;' +
+  'L<=3.0;' +
+  'L+=1.0){' +
+  'if(((texture(h,K.xy+vec2(L,M)/2048.0)).r)<=(K.z*0.99999965)){' +
+  'u+=1.0;' +
+  '}' +
+  'H+=1.0;' +
+  '}' +
+  '}' +
+  'float O=(K.x>=0.0&&K.x<=1.0&&K.y>=0.0&&K.y<=1.0)?1.0-0.5*u/H:1.0;' +
+  'vec3 R=mix(vec3(0.0,0.1,0.4),o.rgb,(clamp((0.5+0.5*(max(dot(S,E),0.0))*O)+O*(0.0),0.0,1.0)));' +
+  'for(int light=0;' +
+  'light<16;' +
+  'light++){' +
+  'vec3 G=q.xyz-k[light];' +
+  'float C=length(G);' +
+  'R.rgb+=0.2*max(0.0,dot(normalize(G),S))*(clamp((2.0)/(C*C),0.0,1.0))*j[light];' +
+  '}' +
+  'e.rgb=R.rgb;' +
+  'e.a=1.0;' +
+  '}';
+
+const MAIN_VERT =
+  GLSL_PREFIX +
+  'in vec4 b;' +
+  'in vec4 a;' +
+  'in mat4 d;' +
+  'uniform mat4 l;' +
+  'uniform mat4 n;' +
+  'uniform mat4 m;' +
+  'out vec4 q;' +
+  'out vec4 o;' +
+  'out float p;' +
+  'out vec4 r;' +
+  'void main(){' +
+  'q=d*b;' +
+  'o=a;' +
+  'p=-(n*q).z;' +
+  'r=m*q;' +
+  'gl_Position=l*n*q;' +
+  '}';
+
+const POST_FRAG =
+  GLSL_PREFIX +
+  'uniform sampler2D g;' +
+  'uniform sampler2D f;' +
+  'in vec2 s;' +
+  'out vec4 e;' +
+  'void main(){' +
+  'vec4 t=texture(f,s);' +
+  'e=vec4((texture(g,s)).rgb+2.0*t.a*t.rgb,1);' +
+  '}';
+
+const POST_VERT =
+  GLSL_PREFIX +
+  'in vec2 b;' +
+  'in vec2 c;' +
+  'out vec2 s;' +
+  'void main(){' +
+  'gl_Position=vec4(b,0,1);' +
+  's=c;' +
+  '}';
+
+const SHADOW_FRAG =
+  GLSL_PREFIX +
+  'out vec4 e;' +
+  'void main(){' +
+  'e=vec4(1,1,1,1);' +
+  '}';
+
+const SHADOW_VERT =
+  GLSL_PREFIX +
+  'in vec4 b;' +
+  'in mat4 d;' +
+  'uniform mat4 l;' +
+  'uniform mat4 n;' +
+  'void main(){' +
+  'gl_Position=l*n*d*b;' +
+  '}';
+
+
+// ============================================================
+// FILE: lib/engine.js
+// ============================================================
+
+// Basic WebGL setup
+// https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Tutorial/Using_textures_in_WebGL
+
+/**
+ * Creates the WebGL program.
+ * @param {string} vertexShaderSource
+ * @param {string} fragmentShaderSource
+ * @param {boolean=} bindAttribs
+ * @return {!WebGLProgram}
+ */
+function initShaderProgram(vertexShaderSource, fragmentShaderSource, bindAttribs) {
+  const vertexShader = loadShader(VERTEX_SHADER, vertexShaderSource);
+  const fragmentShader = loadShader(FRAGMENT_SHADER, fragmentShaderSource);
+  const program = gl.createProgram();
+  gl.attachShader(program, vertexShader);
+  gl.attachShader(program, fragmentShader);
+
+  if (bindAttribs) {
+    gl.bindAttribLocation(program, positionAttrib, ATTRIBUTE_POSITION);
+    gl.bindAttribLocation(program, colorAttrib, ATTRIBUTE_COLOR);
+    gl.bindAttribLocation(program, worldMatrixAttrib, ATTRIBUTE_WORLDMATRIX);
+  }
+
+  gl.linkProgram(program);
+
+  if (DEBUG) {
+    const compiled = gl.getProgramParameter(program, LINK_STATUS);
+    log('Program compiled: ' + compiled);
+    const compilationLog = gl.getProgramInfoLog(program);
+    log('Program compiler log: ' + compilationLog);
+  }
+
+  return program;
+}
+
+/**
+ * Creates a shader.
+ * @param {!GLenum} type
+ * @param {string} source
+ * @return {!WebGLShader}
+ */
+function loadShader(type, source) {
+  const shader = gl.createShader(type);
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+
+  if (DEBUG) {
+    const compiled = gl.getShaderParameter(shader, COMPILE_STATUS);
+    log('Shader compiled: ' + compiled);
+    const compilationLog = gl.getShaderInfoLog(shader);
+    log('Shader compiler log: ' + compilationLog);
+  }
+
+  return shader;
+}
+
+/**
+ * Returns the uniform location.
+ * This is a simple wrapper, but helps with compression.
+ * @param {!WebGLProgram} program
+ * @param {string} name
+ * @return {!WebGLUniformLocation} The uniform location.
+ */
+function getUniform(program, name) {
+  return /** @type {!WebGLUniformLocation} */ (gl.getUniformLocation(program, name));
+}
+
+/**
+ * Resets the WebGL state for a new render.
+ * Clears color buffer and depth buffer.
+ */
+function resetGl() {
+  gl.clearColor(0, 0, 0, 1);
+  gl.clearDepth(1);
+  // gl.enable(CULL_FACE);
+  gl.enable(DEPTH_TEST);
+  gl.depthFunc(LEQUAL);
+  gl.enable(BLEND);
+  gl.blendFunc(SRC_ALPHA, ONE_MINUS_SRC_ALPHA);
+  gl.clear(COLOR_BUFFER_BIT | DEPTH_BUFFER_BIT);
+}
+
+/**
+ * Sets up the game camera.
+ * @param {!Camera} camera
+ * @param {number} w Viewport width.
+ * @param {number} h Viewport height.
+ */
+function setupCamera(camera, w, h) {
+  // Create a perspective matrix, a special matrix that is
+  // used to simulate the distortion of perspective in a camera.
+  const aspect = w / h;
+  const zNear = 0.1;
+  const zFar = 1000.0;
+  mat4.perspective(projectionMatrix, camera.fov, aspect, zNear, zFar);
+
+  // Rotate around the X-axis by the pitch
+  mat4.rotateX(pitchMatrix, mat4.identity(pitchMatrix), camera.pitch);
+
+  // Rotate around the Y-axis by the yaw
+  mat4.rotateY(yawMatrix, mat4.identity(yawMatrix), -camera.yaw);
+
+  // Combine the pitch and yaw transformations
+  mat4.multiply(modelViewMatrix, pitchMatrix, yawMatrix);
+
+  // Finally, translate the world the opposite of the camera position
+  vec3.subtract(cameraTranslate, origin, camera.source);
+  mat4.translate(modelViewMatrix, modelViewMatrix, cameraTranslate);
+}
+
+
+// ============================================================
+// FILE: lib/lib.js
+// ============================================================
+const WIDTH = 1920;
+const HEIGHT = 1080;
+const CENTER_X = WIDTH / 2;
+const CENTER_Y = HEIGHT / 2;
+const MAIN_FBO_SIZE = 2048;
+const BLOOM_FBO_SIZE = 512;
+const canvases = document.querySelectorAll('canvas');
+const canvas = /** @const {!HTMLCanvasElement} */ (canvases[0]);
+const overlayCanvas = /** @const {!HTMLCanvasElement} */ (canvases[1]);
+const overlayCtx = /** @const {!CanvasRenderingContext2D} */ (overlayCanvas.getContext('2d'));
+const origin = vec3.create();
+const forward = vec3.fromValues(0.0, 0.0, 1.0);
+const tempVec = vec3.create();
+const camera = createCamera();
+const lightSource = createCamera();
+const cameraTranslate = vec3.create();
+const projectionMatrix = mat4.create();
+const modelViewMatrix = mat4.create();
+const pitchMatrix = mat4.create();
+const yawMatrix = mat4.create();
+const identity = mat4.create();
+const shadowMapMatrix = mat4.create();
+const positionAttrib = 0;
+const colorAttrib = 1;
+const worldMatrixAttrib = 2; // Must be last!  Matrices are multiple attributes
+const gl = /** @type {!WebGL2RenderingContext} */ (canvas.getContext('webgl2', {'alpha': false}));
+buildShortcuts(gl);
+const shadowProgram = initShaderProgram(SHADOW_VERT, SHADOW_FRAG, true);
+const viewMatrixUniform1 = getUniform(shadowProgram, UNIFORM_VIEWMATRIX);
+const projectionMatrixUniform1 = getUniform(shadowProgram, UNIFORM_PROJECTIONMATRIX);
+const mainProgram = initShaderProgram(MAIN_VERT, MAIN_FRAG, true);
+const viewMatrixUniform2 = getUniform(mainProgram, UNIFORM_VIEWMATRIX);
+const projectionMatrixUniform2 = getUniform(mainProgram, UNIFORM_PROJECTIONMATRIX);
+const colorTextureSamplerUniform = getUniform(mainProgram, UNIFORM_COLORTEXTURE);
+const shadowMapMatrixUniform = getUniform(mainProgram, UNIFORM_SHADOWMAPMATRIX);
+const depthTextureSamplerUniform = getUniform(mainProgram, UNIFORM_DEPTHTEXTURE);
+const lightColorsUniform = getUniform(mainProgram, UNIFORM_LIGHTCOLORS);
+const lightPositionsUniform = getUniform(mainProgram, UNIFORM_LIGHTPOSITIONS);
+const lightColors = new Float32Array(3 * 16);
+const lightPositions = new Float32Array(3 * 16);
+let nextLight = 0;
+const buffers = /** @const {!Array.<!BufferSet>} */ ([]);
+
+const shadowFbo = createFbo(MAIN_FBO_SIZE);
+const mainFbo = createFbo(MAIN_FBO_SIZE);
+const pingPongFbo1 = createFbo(BLOOM_FBO_SIZE);
+const pingPongFbo2 = createFbo(BLOOM_FBO_SIZE);
+
+const bloomProgram = initShaderProgram(BLOOM_VERT, BLOOM_FRAG);
+const bloomPositionAttrib = gl.getAttribLocation(bloomProgram, ATTRIBUTE_POSITION);
+const bloomTexCoordAttrib = gl.getAttribLocation(bloomProgram, ATTRIBUTE_TEXCOORD);
+const bloomColorTextureUniform = getUniform(bloomProgram, UNIFORM_COLORTEXTURE);
+const bloomIterationUniform = getUniform(bloomProgram, UNIFORM_ITERATION);
+
+const depthOfFieldProgram = initShaderProgram(POST_VERT, POST_FRAG);
+const depthOfFieldPositionAttrib = gl.getAttribLocation(depthOfFieldProgram, ATTRIBUTE_POSITION);
+const depthOfFieldTexCoordAttrib = gl.getAttribLocation(depthOfFieldProgram, ATTRIBUTE_TEXCOORD);
+const depthOfFieldColorTextureUniform = getUniform(depthOfFieldProgram, UNIFORM_COLORTEXTURE);
+const depthOfFieldDepthTextureUniform = getUniform(depthOfFieldProgram, UNIFORM_DEPTHTEXTURE);
+const depthOfFieldBloomTextureUniform = getUniform(depthOfFieldProgram, UNIFORM_BLOOMTEXTURE);
+
+const depthOfFieldVao = /** @type {!WebGLVertexArrayObject} */ (gl.createVertexArray());
+gl.bindVertexArray(depthOfFieldVao);
+
+/**
+ * Position coordinates buffer.
+ * This is the static, flat, two triangle (one quad) buffer
+ * that is used for post processing effects.
+ * @const {!WebGLBuffer}
+ */
+const depthOfFieldPositionBuffer = gl.createBuffer();
+gl.bindBuffer(ARRAY_BUFFER, depthOfFieldPositionBuffer);
+gl.bufferData(ARRAY_BUFFER, new Float32Array([
+  // Top-left
+  -1.0, -1.0,
+  1.0, -1.0,
+  -1.0, 1.0,
+  // Bottom-right
+  1.0, -1.0,
+  1.0, 1.0,
+  -1.0, 1.0,
+]), STATIC_DRAW);
+gl.enableVertexAttribArray(depthOfFieldPositionAttrib);
+gl.vertexAttribPointer(depthOfFieldPositionAttrib, 2, FLOAT, false, 0, 0);
+
+/**
+ * Texture coordinates buffer.
+ * This is the static, flat, two triangle (one quad) buffer
+ * that is used for post processing effects.
+ * @const {!WebGLBuffer}
+ */
+const depthOfFieldTextureBuffer = gl.createBuffer();
+gl.bindBuffer(ARRAY_BUFFER, depthOfFieldTextureBuffer);
+gl.bufferData(ARRAY_BUFFER, new Float32Array([
+  // Top-left
+  0.0, 0.0,
+  1.0, 0.0,
+  0.0, 1.0,
+  // Bottom-right
+  1.0, 0.0,
+  1.0, 1.0,
+  0.0, 1.0,
+]), STATIC_DRAW);
+gl.enableVertexAttribArray(depthOfFieldTexCoordAttrib);
+gl.vertexAttribPointer(depthOfFieldTexCoordAttrib, 2, FLOAT, false, 0, 0);
+
+/**
+ * Current real world time in seconds.
+ * @type {number}
+ */
+let time = 0;
+
+/**
+ * Current game time in seconds.
+ * @type {number}
+ */
+let gameTime = 0;
+
+/**
+ * Most recent game time delta in seconds.
+ * @type {number}
+ */
+let dt = 0;
+
+/**
+ * Number of webgl draw calls per frame.
+ * Debug only.
+ * @type {number}
+ */
+let drawCount = 0;
+
+/**
+ * Number of triangles rendered per frame.
+ * Debug only.
+ * @type {number}
+ */
+let triangleCount = 0;
+
+/**
+ * Last render time (milliseconds since the epoch).
+ * Debug only.
+ * @type {number}
+ */
+let lastRenderTime = 0;
+
+/**
+ * Current FPS.
+ * Debug only.
+ * @type {number}
+ */
+let fps = 0;
+
+/**
+ * Moving average FPS.
+ * Debug only.
+ * @type {number}
+ */
+let averageFps = 0;
+
+/**
+ * Converts a number (i.e., 123.456) to a pixel string (i.e., '123px').
+ * @param {number} num The number value.
+ * @return {string} The pixel string value.
+ */
+const pixelString = (num) => Math.floor(num) + 'px';
+
+window.addEventListener('resize', handleResizeEvent, false);
+handleResizeEvent();
+
+/**
+ * Handles window resize event.
+ * Resets the canvas dimensions to match window,
+ * then draws the new borders accordingly.
+ */
+function handleResizeEvent() {
+  const scale = Math.min(window.innerWidth / WIDTH, window.innerHeight / HEIGHT);
+  const width = scale * WIDTH;
+  const height = scale * HEIGHT;
+  const x = (window.innerWidth - width) / 2;
+  const y = (window.innerHeight - height) / 2;
+
+  if (canvas) {
+    canvas.width = WIDTH;
+    canvas.height = HEIGHT;
+    canvas.style.left = pixelString(x);
+    canvas.style.top = pixelString(y);
+    canvas.style.width = pixelString(width);
+    canvas.style.height = pixelString(height);
+  }
+  if (overlayCanvas) {
+    overlayCanvas.width = WIDTH;
+    overlayCanvas.height = HEIGHT;
+    overlayCanvas.style.left = pixelString(x);
+    overlayCanvas.style.top = pixelString(y);
+    overlayCanvas.style.width = pixelString(width);
+    overlayCanvas.style.height = pixelString(height);
+  }
+}
+
+/**
+ * Renders the screen.
+ * @param {number} now
+ */
+function render(now) {
+  if (DEBUG) {
+    drawCount = 0;
+    triangleCount = 0;
+
+    if (lastRenderTime === 0) {
+      lastRenderTime = now;
+    } else {
+      const actualDelta = now - lastRenderTime;
+      lastRenderTime = now;
+      fps = 1000.0 / actualDelta;
+      averageFps = 0.9 * averageFps + 0.1 * fps;
+    }
+  }
+
+  // Update time variables
+  // Convert to seconds
+  now *= 0.001;
+
+  // Calculate the time delta
+  // Maximum of 30 FPS
+  // This handles the case where user comes back to browser after long time
+  dt = Math.min(now - time, 1.0 / 30.0);
+
+  // Set the current real world time
+  time = now;
+
+  // Set the current game time
+  if (gameState === GameState.PLAYING && !menu) {
+    gameTime += dt;
+  }
+
+  // Update input state
+  updateKeys();
+
+  // Reset overlay canvas
+  overlayCtx.clearRect(0, 0, WIDTH, HEIGHT);
+  overlayCtx.textBaseline = 'top';
+
+  // Reset the dynamic buffers
+  buffers.forEach((b) => b.usage === DYNAMIC_DRAW && b.resetBuffers());
+
+  // Expect the global function "update()"
+  update();
+
+  // Update buffer data
+  buffers.forEach((b) => b.usage === DYNAMIC_DRAW && b.updateBuffers());
+
+  // Draw the scene twice
+  // First, draw from the POV of the light
+  bindFbo(shadowFbo);
+  resetGl();
+  setupCamera(lightSource, shadowFbo.size, shadowFbo.size);
+  gl.useProgram(shadowProgram);
+  gl.uniformMatrix4fv(projectionMatrixUniform1, false, projectionMatrix);
+  gl.uniformMatrix4fv(viewMatrixUniform1, false, modelViewMatrix);
+  renderScene();
+
+  // Build the texture matrix that maps the world space to the depth texture
+  mat4.identity(shadowMapMatrix);
+  mat4.translate(shadowMapMatrix, shadowMapMatrix, vec3.fromValues(0.5, 0.5, 0.5));
+  mat4.scale(shadowMapMatrix, shadowMapMatrix, vec3.fromValues(0.5, 0.5, 0.5));
+  mat4.multiply(shadowMapMatrix, shadowMapMatrix, projectionMatrix);
+  mat4.multiply(shadowMapMatrix, shadowMapMatrix, modelViewMatrix);
+
+  // Second, draw the scene from the POV of the camera
+  // Use the shadow map for lighting
+  bindFbo(mainFbo);
+  resetGl();
+  setupCamera(camera, WIDTH, HEIGHT);
+  gl.useProgram(mainProgram);
+  gl.uniformMatrix4fv(projectionMatrixUniform2, false, projectionMatrix);
+  gl.uniformMatrix4fv(viewMatrixUniform2, false, modelViewMatrix);
+  gl.uniformMatrix4fv(shadowMapMatrixUniform, false, shadowMapMatrix);
+  gl.uniform3fv(lightColorsUniform, lightColors);
+  gl.uniform3fv(lightPositionsUniform, lightPositions);
+  gl.activeTexture(TEXTURE0);
+  gl.bindTexture(TEXTURE_2D, shadowFbo.depthTexture);
+  gl.uniform1i(depthTextureSamplerUniform, 0);
+  renderScene();
+
+  // Second, draw the scene projecting the depth tecture
+  // Use the ping pong technique to render back and forth between two FBOs
+  // 6 iteration process:
+  //  0 = filter for emissive pixels
+  //  1 and 3 = blur horizontally
+  //  2 and 4 = blur vertically
+  //  5 = result to output
+  let inputFbo = mainFbo;
+  let outputFbo = pingPongFbo1;
+  gl.useProgram(bloomProgram);
+  for (let i = 0; i < 5; i++) {
+    bindFbo(outputFbo);
+    resetGl();
+    gl.bindVertexArray(depthOfFieldVao);
+    gl.activeTexture(TEXTURE0);
+    gl.bindTexture(TEXTURE_2D, inputFbo.colorTexture);
+    gl.uniform1i(bloomColorTextureUniform, 0);
+    gl.uniform1i(bloomIterationUniform, i);
+    gl.drawArrays(TRIANGLES, 0, 6);
+
+    // Swap buffers
+    if (i % 2 === 0) {
+      inputFbo = pingPongFbo1;
+      outputFbo = pingPongFbo2;
+    } else {
+      inputFbo = pingPongFbo2;
+      outputFbo = pingPongFbo1;
+    }
+  }
+
+  // Lastly, draw the post-processing effects
+  // This includes the adding the bloom blur
+  // and the depth-of-field blur
+  bindScreen();
+  gl.useProgram(depthOfFieldProgram);
+  gl.clearColor(0, 0, 0, 1.0);
+  gl.clear(COLOR_BUFFER_BIT | DEPTH_BUFFER_BIT);
+  gl.bindVertexArray(depthOfFieldVao);
+  gl.activeTexture(TEXTURE0);
+  gl.bindTexture(TEXTURE_2D, mainFbo.colorTexture);
+  gl.uniform1i(depthOfFieldColorTextureUniform, 0);
+  gl.activeTexture(TEXTURE1);
+  gl.bindTexture(TEXTURE_2D, mainFbo.depthTexture);
+  gl.uniform1i(depthOfFieldDepthTextureUniform, 1);
+  gl.activeTexture(TEXTURE2);
+  gl.bindTexture(TEXTURE_2D, pingPongFbo1.colorTexture);
+  gl.uniform1i(depthOfFieldBloomTextureUniform, 2);
+  gl.drawArrays(TRIANGLES, 0, 6);
+
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+
+/**
+ * Render the scene using the current camera and buffers.
+ */
+function renderScene() {
+  buffers.forEach((b) => b.render());
+}
+
+/**
+ * Resets the current lighting values.
+ */
+function resetLights() {
+  lightColors.fill(0);
+  lightPositions.fill(0);
+  nextLight = 0;
+}
+
+/**
+ * Adds a light.
+ * @param {!vec3} position
+ * @param {!vec3} color
+ */
+function addLight(position, color) {
+  lightColors[nextLight * 3] = color[0];
+  lightColors[nextLight * 3 + 1] = color[1];
+  lightColors[nextLight * 3 + 2] = color[2];
+  lightPositions[nextLight * 3] = position[0];
+  lightPositions[nextLight * 3 + 1] = position[1];
+  lightPositions[nextLight * 3 + 2] = position[2];
+  nextLight++;
+}
+
+
+// ============================================================
+// FILE: entities/entity.js
+// ============================================================
+
+/**
+ * The GameEntity class represents an entity in the game.
+ */
+class GameEntity {
+  /**
+   * Creates a new game entity.
+   * @param {number=} x
+   * @param {number=} y
+   * @param {number=} z
+   */
+  constructor(x, y, z) {
+    /** @const {!vec3} */
+    this.pos = vec3.fromValues(x || 0, y || 0, z || 0);
+
+    /** @const {!vec3} */
+    this.velocity = vec3.create();
+
+    /** @const {!mat4} */
+    this.transformMatrix = mat4.create();
+
+    /** @type {number} */
+    this.health = 100;
+
+    /** @type {number} */
+    this.yaw = 0;
+
+    /** @type {boolean} */
+    this.accelerating = false;
+
+    /** @type {number} */
+    this.groundedTime = 0;
+
+    /** @type {?Platform} */
+    this.groundedPlatform = null;
+
+    /** @type {number} */
+    this.shootTime = 0;
+
+    /** @type {number} */
+    this.bounciness = 0.0;
+
+    /** @type {!Array.<!vec3>} */
+    this.waypoints = [];
+
+    /** @type {number} */
+    this.waypointIndex = 0;
+
+    /** @type {boolean} */
+    this.rendered = true;
+  }
+
+  /**
+   * Returns true if the entity is on the ground.
+   * @return {boolean}
+   */
+  isGrounded() {
+    return this.groundedTime === gameTime;
+  }
+
+  /**
+   * Returns true if the entity can jump.
+   * @return {boolean}
+   */
+  canShoot() {
+    return (gameTime - this.shootTime) > 0.5;
+  }
+
+  /**
+   * Launches the player.
+   */
+  jump() {
+    this.velocity[1] = JUMP_POWER;
+    this.groundedTime = 0;
+    this.groundedPlatform = null;
+    if (this === player) {
+      playJumpSound();
+    }
+  }
+
+  /**
+   * Updates the entity.
+   * By default, does nothing.
+   */
+  update() {
+    // Subclasses should override
+  }
+
+  /**
+   * Renders the entity.
+   * By default, does nothing.
+   * Static entities can use this default implementation.
+   */
+  render() {
+    // Subclasses should override
+  }
+
+  /**
+   * Returns the distance to the player.
+   * @return {number} Distance to the player.
+   */
+  getDistanceToPlayer() {
+    if (player.health <= 0) {
+      return 1000;
+    }
+    return vec3.distance(player.pos, this.pos);
+  }
+
+  /**
+   * Updates waypoints.
+   * Silently ignores if no waypoints are setup.
+   * @return {?vec3} The current waypoint if available.
+   */
+  updateWaypoints() {
+    if (this.waypoints.length === 0) {
+      return null;
+    }
+    const waypoint = this.waypoints[this.waypointIndex];
+    if (vec3.distance(this.pos, waypoint) < 0.1) {
+      this.waypointIndex = (this.waypointIndex + 1) % this.waypoints.length;
+    }
+    return waypoint;
+  }
+
+  /**
+   * Sets up the default transform matrix.
+   */
+  setupTransformMatrix() {
+    const theta = time * 20;
+    const speed = Math.hypot(this.velocity[0], this.velocity[2]);
+    const bodyOffsetY = this.bounciness * Math.sin(theta) * speed;
+    const bodyRotationX = 0.02 * speed;
+
+    vec3.copy(tempVec, this.pos);
+
+    if (this.isGrounded()) {
+      tempVec[1] += bodyOffsetY;
+    }
+
+    mat4.identity(this.transformMatrix);
+    mat4.translate(this.transformMatrix, this.transformMatrix, tempVec);
+    mat4.rotateY(this.transformMatrix, this.transformMatrix, this.yaw);
+    mat4.rotateX(this.transformMatrix, this.transformMatrix, bodyRotationX);
+  }
+
+  /**
+   * Creates a new sphere transformed to instance space.
+   * @param {number} color
+   * @return {!mat4}
+   */
+  createSphere(color) {
+    const m = buffers[DYNAMIC_SPHERES].addInstance(color);
+    mat4.multiply(m, m, this.transformMatrix);
+    return m;
+  }
+}
+
+
+// ============================================================
+// FILE: entities/alien.js
+// ============================================================
+
+/**
+ * The Alien class represents a small mostly harmless enemy.
+ */
+class Alien extends GameEntity {
+  /**
+   * Creates a new alien.
+   * @param {number=} x
+   * @param {number=} y
+   * @param {number=} z
+   */
+  constructor(x, y, z) {
+    super(x, y, z);
+
+    /**
+     * Alien acceleration power in meters per second per second.
+     * @type {number}
+     */
+    this.acceleration = 60.0;
+
+    /**
+     * Distance from player before aggro.
+     * @type {number}
+     */
+    this.aggroRange = 15;
+
+    /**
+     * Alien color.
+     * @type {number}
+     */
+    this.color = COLOR_ALIEN_GREEN;
+
+    this.bounciness = 0.01;
+  }
+
+  /**
+   * Updates the alien.
+   * @override
+   */
+  update() {
+    const waypoint = this.updateWaypoints();
+    const dist = this.getDistanceToPlayer();
+    if (dist < 1.5) {
+      if (player.pos[1] > this.pos[1]) {
+        this.health = 0;
+        player.pos[1] = this.pos[1] + 2.0;
+        player.jump();
+        createExplosion(this.pos, this.color, 15);
+      } else {
+        player.health = 0;
+        player.rendered = false;
+        playerDie();
+        createExplosion(player.pos, this.color);
+      }
+    } else if (dist < this.aggroRange) {
+      // Walk toward player
+      vec3.subtract(tempVec, player.pos, this.pos);
+      tempVec[1] = 0;
+      vec3.normalize(tempVec, tempVec);
+      vec3.scaleAndAdd(this.velocity, this.velocity, tempVec, dt * this.acceleration);
+    } else if (waypoint) {
+      // Walk toward waypoint
+      vec3.subtract(tempVec, waypoint, this.pos);
+      vec3.normalize(tempVec, tempVec);
+      vec3.scaleAndAdd(this.velocity, this.velocity, tempVec, dt * this.acceleration);
+    }
+    updateEntity(this);
+  }
+
+  /**
+   * Renders the alien.
+   * @override
+   */
+  render() {
+    // Draw alien main body
+    {
+      const m = this.createSphere(this.color);
+      mat4.translate(m, m, vec3.fromValues(0, 0.8, 0));
+      mat4.scale(m, m, vec3.fromValues(0.8, 0.8, 0.7));
+    }
+
+    // Draw left eye
+    {
+      const m = this.createSphere(COLOR_BLACK);
+      mat4.translate(m, m, vec3.fromValues(-0.25, .9, 0.7));
+      mat4.rotateZ(m, m, -1);
+      mat4.scale(m, m, vec3.fromValues(0.2, 0.1, 0.025));
+    }
+
+    // Draw right eye
+    {
+      const m = this.createSphere(COLOR_BLACK);
+      mat4.translate(m, m, vec3.fromValues(0.25, .9, 0.7));
+      mat4.rotateZ(m, m, 1);
+      mat4.scale(m, m, vec3.fromValues(0.2, 0.1, 0.025));
+    }
+  }
+}
+
+
+// ============================================================
+// FILE: entities/coin.js
+// ============================================================
+
+/**
+ * The Coin class represents a gold coin that the player can pick up.
+ */
+class Coin extends GameEntity {
+  /**
+   * Updates the coin.
+   * @override
+   */
+  update() {
+    const dist = this.getDistanceToPlayer();
+    if (dist < 1.0) {
+      // Give the player a coin
+      this.health = 0;
+      coins++;
+      coinSequence++;
+      lastCoinTime = gameTime;
+      playCoinSound();
+    } else if (dist < 3) {
+      // Move the coin toward the player
+      this.pos[0] = 0.9 * this.pos[0] + 0.1 * player.pos[0];
+      this.pos[1] = 0.9 * this.pos[1] + 0.1 * player.pos[1];
+      this.pos[2] = 0.9 * this.pos[2] + 0.1 * player.pos[2];
+    }
+  }
+
+  /**
+   * Renders the coin.
+   * @override
+   */
+  render() {
+    const r = (time % 1.0) * 2 * Math.PI;
+    const y = 1.5 + 0.2 * Math.sin(r);
+    const m = this.createSphere(COLOR_YELLOW);
+    mat4.translate(m, m, vec3.fromValues(0, y, 0));
+    mat4.rotateY(m, m, r);
+    mat4.scale(m, m, vec3.fromValues(0.5, 0.5, 0.1));
+  }
+}
+
+
+// ============================================================
+// FILE: entities/flagpole.js
+// ============================================================
+
+/**
+ * The Flagpole class represents the flag goal of the level.
+ */
+class Flagpole extends GameEntity {
+  /**
+   * Creates a new flagpole.
+   * @param {number=} x
+   * @param {number=} y
+   * @param {number=} z
+   */
+  constructor(x, y, z) {
+    super(x, y, z);
+    this.triggered = false;
+  }
+  /**
+   * Updates the flagpole.
+   * @override
+   */
+  update() {
+    const dist = this.getDistanceToPlayer();
+    if (coins === availableCoins && dist < 2.0 && !this.triggered) {
+      playMusic(flagpoleSongData);
+      bestTimes[level] = bestTimes[level] ? Math.min(bestTimes[level], gameTime) : gameTime;
+      localStorage['callisto-times'] = JSON.stringify(bestTimes);
+      addTrophy(`Level ${level}`, `${gameTime.toFixed(1)} sec`);
+      stopJetpackSound();
+      setMenu(winScreen);
+      gameState = GameState.AFTER_LEVEL;
+      this.triggered = true;
+    }
+  }
+
+  /**
+   * Renders the flagpole.
+   * @override
+   */
+  render() {
+    const r = (time % 1.0) * 2 * Math.PI;
+    const y = 4.7 + 0.1 * Math.sin(r);
+
+    // Main flag pole
+    {
+      const m = this.createSphere(COLOR_SILVER);
+      mat4.translate(m, m, vec3.fromValues(0, 2.5, 0));
+      mat4.scale(m, m, vec3.fromValues(0.2, 2.5, 0.2));
+    }
+
+    // Base
+    {
+      const m = this.createSphere(COLOR_SILVER);
+      mat4.scale(m, m, vec3.fromValues(0.5, 0.5, 0.5));
+    }
+
+    // Red ball on top
+    {
+      const m = this.createSphere(COLOR_RED);
+      mat4.translate(m, m, vec3.fromValues(0, y, 0));
+      mat4.rotateY(m, m, r);
+      mat4.scale(m, m, vec3.fromValues(0.5, 0.5, 0.5));
+    }
+  }
+}
+
+
+// ============================================================
+// FILE: entities/fuel.js
+// ============================================================
+
+/**
+ * The Fuel class represents a jetpack fuel that the player can pick up.
+ */
+class Fuel extends GameEntity {
+  /**
+   * Creates a new game entity.
+   * @param {number} x
+   * @param {number} y
+   * @param {number} z
+   * @param {number=} amount
+   */
+  constructor(x, y, z, amount) {
+    super(x, y, z);
+    this.amount = amount || 30;
+  }
+
+  /**
+   * Updates the Fuel.
+   * @override
+   */
+  update() {
+    const dist = this.getDistanceToPlayer();
+    if (dist < 1.0) {
+      // Increase player jetpack fuel
+      player.fuel += this.amount;
+      this.health = 0;
+      this.amount = 0;
+      playFuelSound();
+    } else if (dist < 4) {
+      // Move the Fuel toward the player
+      this.pos[0] = 0.9 * this.pos[0] + 0.1 * player.pos[0];
+      this.pos[1] = 0.9 * this.pos[1] + 0.1 * player.pos[1];
+      this.pos[2] = 0.9 * this.pos[2] + 0.1 * player.pos[2];
+    }
+  }
+
+  /**
+   * Renders the Fuel.
+   * @override
+   */
+  render() {
+    const r = (time % 1.0) * 2 * Math.PI;
+    const y = 1.5 + 0.2 * Math.sin(r);
+
+    // Draw left jetpack
+    {
+      const m = this.createSphere(COLOR_DARK_SILVER);
+      mat4.translate(m, m, vec3.fromValues(-0.24, y, 0));
+      mat4.rotateY(m, m, r);
+      mat4.scale(m, m, vec3.fromValues(0.3, 0.64, 0.3));
+    }
+
+    // Draw right jetpack
+    {
+      const m = this.createSphere(COLOR_DARK_SILVER);
+      mat4.translate(m, m, vec3.fromValues(0.24, y, 0));
+      mat4.rotateY(m, m, r);
+      mat4.scale(m, m, vec3.fromValues(0.3, 0.64, 0.3));
+    }
+  }
+}
+
+
+// ============================================================
+// FILE: entities/hero.js
+// ============================================================
+
+/**
+ * Hero
+ */
+class Hero extends GameEntity {
+  /**
+   * Creates a new astronaut / hero.
+   * @param {number=} x
+   * @param {number=} y
+   * @param {number=} z
+   */
+  constructor(x, y, z) {
+    super(x, y, z);
+    this.bounciness = 0.01;
+    this.fuel = 100;
+    this.jetpack = false;
+  }
+
+  /**
+   * Renders the player model.
+   * @override
+   */
+  render() {
+    let leftArmRotationX = 0.0;
+    let leftArmRotationZ = 1.2;
+    let rightArmRotationX = 0.0;
+    let rightArmRotationZ = -1.2;
+    let leftLegRotationX = 0;
+    let rightLegRotationX = 0;
+
+    if (!this.isGrounded() || gameState === GameState.AFTER_LEVEL) {
+      // Jumping = arms up
+      leftArmRotationZ = -0.5;
+      rightArmRotationZ = 0.5;
+    } else if (this.accelerating) {
+      // Running = arms back
+      const r = (gameTime % 0.8) / 0.8 * 2 * Math.PI;
+      rightLegRotationX = leftArmRotationX = 0.07 * Math.hypot(this.velocity[0], this.velocity[2]) * Math.sin(r);
+      rightArmRotationX = leftLegRotationX = -leftArmRotationX;
+      leftArmRotationZ = 1.2;
+      rightArmRotationZ = -1.2;
+    }
+
+    // Draw face
+    {
+      const m = this.createSphere(COLOR_ORANGE);
+      mat4.translate(m, m, vec3.fromValues(0, 1.8, 0));
+      mat4.scale(m, m, vec3.fromValues(0.38, 0.38, 0.38));
+    }
+
+    // Draw helmet
+    {
+      const m = this.createSphere(COLOR_WHITE);
+      mat4.translate(m, m, vec3.fromValues(0, 1.8, -0.08));
+      mat4.scale(m, m, vec3.fromValues(0.45, 0.5, 0.38));
+    }
+
+    // Draw stomach
+    {
+      const m = this.createSphere(COLOR_WHITE);
+      mat4.translate(m, m, vec3.fromValues(0, 1.05, 0));
+      mat4.scale(m, m, vec3.fromValues(0.3, 0.47, 0.27));
+    }
+
+    // Draw left jetpack
+    {
+      const m = this.createSphere(COLOR_DARK_SILVER);
+      mat4.translate(m, m, vec3.fromValues(-0.12, 1.2, -0.35));
+      mat4.scale(m, m, vec3.fromValues(0.15, 0.32, 0.15));
+    }
+
+    // Draw right jetpack
+    {
+      const m = this.createSphere(COLOR_DARK_SILVER);
+      mat4.translate(m, m, vec3.fromValues(0.12, 1.2, -0.35));
+      mat4.scale(m, m, vec3.fromValues(0.15, 0.32, 0.15));
+    }
+
+    if (this.jetpack) {
+      const m = this.createSphere(0xFF00A0FF);
+      mat4.translate(m, m, vec3.fromValues(0, 0.9, -0.35));
+      mat4.scale(m, m, vec3.fromValues(0.2, 0.2, 0.2));
+      addLight(vec3.fromValues(this.pos[0], this.pos[1]+1, this.pos[2]), vec3.fromValues(1, 0.75, 0));
+    }
+
+    // Draw left arm
+    {
+      const m = this.createSphere(COLOR_WHITE);
+      mat4.translate(m, m, vec3.fromValues(-.3, 1.4, 0));
+      mat4.rotateX(m, m, leftArmRotationX);
+      mat4.rotateZ(m, m, leftArmRotationZ);
+      mat4.translate(m, m, vec3.fromValues(-.4, 0, 0));
+      mat4.scale(m, m, vec3.fromValues(0.4, 0.16, 0.16));
+    }
+
+    // Draw right arm
+    {
+      const m = this.createSphere(COLOR_WHITE);
+      mat4.translate(m, m, vec3.fromValues(0.3, 1.4, 0));
+      mat4.rotateX(m, m, rightArmRotationX);
+      mat4.rotateZ(m, m, rightArmRotationZ);
+      mat4.translate(m, m, vec3.fromValues(.4, 0, 0));
+      mat4.scale(m, m, vec3.fromValues(0.4, 0.16, 0.16));
+    }
+
+    // Draw left leg
+    {
+      const m = this.createSphere(COLOR_WHITE);
+      mat4.translate(m, m, vec3.fromValues(0.0, 1.1, 0.0));
+      mat4.rotateX(m, m, leftLegRotationX);
+      mat4.translate(m, m, vec3.fromValues(-0.21, -0.6, 0.0));
+      mat4.scale(m, m, vec3.fromValues(0.18, 0.6, 0.18));
+    }
+
+    // Draw right leg
+    {
+      const m = this.createSphere(COLOR_WHITE);
+      mat4.translate(m, m, vec3.fromValues(0, 1.1, 0.0));
+      mat4.rotateX(m, m, rightLegRotationX);
+      mat4.translate(m, m, vec3.fromValues(0.21, -0.6, 0.0));
+      mat4.scale(m, m, vec3.fromValues(0.18, 0.6, 0.18));
+    }
+  }
+}
+
+
+// ============================================================
+// FILE: entities/kang.js
+// ============================================================
+
+/**
+ * Kang is the final boss.
+ */
+class Kang extends GameEntity {
+  /**
+   * Creates Kang.
+   */
+  constructor() {
+    super(16, 5, 16);
+
+    /**
+     * The next time Kang will shoot.
+     * When gameTime > nextShootTime, Kang shoots,
+     * and then the time is reset.
+     */
+    this.nextShootTime = 0;
+  }
+
+  /**
+   * Updates Kang.
+   * @override
+   */
+  update() {
+    // Face the player
+    this.yaw = Math.atan2(player.pos[0] - this.pos[0], player.pos[2] - this.pos[2]);
+
+    // Float up and down
+    this.pos[1] = player.pos[1] + 6.0 + Math.sin(time * 2);
+    this.velocity[1] = 0;
+
+    if (gameState === GameState.PLAYING &&
+      gameTime > this.nextShootTime &&
+      player.health > 0) {
+      const projectile = new Particle();
+      projectile.projectile = ProjectileType.Enemy;
+      projectile.color = 0xFF4040FF;
+      projectile.deathRate = 10;
+      projectile.lightColor = vec3.fromValues(1.0, 0.0, 0.0);
+      projectile.size = 0.5;
+      vec3.copy(projectile.pos, this.pos);
+      projectile.pos[1] += 3.0;
+      const target = vec3.fromValues(player.pos[0], player.pos[1] + 1, player.pos[2]);
+      vec3.subtract(projectile.velocity, target, projectile.pos);
+      vec3.normalize(projectile.velocity, projectile.velocity);
+      vec3.scale(projectile.velocity, projectile.velocity, 40);
+      entities.push(projectile);
+      this.nextShootTime = gameTime + 5;
+      playKangShootSound();
+    }
+  }
+
+  /**
+   * Renders the Kang.
+   * @override
+   */
+  render() {
+    mat4.identity(this.transformMatrix);
+    mat4.translate(this.transformMatrix, this.transformMatrix, this.pos);
+    mat4.rotateY(this.transformMatrix, this.transformMatrix, this.yaw);
+
+    // Draw Kang main body
+    {
+      const m = this.createSphere(COLOR_ALIEN_GREEN);
+      mat4.scale(m, m, vec3.fromValues(3, 7, 3));
+    }
+
+    // Draw white of eye
+    {
+      const m = this.createSphere(COLOR_KANG_EYE_YELLOW);
+      mat4.translate(m, m, vec3.fromValues(0, 3, 1.2));
+      mat4.scale(m, m, vec3.fromValues(2, 2, 2));
+    }
+
+    // Draw black of eye
+    {
+      const remaining = this.nextShootTime - gameTime;
+      const charge = Math.min((5.0 - remaining) / 4.5, 1.0);
+      const color = 0xFF333333 + charge * 0xCC;
+      const m = this.createSphere(color);
+      mat4.translate(m, m, vec3.fromValues(0, 3, 3));
+      mat4.scale(m, m, vec3.fromValues(0.5, 1.2, 0.3));
+    }
+
+    // Draw tentacles
+    for (let i = 0; i < 10; i++) {
+      const m = this.createSphere(COLOR_ALIEN_GREEN);
+      mat4.rotateY(m, m, i / 10 * Math.PI * 2);
+      mat4.rotateX(m, m, 0.5 + 0.4 * Math.sin(time * 4 + i));
+      mat4.translate(m, m, vec3.fromValues(0, -2, 4));
+      mat4.scale(m, m, vec3.fromValues(0.5, 0.5, 4));
+    }
+  }
+}
+
+
+// ============================================================
+// FILE: entities/mystery.js
+// ============================================================
+
+const mysteryColors = [
+  0xFFFF3030,
+  0xFF30FF00,
+  0xFF3030FF,
+  0xFFFFFF30,
+  0xFFFF30FF,
+  0xFF30FFFF,
+];
+
+/**
+ * A Mystery cube flies through the final credits.
+ */
+class Mystery extends GameEntity {
+  /**
+   * Creates a new particle.
+   * @param {number} x
+   * @param {number} y
+   * @param {number} z
+   * @param {number} sx
+   * @param {number} sy
+   * @param {number} sz
+   */
+  constructor(x, y, z, sx, sy, sz) {
+    super(x, y, z);
+
+    /** @type {number} */
+    this.deathRate = 20;
+
+    /** @type {number} */
+    this.color = mysteryColors[(Math.random() * 6) | 0];
+
+    /** @const {!vec3} */
+    this.scale = vec3.fromValues(sx, sy, sz);
+  }
+
+  /**
+   * Updates the particle.
+   * @override
+   */
+  update() {
+    vec3.scaleAndAdd(this.pos, this.pos, this.velocity, dt);
+    this.health -= dt * this.deathRate;
+  }
+
+  /**
+   * Renders the particle.
+   * @override
+   */
+  render() {
+    const m = buffers[DYNAMIC_CUBES].addInstance(this.color);
+    mat4.multiply(m, m, this.transformMatrix);
+    mat4.scale(m, m, this.scale);
+  }
+}
+
+
+// ============================================================
+// FILE: entities/particle.js
+// ============================================================
+
+/**
+ * Projectile types.
+ * @enum {number}
+ */
+const ProjectileType = {
+  None: 0,
+  Player: 1,
+  Enemy: 2,
+};
+
+/**
+ * The Particle class represents a purely visual entity.
+ * Particles are used for:
+ *   1) Floaties - small specks that rise slowly and fade away.
+ *   2) Running dust - dust clouds when entities run around.
+ *   3) Explosion particles - flying everywhere.
+ */
+class Particle extends GameEntity {
+  /**
+   * Creates a new particle.
+   * @param {number=} x
+   * @param {number=} y
+   * @param {number=} z
+   */
+  constructor(x, y, z) {
+    super(x, y, z);
+
+    /** @type {number} */
+    this.size = 0.2;
+
+    /** @type {number} */
+    this.deathRate = 100;
+
+    /** @type {number} */
+    this.color = COLOR_WHITE;
+
+    /** @const {!vec3} */
+    this.acceleration = vec3.create();
+
+    /** @type {?vec3} */
+    this.lightColor = null;
+
+    /** @type {!ProjectileType} */
+    this.projectile = ProjectileType.None;
+  }
+
+  /**
+   * Updates the particle.
+   * @override
+   */
+  update() {
+    vec3.scaleAndAdd(this.velocity, this.velocity, this.acceleration, dt);
+    vec3.scaleAndAdd(this.pos, this.pos, this.velocity, dt);
+    this.health -= dt * this.deathRate;
+  }
+
+  /**
+   * Renders the particle.
+   * @override
+   */
+  render() {
+    const radius = this.size * (this.health / 100);
+    const m = this.createSphere(this.color);
+    mat4.scale(m, m, vec3.fromValues(radius, radius, radius));
+
+    if (this.lightColor) {
+      addLight(this.pos, this.lightColor);
+    }
+  }
+}
+
+
+// ============================================================
+// FILE: entities/platform.js
+// ============================================================
+
+/**
+ * The Platform class represents something that other entities can stand on.
+ * Platforms can be stationary or moving.
+ */
+class Platform extends GameEntity {
+  /**
+   * Creates a new particle.
+   * @param {number=} x
+   * @param {number=} y
+   * @param {number=} z
+   */
+  constructor(x, y, z) {
+    super(x, y, z);
+
+    /** @type {number} */
+    this.color = COLOR_SILVER;
+
+    /** @const {!vec3} */
+    this.scale = vec3.fromValues(1, 1, 1);
+
+    /** @type {!Array.<!vec3>} */
+    this.waypoints = [];
+
+    /** @type {number} */
+    this.waypointIndex = 0;
+  }
+
+  /**
+   * Updates the platform.
+   * @override
+   */
+  update() {
+    const waypoint = this.updateWaypoints();
+    if (waypoint) {
+      vec3.subtract(this.velocity, waypoint, this.pos);
+      vec3.normalize(this.velocity, this.velocity);
+      vec3.scale(this.velocity, this.velocity, 6.0);
+      vec3.scaleAndAdd(this.pos, this.pos, this.velocity, dt);
+    }
+  }
+
+  /**
+   * Renders the platform.
+   * @override
+   */
+  render() {
+    if (this.waypoints.length > 0) {
+      // Draw lift
+      {
+        // Draw yellow base
+        const m = buffers[DYNAMIC_CUBES].addInstance(COLOR_YELLOW);
+        mat4.multiply(m, m, this.transformMatrix);
+        mat4.scale(m, m, this.scale);
+      }
+      {
+        // Black center stripe
+        const m = buffers[DYNAMIC_CUBES].addInstance(COLOR_BLACK);
+        mat4.multiply(m, m, this.transformMatrix);
+        mat4.rotateY(m, m, Math.PI / 4);
+        mat4.scale(m, m, vec3.fromValues(2.5, 0.31, 0.32));
+      }
+      {
+        // Left corner stripe
+        const m = buffers[DYNAMIC_CUBES].addInstance(COLOR_BLACK);
+        mat4.multiply(m, m, this.transformMatrix);
+        mat4.rotateY(m, m, Math.PI / 4);
+        mat4.translate(m, m, vec3.fromValues(0, 0, -1.2));
+        mat4.scale(m, m, vec3.fromValues(1.35, 0.31, 0.32));
+      }
+      {
+        // Right corner stripe
+        const m = buffers[DYNAMIC_CUBES].addInstance(COLOR_BLACK);
+        mat4.multiply(m, m, this.transformMatrix);
+        mat4.rotateY(m, m, Math.PI / 4);
+        mat4.translate(m, m, vec3.fromValues(0, 0, 1.2));
+        mat4.scale(m, m, vec3.fromValues(1.35, 0.31, 0.32));
+      }
+
+      {
+        // South border
+        const m = buffers[DYNAMIC_CUBES].addInstance(COLOR_BLACK);
+        mat4.multiply(m, m, this.transformMatrix);
+        mat4.translate(m, m, vec3.fromValues(0, 0, -1.82));
+        mat4.scale(m, m, vec3.fromValues(2.04, 0.32, 0.2));
+      }
+      {
+        // North border
+        const m = buffers[DYNAMIC_CUBES].addInstance(COLOR_BLACK);
+        mat4.multiply(m, m, this.transformMatrix);
+        mat4.translate(m, m, vec3.fromValues(0, 0, 1.82));
+        mat4.scale(m, m, vec3.fromValues(2.04, 0.32, 0.2));
+      }
+      {
+        // West border
+        const m = buffers[DYNAMIC_CUBES].addInstance(COLOR_BLACK);
+        mat4.multiply(m, m, this.transformMatrix);
+        mat4.translate(m, m, vec3.fromValues(-1.82, 0, 0));
+        mat4.scale(m, m, vec3.fromValues(0.2, 0.32, 2.04));
+      }
+      {
+        // East border
+        const m = buffers[DYNAMIC_CUBES].addInstance(COLOR_BLACK);
+        mat4.multiply(m, m, this.transformMatrix);
+        mat4.translate(m, m, vec3.fromValues(1.82, 0, 0));
+        mat4.scale(m, m, vec3.fromValues(0.2, 0.32, 2.04));
+      }
+    } else {
+      // Draw normal platform
+      const m = buffers[DYNAMIC_CUBES].addInstance(this.color);
+      mat4.multiply(m, m, this.transformMatrix);
+      mat4.scale(m, m, this.scale);
+    }
+  }
+}
+
+
+// ============================================================
+// FILE: entities/shooter.js
+// ============================================================
+
+/**
+ * Shooter is a mid level shooting enemy.
+ */
+class Shooter extends GameEntity {
+  /**
+   * Creates Shooter.
+   * @param {number} x
+   * @param {number} y
+   * @param {number} z
+   * @param {number} yaw
+   * @param {number} nextShootTime
+   */
+  constructor(x, y, z, yaw, nextShootTime) {
+    super(x, y, z);
+
+    this.yaw = yaw;
+
+    /**
+     * The next time Shooter will shoot.
+     * When gameTime > nextShootTime, Shooter shoots,
+     * and then the time is reset.
+     */
+    this.nextShootTime = nextShootTime;
+  }
+
+  /**
+   * Updates Shooter.
+   * @override
+   */
+  update() {
+    // Float up and down
+    this.pos[1] += dt * 0.5 * Math.sin(time * 2);
+    this.velocity[1] = 0;
+
+    if (gameState === GameState.PLAYING &&
+      gameTime > this.nextShootTime &&
+      player.health > 0) {
+      const projectile = new Particle();
+      projectile.projectile = ProjectileType.Enemy;
+      projectile.color = 0xFF4040FF;
+      projectile.deathRate = 10;
+      projectile.lightColor = vec3.fromValues(1.0, 0.0, 0.0);
+      projectile.size = 0.5;
+      vec3.copy(projectile.pos, this.pos);
+      projectile.pos[1] += 0.75;
+      vec3.rotateY(projectile.velocity, forward, origin, this.yaw);
+      vec3.scale(projectile.velocity, projectile.velocity, 20);
+      entities.push(projectile);
+      this.nextShootTime = gameTime + 5;
+      playKangShootSound();
+    }
+  }
+
+  /**
+   * Renders the alien.
+   * @override
+   */
+  render() {
+    mat4.identity(this.transformMatrix);
+    mat4.translate(this.transformMatrix, this.transformMatrix, this.pos);
+    mat4.rotateY(this.transformMatrix, this.transformMatrix, this.yaw);
+
+    // Draw main body
+    {
+      const m = this.createSphere(COLOR_ALIEN_GREEN);
+      mat4.translate(m, m, vec3.fromValues(0, 0.8, 0));
+      mat4.scale(m, m, vec3.fromValues(0.5, 0.5, 0.5));
+    }
+
+    // Draw the metal cradle
+    {
+      const m = this.createSphere(COLOR_SILVER);
+      mat4.translate(m, m, vec3.fromValues(0, 0.4, 0));
+      mat4.scale(m, m, vec3.fromValues(0.5, 0.5, 0.5));
+    }
+
+    // Draw the jet
+    {
+      const m = this.createSphere(0xFF00A0FF);
+      mat4.translate(m, m, vec3.fromValues(0, -.2, 0));
+      mat4.scale(m, m, vec3.fromValues(0.3, 0.3, 0.3));
+    }
+
+    // Draw left eye
+    {
+      const m = this.createSphere(COLOR_BLACK);
+      mat4.translate(m, m, vec3.fromValues(-0.25, 1, 0.4));
+      mat4.rotateZ(m, m, -1);
+      mat4.scale(m, m, vec3.fromValues(0.15, 0.1, 0.1));
+    }
+
+    // Draw right eye
+    {
+      const m = this.createSphere(COLOR_BLACK);
+      mat4.translate(m, m, vec3.fromValues(0.25, 1, 0.4));
+      mat4.rotateZ(m, m, 1);
+      mat4.scale(m, m, vec3.fromValues(0.15, 0.1, 0.1));
+    }
+  }
+}
+
+
+// ============================================================
+// FILE: entities/spaceship.js
+// ============================================================
+
+/**
+ * The spaceship entity is used during the opening scene.
+ */
+class Spaceship extends GameEntity {
+  /**
+   * Renders the spaceship.
+   * @override
+   */
+  render() {
+    const white = COLOR_WHITE;
+    const orange = COLOR_ORANGE;
+    const silver = COLOR_DARK_SILVER;
+
+    {
+      // Main body
+      const m = this.createSphere(white);
+      mat4.scale(m, m, vec3.fromValues(5, 1, 1.3));
+    }
+
+    {
+      // Cockpit
+      const m = this.createSphere(orange);
+      mat4.translate(m, m, vec3.fromValues(1.5, .5, 0));
+      mat4.scale(m, m, vec3.fromValues(2, .6, .8));
+    }
+
+    {
+      // Left wing
+      const m = this.createSphere(white);
+      mat4.translate(m, m, vec3.fromValues(0, 0, 2));
+      mat4.rotateY(m, m, .5);
+      mat4.scale(m, m, vec3.fromValues(3, 0.3, 1));
+    }
+
+    {
+      // Right wing
+      const m = this.createSphere(white);
+      mat4.translate(m, m, vec3.fromValues(0, 0, -2));
+      mat4.rotateY(m, m, -.5);
+      mat4.scale(m, m, vec3.fromValues(3, 0.3, 1));
+    }
+
+    {
+      // Left engine
+      const m = this.createSphere(silver);
+      mat4.translate(m, m, vec3.fromValues(-3, 0.3, 0.7));
+      mat4.scale(m, m, vec3.fromValues(3, .5, .5));
+    }
+
+    {
+      // Right engine
+      const m = this.createSphere(silver);
+      mat4.translate(m, m, vec3.fromValues(-3, 0.3, -0.7));
+      mat4.scale(m, m, vec3.fromValues(3, .5, .5));
+    }
+  }
+}
+
+
+// ============================================================
+// FILE: zzfx.js
+// ============================================================
+// ZzFX - Zuper Zmall Zound Zynth - Micro Edition
+// MIT License - Copyright 2019 Frank Force
+// https://github.com/KilledByAPixel/ZzFX
+
+// This is a tiny build of zzfx with only a zzfx function to play sounds.
+// You can use zzfxV to set volume.
+// There is a small bit of optional code to improve compatibility.
+// Feel free to minify it further for your own needs!
+// let zzfx; let zzfxV; let zzfxX; let zzfxR;
+
+// ZzFXMicro - Zuper Zmall Zound Zynth
+
+// Modifications:
+//   1) Removed randomness
+//   2) Added reverb
+
+/**
+ * Volume
+ * @const {number}
+ */
+const zzfxV = 0.3;
+
+/**
+ * Generates a sound effect.
+ * @param {number=} volume
+ * @param {number=} randomness
+ * @param {number=} frequency
+ * @param {number=} attack
+ * @param {number=} sustain
+ * @param {number=} release
+ * @param {number=} shape
+ * @param {number=} shapeCurve
+ * @param {number=} slide
+ * @param {number=} deltaSlide
+ * @param {number=} pitchJump
+ * @param {number=} pitchJumpTime
+ * @param {number=} repeatTime
+ * @param {number=} noise
+ * @param {number=} modulation
+ * @param {number=} bitCrush
+ * @param {number=} delay
+ * @param {number=} sustainVolume
+ * @param {number=} decay
+ * @param {number=} tremolo
+ * @return {!Array.<number>}
+ */
+const zzfxG = (
+    volume = 1,
+    randomness = .05,
+    frequency = 220,
+    attack = 0,
+    sustain = 0,
+    release = .1,
+    shape = 0,
+    shapeCurve = 1,
+    slide = 0,
+    deltaSlide = 0,
+    pitchJump = 0,
+    pitchJumpTime = 0,
+    repeatTime = 0,
+    noise = 0,
+    modulation = 0,
+    bitCrush = 0,
+    delay = 0,
+    sustainVolume = 1,
+    decay = 0,
+    tremolo = 0) => {
+
+    // init parameters
+    const PI2 = Math.PI*2;
+    let sign = v => v>0?1:-1,
+    startSlide = slide *= 500 * PI2 / zzfxR / zzfxR,
+    startFrequency = frequency *= PI2 / zzfxR,
+    b=[], t=0, tm=0, i=0, j=1, r=0, c=0, s=0, f, length;
+
+    // scale by sample rate
+    attack = attack * zzfxR + 9; // minimum attack to prevent pop
+    decay *= zzfxR;
+    sustain *= zzfxR;
+    release *= zzfxR;
+    delay *= zzfxR;
+    deltaSlide *= 500 * PI2 / zzfxR**3;
+    modulation *= PI2 / zzfxR;
+    pitchJump *= PI2 / zzfxR;
+    pitchJumpTime *= zzfxR;
+    repeatTime = repeatTime * zzfxR | 0;
+
+    // generate waveform
+    for(length = attack + decay + sustain + release + delay | 0;
+        i < length; b[i++] = s)
+    {
+        if (!(++c%(bitCrush*100|0)))                      // bit crush
+        {
+            s = shape? shape>1? shape>2? shape>3?         // wave shape
+                Math.sin((t%PI2)**3) :                    // 4 noise
+                Math.max(Math.min(Math.tan(t),1),-1):     // 3 tan
+                1-(2*t/PI2%2+2)%2:                        // 2 saw
+                1-4*Math.abs(Math.round(t/PI2)-t/PI2):    // 1 triangle
+                Math.sin(t);                              // 0 sin
+
+            s = (repeatTime ?
+                    1 - tremolo + tremolo*Math.sin(PI2*i/repeatTime) // tremolo
+                    : 1) *
+                sign(s)*(Math.abs(s)**shapeCurve) *       // curve 0=square, 2=pointy
+                volume * zzfxV * (                        // envelope
+                i < attack ? i/attack :                   // attack
+                i < attack + decay ?                      // decay
+                1-((i-attack)/decay)*(1-sustainVolume) :  // decay falloff
+                i < attack  + decay + sustain ?           // sustain
+                sustainVolume :                           // sustain volume
+                i < length - delay ?                      // release
+                (length - i - delay)/release *            // release falloff
+                sustainVolume :                           // release volume
+                0);                                       // post release
+
+            s = delay ? s/2 + (delay > i ? 0 :            // delay
+                (i<length-delay? 1 : (length-i)/delay) *  // release delay
+                b[i-delay|0]/2) : s;                      // sample delay
+        }
+
+        f = (frequency += slide += deltaSlide) *          // frequency
+            Math.cos(modulation*tm++);                    // modulation
+        t += f - f*noise*(1 - (Math.sin(i)+1)*1e9%2);     // noise
+
+        if (j && ++j > pitchJumpTime)       // pitch jump
+        {
+            frequency += pitchJump;         // apply pitch jump
+            startFrequency += pitchJump;    // also apply to start
+            j = 0;                          // stop pitch jump time
+        }
+
+        if (repeatTime && !(++r % repeatTime)) // repeat
+        {
+            frequency = startFrequency;     // reset frequency
+            slide = startSlide;             // reset slide
+            j = j || 1;                     // reset pitch jump time
+        }
+    }
+
+    return b;
+};
+
+/**
+ * Plays a sound.
+ * @param {...!Array.<number>} t
+ * @return {!AudioBufferSourceNode}
+ */
+const zzfxP = (...t) => {
+  const e = zzfxX.createBufferSource();
+  const f = zzfxX.createBuffer(t.length, t[0].length, zzfxR);
+  t.map((d, i) => f.getChannelData(i).set(d));
+  e.buffer = f;
+  e.connect(zzfxX.destination);
+  e.connect(reverbConvolver);
+  e.start();
+  return e;
+};
+
+/**
+ * Generates and plays a sound effect.
+ * @param {...*} t
+ * @return {!AudioBufferSourceNode}
+ */
+const zzfx = (...t) => zzfxP(zzfxG(...t));
+
+/**
+ * Audio context.
+ * @const {!AudioContext}
+ */
+const zzfxX = new AudioContext();
+
+/**
+ * Sample rate.
+ * @const {number}
+ */
+const zzfxR = 44100;
+
+/**
+ * Creates a reverb convolver.
+ * @param {number} duration Duration in seconds.
+ * @returns {!ConvolverNode} The reverb convolver.
+ */
+function createReverbConvolver(duration) {
+  const sampleRate = zzfxX.sampleRate;
+  const length = sampleRate * duration;
+  const impulse = zzfxX.createBuffer(2, length, sampleRate);
+  const impulseL = impulse.getChannelData(0);
+  const impulseR = impulse.getChannelData(1);
+  const decay = 1.5;
+
+  for (let i = 0; i < length; i++){
+    impulseL[i] = 0.5 * (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+    impulseR[i] = 0.5 * (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+  }
+
+  const convolver = zzfxX.createConvolver();
+  convolver.buffer = impulse;
+  convolver.connect(zzfxX.destination);
+  return convolver;
+}
+
+/**
+ * The reverb convolver.
+ * @const {!ConvolverNode}
+ */
+const reverbConvolver = createReverbConvolver(1);
+
+
+// ============================================================
+// FILE: zzfxm.js
+// ============================================================
+/**
+ * ZzFX Music Renderer v2.0.3 by Keith Clark and Frank Force
+ */
+
+/** @typedef {!Array.<number>} */
+const Channel = {};
+
+/** @typedef {!Array.<!Channel>} */
+const Pattern = {};
+
+/** @typedef {!Array.<number>} */
+const Instrument = {};
+
+/**
+ * Converts a boolean to integer.
+ * Technically, just using a boolean should do this automatically.
+ * However...
+ * 1) Google Closure does not accept it.
+ * 2) It is apparently very slow.
+ * @param {boolean} b
+ * @return {number}
+ */
+const boolToInt = (b) => b ? 1 : 0;
+
+/**
+ * Generate a song
+ *
+ * @param {!Array.<!Instrument>} instruments - Array of ZzFX sound paramaters.
+ * @param {!Array.<!Pattern>} patterns - Array of pattern data.
+ * @param {!Array.<number>} sequence - Array of pattern indexes.
+ * @param {number=} BPM - Playback speed of the song (in BPM).
+ * @return {!Array.<!Array.<number>>} Left and right channel sample data.
+ */
+const zzfxM = (instruments, patterns, sequence, BPM = 125) => {
+  let instrumentParameters;
+  let i;
+  let j;
+  let k;
+  let note;
+  let sample;
+  let patternChannel;
+  let notFirstBeat;
+  let stop;
+  let instrument;
+  let attenuation;
+  let outSampleOffset;
+  let isSequenceEnd;
+  let sampleOffset = 0;
+  let nextSampleOffset;
+  let sampleBuffer = [];
+  const leftChannelBuffer = [];
+  const rightChannelBuffer = [];
+  let channelIndex = 0;
+  let panning = 0;
+  let hasMore = 1;
+  const sampleCache = {};
+  const beatLength = zzfxR / BPM * 60 >> 2;
+
+  // for each channel in order until there are no more
+  for (; hasMore; channelIndex++) {
+    // reset current values
+    sampleBuffer = [hasMore = notFirstBeat = outSampleOffset = 0];
+
+    // for each pattern in sequence
+    sequence.map((patternIndex, sequenceIndex) => {
+      // get pattern for current channel, use empty 1 note pattern if none found
+      patternChannel = patterns[patternIndex][channelIndex] || [0, 0, 0];
+
+      // check if there are more channels
+      hasMore |= boolToInt(!!patterns[patternIndex][channelIndex]);
+
+      // get next offset, use the length of first channel
+      nextSampleOffset = outSampleOffset +
+        (patterns[patternIndex][0].length - 2 - boolToInt(!notFirstBeat)) * beatLength;
+
+      // for each beat in pattern, plus one extra if end of sequence
+      isSequenceEnd = sequenceIndex == sequence.length - 1;
+      for (i = 2, k = outSampleOffset; i < patternChannel.length + isSequenceEnd; notFirstBeat = ++i) {
+        // <channel-note>
+        note = patternChannel[i];
+
+        // stop if end, different instrument or new note
+        stop = i == patternChannel.length + isSequenceEnd - 1 && isSequenceEnd ||
+          boolToInt(instrument != (patternChannel[0] || 0)) | note | 0;
+
+        // fill buffer with samples for previous beat, most cpu intensive part
+        j = 0;
+        while (j < beatLength && notFirstBeat) {
+          // copy sample to stereo buffers with panning
+          sample = (1 - attenuation) * sampleBuffer[sampleOffset++] / 2 || 0;
+          leftChannelBuffer[k] = (leftChannelBuffer[k] || 0) - sample * panning + sample;
+          rightChannelBuffer[k] = (rightChannelBuffer[k++] || 0) + sample * panning + sample;
+          if (j++ > beatLength - 99 && stop) {
+            attenuation += boolToInt(attenuation < 1) / 99;
+          }
+        }
+
+        // set up for next note
+        if (note) {
+          // set attenuation
+          attenuation = note % 1;
+          panning = patternChannel[1] || 0;
+          if (note |= 0) {
+            // get cached sample
+            sampleBuffer = sampleCache[
+                [
+                  instrument = patternChannel[sampleOffset = 0] || 0,
+                  note,
+                ]
+            ] = sampleCache[[instrument, note]] || (
+              // add sample to cache
+              instrumentParameters = [...instruments[instrument]],
+              instrumentParameters[2] *= 2 ** ((note - 12) / 12),
+
+              // allow negative values to stop notes
+              note > 0 ? zzfxG(...instrumentParameters) : []
+            );
+          }
+        }
+      }
+
+      // update the sample offset
+      outSampleOffset = nextSampleOffset;
+    });
+  }
+
+  return [leftChannelBuffer, rightChannelBuffer];
+};
+
+
+// ============================================================
+// FILE: sound.js
+// ============================================================
+
+/**
+ * Plays the "jump" sound effect.
+ * @return {!AudioBufferSourceNode}
+ */
+const playJumpSound = () => zzfx(...[.6, 0, 130, .01, .02, , , .4, 5, , , , , , , , , .9]);
+
+/**
+ * Plays the "coin" sound effect.
+ * @return {!AudioBufferSourceNode}
+ */
+// const playCoinSound = () => zzfx(...[.7, 0, 1000 * (1 + 1 / 12) ** coinSequence, , .06, .15, 1, 1.5, , , 300, .05, , , , , , .6, .06]);
+const playCoinSound = () => zzfx(...[.7, 0, 1e3 * (1 + 1 / 12) ** coinSequence, , .05, , 1, 1.5, , , 300, .1, , , , , , .5, .05]); // Loaded Sound 228
+
+/**
+ * Plays the "fuel" pickup sound effect.
+ * @return {!AudioBufferSourceNode}
+ */
+const playFuelSound = () => zzfx(...[.5, 0, 328, .04, .1, .35, , .97, , .5, 9, .01, .06, , 12, .1, , .74, .08]);
+
+/**
+ * Plays the player "shoot" sound effect.
+ * @return {!AudioBufferSourceNode}
+ */
+const playShootSound = () => zzfx(...[.3, 0, 40, .02, .02, .04, 4, .87, , .9, , , , , , , , .83, .02, .28]);
+
+/**
+ * Plays the Kang "shoot" sound effect.
+ * @return {!AudioBufferSourceNode}
+ */
+const playKangShootSound = () => zzfx(...[.2, 0, 20, .02, .1, , 4, .87, , .9, , , , , , , , .83, .02, .28]); // Loaded Sound 269
+
+/**
+ * Plays the "explode" sound effect.
+ * @return {!AudioBufferSourceNode}
+ */
+const playExplosionSound = () => zzfx(...[.5, 0, 101, , , .5, 4, 2.8, , , , , , , .8, .4, , .95, , .42]);
+
+/**
+ * Plays a menu beep sound.
+ * @return {!AudioBufferSourceNode}
+ */
+const playMenuBeep = () => zzfx(...[.5, 0, 80, .02, .04, .02, 1, .3, 56,,,,, .1, 7.5,,, .39]); // Blip 290
+
+/**
+ * Precomputed "jetpack" audio buffer.
+ * @const {!Array.<number>}
+ */
+const jetpackAudioBuffer = zzfxG(...[.05, 0, 900, .2, 3, 0, 4, 0, , , , , , 4, , .1]);
+
+/**
+ * Reference to the jetpack AudioBuffer when the sound is playing.
+ * Undefined when the sound is not playing.
+ * @type {?AudioBufferSourceNode}
+ */
+let jetpackSound;
+
+/**
+ * Starts the "jetpack" sound.
+ * If it is already playing, then ends it.
+ */
+const startJetpackSound = () => {
+  if (!jetpackSound) {
+    jetpackSound = zzfxP(jetpackAudioBuffer);
+    jetpackSound.loop = true;
+  }
+};
+
+/**
+ * Stops the "jetpack" sound.
+ * Silently ignores if not playing.
+ */
+const stopJetpackSound = () => {
+  if (jetpackSound) {
+    jetpackSound.stop();
+    jetpackSound = null;
+  }
+};
+
+
+// ============================================================
+// FILE: music.js
+// ============================================================
+
+/**
+* Gameplay song.
+* "Milky Way" from Faster than Light.
+*/
+const milkyWaySong = [
+  [
+    [, 0, 240, .01, .09, .2, 1, 2, , , , , , , , , , .5],
+    [.1, 0, 120, , .07, .07, 1, 0, , , .5, .01],
+    [.8, 0, 240, .01, .4, .2, 1, 2, , , , , , , , , , .5]
+  ],
+  [
+    [
+      [, , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , ,],
+      [1, , 24, 24, 20, 20, 17, 17, 17, 24, 22, 22, 19, 19, 15, 15, 15, 22, 24, 24, 20, 20, 8, 13, 8, 8, 22, 22, 22, 15, 15, 19, 15, 22, 24, 24, 20, 20, 17, 17, 17, 24, 22, 22, 19, 19, 15, 15, 15, 22, 24, 24, 20, 20, 8, 13, 8, 8, 22, 22, 22, 15, 15, 19, 15, 22],
+      [1, , 24, 17, 20, 15, 17, 8, 5, 24, 22, 15, 19, 10, 15, 7, 3, 22, 24, 19, 20, 13, 8, 8, 8, 5, 22, 10, 3, 15, 3, 19, 15, 22, 24, 17, 20, 12, 17, 8, 5, 24, 22, 15, 19, 10, 15, 7, 3, 22, 24, 19, 20, 13, 8, 8, 8, 5, 22, 10, 3, 15, 3, 19, 15, 22]
+    ],
+    [
+      [2, , 20, , , 17, , , 20, , 19, , 17, , 15, , 12, , 17, , , , 12, , , , 15, , , , , , , , 24, , , 17, , , 24, , 22, , 20, , 19, , 15, , 17, , , , 20, , , , 19, , , , 22, , , ,],
+      [1, , 24, 24, 20, 20, 17, 17, 17, 24, 22, 22, 19, 19, 15, 15, 15, 22, 24, 24, 20, 20, 8, 13, 8, 8, 22, 22, 22, 15, 15, 19, 15, 22, 24, 24, 20, 20, 17, 17, 17, 24, 22, 22, 19, 19, 15, 15, 15, 22, 24, 24, 20, 20, 8, 13, 8, 8, 22, 22, 22, 15, 15, 19, 15, 22],
+      [1, , 24, 17, 20, 15, 17, 8, 5, 24, 22, 15, 19, 10, 15, 7, 3, 22, 24, 19, 20, 13, 8, 8, 8, 5, 22, 10, 3, 15, 3, 19, 15, 22, 24, 17, 20, 12, 17, 8, 5, 24, 22, 15, 19, 10, 15, 7, 3, 22, 24, 19, 20, 13, 8, 8, 8, 5, 22, 10, 3, 15, 3, 19, 15, 22]
+    ],
+    [
+      [2, , 17, , , , , , , , 15, , , , 10, , , , 17, , , , , , 20, , 19, , , , 22, , , , 24, , , , 17, , , , 24, , 22, , 20, , 19, , 17, , , , , , 19, 17, 19, , , , , , , ,],
+      [1, , 24, 24, 20, 20, 17, 17, 17, 24, 22, 22, 19, 19, 15, 15, 15, 22, 24, 24, 20, 20, 8, 13, 8, 8, 22, 22, 22, 15, 15, 19, 15, 22, 24, 24, 20, 20, 17, 17, 17, 24, 22, 22, 19, 19, 15, 15, 15, 22, 24, 24, 20, 20, 8, 13, 8, 8, 22, 22, 22, 15, 15, 19, 15, 22],
+      [1, , 24, 17, 20, 15, 17, 8, 5, 24, 22, 15, 19, 10, 15, 7, 3, 22, 24, 19, 20, 13, 8, 8, 8, 5, 22, 10, 3, 15, 3, 19, 15, 22, 24, 17, 20, 12, 17, 8, 5, 24, 22, 15, 19, 10, 15, 7, 3, 22, 24, 19, 20, 13, 8, 8, 8, 5, 22, 10, 3, 15, 3, 19, 15, 22]
+    ],
+    [
+      [2, , 24, , 20, , 17, , , 24, 22, , 19, , 15, , , 22, 24, , 22, , , , , , 22, , , 15, , 19, 15, 22, 24, , 20, , 17, , , 24, 22, , 19, , 15, , , 22, 24, , 20, , , , , , 22, , , 15, , 19, 15, 22],
+      [1, , 24, 24, 20, 20, 17, 17, 17, 24, 22, 22, 19, 19, 15, 15, 15, 22, 24, 24, 20, 20, 8, 13, 8, 8, 22, 22, 22, 15, 15, 19, 15, 22, 24, 24, 20, 20, 17, 17, 17, 24, 22, 22, 19, 19, 15, 15, 15, 22, 24, 24, 20, 20, 8, 13, 8, 8, 22, 22, 22, 15, 15, 19, 15, 22],
+      [1, , 24, 17, 20, 15, 17, 8, 5, 24, 22, 15, 19, 10, 15, 7, 3, 22, 24, 19, 20, 13, 8, 8, 8, 5, 22, 10, 3, 15, 3, 19, 15, 22, 24, 17, 20, 12, 17, 8, 5, 24, 22, 15, 19, 10, 15, 7, 3, 22, 24, 19, 20, 13, 8, 8, 8, 5, 22, 10, 3, 15, 3, 19, 15, 22]
+    ]
+  ],
+  [0, 1, 2, 3], 70
+];
+
+/**
+* Death song.
+* "Wah Wah" sad trombone sound.
+*/
+const deathSongData = [
+  [
+    [.9, 0, 240, .01, .09, .2, 1, 2, , , , , , , , , , .5],
+    [.2, 0, 120, , .07, .07, 1, 0, , , .5, .01]
+  ],
+  [
+    [
+      [, , 27, , 26, , 25, , 24, , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , ,],
+      [, , 15, , 14, , 13, , 12, , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , ,],
+      [1, , 15, 15, 14, 14, 13, 13, 12, 12, , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , ,]
+    ]
+  ],
+  [0]
+];
+
+/**
+* Level complete song.
+* "Level up" from Pokemon.
+*/
+const flagpoleSongData = [
+  [
+    [.9, 0, 240, .01, .09, .2, 1, 2, , , , , , , , , , .5],
+    [.2, 0, 120, , .07, .07, 1, 0, , , .5, .01],
+    [.9, 0, 240, .01, .4, .2, 1, 2, , , , , , , , , , .5]
+  ],
+  [
+    [
+      [, , 1, 1, 1, , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , ,],
+      [, , 5, 5, 5, , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , ,],
+      [, , 8, 8, 8, , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , ,],
+      [2, , , , , , 8, , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , ,],
+      [2, , , , , , 12, , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , ,],
+      [2, , , , , , 15, , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , , ,]
+    ]
+  ],
+  [0]
+];
+
+/**
+* Reference to background music currently playing.
+* Null if no music playing.
+* @type {?AudioBufferSourceNode}
+*/
+let backgroundMusicNode = null;
+
+/**
+* Plays the music.
+* @param {!Array} songData The song data.
+* @param {boolean=} loop Flag to loop the song continuously.
+*/
+const playMusic = (songData, loop) => {
+  const buffer = zzfxM(...songData); // Generate the sample data
+  const node = zzfxP(...buffer); // Play the song
+  if (loop) {
+    stopBackgroundMusic();
+    node.loop = true;
+    backgroundMusicNode = node;
+  }
+};
+
+/**
+* Stops current background music.
+*/
+const stopBackgroundMusic = () => {
+  if (backgroundMusicNode) {
+    backgroundMusicNode.stop();
+    backgroundMusicNode = null;
+  }
+};
+
+/**
+ * Toggles background music.
+ * If playing, stops.
+ * If not, starts.
+ */
+const toggleBackgroundMusic = () => {
+  if (backgroundMusicNode) {
+    stopBackgroundMusic();
+    localStorage['music-off'] = 't';
+  } else {
+    playMusic(milkyWaySong, true);
+    localStorage.removeItem('music-off');
+  }
+};
+
+
+// ============================================================
+// FILE: constants.js
+// ============================================================
+
+/**
+ * Player acceleration (meters per second per second).
+ * @const {number}
+ */
+const ACCELERATION = 100.0;
+
+/**
+ * Player friction.
+ * @const {number}
+ */
+const FRICTION = 8.0;
+
+/**
+ * Gravitational force (meters per second per second).
+ * @const {number}
+ */
+const GRAVITY = 40;
+
+/**
+ * Lesser gravity when player is still holding the jump button.
+ * @const {number}
+ */
+const FLOATY_GRAVITY = 20;
+
+/**
+ * Grace time in seconds where the player can still jump.
+ * For example, if they walk of a ledge, they can still jump for a brief period of time.
+ * @const {number}
+ */
+const JUMP_GRACE_TIME = 0.25;
+
+/**
+ * Jump speed at time of jump (meters per second).
+ * @const {number}
+ */
+const JUMP_POWER = 12;
+
+/**
+ * Maximum x coordinate on the map.
+ * @const {number}
+ */
+const MAX_X = 32;
+
+/**
+ * Maximum y coordinate on the map.
+ * @const {number}
+ */
+const MAX_Y = 64;
+
+/**
+ * Maximum z coordinate on the map.
+ * @const {number}
+ */
+const MAX_Z = 32;
+
+/**
+ * Size of one tile in meters.
+ * @const {number}
+ */
+const TILE_SIZE = 1;
+
+/**
+ * Index of "static cubes" in the buffers array.
+ * This must be the correct array index.
+ * See index.js.
+ * @const {number}
+ */
+const STATIC_CUBES = 0;
+
+/**
+ * Index of "static sphers" in the buffers array.
+ * This must be the correct array index.
+ * See index.js.
+ * @const {number}
+ */
+const STATIC_SPHERES = 1;
+
+/**
+ * Index of "dynamic cubes" in the buffers array.
+ * This must be the correct array index.
+ * See index.js.
+ * @const {number}
+ */
+const DYNAMIC_CUBES = 2;
+
+/**
+ * Index of "dynamic spheres" in the buffers array.
+ * This must be the correct array index.
+ * See index.js.
+ * @const {number}
+ */
+const DYNAMIC_SPHERES = 3;
+
+
+// ============================================================
+// FILE: colors.js
+// ============================================================
+
+const COLOR_STARS = 0xFF000000;
+
+const COLOR_DARK_GREEN = 0xFF449911;
+
+const COLOR_MEDIUM_GREEN = 0xFF55BB55;
+
+const COLOR_LIGHT_GREEN = 0xFF70B070;
+
+const COLOR_BLACK = 0xFF333333;
+
+const COLOR_WHITE = 0xFFF0F0F0;
+
+const COLOR_ORANGE = 0xFF11BBF0;
+
+const COLOR_RED = 0xFF1122DD;
+
+const COLOR_YELLOW = 0xFF44F8F8;
+
+const COLOR_SILVER = 0xFFCCBBAA;
+
+const COLOR_DARK_SILVER = 0xFFAAA8A0;
+
+const COLOR_DARK_BLUE = 0xFFAA8866;
+
+const COLOR_LIGHT_BLUE = 0xFFAAAA77;
+
+const COLOR_ALIEN_GREEN = 0xFF12CCAB;
+
+const COLOR_KANG_EYE_YELLOW = 0xFFA6F0F0;
+
+
+// ============================================================
+// FILE: hud.js
+// ============================================================
+
+/**
+ * Draws the game hud.
+ */
+function drawHud() {
+  if (gameState === GameState.CREDITS) {
+    setTextAlign(ALIGN_CENTER);
+    setFontSize(24, 'italic');
+    drawShadowText('THE ADVENTURES OF', CENTER_X, 60);
+    setFontSize(64, 'italic');
+    drawShadowText('CAPTAIN CALLISTO', CENTER_X, 120);
+
+    setFontSize(72, 'italic');
+    setTextAlign(ALIGN_CENTER);
+    drawShadowText('THANK YOU FOR PLAYING', CENTER_X, CENTER_Y);
+    return;
+  }
+
+  setFontSize(48);
+  setTextAlign(ALIGN_LEFT);
+  drawShadowText('⭐ ' + coins + ' / ' + availableCoins, 20, 20, OVERLAY_YELLOW);
+  drawShadowText('🚀 ' + player.fuel.toFixed(0) + '%', 20, 100);
+
+  setTextAlign(ALIGN_RIGHT);
+  drawShadowText(gameTime.toFixed(1), WIDTH - 20, 20, OVERLAY_LIGHT_GRAY);
+
+}
+
+/**
+ * Draws the debug overlay.
+ */
+function drawDebugOverlay() {
+  if (DEBUG) {
+    setTextAlign(ALIGN_LEFT);
+    setFontSize(20);
+
+    drawShadowText('Player: ' + vec3.str(player.pos), 10, 300);
+    drawShadowText('Focus dist: ' + cameraDistance.toFixed(2), 10, 340);
+    drawShadowText('Camera: ' + vec3.str(camera.source), 10, 360);
+    drawShadowText('Menu: ' + (!!menu), 10, 380);
+    drawShadowText('State: ' + gameState, 10, 400);
+    drawShadowText('Level: ' + level, 10, 420);
+
+    setTextAlign(ALIGN_CENTER);
+    setFontSize(24);
+    drawShadowText('FPS: ' + averageFps.toFixed(0), CENTER_X, HEIGHT - 50, OVERLAY_LIGHT_GRAY);
+  }
+}
+
+
+// ============================================================
+// FILE: menu.js
+// ============================================================
+
+const introText = [,
+  [
+    [
+      // Intro Story 1
+      'OUR HERO, CAPTAIN CALLISTO, BLASTS THROUGH SPACE',
+      'SEEKING ADVENTURE',
+    ],
+  ],
+  [
+    [
+      // Intro Story 2
+      'APPROACHING THE ZETA AIR FORTRESS',
+      'BEWARE: SENSORS SHOW SIGNS OF LIFE',
+    ],
+  ],
+  [,
+    [
+      // Level 1
+      'COLLECT ALL TREASURE AND',
+      'REACH THE TRANSPORTER TO PROCEED',
+    ],
+    [
+      // Level 2
+      'THE PATH IS TREACHEROUS',
+      'PROCEED WITH CAUTION',
+    ],
+    [
+      // Level 3
+      'THERE\'S MORE THAN ONE WAY TO SKIN A WOMP RAT',
+      '',
+    ],
+    [
+      // Level 4
+      'MORE ALIEN ACTIVITY THAN EXPECTED',
+      'PROCEED WITH CAUTION',
+    ],
+    [
+      // Level 5
+      'WE ARE DEEP INTO ALIEN TERRITORY',
+      'HIGH ALERT',
+    ],
+    [
+      // Level 6
+      'EVIDENCE OF COMPLEX CIVILIZATION',
+      'DO NOT UNDERESTIMATE THE ENEMY',
+    ],
+    [
+      // Level 7
+      'ALIEN DEFENSES ARRIVED',
+      'WATCH OUT FOR MISSILES',
+    ],
+    [
+      // Level 8
+      'CLIMB THE GREAT PYRAMID',
+      'TREASURE AWAITS',
+    ],
+    [
+      // Level 9
+      'THE GREAT SPIRES OF KODOS',
+      'WE MUST BE NEAR!',
+    ],
+    [
+      // Level 10
+      'THE INNER SANCTUM!  THE GREAT KANG!',
+      'YOU ARE DOOMED!',
+    ],
+  ],
+  [
+    [
+      // Level failed
+      'OH NO!',
+      'TRY AGAIN!',
+    ],
+  ],
+];
+
+/**
+ * @typedef {{
+  *            callback:!Function
+  *          }}
+  */
+let Menu;
+
+/**
+ * Level intro screen.
+ * Show current level and player details.
+ * @return {!Menu}
+ */
+const levelIntro = () => ({
+  callback: () => {
+    gameState = GameState.PLAYING;
+    gameTime = 0;
+    setMenu(null);
+  },
+});
+
+/**
+ * Death screen.
+ * Show a sad message.
+ * @const {!Menu}
+ */
+const deathScreen = {
+  callback: () => {
+    gameState = GameState.BEFORE_LEVEL;
+    showLevelIntro();
+  },
+};
+
+/**
+ * Win screen.
+ * Show a happy message.
+ * @const {!Menu}
+ */
+const winScreen = {
+  callback: () => {
+    gameState = GameState.BEFORE_LEVEL;
+    setLevel(level + 1);
+    showLevelIntro();
+  },
+};
+
+/**
+ * Opening screen to get player input.
+ * @const {!Menu}
+ */
+const clickToStart = {
+  callback: () => {
+    if (gameState === 0) {
+      zzfxX.resume();
+      if (!localStorage['music-off']) {
+        playMusic(milkyWaySong, true);
+      }
+    }
+    if (++gameState > GameState.INTRO_STORY2) {
+      setLevel(1);
+      showLevelIntro();
+    }
+  },
+};
+
+/**
+ * Main menu.
+ * @const {!Menu}
+ */
+const mainMenu = {
+  callback: () => {
+    log('main menu callback');
+  },
+};
+
+/**
+ * Main menu.
+ * @const {!Menu}
+ */
+const levelsMenu = {
+  callback: () => {
+    log('levels menu callback');
+  },
+};
+
+/**
+ * Real world time that the menu started, in seconds.
+ * Wait one second before accepting continue button.
+ * @type {number}
+ */
+let menuStartTime = 0;
+
+/**
+ * Currently active menu.
+ * Start with the intro menu.
+ * @type {?Menu}
+ */
+let menu = clickToStart;
+
+/**
+ * Previous menu, if any.
+ * @type {?Menu}
+ */
+let prevMenu = null;
+
+/**
+ * Current menu option.
+ * @type {number}
+ */
+let menuY = 0;
+
+/**
+ * Sets or clears the current menu.
+ * @param {?Menu} m
+ */
+function setMenu(m) {
+  prevMenu = menu;
+  menuStartTime = time;
+  menu = m;
+  menuY = 0;
+}
+
+/**
+ * Re-initializes the game and shows the level intro screen.
+ */
+function showLevelIntro() {
+  initGame();
+  setMenu(levelIntro());
+}
+
+/**
+ * Draws the current menu.
+ * Also manages menu state.
+ * All menus wait for at least one frame of "no press",
+ * and then the next button press.
+ */
+const drawMenu = () => {
+  if (gameState === GameState.CREDITS && menu !== mainMenu && menu !== levelsMenu) {
+    menu = null;
+    return;
+  }
+
+  if (gameState <= GameState.INTRO_STORY2 || menu === mainMenu || menu == levelsMenu) {
+    setTextAlign(ALIGN_CENTER);
+    setFontSize(24, 'italic');
+    drawShadowText('THE ADVENTURES OF', CENTER_X, 60);
+    setFontSize(64, 'italic');
+    drawShadowText('CAPTAIN CALLISTO', CENTER_X, 120);
+  }
+
+  if (menu === mainMenu) {
+    setTextAlign(ALIGN_LEFT);
+    setFontSize(48, 'italic');
+    drawShadowText('NEW GAME', 250, 400, menuY === 0 ? OVERLAY_YELLOW : OVERLAY_WHITE);
+    drawShadowText('CONTINUE', 250, 500, menuY === 1 ? OVERLAY_YELLOW : OVERLAY_WHITE);
+    drawShadowText('LEVELS', 250, 600, menuY === 2 ? OVERLAY_YELLOW : OVERLAY_WHITE);
+
+    if (isKeyPressed(KEY_UP) || isKeyPressed(KEY_W)) {
+      menuY = (menuY + 2) % 3;
+      playMenuBeep();
+    }
+    if (isKeyPressed(KEY_DOWN) || isKeyPressed(KEY_S)) {
+      menuY = (menuY + 1) % 3;
+      playMenuBeep();
+    }
+    if (isKeyPressed(KEY_ESCAPE)) {
+      resetKeys();
+      setMenu(prevMenu);
+      playMenuBeep();
+    }
+    if (isKeyPressed(KEY_ENTER) || isKeyPressed(KEY_SPACE) || isKeyPressed(KEY_Z)) {
+      if (menuY === 0) {
+        gameState = GameState.INTRO_STORY1;
+        setLevel(0);
+        initGame();
+        setMenu(clickToStart);
+        playMenuBeep();
+      }
+      if (menuY === 1) {
+        setMenu(null);
+        playMenuBeep();
+      }
+      if (menuY === 2) {
+        setMenu(levelsMenu);
+        playMenuBeep();
+      }
+    }
+    return;
+  }
+
+  if (menu === levelsMenu) {
+    setFontSize(32, 'italic');
+
+    for (let i = 0; i < 10; i++) {
+      setTextAlign(ALIGN_LEFT);
+      drawShadowText(`LEVEL ${i + 1}`, 250, 350 + i * 60, menuY === i ? OVERLAY_YELLOW : OVERLAY_WHITE);
+
+      const bestTime = bestTimes[i+1];
+      if (bestTime) {
+        setTextAlign(ALIGN_RIGHT);
+        drawShadowText(`${bestTime.toFixed(1)} sec`, 600, 350 + i * 60, OVERLAY_LIGHT_GRAY);
+      }
+    }
+
+    if (isKeyPressed(KEY_UP) || isKeyPressed(KEY_W)) {
+      menuY = (menuY + 9) % 10;
+      playMenuBeep();
+    }
+    if (isKeyPressed(KEY_DOWN) || isKeyPressed(KEY_S)) {
+      menuY = (menuY + 1) % 10;
+      playMenuBeep();
+    }
+    if (isKeyPressed(KEY_ESCAPE)) {
+      // setMenu(mainMenu);
+      setMenu(prevMenu);
+      playMenuBeep();
+    }
+    if (isKeyPressed(KEY_ENTER) || isKeyPressed(KEY_SPACE) || isKeyPressed(KEY_Z)) {
+      gameState = GameState.BEFORE_LEVEL;
+      setLevel(menuY + 1);
+      showLevelIntro();
+      playMenuBeep();
+    }
+    return;
+  }
+
+  const canContinue = time - menuStartTime > 0.5;
+  if (canContinue && anyKey.upCount === 1) {
+    menu.callback();
+  } else {
+    if (gameState === GameState.WAITING_FOR_FIRST_CLICK) {
+      setTextAlign(ALIGN_CENTER);
+      setFontSize(32, 'italic');
+      drawShadowText('PRESS ANY KEY TO CONTINUE', CENTER_X, HEIGHT - 90);
+    } else if (gameState === GameState.AFTER_LEVEL) {
+      setTextAlign(ALIGN_CENTER);
+      setFontSize(64, 'italic');
+      drawShadowText(`LEVEL ${level} CLEARED`, CENTER_X, 120);
+      setFontSize(48, 'italic');
+      drawShadowText(gameTime.toFixed(1) + ' sec', CENTER_X, 220);
+      setFontSize(32, 'italic');
+      drawShadowText('PRESS ANY KEY TO CONTINUE', CENTER_X, HEIGHT - 90);
+    } else {
+      drawRectangle(20, HEIGHT - 180, 900, 160, '#cb6', OVERLAY_BLACK);
+
+      const index = gameState === GameState.BEFORE_LEVEL ? level : 0;
+
+      if (DEBUG) {
+        if (!introText[gameState]) {
+          log('no intro text for gameState: ' + gameState);
+        } else if (!introText[gameState][index]) {
+          log('no intro text for level: ' + index);
+        }
+      }
+
+      setTextAlign(ALIGN_LEFT);
+      setFontSize(28, 'italic');
+      drawText(introText[gameState][index][0], 30, HEIGHT - 165);
+      drawText(introText[gameState][index][1], 30, HEIGHT - 122);
+
+      setFontSize(20, 'italic');
+      drawText('PRESS ANY KEY TO CONTINUE', 30, HEIGHT - 53);
+    }
+  }
+};
+
+
+// ============================================================
+// FILE: mapgen.js
+// ============================================================
+
+// Use a clean RNG based on the current level.
+const rng = new RNG(1);
+
+/**
+ * Level descriptors.
+ * @const {!Array.<!Function>}
+ */
+const levelDefinitions = [
+  () => {
+    log('Openening scene');
+    entities.push(new Spaceship());
+  },
+  () => {
+    log('Level 1 - Intro level');
+
+    // z = 0-12
+    createMetalPlatform(4, 0, 0, 32, 4, 4); // 1st platform
+    createCoins(14, 5, 2, 4, 0, 3);
+    createMetalPlatform(28, 0, 4, 32, 4, 8); // Short connector
+    createLift(30, 3, 10, 30, 8, 10);
+
+    // z = 12-24
+    createMetalPlatform(0, 4, 12, 32, 8, 16); // 2nd platform
+    createCoins(14, 9, 14, 4, 0, 3);
+    createMetalPlatform(0, 4, 16, 4, 8, 20); // Short connector
+    createLift(2, 12, 22, 2, 7, 22);
+
+    // z = 24-36
+    createMetalPlatform(0, 8, 24, 16, 12, 28); // 3rd platform
+    createMetalPlatform(16, 8, 24, 32, 10, 28); // 3rd platform
+    const alien = new Alien();
+    alien.aggroRange = 0;
+    vec3.set(alien.pos, 18, 10, 26);
+    alien.waypoints = [
+      vec3.fromValues(17, 10, 26),
+      vec3.fromValues(27, 10, 26),
+    ];
+    entities.push(alien);
+    entities.push(new Flagpole(30, 10, 26));
+    vec3.set(player.pos, 6, 4, 2);
+  },
+  () => {
+    log('Level 2 - Maze level');
+    createMetalPlatform(12, 3.5, 0, 20, 4.5, 8); // Starting platform, z=0..8
+    createMetalPlatform(0, 4, 8, 32, 5, 12); // First long platform, z=8..12
+    createMetalPlatform(8, 4.5, 12, 12, 5.5, 16); // First connector, z=12..16
+    createMetalPlatform(0, 5, 16, 32, 6, 20); // Second long platform, z=16..20
+    createMetalPlatform(20, 5.5, 20, 24, 6.5, 24); // Second connector, z=20..24
+    createMetalPlatform(0, 6, 24, 32, 7, 28); // Third platform, z=24..28
+
+    createCoins(2, 6, 10, 28, 0, 2);
+    createCoins(2, 7, 18, 28, 0, 2);
+    createCoins(10, 8, 26, 4, 0, 4);
+
+    const alien1 = new Alien(4, 5, 10);
+    alien1.aggroRange = 0;
+    alien1.waypoints = [vec3.fromValues(4, 5, 10), vec3.fromValues(28, 5, 10)];
+    entities.push(alien1);
+
+    const alien2 = new Alien(4, 6, 18);
+    alien2.aggroRange = 0;
+    alien2.waypoints = [vec3.fromValues(4, 6, 18), vec3.fromValues(28, 6, 18)];
+    entities.push(alien2);
+
+    vec3.set(player.pos, 16, 4, 2);
+    entities.push(new Flagpole(2, 7, 26));
+  },
+  () => {
+    log('Level 3 - Lotsa lifts');
+    createMetalPlatform(0, 0, 0, 4, 4, 36); // Starting platform, x=0..4
+    createMetalPlatform(32, 0, 0, 36, 4, 36); // Ending platform, x=32..36
+    entities.push(new Fuel(2, 5, 30, 50)); // Fuel for the brave
+
+    for (let x = 6; x <= 30; x += 4) {
+      const lift = createLift(x, 3, 16, x, 10, 16);
+      lift.pos[1] = ((x * 2) % 11);
+    }
+
+    createCoins(6, 12, 16, 4, 0, 7);
+
+    vec3.set(player.pos, 2, 4, 16);
+    entities.push(new Flagpole(34, 4, 16));
+  },
+  () => {
+    log('Level 4 - Four Corners');
+
+    const createCorner = (x, y, z) => {
+      createMetalPlatform(x, y, z, x + 12, y + 4, z + 12);
+      if (x !== 0 || z !== 0) {
+        entities.push(new Coin(x + 2, y + 4, z + 2));
+      }
+      entities.push(new Coin(x + 10, y + 4, z + 2));
+      entities.push(new Coin(x + 10, y + 4, z + 10));
+      entities.push(new Coin(x + 2, y + 4, z + 10));
+
+      if (y > 0) {
+        const alien1 = new Alien(x + 2, y + 4, z + 2);
+        alien1.aggroRange = 0;
+        alien1.acceleration = 50;
+        alien1.waypoints = [
+          vec3.fromValues(x + 2, y + 4, z + 2),
+          vec3.fromValues(x + 10, y + 4, z + 2),
+          vec3.fromValues(x + 10, y + 4, z + 10),
+          vec3.fromValues(x + 2, y + 4, z + 10),
+        ];
+        entities.push(alien1);
+      }
+    };
+
+    createCorner(0, 0, 0); // Southwest
+    entities.push(new Fuel(6, 5, 6, 20));
+    vec3.set(player.pos, 1, 5, 1);
+
+    createCorner(20, 4, 0); // Southeast
+    entities.push(new Fuel(26, 9, 6, 20));
+
+    createCorner(20, 8, 20); // Northeast
+    entities.push(new Fuel(26, 13, 26, 20));
+
+    createCorner(0, 12, 20); // Northwest
+    entities.push(new Flagpole(6, 16, 26));
+  },
+  () => {
+    log('Level 5 - The Pit');
+
+    // Starting platform
+    createMetalPlatform(0, 0, 0, 32, 4, 32);
+    createMetalPlatform(0, 4, 0, 32, 8, 4); // South ridge
+    createMetalPlatform(0, 4, 28, 32, 12, 32); // North ridge
+    createMetalPlatform(0, 4, 4, 4, 10, 28); // West ridge
+    createMetalPlatform(28, 4, 4, 32, 8, 28); // East ridge
+    vec3.set(player.pos, 30, 8, 2);
+
+    for (let z = 10; z <= 26; z += 4) {
+      const alien1 = new Alien(z, 4, z);
+      alien1.color = COLOR_ORANGE;
+      alien1.aggroRange = 12;
+      alien1.acceleration = 50;
+      alien1.waypoints = [
+        vec3.fromValues(22, 4, z),
+        vec3.fromValues(10, 4, z),
+      ];
+      entities.push(alien1);
+    }
+
+    createLift(6, 4, 26, 6, 15, 26);
+    createCoins(6, 5, 10, 0, 4, 4);
+    createCoins(26, 5, 10, 0, 4, 4);
+    createCoins(10, 13, 30, 4, 0, 4);
+    entities.push(new Flagpole(30, 12, 30));
+  },
+  () => {
+    log('Level 6 - Moat and Castle');
+
+    // Base floor
+    createMetalPlatform(0, 0, 0, 32, 1, 32);
+    vec3.set(player.pos, 26, 2, 16);
+
+    createMetalPlatform(0, 0, 28, 32, 6, 32); // North wall
+
+    // Stairs to Northwest pillar
+    for (let i = 0; i < 10; i++) {
+      createMetalPlatform(4, 1, 18 + i, 8, 1 + i / 2, 19 + i);
+    }
+
+    createLift(2, 5, 26, 2, 5, 6); // Northwest to Southwest
+    createCoins(2, 7, 10, 0, 4, 4);
+
+    createMetalPlatform(0, 0, 0, 4, 6, 4); // Southwest
+    createLift(26, 5, 2, 6, 5, 2); // Southeast to Southwest
+    createCoins(10, 7, 2, 4, 0, 4);
+
+    createMetalPlatform(28, 0, 0, 32, 6, 4); // Southeast
+    createLift(30, 5, 26, 30, 5, 6); // Southeast to Northeast
+    createCoins(30, 7, 10, 0, 4, 4);
+
+    createMetalPlatform(8, 0, 16, 24, 6, 32); // Dock
+
+    // Stairs to aliens and flagpole
+    for (let i = 0; i < 12; i++) {
+      createMetalPlatform(23 - i, 1, 16, 24 - i, 6 + i / 2, 20);
+    }
+
+    createMetalPlatform(8, 1, 16, 12, 12, 20); // Top of stairs
+    createMetalPlatform(8, 1, 20, 20, 12, 32); // Top of stairs
+    entities.push(new Flagpole(14, 12, 26));
+
+    const waypoints = [
+      vec3.fromValues(10, 12, 30),
+      vec3.fromValues(18, 12, 30),
+      vec3.fromValues(18, 12, 22),
+      vec3.fromValues(10, 12, 22),
+    ];
+
+    for (let i = 0; i < 4; i++) {
+      const alien1 = new Alien(waypoints[i][0], waypoints[i][1], waypoints[i][2]);
+      alien1.aggroRange = 0;
+      alien1.waypoints = waypoints;
+      alien1.waypointIndex = i;
+      entities.push(alien1);
+    }
+  },
+  () => {
+    log('Level 7 - Firing Squad');
+
+    // Starting platform
+    createMetalPlatform(0, 0, 0, 32, 4, 32);
+
+    for (let z = 4; z <= 28; z += 8) {
+      for (let x = 4; x <= 28; x += 8) {
+        entities.push(new Coin(x, 5, z));
+      }
+    }
+
+    vec3.set(player.pos, 16, 5, 2);
+
+    let nextShootTime = 0.0;
+
+    for (let x = 4; x <= 28; x += 8) {
+      entities.push(new Shooter(x, 5, 34, Math.PI, (nextShootTime += 0.5)));
+    }
+
+    for (let z = 4; z <= 28; z += 8) {
+      let x = -2;
+      let yaw = Math.PI / 2;
+      if (((z - 4) / 8) % 2 !== 0) {
+        x = 34;
+        yaw = -yaw;
+      }
+      entities.push(new Shooter(x, 5, z, yaw, (nextShootTime += 0.5)));
+    }
+
+    entities.push(new Flagpole(16, 4, 16));
+  },
+  () => {
+    log('Level 8 - Pyramid');
+
+    createMetalPlatform(0, 0, 0, 32, 4, 32);
+    createMetalPlatform(4, 4, 8, 28, 8, 32);
+    createMetalPlatform(8, 8, 16, 24, 12, 32);
+    createMetalPlatform(12, 12, 24, 20, 16, 32);
+
+    createMetalPlatform(0, 4, 28, 4, 4.7, 32);
+    createLift(2, 4.5, 30, 2, 8, 30); // Ground to level 2
+    createMetalPlatform(24, 8, 28, 28, 8.7, 32);
+    createLift(26, 8.5, 30, 26, 12, 30); // Level 2 to level 3
+    createMetalPlatform(8, 12, 28, 12, 12.7, 32);
+    createLift(10, 12.5, 30, 10, 16, 30); // Level 3 to level 4
+
+    // Level 2 Shooters
+    entities.push(new Shooter(-2, 9, 10, Math.PI / 2, 0.5));
+    entities.push(new Shooter(-2, 9, 14, Math.PI / 2, 0.5));
+
+    // Level 3 Shooters
+    entities.push(new Shooter(-2, 13, 18, Math.PI / 2, 1.0));
+    entities.push(new Shooter(-2, 13, 22, Math.PI / 2, 1.0));
+    entities.push(new Shooter(34, 13, 18, -Math.PI / 2, 1.5));
+    entities.push(new Shooter(34, 13, 22, -Math.PI / 2, 1.5));
+
+    // Ground grunt
+    const alien1 = new Alien(30, 4, 30);
+    alien1.color = COLOR_ORANGE;
+    alien1.aggroRange = 12;
+    alien1.acceleration = 80;
+    alien1.waypoints = [
+      vec3.fromValues(30, 4, 30),
+      vec3.fromValues(30, 4, 16),
+    ];
+    entities.push(alien1);
+
+    createCoins(30, 5, 2, 0, 4, 4);
+
+    vec3.set(player.pos, 16, 4, 2);
+    entities.push(new Flagpole(16, 16, 30));
+  },
+  () => {
+    log('Level 9 - Spires of Kodo');
+    vec3.set(player.pos, 16, 4, 2);
+
+    // Starting platform
+    createMetalPlatform(0, 0, 0, 32, 4, 32);
+
+    // Spire 1
+    createMetalPlatform(0, 4, 24, 8, 32, 32);
+    createMetalPlatform(4, 4, 20, 8, 4.7, 24);
+    createLift(6, 4.5, 22, 6, 15, 22);
+    createLift(2, 24, 22, 2, 13.5, 22);
+    createLift(6, 22.5, 22, 6, 33, 22);
+    createCoins(2, 33, 26, 4, 0, 2);
+    createCoins(2, 33, 30, 4, 0, 2);
+
+    // Spire 2
+    createMetalPlatform(24, 4, 24, 32, 32, 32);
+    createLift(10, 31.5, 30, 22, 31.5, 30);
+    createLift(22, 31.5, 26, 10, 31.5, 26);
+    createCoins(26, 33, 26, 4, 0, 2);
+    createCoins(26, 33, 30, 4, 0, 2);
+
+    // Spire 3
+    createMetalPlatform(24, 4, 0, 32, 32, 8);
+    createLift(26, 31.5, 10, 26, 31.5, 22);
+    createLift(30, 31.5, 22, 30, 31.5, 10);
+    createCoins(26, 33, 2, 4, 0, 2);
+    createCoins(26, 33, 6, 4, 0, 2);
+    entities.push(new Flagpole(28, 32, 4));
+  },
+  () => {
+    log('Level 10 - Kang');
+
+    // Starting platform
+    createMetalPlatform(0, 0, 0, 32, 4, 8);
+    createMetalPlatform(0, 4, 4, 8, 8, 8);
+
+    // First lift
+    createLift(30, 3.5, 10, 30, 11.5, 10);
+
+    for (let y = 10; y <= 42; y += 16) {
+      // East platform
+      createMetalPlatform(28, y, 12, 32, y + 2, 32);
+      createCoins(30, y + 3, 18, 0, 4, 3);
+      entities.push(new Fuel(30, y + 3, 30, 100));
+
+      // West platform
+      createMetalPlatform(0, y + 8, 12, 4, y + 10, 32);
+      createCoins(2, y + 11, 18, 0, 4, 3);
+      entities.push(new Fuel(2, y + 11, 30, 100));
+    }
+
+    // Last platform
+    entities.push(new Flagpole(2, 52, 14));
+
+    entities.push(new Kang());
+    vec3.set(player.pos, 2, 4, 2);
+  },
+  () => {
+    log('Level 11 - credits');
+    gameState = GameState.CREDITS;
+  },
+];
+
+/**
+ * Creates a platform.
+ * 1) Makes all of the contained voxels solid.
+ * 2) Adds the static geometry.
+ * @param {number} x1
+ * @param {number} y1
+ * @param {number} z1
+ * @param {number} x2
+ * @param {number} y2
+ * @param {number} z2
+ * @param {number} color
+ */
+const createPlatform = (x1, y1, z1, x2, y2, z2, color) => {
+  const platform = new Platform();
+  vec3.set(platform.pos, (x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2);
+  vec3.set(platform.scale, (x2 - x1) / 2, (y2 - y1) / 2, (z2 - z1) / 2);
+  entities.push(platform);
+};
+
+/**
+ * Creates a grassy platform.
+ * @param {number} x1
+ * @param {number} y1
+ * @param {number} z1
+ * @param {number} x2
+ * @param {number} y2
+ * @param {number} z2
+ * @param {boolean=} goombas
+ */
+const createMetalPlatform = (x1, y1, z1, x2, y2, z2, goombas) => {
+  createPlatform(x1, y1, z1, x2, y2, z2, COLOR_SILVER);
+
+  for (let x = x1 + 2; x < x2; x += 4) {
+    for (let z = z1 + 2; z < z2; z += 4) {
+      const m = buffers[STATIC_CUBES].addInstance(COLOR_DARK_BLUE);
+      mat4.translate(m, m, vec3.fromValues(x, y2 + 0.01, z));
+      mat4.scale(m, m, vec3.fromValues(1.8, 0.02, 1.8));
+    }
+  }
+
+  const dx = x2 - x1;
+  const dz = z2 - z1;
+
+  // Add goombas
+  if (goombas) {
+    for (let i = 0; i < dx * dz * 0.01; i++) {
+      const x = x1 + 0.5 + rng.nextFloat() * (dx - 1.0);
+      const z = z1 + 0.5 + rng.nextFloat() * (dz - 1.0);
+      const alien = new Alien();
+      vec3.set(alien.pos, x, y2, z);
+      entities.push(alien);
+    }
+  }
+};
+
+/**
+ * Creates a lift.
+ * Vertical moving platform.
+ * @param {number} x1
+ * @param {number} y1
+ * @param {number} z1
+ * @param {number} x2
+ * @param {number} y2
+ * @param {number} z2
+ * @return {!Platform}
+ */
+const createLift = (x1, y1, z1, x2, y2, z2) => {
+  const platform = new Platform();
+  vec3.set(platform.pos, x1, y1, z1);
+  vec3.set(platform.scale, 2, 0.3, 2);
+  platform.waypoints = [
+    vec3.fromValues(x1, y1, z1),
+    vec3.fromValues(x2, y2, z2),
+  ];
+  entities.push(platform);
+  return platform;
+};
+
+/**
+ * Creates a row of coins.
+ * @param {number} x1
+ * @param {number} y1
+ * @param {number} z1
+ * @param {number} dx
+ * @param {number} dz
+ * @param {number} count
+ */
+const createCoins = (x1, y1, z1, dx, dz, count) => {
+  let x = x1;
+  let z = z1;
+  for (let i = 0; i < count; i++) {
+    const coin = new Coin();
+    vec3.set(coin.pos, x, y1, z);
+    entities.push(coin);
+    x += dx;
+    z += dz;
+  }
+};
+
+/**
+ * Creates a stairway.
+ * @param {number} x
+ * @param {number} y
+ * @param {number} z
+ * @param {number} dx
+ * @param {number} dz
+ * @param {number} count
+ */
+const createStairs = (x, y, z, dx, dz, count) => {
+  for (let i = 0; i < count; i++) {
+    createPlatform(x, y, z, x + 4, y + 1, z + 4, COLOR_SILVER);
+    x += dx;
+    y++;
+    z += dz;
+  }
+};
+
+/**
+ * Initialize the game.
+ */
+function initGame() {
+  // Clear any existing static geometry
+  buffers.forEach((b) => b.usage === STATIC_DRAW && b.resetBuffers());
+
+  // Clear any existing entities
+  entities.length = 0;
+
+  // Reset the player
+  vec3.set(player.pos, 16, 4, 16);
+  vec3.set(player.velocity, 0, 0, 0);
+  player.rendered = true;
+  player.jetpack = false;
+  player.health = 1;
+  player.fuel = 0;
+  player.yaw = 3.0;
+  player.groundedTime = 0;
+  player.shootTime = 0;
+  coins = 0;
+  lastCoinTime = 0;
+  coinSequence = 0;
+  entities.push(player);
+  stopJetpackSound();
+
+  // Sky box
+  {
+    const m = buffers[STATIC_CUBES].addInstance(COLOR_STARS);
+    mat4.scale(m, m, vec3.fromValues(500, 500, 500));
+  }
+
+  // Level definition
+  const levelDef = levelDefinitions[level % levelDefinitions.length];
+  levelDef();
+
+  // entities.forEach(e => i)
+  availableCoins = entities.filter((e) => e instanceof Coin).length;
+  buffers.forEach((b) => b.usage === STATIC_DRAW && b.updateBuffers());
+}
+
+
+// ============================================================
+// FILE: index.js
+// ============================================================
+
+/** @const {!vec3} */
+const cameraTarget = vec3.fromValues(0, 0, 0);
+
+/** @const {!vec3} */
+const preferredCameraPosition = vec3.fromValues(0, 0, 0);
+
+/** @const {!vec3} */
+const lightPosition = vec3.fromValues(200, 400, -32);
+
+// 4 geometry types:
+const cubeGeometry = buildRoundedCube(1, 2, identityTransform);
+const sphereGeometry = buildRoundedCube(21, 1, identityTransform);
+buffers.push(
+    new BufferSet(STATIC_DRAW, cubeGeometry, 200000),
+    new BufferSet(STATIC_DRAW, sphereGeometry, 1000),
+    new BufferSet(DYNAMIC_DRAW, cubeGeometry, 4000),
+    new BufferSet(DYNAMIC_DRAW, sphereGeometry, 2000),
+);
+
+const entities = /** @const {!Array.<!GameEntity>} */ ([]);
+const player = new Hero();
+
+/**
+ * Current camera distance.
+ * @type {number}
+ */
+const cameraDistance = 52;
+
+/**
+ * Number of coins collected by the player.
+ * @type {number}
+ */
+let coins = 0;
+
+/**
+ * Number of coins available in the level.
+ */
+let availableCoins = 0;
+
+/**
+ * Timestamp of the last coin.
+ * This is used to reset the coin sound effect sequence.
+ * @type {number}
+ */
+let lastCoinTime = 0;
+
+/**
+ * How many coins in the sequence.
+ * Resets if no coins for one second.
+ * @type {number}
+ */
+let coinSequence = 0;
+
+/**
+ * Never called.
+ * Keeps eslint happy.
+ */
+function throwaway() {
+  gameState = GameState.PLAYING;
+  coins++;
+  availableCoins++;
+  lastCoinTime++;
+  coinSequence++;
+}
+
+/**
+ * Current level.
+ * @type {number}
+ */
+let level = 0;
+
+/**
+ * Time of last engine burst.
+ * This is used in opening cinematic to control engine animations.
+ * @type {number}
+ */
+let lastEngineBurst = 0;
+
+/**
+ * Game state enum.
+ * @enum {number}
+ */
+const GameState = {
+  WAITING_FOR_FIRST_CLICK: 0,
+  INTRO_STORY1: 1,
+  INTRO_STORY2: 2,
+  BEFORE_LEVEL: 3,
+  PLAYING: 4,
+  AFTER_LEVEL: 5,
+  MAIN_MENU: 99,
+  CREDITS: 100,
+};
+
+/**
+ * Global game state.
+ * @type {!GameState}
+ */
+let gameState = GameState.WAITING_FOR_FIRST_CLICK;
+
+initGame();
+registerSong('Milky Way by Ben Prunty', milkyWaySong);
+
+/**
+ * Sets the current level.
+ * @param {number} l
+ */
+function setLevel(l) {
+  level = l;
+}
+
+/**
+ * Camera flies over the city.
+ */
+const flyoverCamera = () => {
+  const theta = 0.2 * time;
+  const rho = 0.05 * time;
+  const radius = 50 + 20 * Math.sin(0.2 * time);
+  const x = radius * Math.sin(rho) * Math.sin(theta);
+  const y = radius * Math.abs(Math.cos(rho));
+  const z = radius * Math.sin(rho) * Math.cos(theta);
+  vec3.set(camera.source, x, y, z);
+};
+
+/**
+ * Updates game state.
+ */
+function update() {
+  updateWorld();
+
+  if (menu !== mainMenu && isKeyPressed(KEY_ESCAPE)) {
+    resetKeys();
+    setMenu(mainMenu);
+    playMenuBeep();
+  }
+
+  if (menu) {
+    drawMenu();
+  } else {
+    handleInput();
+    drawHud();
+  }
+
+  if (DEBUG) {
+    drawDebugOverlay();
+  }
+
+  if (gameState === GameState.CREDITS) {
+    player.yaw = 0;
+    player.jetpack = true;
+    vec3.lerp(camera.source, camera.source, vec3.fromValues(0, 50, -15), 0.01);
+    vec3.lerp(player.pos, player.pos, vec3.fromValues(0, 80, 0), 0.01);
+    vec3.set(player.velocity, 0, 0, 0);
+    lookAt(camera, camera.source, vec3.fromValues(player.pos[0], player.pos[1] + 15, player.pos[2]), 0.4);
+    createJetpackParticles();
+  } else if (gameState === GameState.AFTER_LEVEL) {
+    // After level success
+    player.yaw += 5 * dt;
+    player.jetpack = true;
+    vec3.lerp(camera.source, camera.source, vec3.fromValues(0, 90, -25), 0.01);
+    vec3.lerp(player.pos, player.pos, vec3.fromValues(0, 80, 0), 0.01);
+    vec3.set(player.velocity, 0, 0, 0);
+    cameraTarget[0] = player.pos[0];
+    cameraTarget[1] = player.pos[1] + 2;
+    cameraTarget[2] = player.pos[2];
+    lookAt(camera, camera.source, cameraTarget, 0.4);
+    createJetpackParticles();
+  } else if (gameState === GameState.BEFORE_LEVEL || gameState === GameState.PLAYING) {
+    // Normal gameplay mode
+    lightSource[0] = player.pos[0] + 8;
+    lightSource[1] = 80;
+    lightSource[2] = player.pos[2] - 16;
+
+    cameraTarget[0] = 0.5 * 16 + 0.5 * player.pos[0];
+    // cameraTarget[0] = player.pos[0];
+    cameraTarget[1] = 0.9 * cameraTarget[1] + 0.1 * player.pos[1];
+    cameraTarget[2] = 0.25 * 16 + 0.75 * player.pos[2];
+
+    vec3.set(
+        preferredCameraPosition,
+        0.2 * 16 + 0.8 * cameraTarget[0],
+        cameraTarget[1] + cameraDistance,
+        (0.25 * 8 + 0.75 * cameraTarget[2]) - cameraDistance);
+
+    camera.source[0] = preferredCameraPosition[0]; // X-position is locked
+    vec3.lerp(camera.source, camera.source, preferredCameraPosition, 0.02);
+    lookAt(camera, camera.source, cameraTarget, 0.4);
+  } else if (gameState <= GameState.INTRO_STORY2) {
+    // Camera circles the game world
+    // and looks at the center
+    // vec3.set(camera.source, 0, 40, -40);
+    flyoverCamera();
+    vec3.set(cameraTarget, 0, 0, 0);
+    lookAt(camera, camera.source, cameraTarget, 0.4);
+
+    // Force player off screen
+    player.pos[1] = 400;
+    player.velocity[1] = 0;
+
+    if (time - lastEngineBurst > 0.08) {
+      lastEngineBurst = time;
+
+      const leftBurst = new Particle();
+      const rightBurst = new Particle();
+      leftBurst.size = rightBurst.size = 0.25;
+      leftBurst.color = rightBurst.color = 0xFFFF0030;
+      vec3.set(leftBurst.pos, -6, 0.3, 0.7);
+      vec3.set(leftBurst.velocity, -10, 0, 0);
+      vec3.set(rightBurst.pos, -6, 0.3, -0.7);
+      vec3.set(rightBurst.velocity, -10, 0, 0);
+      entities.push(leftBurst, rightBurst);
+    }
+  }
+
+  // lookAt(lightSource, lightPosition, cameraTarget, 0.1);
+  lookAt(lightSource, lightPosition, vec3.fromValues(16, 0, 16), 0.1);
+  renderEntities(entities);
+}
+
+/**
+ * Returns true if the entity is within "range" of the player.
+ * This is a fast check if the entity is within ~20 meters of the player.
+ * Note that it uses manhattan distance rather than true distance for performance.
+ * @param {!GameEntity} entity
+ * @return {boolean}
+ */
+function inRangeOfPlayer(entity) {
+  return entity.pos[0] > player.pos[0] - 20 &&
+    entity.pos[0] < player.pos[0] + 20 &&
+    entity.pos[2] > player.pos[2] - 15 &&
+    entity.pos[2] < player.pos[2] + 40;
+}
+
+/**
+ * Renders an array of game entities to the dynamic buffer.
+ * @param {!Array.<!GameEntity>} entities
+ */
+function renderEntities(entities) {
+  resetLights();
+  for (let i = entities.length - 1; i >= 0; i--) {
+    const entity = entities[i];
+    if (entity !== player && entity.health <= 0) {
+      entities.splice(i, 1);
+      continue;
+    }
+    if (entity.rendered) {
+      entity.setupTransformMatrix();
+      entity.render();
+    }
+  }
+}
+
+/**
+ * Player died.
+ */
+function playerDie() {
+  playMusic(deathSongData);
+  stopJetpackSound();
+  setMenu(deathScreen);
+}
+
+/**
+ * Handles player input.
+ */
+function handleInput() {
+  player.accelerating = false;
+
+  if (gameState !== GameState.AFTER_LEVEL && gameState !== GameState.CREDITS) {
+    if (isKeyDown(KEY_UP) || isKeyDown(KEY_W)) {
+      player.velocity[2] += dt * ACCELERATION;
+      player.accelerating = true;
+    }
+    if (isKeyDown(KEY_DOWN) || isKeyDown(KEY_S)) {
+      player.velocity[2] -= dt * ACCELERATION;
+      player.accelerating = true;
+    }
+    if (isKeyDown(KEY_LEFT) || isKeyDown(KEY_A)) {
+      player.velocity[0] -= dt * ACCELERATION;
+      player.accelerating = true;
+    }
+    if (isKeyDown(KEY_RIGHT) || isKeyDown(KEY_D)) {
+      player.velocity[0] += dt * ACCELERATION;
+      player.accelerating = true;
+    }
+    if ((isKeyDown(KEY_X) || isKeyDown(KEY_SHIFT)) && player.fuel > 0) {
+      // Jetpack
+      player.velocity[1] += dt * 60;
+      player.jetpack = true;
+      player.fuel = Math.max(0, player.fuel - dt * 20);
+      createJetpackParticles();
+    } else {
+      player.jetpack = false;
+    }
+    if (player.jetpack && !jetpackSound) {
+      startJetpackSound();
+    }
+    if (!player.jetpack && jetpackSound) {
+      stopJetpackSound();
+    }
+    if (player.isGrounded() && (keys[KEY_Z].downCount === 1 || keys[KEY_SPACE].downCount === 1)) {
+      player.jump();
+    }
+    if (isKeyPressed(KEY_R)) {
+      playerDie();
+    }
+    if (isKeyPressed(KEY_M)) {
+      toggleBackgroundMusic();
+    }
+  }
+}
+
+/**
+ * Creates jetpack particles.
+ */
+function createJetpackParticles() {
+  if (Math.random() < 0.3) {
+    const blast = new Particle();
+    blast.size = 0.2;
+    blast.velocity[1] = (gameState === GameState.AFTER_LEVEL || gameState === GameState.CREDITS) ? -10 : -0.3;
+    vec3.copy(blast.pos, player.pos);
+    blast.pos[0] -= 0.3 * Math.sin(player.yaw);
+    blast.pos[1] += 0.8;
+    blast.pos[2] -= 0.3 * Math.cos(player.yaw);
+    entities.push(blast);
+  }
+}
+
+/**
+ * Updates everything.
+ */
+function updateWorld() {
+  if (Math.random() < 0.02) {
+    const floaty = new Particle();
+    floaty.size = 0.08;
+    floaty.velocity[1] = 1;
+    vec3.copy(floaty.pos, player.pos);
+    floaty.pos[0] += (Math.random() - 0.5) * 30.0;
+    floaty.pos[2] += (Math.random() - 0.5) * 30.0;
+    entities.push(floaty);
+  }
+
+  if (gameTime - lastCoinTime > 1.0) {
+    coinSequence = 0;
+  }
+
+  for (let i = 0; i < entities.length; i++) {
+    entities[i].update();
+  }
+
+  const playerWasAlive = player.health > 0;
+
+  for (let i = 0; i < entities.length; i++) {
+    for (let j = 0; j < entities.length; j++) {
+      if ((entities[i] instanceof Platform) && !(entities[j] instanceof Platform)) {
+        const platform = /** @type {!Platform} */ (entities[i]);
+        const actor = entities[j];
+        // Need actor size
+        // Assume actor is a cylinder
+        // Assume radius 1.0 and height 3.0
+        // actor.pos represents center of feet
+        const actorX = actor.pos[0];
+        const actorY = actor.pos[1];
+        const actorZ = actor.pos[2];
+        const projectile = actor instanceof Particle && actor.projectile > 0;
+        const actorRadius = projectile ? 0.1 : 0.7;
+        const actorHeight = projectile ? 0.1 : 2.5;
+
+        const platformMinX = platform.pos[0] - platform.scale[0] - actorRadius;
+        const platformMinY = platform.pos[1] - platform.scale[1];
+        const platformMinZ = platform.pos[2] - platform.scale[2] - actorRadius;
+
+        const platformMaxX = platform.pos[0] + platform.scale[0] + actorRadius;
+        const platformMaxY = platform.pos[1] + platform.scale[1];
+        const platformMaxZ = platform.pos[2] + platform.scale[2] + actorRadius;
+
+        const graceY = 1.0;
+
+        if (actorX > platformMinX && actorX < platformMaxX && actorZ > platformMinZ && actorZ < platformMaxZ) {
+          if (projectile && actorY < platformMaxY && actorY > platformMinY) {
+            // Destroy the projectile
+            actor.health = 0;
+          } else if (actorY > platformMaxY - graceY && actorY < platformMaxY) {
+            // Put the actor on top of the platform
+            actor.pos[1] = platformMaxY;
+            if (actor.velocity[1] < 0) {
+              actor.velocity[1] = 0;
+              actor.groundedTime = gameTime;
+              actor.groundedPlatform = platform;
+            }
+          } else if (actorY < platformMaxY && actorY + actorHeight > platformMinY) {
+            // Determine which edge to use
+            // Push the actor away from the platform
+            if (actorX < platform.pos[0] - platform.scale[0]) {
+              actor.pos[0] = platformMinX;
+            } else if (actorX > platform.pos[0] + platform.scale[0]) {
+              actor.pos[0] = platformMaxX;
+            } else if (actorZ < platform.pos[2] - platform.scale[2]) {
+              actor.pos[2] = platformMinZ;
+            } else {
+              actor.pos[2] = platformMaxZ;
+            }
+          }
+        }
+      }
+
+      vec3.copy(tempVec, player.pos);
+      tempVec[1] += 1;
+      if (entities[i] instanceof Hero &&
+        entities[j] instanceof Particle &&
+        (/** @type {!Particle} */ (entities[j])).projectile === ProjectileType.Enemy &&
+        vec3.distance(tempVec, entities[j].pos) < 1.5 &&
+        gameState === GameState.PLAYING) {
+        player.health = 0;
+        player.rendered = false;
+        entities[j].health = 0;
+
+        playExplosionSound();
+        createExplosion(player.pos, COLOR_WHITE);
+      }
+    }
+  }
+
+  updateEntity(player);
+
+  if (playerWasAlive && player.health <= 0) {
+    playerDie();
+  }
+}
+
+/**
+ * Creates an explosion.
+ * @param {!vec3} startPos
+ * @param {number=} color
+ * @param {number=} count
+ */
+function createExplosion(startPos, color = COLOR_WHITE, count = 40) {
+  log('Create explosion');
+  for (let k = 0; k < count; k++) {
+    const explosion = new Particle();
+    vec3.copy(explosion.pos, startPos);
+    explosion.pos[1] += 1.0;
+    explosion.color = color;
+    explosion.size = 0.4;
+    const speed = 0.2 + Math.random() * 5.0;
+    const direction = Math.random() * 6.28;
+    explosion.velocity[0] = Math.sin(direction) * speed;
+    explosion.velocity[1] = 2;
+    explosion.velocity[2] = Math.cos(direction) * speed;
+    explosion.acceleration[1] = -0.5;
+    entities.push(explosion);
+  }
+}
+
+/**
+ * Updates a game entity for the frame.
+ * @param {!GameEntity} entity
+ */
+function updateEntity(entity) {
+  if (entity.isGrounded() && entity.groundedPlatform) {
+    // Move the player with the platform
+    vec3.scaleAndAdd(entity.pos, entity.pos, entity.groundedPlatform.velocity, dt);
+  }
+
+  entity.velocity[0] *= (1.0 - dt * FRICTION);
+  entity.velocity[2] *= (1.0 - dt * FRICTION);
+
+  entity.pos[0] += dt * entity.velocity[0];
+  entity.pos[2] += dt * entity.velocity[2];
+
+  const speed = vec3.magnitude(entity.velocity);
+  if (vec3.magnitude(entity.velocity) > 0.1) {
+    entity.yaw = Math.atan2(entity.velocity[0], entity.velocity[2]);
+  } else {
+    vec3.set(entity.velocity, 0, 0, 0);
+  }
+
+  if (gameState === GameState.CREDITS) {
+    player.yaw = 0;
+    if (Math.random() < 0.5) {
+      const box = new Mystery(
+          (Math.random() < 0.5 ? -1 : 1) * (10 + 40 * Math.random()), 600, (Math.random() < 0.5 ? -1 : 1) * (10 + 40 * Math.random()),
+          2 + 2 * Math.random(), 4 + 20 * Math.random(), 2 + 2 * Math.random());
+      box.velocity[1] = -100 - 400 * Math.random();
+      entities.push(box);
+    }
+  } else if (gameState !== GameState.AFTER_LEVEL) {
+    const gravity = GRAVITY;
+    entity.velocity[1] -= dt * gravity;
+    entity.pos[1] += dt * entity.velocity[1];
+  }
+
+  if (entity.isGrounded() && speed > 5 && Math.random() < 0.2) {
+    const dust = new Particle();
+    dust.velocity[1] = 0.1;
+    vec3.copy(dust.pos, entity.pos);
+    entities.push(dust);
+  }
+
+  if (entity.pos[1] < -30) {
+    entity.pos[1] = -30;
+    entity.health = 0;
+  }
+}
+
+const bestTimesStr = localStorage['callisto-times'];
+const bestTimes = bestTimesStr ? JSON.parse(bestTimesStr) : [];
+
+
+// ============================================================
+// TOUCH CONTROLS
+// ============================================================
+(function() {
+  // Detect if touch device
+  const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
+  const touchControls = document.getElementById('touch-controls');
+  if (!isTouchDevice) {
+    touchControls.style.display = 'none';
+    return;
+  }
+
+  const dpadUp = document.getElementById('dpad-up');
+  const dpadDown = document.getElementById('dpad-down');
+  const dpadLeft = document.getElementById('dpad-left');
+  const dpadRight = document.getElementById('dpad-right');
+  const btnJump = document.getElementById('btn-jump');
+  const btnJetpack = document.getElementById('btn-jetpack');
+  const btnRestart = document.getElementById('btn-restart');
+  const btnMute = document.getElementById('btn-mute');
+  const btnMenu = document.getElementById('btn-menu');
+
+  // Key code constants (matching keyboard.js)
+  const K_UP = 38, K_DOWN = 40, K_LEFT = 37, K_RIGHT = 39;
+  const K_W = 87, K_A = 65, K_S = 83, K_D = 68;
+  const K_Z = 90, K_SPACE = 32;
+  const K_X = 88, K_SHIFT = 16;
+  const K_R = 82, K_M = 77;
+  const K_ENTER = 13, K_ESCAPE = 27;
+
+  function setKey(code, down) {
+    if (keys && keys[code]) {
+      keys[code].down = down;
+    }
+  }
+
+  function clearDirectionKeys() {
+    setKey(K_UP, false);
+    setKey(K_DOWN, false);
+    setKey(K_LEFT, false);
+    setKey(K_RIGHT, false);
+    setKey(K_W, false);
+    setKey(K_A, false);
+    setKey(K_S, false);
+    setKey(K_D, false);
+  }
+
+  // D-pad setup
+  function setupDpadBtn(btn, keyPrimary, keyAlt) {
+    btn.addEventListener('touchstart', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      setKey(keyPrimary, true);
+      setKey(keyAlt, true);
+    }, {passive: false});
+    btn.addEventListener('touchend', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      setKey(keyPrimary, false);
+      setKey(keyAlt, false);
+    }, {passive: false});
+    btn.addEventListener('touchcancel', function(e) {
+      setKey(keyPrimary, false);
+      setKey(keyAlt, false);
+    }, {passive: false});
+  }
+
+  setupDpadBtn(dpadUp, K_UP, K_W);
+  setupDpadBtn(dpadDown, K_DOWN, K_S);
+  setupDpadBtn(dpadLeft, K_LEFT, K_A);
+  setupDpadBtn(dpadRight, K_RIGHT, K_D);
+
+  // Action buttons
+  function setupButton(btn, keyCodes, momentary) {
+    btn.addEventListener('touchstart', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      keyCodes.forEach(function(code) { setKey(code, true); });
+      // Also trigger anyKey for menu screens
+      if (typeof anyKey !== 'undefined') {
+        anyKey.down = true;
+      }
+    }, {passive: false});
+
+    btn.addEventListener('touchend', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      keyCodes.forEach(function(code) { setKey(code, false); });
+    }, {passive: false});
+
+    btn.addEventListener('touchcancel', function(e) {
+      keyCodes.forEach(function(code) { setKey(code, false); });
+    }, {passive: false});
+  }
+
+  setupButton(btnJump, [K_Z, K_SPACE]);
+  setupButton(btnJetpack, [K_X, K_SHIFT]);
+  setupButton(btnRestart, [K_R]);
+  setupButton(btnMute, [K_M]);
+  setupButton(btnMenu, [K_ESCAPE]);
+
+  // Tap on overlay canvas for "press any key" on menu screens
+  const overlayEl = document.querySelectorAll('canvas')[1];
+  if (overlayEl) {
+    overlayEl.addEventListener('touchstart', function(e) {
+      // Only trigger if there is a menu active and touch is not on a button
+      if (typeof menu !== 'undefined' && menu) {
+        if (typeof anyKey !== 'undefined') {
+          anyKey.down = true;
+          anyKey.upCount = 1;
+        }
+      }
+      // Also resume audio context on first touch
+      if (typeof zzfxX !== 'undefined' && zzfxX.state === 'suspended') {
+        zzfxX.resume();
+      }
+    }, {passive: true});
+
+    overlayEl.addEventListener('touchend', function(e) {
+      if (typeof anyKey !== 'undefined') {
+        anyKey.down = false;
+      }
+    }, {passive: true});
+  }
+})();
+</script>
+</body>
+</html>
