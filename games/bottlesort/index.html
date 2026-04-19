@@ -1453,39 +1453,38 @@ function hasValidMoves() {
   return false;
 }
 
-// Bounded BFS solver — checks if the puzzle is solvable from current state.
-// Returns true if solvable (or uncertain), false if definitely stuck.
-function isSolvable() {
-  if (!hasValidMoves()) return false;
+// Bounded BFS solver — runs in a Web Worker to avoid blocking the UI.
+const solverWorkerCode = `
+self.onmessage = function(e) {
+  const { bots, ml, lockedFloor, capped } = e.data;
+  const n = bots.length;
 
-  const ml = currentConfig.maxLayers || 4;
-  const n = bottles.length;
+  // Quick check: any capped bottles → skip (too complex)
+  for (let i = 0; i < n; i++) { if (capped[i] > 0) { self.postMessage(true); return; } }
 
-  // Compute locked floor per bottle — these layers never move
-  const lockedFloor = [];
-  for (let i = 0; i < n; i++) {
-    let f = 0;
-    if (bottleLocked[i]) {
-      while (f < bottles[i].length && bottleLocked[i][f]) f++;
-    }
-    lockedFloor.push(f);
+  // Quick check: any valid moves at all?
+  function canPourSolver(s, d) {
+    if (s === d) return false;
+    if (bots[s].length === 0) return false;
+    if (bots[d].length >= ml) return false;
+    if (bots[s].length <= lockedFloor[s]) return false;
+    if (bots[d].length === 0) return true;
+    return bots[s][bots[s].length - 1] === bots[d][bots[d].length - 1];
   }
+  let anyMove = false;
+  for (let s = 0; s < n && !anyMove; s++)
+    for (let d = 0; d < n && !anyMove; d++)
+      if (canPourSolver(s, d)) anyMove = true;
+  if (!anyMove) { self.postMessage(false); return; }
 
-  // If any bottles are capped, skip solvability check (cap mechanics too complex to simulate)
-  for (let i = 0; i < n; i++) {
-    if (bottleCapped[i] > 0) return true;
-  }
-
-  // Encode state: include locked floor per bottle so bottles with different
-  // locked properties aren't treated as interchangeable during dedup
-  function encodeState(bots) {
-    const keys = bots.map((b, i) => lockedFloor[i] + ':' + b.join(','));
+  function encodeState(bs) {
+    const keys = bs.map((b, i) => lockedFloor[i] + ':' + b.join(','));
     keys.sort();
     return keys.join('|');
   }
 
-  function isWon(bots) {
-    for (const b of bots) {
+  function isWon(bs) {
+    for (const b of bs) {
       if (b.length === 0) continue;
       if (b.length !== ml) return false;
       const c = b[0];
@@ -1505,51 +1504,80 @@ function isSolvable() {
     return { color: topColor, count };
   }
 
-  const startBots = bottles.map(b => [...b]);
-  if (isWon(startBots)) return true;
+  if (isWon(bots)) { self.postMessage(true); return; }
 
   const visited = new Set();
-  visited.add(encodeState(startBots));
-
-  let queue = [startBots];
+  visited.add(encodeState(bots));
+  let queue = [bots];
   const MAX_STATES = 15000;
 
   while (queue.length > 0 && visited.size < MAX_STATES) {
     const nextQueue = [];
-    for (const bots of queue) {
+    for (const bs of queue) {
       if (visited.size >= MAX_STATES) break;
       for (let s = 0; s < n; s++) {
-        const top = getTop(bots[s], s);
+        const top = getTop(bs[s], s);
         if (top.count === 0) continue;
         for (let d = 0; d < n; d++) {
           if (s === d) continue;
-          if (bots[d].length >= ml) continue;
-          if (bots[d].length === 0 || bots[d][bots[d].length - 1] === top.color) {
-            const space = ml - bots[d].length;
+          if (bs[d].length >= ml) continue;
+          if (bs[d].length === 0 || bs[d][bs[d].length - 1] === top.color) {
+            const space = ml - bs[d].length;
             const pourCount = Math.min(top.count, space);
-            // Skip pure swaps: pouring a single-color unlocked bottle into empty
-            if (bots[d].length === 0 && lockedFloor[s] === 0 && pourCount === bots[s].length) continue;
-
-            const next = bots.map(b => [...b]);
+            if (bs[d].length === 0 && lockedFloor[s] === 0 && pourCount === bs[s].length) continue;
+            const next = bs.map(b => [...b]);
             const moved = next[s].splice(next[s].length - pourCount, pourCount);
             for (const c of moved) next[d].push(c);
-
-            if (isWon(next)) return true;
-
+            if (isWon(next)) { self.postMessage(true); return; }
             const key = encodeState(next);
-            if (!visited.has(key)) {
-              visited.add(key);
-              nextQueue.push(next);
-            }
+            if (!visited.has(key)) { visited.add(key); nextQueue.push(next); }
           }
         }
       }
     }
     queue = nextQueue;
   }
-
   // Exhausted search space → stuck. Hit limit → assume solvable.
-  return visited.size >= MAX_STATES;
+  self.postMessage(visited.size >= MAX_STATES);
+};
+`;
+const solverBlob = new Blob([solverWorkerCode], { type: 'application/javascript' });
+const solverWorkerUrl = URL.createObjectURL(solverBlob);
+let solverWorker = null;
+let solverCheckId = 0; // increments to discard stale results
+
+function checkSolvableAsync() {
+  if (stuckDismissed) return;
+
+  const ml = currentConfig.maxLayers || 4;
+  const n = bottles.length;
+  const lockedFloor = [];
+  for (let i = 0; i < n; i++) {
+    let f = 0;
+    if (bottleLocked[i]) { while (f < bottles[i].length && bottleLocked[i][f]) f++; }
+    lockedFloor.push(f);
+  }
+
+  const checkId = ++solverCheckId;
+  if (solverWorker) solverWorker.terminate();
+  solverWorker = new Worker(solverWorkerUrl);
+  solverWorker.onmessage = (e) => {
+    if (checkId !== solverCheckId) return; // stale result
+    if (state !== 'playing') return; // state changed while solving
+    if (!e.data) { // not solvable
+      timerActive = false;
+      state = 'stuck';
+      sfxInvalid();
+      drawCurrentState();
+    }
+    solverWorker = null;
+  };
+  solverWorker.postMessage({
+    bots: bottles.map(b => [...b]),
+    ml,
+    lockedFloor,
+    capped: [...bottleCapped],
+  });
 }
 
 function getTopCount(bottle, bottleIdx) {
@@ -1600,10 +1628,8 @@ function pourBottle(srcIdx, dstIdx, startPos) {
       if (currentConfig.bonusEmptyReward && stars === 3) addBonusEmpty();
       initConfetti();
       sfxWin();
-    } else if (!stuckDismissed && !isSolvable()) {
-      timerActive = false;
-      state = 'stuck';
-      sfxInvalid();
+    } else {
+      checkSolvableAsync();
     }
     drawCurrentState();
   }, startPos);
