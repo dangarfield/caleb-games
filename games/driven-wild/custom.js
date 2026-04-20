@@ -15,6 +15,23 @@ let customMenuVisible = true;
 let gameOverVisible = false;
 let touchLeft = false, touchRight = false;
 
+// --- Mobile/Tablet Performance Optimization ---
+const isMobileDevice = /Android|iPad|iPhone|iPod/i.test(navigator.userAgent) ||
+    (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) <= 1024);
+
+// Resolution scale for WebGL rendering (1.0 = full, lower = faster)
+let perfScale = isMobileDevice ? 0.65 : 1.0;
+const PERF_MIN_SCALE = 0.4;
+const PERF_MAX_SCALE = 1.0;
+const PERF_FPS_LOW = 30;
+const PERF_FPS_OK = 50;
+let perfAdaptFrames = 0;
+
+// Sky complexity (cloud/parallax sprite counts)
+const perfCloudCount = isMobileDevice ? 40 : 99;
+const perfParallaxCount = isMobileDevice ? 40 : 99;
+const perfSunSteps = isMobileDevice ? 0.1 : 0.05;
+
 // Colors are set after Color class is available
 PLAYERS.caleb.color = hsl(0.13, 0.9, 0.55); // Yellow/gold
 PLAYERS.ezra.color  = hsl(0.6, 0.8, 0.5);   // Blue
@@ -197,6 +214,133 @@ function regeneratePlayerTextures(cfg) {
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 4 * tileSize, 0, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
 }
 
+// --- Performance: Resolution scaling for WebGL canvas ---
+const _origGlPreRender = glPreRender;
+glPreRender = function(canvasSize) {
+    if (perfScale < 1.0) {
+        canvasSize = vec3(
+            Math.max(360, canvasSize.x * perfScale | 0),
+            Math.max(240, canvasSize.y * perfScale | 0)
+        );
+    }
+    _origGlPreRender(canvasSize);
+};
+
+// --- Performance: Aggressive shadow culling on mobile ---
+if (isMobileDevice) {
+    const _origPushShadow = pushShadow;
+    pushShadow = function(pos, xSize, zSize) {
+        if (pos.z > 1e4) return; // cull shadows beyond 10k (vs default 20k)
+        _origPushShadow(pos, xSize, zSize);
+    };
+}
+
+// --- Performance: Cap AI vehicle count on mobile ---
+if (isMobileDevice) {
+    const _origSpawnVehicle = spawnVehicle;
+    spawnVehicle = function(z) {
+        if (vehicles.length >= 6) return; // cap at 6 (vs default 10)
+        _origSpawnVehicle(z);
+    };
+}
+
+// --- Performance: Reduced sky complexity on mobile ---
+const _origDrawSky = drawSky;
+drawSky = function() {
+    glEnableLighting = glEnableFog = 0;
+    glSetDepthTest(0,0);
+    random.setSeed(13);
+
+    const levelFloat = cameraOffset/checkpointDistance;
+    const levelInfo = getLevelInfo(levelFloat);
+    const levelInfoLast = getLevelInfo(levelFloat-1);
+    const levelPercent = levelFloat%1;
+    const levelLerpPercent = percent(levelPercent, 0, levelLerpRange);
+
+    const skyTop = 13e2;
+    const skyZ   = 1e3;
+    const skyW   = 5e3;
+    const skyH   = 8e2;
+    {
+        const skyColorTop = levelInfoLast.skyColorTop.lerp(levelInfo.skyColorTop, levelLerpPercent);
+        const skyColorBottom = levelInfoLast.skyColorBottom.lerp(levelInfo.skyColorBottom, levelLerpPercent);
+        pushGradient(vec3(0,skyH,skyZ).addSelf(cameraPos), vec3(skyW,skyH), skyColorTop, skyColorBottom);
+        glLightDirection = vec3(0,1,1).rotateY(worldHeading).normalize();
+        glLightColor = skyColorTop.lerp(WHITE,.8).lerp(BLACK,.1);
+        glAmbientColor = skyColorBottom.lerp(WHITE,.8).lerp(BLACK,.6);
+        glFogColor = skyColorBottom.lerp(WHITE,.5);
+    }
+
+    const headingScale = -5e3;
+    const circleSpriteTile = spriteList.circle.spriteTile;
+    const dotSpriteTile = spriteList.dot.spriteTile;
+    {
+        const sunSize = 2e2;
+        const sunHeight = skyTop*lerp(levelLerpPercent, levelInfoLast.sunHeight, levelInfo.sunHeight);
+        const sunColor = levelInfoLast.sunColor.lerp(levelInfo.sunColor, levelLerpPercent);
+        const x = mod(worldHeading+PI,2*PI)-PI;
+        for(let i=0;i<1;i+=perfSunSteps)
+        {
+            sunColor.a = i?(1-i)**7:1;
+            pushSprite(vec3(x*headingScale, sunHeight, skyZ).addSelf(cameraPos), vec3(sunSize*(1+i*30)), sunColor, i?dotSpriteTile:circleSpriteTile);
+        }
+    }
+
+    const range = 1e4;
+    const windSpeed = 50;
+    for(let i=perfCloudCount;i--;)
+    {
+        const cloudColor = levelInfoLast.cloudColor.lerp(levelInfo.cloudColor, levelLerpPercent);
+        const cloudWidth = lerp(levelLerpPercent, levelInfoLast.cloudWidth, levelInfo.cloudWidth);
+        const cloudHeight = lerp(levelLerpPercent, levelInfoLast.cloudHeight, levelInfo.cloudHeight);
+        let x = worldHeading*headingScale + random.float(range) + time*windSpeed*random.float(1,1.5);
+        x = mod(x,range) - range/2;
+        const y = random.float(skyTop);
+        const s = random.float(3e2,8e2);
+        pushSprite(vec3(x, y, skyZ).addSelf(cameraPos), vec3(s*cloudWidth,s*cloudHeight), cloudColor, dotSpriteTile)
+    }
+
+    const horizonSprite = levelInfo.horizonSprite;
+    const horizonSpriteTile = horizonSprite.spriteTile;
+    const horizonSpriteSize = levelInfo.horizonSpriteSize;
+    for(let i=perfParallaxCount;i--;)
+    {
+        const p = i/perfParallaxCount;
+        const ltp = lerp(p,1,.5);
+        const ltt = .1;
+        const levelTransition = levelFloat<.5 || levelFloat > levelGoal-.5 ? 1 : levelPercent < ltt ? (levelPercent/ltt)**ltp :
+                levelPercent > 1-ltt ? 1-((levelPercent-1)/ltt+1)**ltp : 1;
+        const parallax = lerp(p, .9, .98);
+        const s = random.float(1e2,2e2)*horizonSpriteSize* lerp(p,1,.5)
+        const size = vec3(random.float(1,2)*(horizonSprite.canMirror ? s*random.sign() : s),s,s);
+        const x = mod(worldHeading*headingScale/parallax + random.float(range),range) - range/2;
+        const yMax = size.y*.75;
+        if (!js13kBuildLevel2 && levelInfo.horizonFlipChance)
+        {
+            if (random.bool(levelInfo.horizonFlipChance))
+                size.y *= -1;
+        }
+        const y = lerp(levelTransition, -yMax*1.5, yMax);
+        const c = horizonSprite.getRandomSpriteColor();
+        pushSprite(vec3(x, y, skyZ).addSelf(cameraPos), size, c, horizonSpriteTile);
+    }
+
+    {
+        const lookAhead = .2;
+        const levelFloatAhead = levelFloat + lookAhead;
+        const levelInfo = getLevelInfo(levelFloatAhead);
+        const levelInfoLast = getLevelInfo(levelFloatAhead-1);
+        const levelPercent = levelFloatAhead%1;
+        const levelLerpPercent = percent(levelPercent, 0, levelLerpRange);
+        const groundColor = levelInfoLast.groundColor.lerp(levelInfo.groundColor, levelLerpPercent).brighten(.1);
+        pushSprite(vec3(0,-skyH,skyZ).addSelf(cameraPos), vec3(skyW,skyH), groundColor);
+    }
+
+    glRender();
+    glSetDepthTest();
+    glEnableLighting = glEnableFog = 1;
+};
+
 // --- Patch: Override the original gameInit to add our menu ---
 const _originalGameInit = gameInit;
 gameInit = function() {
@@ -335,6 +479,15 @@ touchGamepadRender = function() {};
 // --- Patch: Override HUD — speed bottom-left, distance bottom-right ---
 const _originalDrawHUD = drawHUD;
 drawHUD = function() {
+    // Adaptive quality: adjust resolution based on actual FPS
+    if (++perfAdaptFrames >= 180) { // check every ~3 seconds
+        perfAdaptFrames = 0;
+        if (averageFPS < PERF_FPS_LOW && perfScale > PERF_MIN_SCALE)
+            perfScale = Math.max(PERF_MIN_SCALE, perfScale - 0.1);
+        else if (averageFPS > PERF_FPS_OK && perfScale < PERF_MAX_SCALE)
+            perfScale = Math.min(PERF_MAX_SCALE, perfScale + 0.05);
+    }
+
     if (freeCamMode) return;
 
     if (enhancedMode && paused) {

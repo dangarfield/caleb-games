@@ -244,7 +244,7 @@ let gameActive = false, firstClick = true;
 let timerInterval = null, elapsedSec = 0;
 let flagMode = false;
 let revealedCount = 0, flagCount = 0;
-let longPressTimer = null;
+let longPressTimer = null, longPressTriggered = false;
 
 const overlay = document.getElementById('overlay');
 const hud = document.getElementById('hud');
@@ -392,10 +392,13 @@ function updateCell(r, c) {
 // --- Input ---
 function onPointerDown(e) {
   e.preventDefault();
+  this.setPointerCapture(e.pointerId);
+  longPressTriggered = false;
   const r = +this.dataset.r, c = +this.dataset.c;
   // Long press for flag
   longPressTimer = setTimeout(() => {
     longPressTimer = null;
+    longPressTriggered = true;
     toggleFlag(r, c);
   }, 400);
 }
@@ -405,6 +408,8 @@ function onPointerUp(e) {
   if (longPressTimer !== null) {
     clearTimeout(longPressTimer);
     longPressTimer = null;
+  }
+  if (!longPressTriggered) {
     const r = +this.dataset.r, c = +this.dataset.c;
     if (flagMode) {
       toggleFlag(r, c);
@@ -412,10 +417,12 @@ function onPointerUp(e) {
       handleReveal(r, c);
     }
   }
+  longPressTriggered = false;
 }
 
 function onPointerLeave(e) {
-  if (longPressTimer !== null) {
+  // Only cancel if pointer not captured (mouse leaving without press)
+  if (longPressTimer !== null && !this.hasPointerCapture(e.pointerId)) {
     clearTimeout(longPressTimer);
     longPressTimer = null;
   }
