@@ -381,6 +381,12 @@ drawHUD = function() {
 
     }
 
+    // Stage number — top right
+    if (!titleScreenMode && !gameOverTimer.isSet()) {
+        const level = playerLevel+1;
+        drawHUDText('STAGE '+level, vec3(.99,.05), .05, undefined, 'monospace','right');
+    }
+
     // Speed — bottom left
     if (!titleScreenMode && !gameOverTimer.isSet()) {
         const speed = abs(playerVehicle.velocity.z)|0;
