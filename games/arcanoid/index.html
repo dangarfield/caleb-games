@@ -676,6 +676,31 @@
     state = STATE.PLAYING;
   }
 
+  function keepPlaying() {
+    lives = 5;
+    balls = [];
+    magnetBalls = [];
+    createStuckBall();
+    state = STATE.PLAYING;
+  }
+
+  // --- Game Over button hit-test (in BASE coordinates) ---
+  // Returns 'keep' or 'restart' or null
+  function hitTestGameOverButtons(bx, by) {
+    const btnW = 220, btnH = 44;
+    const gap = 16;
+    const centerY = BASE_H * 0.64;
+    // Keep Playing button
+    const keepX = BASE_W / 2 - btnW - gap / 2;
+    const keepY = centerY - btnH / 2;
+    if (bx >= keepX && bx <= keepX + btnW && by >= keepY && by <= keepY + btnH) return 'keep';
+    // Start Again button
+    const restartX = BASE_W / 2 + gap / 2;
+    const restartY = centerY - btnH / 2;
+    if (bx >= restartX && bx <= restartX + btnW && by >= restartY && by <= restartY + btnH) return 'restart';
+    return null;
+  }
+
   // --- Input handling ---
   let inputX = null;
   let inputStartX = null;
@@ -685,6 +710,12 @@
     const rect = canvas.getBoundingClientRect();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     return (clientX - rect.left) / rect.width * BASE_W;
+  }
+
+  function getInputY(e) {
+    const rect = canvas.getBoundingClientRect();
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return (clientY - rect.top) / rect.height * BASE_H;
   }
 
   canvas.addEventListener('touchstart', function(e) {
@@ -717,7 +748,14 @@
       showInstructions = false;
       return;
     }
-    if (state === STATE.GAME_OVER || state === STATE.WIN) {
+    if (state === STATE.GAME_OVER) {
+      const by = getInputY(e);
+      const hit = hitTestGameOverButtons(x, by);
+      if (hit === 'keep') { keepPlaying(); }
+      else if (hit === 'restart') { startGame(); }
+      return;
+    }
+    if (state === STATE.WIN) {
       startGame();
       return;
     }
@@ -761,7 +799,8 @@
     keys[e.key] = true;
     if (e.key === 'Enter' || e.key === ' ') {
       if (state === STATE.MENU) { startGame(); showInstructions = false; }
-      else if (state === STATE.GAME_OVER || state === STATE.WIN) { startGame(); }
+      else if (state === STATE.GAME_OVER) { keepPlaying(); }
+      else if (state === STATE.WIN) { startGame(); }
       else if (state === STATE.LEVEL_COMPLETE) {
         if (level + 1 < LEVELS.length) { initLevel(level + 1); state = STATE.PLAYING; }
         else { state = STATE.WIN; }
@@ -1770,6 +1809,80 @@
     ctx.fillText('Tap to continue', W / 2, H * 0.69);
   }
 
+  function drawGameOverScreen() {
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.shadowColor = 'rgba(255,80,80,0.6)';
+    ctx.shadowBlur = s(15);
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${s(32)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Game Over', W / 2, H * 0.25);
+    ctx.shadowBlur = 0;
+
+    ctx.font = `${s(14)}px sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillText(`Score: ${score}`, W / 2, H * 0.35);
+
+    if (highScore > 0) {
+      ctx.fillStyle = 'rgba(255,204,0,0.7)';
+      ctx.fillText(`Best: ${highScore}`, W / 2, H * 0.41);
+    }
+
+    // --- Draw two big buttons ---
+    const btnW = s(220), btnH = s(44);
+    const gap = s(16);
+    const centerY = H * 0.64;
+
+    // Keep Playing button (green)
+    const keepX = W / 2 - btnW - gap / 2;
+    const keepY = centerY - btnH / 2;
+    const keepPulse = Math.sin(gameTime * 4) * 0.08 + 1;
+    ctx.save();
+    ctx.translate(keepX + btnW / 2, keepY + btnH / 2);
+    ctx.scale(keepPulse, keepPulse);
+    ctx.translate(-(keepX + btnW / 2), -(keepY + btnH / 2));
+    ctx.fillStyle = '#22b14c';
+    ctx.shadowColor = 'rgba(34,177,76,0.5)';
+    ctx.shadowBlur = s(10);
+    ctx.beginPath();
+    ctx.roundRect(keepX, keepY, btnW, btnH, s(10));
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = s(2);
+    ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${s(16)}px sans-serif`;
+    ctx.fillText('KEEP PLAYING?', keepX + btnW / 2, keepY + btnH / 2);
+    ctx.font = `${s(9)}px sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillText('+5 lives', keepX + btnW / 2, keepY + btnH / 2 + s(16));
+    ctx.restore();
+
+    // Start Again button (blue)
+    const restartX = W / 2 + gap / 2;
+    const restartY = centerY - btnH / 2;
+    ctx.fillStyle = '#2a6fc9';
+    ctx.shadowColor = 'rgba(42,111,201,0.5)';
+    ctx.shadowBlur = s(10);
+    ctx.beginPath();
+    ctx.roundRect(restartX, restartY, btnW, btnH, s(10));
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = s(2);
+    ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${s(16)}px sans-serif`;
+    ctx.fillText('START AGAIN', restartX + btnW / 2, restartY + btnH / 2);
+    ctx.font = `${s(9)}px sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillText('Level 1', restartX + btnW / 2, restartY + btnH / 2 + s(16));
+  }
+
   // --- Update ---
   function update(dt) {
     gameTime += dt * 0.016;
@@ -2162,7 +2275,7 @@
       drawOverlay('Level Complete!', `Get ready for Level ${level + 2}`);
     }
     if (state === STATE.GAME_OVER) {
-      drawOverlay('Game Over', 'Tap to play again');
+      drawGameOverScreen();
     }
     if (state === STATE.WIN) {
       drawOverlay('You Win!', 'All levels cleared!');

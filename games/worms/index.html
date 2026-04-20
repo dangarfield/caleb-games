@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes">
     <title>Worms</title>
     <style>
 * {
@@ -159,9 +159,10 @@ body, #id0 {
   filter: brightness(100);
 }
 
-#hp {
+#hp, [id="hp"] {
   transform: translate(var(--x), var(--y));
-  padding: 4px;
+  padding: 0 4px !important;
+  padding-top: 3px !important;
   text-wrap: nowrap;
   border: none;
   background: var(--c);
@@ -624,8 +625,6 @@ body, #id0 {
         <path id="l5" fill="url(#p1)" mask="url(#m4)" />
       </svg>
 
-      <div id="id21"></div><!-- #names -->
-
       <svg id="id19">
         <g id="id3" /> <!-- #playersContainer -->
         <g id="id4" /> <!-- #particles -->
@@ -657,6 +656,7 @@ body, #id0 {
           <rect id="id9" x="0" y="-5" width="40" height="10" rx="2" fill="#fff" />
         </mask>
       </svg>
+      <div id="id21"></div><!-- #names -->
     </div>
 
     <!-- UI: Weapons -->
@@ -897,6 +897,8 @@ let captionsttl = 0;
 let roundtime = 0;
 let timerstr = '';
 let paused = false;
+let aiMode = null; // null, 'easy', 'hard'
+let aiTurnActive = false;
 let windSpeed = 0;
 let explosions = new Map();
 let missiles = new Map();
@@ -965,6 +967,7 @@ addEventListener('mouseup', (e) => {
 
 addEventListener('keydown', (e) => {
   if (e.keyCode === 32) e.preventDefault();
+  if (aiTurnActive) return;
   if (started) { keys.add(e.code); keys.add(e.key); }
   if (e.code === 'KeyN') activateNextPlayer();
   if (e.code === 'KeyX') gameover = true;
@@ -988,7 +991,7 @@ function setupTouchControls() {
   const hold = (id, key) => {
     const btn = document.getElementById(id);
     if (!btn) return;
-    const start = (e) => { e.preventDefault(); keys.add(key); };
+    const start = (e) => { e.preventDefault(); if (!aiTurnActive) keys.add(key); };
     const end = (e) => { e.preventDefault(); keys.delete(key); };
     btn.addEventListener('touchstart', start, { passive: false });
     btn.addEventListener('touchend', end, { passive: false });
@@ -1009,7 +1012,7 @@ function setupTouchControls() {
   if (nextBtn) {
     nextBtn.addEventListener('touchstart', (e) => {
       e.preventDefault();
-      activateNextPlayer();
+      if (!aiTurnActive) activateNextPlayer();
     }, { passive: false });
   }
 
@@ -1196,7 +1199,7 @@ function updateTimer(delta) {
         text(timer, str);
       }
     } else {
-      text(timer, '30');
+      text(timer, '60');
     }
   }
 }
@@ -1384,7 +1387,7 @@ function updatePlayer(p, active, delta) {
     const py = ~~p.y;
 
     let x1 = px - el2.children.length * 8 - 4;
-    let y1 = py - 75;
+    let y1 = py - 71;
     el2.style.transform = `translate(${x1}px, ${y1}px)`;
 
     let x2 = px - el3.children.length * 8 - 4;
@@ -1492,6 +1495,14 @@ function activateRandomPlayer() {
 }
 
 function activateNextTeam() {
+  // Clean up any AI keys if turn ended mid-action
+  if (aiTurnActive) {
+    keys.delete('KeyA'); keys.delete('KeyD');
+    keys.delete('KeyW'); keys.delete('KeyS');
+    keys.delete('KeyP'); keys.delete('Space');
+    aiTurnActive = false;
+  }
+
   let count = 0;
   for (const p of players) {
     if (p.dead && !p.gone) count++;
@@ -1507,11 +1518,203 @@ function activateNextTeam() {
       randomiseWind();
       resetPlayers();
       caption(`TEAM ${activeTeam + 1} IT'S YOUR TURN`);
+
+      // Trigger AI if it's the computer's turn
+      if (aiMode && activeTeam === 1) {
+        setTimeout(aiTakeTurn, 1500);
+      }
     }
   }
 
   unlockCamera();
   updateWeaponUI();
+}
+
+// ================================================================================================
+// AI
+// ================================================================================================
+
+function aiGetEnemies() {
+  return players.filter(p => p.team === 0 && !p.dead && !p.gone);
+}
+
+function aiPickTarget(aiPlayer, difficulty) {
+  const enemies = aiGetEnemies();
+  if (!enemies.length) return null;
+
+  if (difficulty === 'easy') {
+    // Random target
+    return enemies[rngi(0, enemies.length)];
+  } else {
+    // Pick closest enemy
+    let best = null, bestDist = Infinity;
+    for (const e of enemies) {
+      const d = Math.abs(e.x - aiPlayer.x);
+      if (d < bestDist) { bestDist = d; best = e; }
+    }
+    return best;
+  }
+}
+
+function aiPickWeapon(aiPlayer, target, difficulty) {
+  const dist = Math.abs(target.x - aiPlayer.x);
+  const t = teams[activeTeam];
+
+  if (difficulty === 'easy') {
+    // Easy: mostly bazooka, sometimes grenade
+    if (Math.random() < 0.3 && t[5] > 0) return 5; // grenade
+    return 0; // bazooka (unlimited)
+  } else {
+    // Hard: smarter weapon choice based on distance
+    if (dist < 50 && t[4] > 0) return 4;  // dynamite if very close
+    if (dist < 80) return 11;              // cricket bat if close
+    if (dist > 1500 && t[3] > 0) return 3; // air strike if very far
+    if (t[9] > 0 && Math.random() < 0.25) return 9; // cluster bomb sometimes
+    if (Math.random() < 0.3 && t[5] > 0) return 5;  // grenade
+    return 0; // bazooka
+  }
+}
+
+function aiCalcAim(aiPlayer, target, weapon, difficulty) {
+  const dx = target.x - aiPlayer.x;
+  const dy = (target.y - 10) - (aiPlayer.y - 10);
+  const dist = Math.sqrt(dx * dx + dy * dy);
+
+  // Face the target
+  const dir = dx > 0 ? 1 : -1;
+
+  // Calculate aim angle (relative to horizontal, positive = down)
+  let aim = Math.atan2(dy, Math.abs(dx));
+
+  // For ballistic weapons (bazooka, grenade, cluster), lob upward
+  const w = WEAPONS[weapon];
+  if (w[1]) {
+    // Has aim + power — lob it. Aim higher for farther targets
+    const lobFactor = clamp(dist / 2000, 0.1, 0.7);
+    aim = -lobFactor * HALF_PI;
+  }
+
+  // Add inaccuracy
+  const errorRange = difficulty === 'easy' ? 0.35 : 0.12;
+  aim += (Math.random() - 0.5) * errorRange;
+  aim = clamp(aim, -HALF_PI, HALF_PI);
+
+  // Calculate power based on distance
+  let power = clamp(dist / 1200, 0.15, 0.95);
+  const powerError = difficulty === 'easy' ? 0.25 : 0.1;
+  power += (Math.random() - 0.5) * powerError;
+  power = clamp(power, 0.1, 1.0);
+
+  return { dir, aim, power };
+}
+
+async function aiTakeTurn() {
+  if (!started || gameover || activeTeam !== 1 || !aiMode) return;
+  aiTurnActive = true;
+
+  const p = players[activePlayer];
+  if (!p || p.dead || p.gone) { aiTurnActive = false; return; }
+
+  const target = aiPickTarget(p, aiMode);
+  if (!target) { aiTurnActive = false; return; }
+
+  const weapon = aiPickWeapon(p, target, aiMode);
+  activeWeapon = weapon;
+  updateWeaponUI();
+
+  // Lock camera on the AI worm
+  unlockCamera();
+
+  const w = WEAPONS[weapon];
+
+  // For targeted weapons (air strike, nyan cats): just set target and fire
+  if (w[3]) {
+    await aiDelay(800);
+    // Set mouse position to target in screen coords
+    const sx = (target.x - camera.x) * cameraZoom + vw / 2;
+    const sy = (target.y - camera.y) * cameraZoom + vh / 2;
+    mouse.x = sx;
+    mouse.y = sy;
+    // Add inaccuracy
+    const err = aiMode === 'easy' ? 150 : 50;
+    mouse.x += (Math.random() - 0.5) * err;
+    mouse.y += (Math.random() - 0.5) * err;
+    fireWeapon();
+    aiTurnActive = false;
+    return;
+  }
+
+  // For placed weapons (dynamite): walk toward target then place
+  if (w[4]) {
+    const walkDir = target.x > p.x ? 1 : -1;
+    await aiWalk(p, walkDir, clamp(Math.abs(target.x - p.x) * 0.4, 200, 1500));
+    await aiDelay(300);
+    fireWeapon();
+    aiTurnActive = false;
+    return;
+  }
+
+  // For aim+power weapons (bazooka, grenade, etc): aim and fire
+  const { dir, aim, power } = aiCalcAim(p, target, weapon, aiMode);
+
+  // Walk a tiny bit toward target sometimes (hard mode)
+  if (aiMode === 'hard' && Math.random() < 0.4) {
+    const walkDir = target.x > p.x ? 1 : -1;
+    await aiWalk(p, walkDir, rngi(100, 400));
+  }
+
+  // Set direction
+  p.dir = dir;
+
+  // Animate aim gradually
+  await aiDelay(500);
+  const aimSteps = 20;
+  const startAim = p.aim;
+  for (let i = 0; i <= aimSteps; i++) {
+    p.aim = lerp(startAim, aim, i / aimSteps);
+    await aiDelay(30);
+  }
+
+  await aiDelay(300);
+
+  // For weapons that need power (hasAim=true): hold fire to charge
+  if (w[1]) {
+    // Simulate holding fire key to charge power
+    p.power = 0;
+    keys.add('KeyP');
+    const targetPower = power;
+    await new Promise(resolve => {
+      const check = setInterval(() => {
+        if (!aiTurnActive || p.power >= targetPower) {
+          keys.delete('KeyP');
+          clearInterval(check);
+          resolve();
+        }
+      }, 16);
+    });
+  } else {
+    // Instant fire weapons (shotgun, uzi, minigun, cricket bat)
+    keys.add('KeyP');
+    await aiDelay(50);
+    keys.delete('KeyP');
+  }
+
+  aiTurnActive = false;
+}
+
+function aiDelay(ms) {
+  return new Promise(resolve => setTimeout(() => {
+    if (!aiTurnActive) { resolve(); return; }
+    resolve();
+  }, ms));
+}
+
+async function aiWalk(p, dir, duration) {
+  const key = dir > 0 ? 'KeyD' : 'KeyA';
+  keys.add(key);
+  await aiDelay(duration);
+  keys.delete(key);
+  await aiDelay(200); // settle
 }
 
 function checkForGameOver() {
@@ -2402,16 +2605,16 @@ function initMenu() {
   menuShow(menu5, true);
   menuShow(menu1, true);
 
-  // VS COMPUTER buttons (not yet implemented)
-  function comingSoon(e) { e.preventDefault(); caption('COMING SOON!'); }
-  menu4.onclick = comingSoon;
-  menu4.addEventListener('touchstart', (e) => { e.preventDefault(); comingSoon(e); }, { passive: false });
-  menu5.onclick = comingSoon;
-  menu5.addEventListener('touchstart', (e) => { e.preventDefault(); comingSoon(e); }, { passive: false });
+  // VS COMPUTER buttons
+  function startAI(mode) { aiMode = mode; startLocalGame(); }
+  menu4.onclick = () => startAI('easy');
+  menu4.addEventListener('touchstart', (e) => { e.preventDefault(); startAI('easy'); }, { passive: false });
+  menu5.onclick = () => startAI('hard');
+  menu5.addEventListener('touchstart', (e) => { e.preventDefault(); startAI('hard'); }, { passive: false });
 
   // VS PLAYER
-  menu1.onclick = startLocalGame;
-  menu1.addEventListener('touchstart', (e) => { e.preventDefault(); startLocalGame(); }, { passive: false });
+  menu1.onclick = () => { aiMode = null; startLocalGame(); };
+  menu1.addEventListener('touchstart', (e) => { e.preventDefault(); aiMode = null; startLocalGame(); }, { passive: false });
 }
 
 // ================================================================================================

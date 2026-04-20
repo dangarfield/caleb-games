@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <title>Space Clash</title>
 <link id="favicon" rel="icon" type="image/png" href="">
 <style>
@@ -837,7 +837,7 @@ $.TextPop.prototype.render = function( i ) {
 };
 $.LevelPop = function( opt ) {
 	for( var k in opt ) { this[k] = opt[k]; }
-	this.x = $.cw - 20; this.y = $.ch - 20; this.tick = 0; this.tickMax = 240; this.baseAlpha = 0.2;
+	this.x = $.cw / 2; this.y = 50; this.tick = 0; this.tickMax = 240; this.baseAlpha = 0.2;
 	if( $.tick != 0 ) { $.audio.play( 'levelup' ); }
 };
 $.LevelPop.prototype.update = function( i ) {
@@ -845,7 +845,7 @@ $.LevelPop.prototype.update = function( i ) {
 };
 $.LevelPop.prototype.render = function( i ) {
 	$.ctxmg.beginPath();
-	$.text( { ctx: $.ctxmg, x: this.x, y: this.y, text: $.util.pad( this.level, 2 ), hspacing: 3, vspacing: 0, halign: 'right', valign: 'bottom', scale: 12, snap: 1, render: 1 } );
+	$.text( { ctx: $.ctxmg, x: this.x, y: this.y, text: $.util.pad( this.level, 2 ), hspacing: 3, vspacing: 0, halign: 'center', valign: 'top', scale: 12, snap: 1, render: 1 } );
 	if( this.tick < this.tickMax * 0.25 ) { var alpha = ( this.tick / ( this.tickMax * 0.25 ) ) * this.baseAlpha; }
 	else if( this.tick > this.tickMax - this.tickMax * 0.25 ) { var alpha = ( ( this.tickMax - this.tick ) / ( this.tickMax * 0.25 ) ) * this.baseAlpha; }
 	else { var alpha = this.baseAlpha; }
@@ -961,7 +961,7 @@ $.Hero.prototype.update = function() {
 			var enemy = $.enemies[ ei ];
 			if( enemy.inView && $.util.distance( this.x, this.y, enemy.x, enemy.y ) <= this.radius + enemy.radius ) {
 				$.particleEmitters.push( new $.ParticleEmitter( { x: this.x, y: this.y, count: 2, spawnRange: 0, friction: 0.85, minSpeed: 2, maxSpeed: 15, minDirection: 0, maxDirection: $.twopi, hue: 0, saturation: 0 } ) );
-				this.takingDamage = 1; this.life -= 0.0075; $.rumble.level = 3;
+				this.takingDamage = 1; this.life -= 0.00375; $.rumble.level = 3;
 				if( Math.floor( $.tick ) % 5 == 0 ) $.audio.play( 'takingDamage' );
 			}
 		}
@@ -1017,7 +1017,7 @@ $.init = function() {
 	$.mouse = { x: $.ww/2, y: $.wh/2, sx: 0, sy: 0, ax: window.innerWidth/2, ay: 0, down: 0 };
 	$.buttons = [];
 	$.minimap = {
-		x: 20, y: $.ch - Math.floor( $.ch * 0.1 ) - 20,
+		x: $.cw - Math.floor( $.cw * 0.1 ) - 20, y: 70,
 		width: Math.floor( $.cw * 0.1 ), height: Math.floor( $.ch * 0.1 ),
 		scale: Math.floor( $.cw * 0.1 ) / $.ww,
 		color: 'hsla(0, 0%, 0%, 0.85)', strokeColor: '#3a3a3a'
@@ -1160,18 +1160,22 @@ $.renderForeground = function() {
 UI / Interface / Minimap
 ==============================================================================*/
 $.renderInterface = function() {
+	var puBaseX = $.minimap.x, puBaseY = $.minimap.y + $.minimap.height + 10, puBarW = 60;
 	for( var i = 0; i < $.definitions.powerups.length; i++ ) {
 		var powerup = $.definitions.powerups[i], powerupOn = ( $.powerupTimers[i] > 0 );
-		$.ctxmg.beginPath();
-		var powerupText = $.text( { ctx: $.ctxmg, x: $.minimap.x + $.minimap.width + 90, y: $.minimap.y + 4 + (i*12), text: powerup.title, hspacing: 1, vspacing: 1, halign: 'right', valign: 'top', scale: 1, snap: 1, render: 1 } );
-		if( powerupOn ) { $.ctxmg.fillStyle = 'hsla(0, 0%, 100%, ' + (0.25+(($.powerupTimers[i]/300)*0.75)) + ')'; }
-		else { $.ctxmg.fillStyle = 'hsla(0, 0%, 100%, 0.25)'; }
-		$.ctxmg.fill();
+		var rowY = puBaseY + (i * 12);
+		// Draw bar on the LEFT
 		if( powerupOn ) {
-			var powerupBar = { x: powerupText.ex+5, y: powerupText.sy, width: 110, height: 5 };
+			var powerupBar = { x: puBaseX, y: rowY, width: puBarW, height: 5 };
 			$.ctxmg.fillStyle = 'hsl(' + powerup.hue + ', ' + powerup.saturation + '%, ' + powerup.lightness + '%)';
 			$.ctxmg.fillRect( powerupBar.x, powerupBar.y, ($.powerupTimers[i]/300)*powerupBar.width, powerupBar.height );
 		}
+		// Draw text to the RIGHT of the bar area
+		$.ctxmg.beginPath();
+		var powerupText = $.text( { ctx: $.ctxmg, x: puBaseX + puBarW + 5, y: rowY, text: powerup.title, hspacing: 1, vspacing: 1, halign: 'top', valign: 'left', scale: 1, snap: 1, render: 1 } );
+		if( powerupOn ) { $.ctxmg.fillStyle = 'hsla(0, 0%, 100%, ' + (0.25+(($.powerupTimers[i]/300)*0.75)) + ')'; }
+		else { $.ctxmg.fillStyle = 'hsla(0, 0%, 100%, 0.25)'; }
+		$.ctxmg.fill();
 	}
 	// Instructions (touch version)
 	if( $.instructionTick < $.instructionTickMax ){
@@ -1336,7 +1340,8 @@ $.bindEvents = function() {
 		$.resizeCanvas();
 		$.resizecb();
 		if( $.minimap ) {
-			$.minimap.y = $.ch - Math.floor($.ch*0.1) - 20;
+			$.minimap.x = $.cw - Math.floor($.cw*0.1) - 20;
+			$.minimap.y = 70;
 			$.minimap.width = Math.floor($.cw*0.1);
 			$.minimap.height = Math.floor($.ch*0.1);
 			$.minimap.scale = Math.floor($.cw*0.1) / $.ww;
