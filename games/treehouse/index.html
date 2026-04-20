@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Treehouse Quiz - Garfield Boys' Arcade</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#0a0a2e;overflow:hidden;touch-action:none;
+  font-family:'Segoe UI',system-ui,sans-serif;user-select:none;-webkit-user-select:none}
+canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0}
+#backBtn{position:fixed;top:12px;left:12px;z-index:9999;
+  background:rgba(0,0,0,0.55);color:#fff;text-decoration:none;
+  padding:6px 18px;border-radius:20px;
+  font:bold 15px/1.4 'Segoe UI',system-ui,sans-serif;
+  border:1px solid rgba(255,255,255,0.18);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  transition:background 0.2s}
+#backBtn:hover{background:rgba(0,0,0,0.75)}
+#muteBtn{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;
+  background:rgba(0,0,0,0.55);color:#fff;border:1px solid rgba(255,255,255,0.18);
+  padding:6px 14px;border-radius:20px;font-size:18px;cursor:pointer;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  transition:background 0.2s}
+#muteBtn:hover{background:rgba(0,0,0,0.75)}
+#muteBtn.muted{opacity:0.5}
+
+/* Overlay / Start Screen */
+#overlay{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  background:rgba(0,0,0,0.7);color:#fff;text-align:center}
+#overlay.hidden{display:none}
+#overlay h1{font-size:clamp(2rem,8vw,4rem);margin-bottom:0.5rem;
+  color:#7ab648;text-shadow:0 0 30px rgba(122,182,72,0.4)}
+#overlay .sub{font-size:clamp(1rem,3vw,1.4rem);color:#a0c4ff;margin-bottom:1.5rem}
+#overlay .info{font-size:clamp(0.85rem,2.5vw,1.1rem);color:rgba(255,255,255,0.7);
+  margin-bottom:2rem;max-width:500px;padding:0 1rem;line-height:1.5}
+#overlay button{padding:14px 40px;font-size:1.3rem;border:none;border-radius:12px;
+  background:linear-gradient(135deg,#7ab648,#5a9a2a);color:#fff;
+  cursor:pointer;font-weight:700;
+  box-shadow:0 4px 20px rgba(122,182,72,0.4);transition:transform 0.15s}
+#overlay button:hover{transform:scale(1.05)}
+#overlay button:active{transform:scale(0.95)}
+
+/* Quiz UI */
+#quiz{position:fixed;inset:0;z-index:10;display:none;flex-direction:column;
+  align-items:center;justify-content:center;pointer-events:none}
+#quiz.active{display:flex;pointer-events:auto}
+
+/* Storey ladder - left side */
+#ladder{position:fixed;left:8px;top:50%;transform:translateY(-50%);z-index:15;
+  display:flex;flex-direction:column-reverse;gap:2px;pointer-events:none}
+.storey{font:bold 11px/1 'Segoe UI',system-ui,sans-serif;color:rgba(255,255,255,0.4);
+  padding:3px 8px;border-radius:6px;text-align:center;white-space:nowrap;
+  transition:all 0.3s}
+.storey.current{background:rgba(122,182,72,0.3);color:#7ab648;font-weight:900;
+  box-shadow:0 0 10px rgba(122,182,72,0.3)}
+.storey.done{color:rgba(122,182,72,0.7)}
+
+/* Question area */
+#questionArea{width:90%;max-width:700px;padding:0 0 20px;pointer-events:auto}
+#questionBox{background:rgba(0,0,0,0.7);border:2px solid rgba(122,182,72,0.3);
+  border-radius:16px;padding:20px 24px;margin-bottom:16px;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  text-align:center;position:relative}
+#repeatBtn{position:absolute;top:10px;right:10px;background:none;border:none;
+  color:rgba(255,255,255,0.5);font-size:1.2rem;cursor:pointer;padding:4px 6px;
+  border-radius:6px;transition:all 0.2s;line-height:1}
+#repeatBtn:hover{color:#fff;background:rgba(255,255,255,0.1)}
+#storeyLabel{font:bold 13px 'Segoe UI',system-ui,sans-serif;color:#7ab648;
+  margin-bottom:6px;text-transform:uppercase;letter-spacing:1px}
+#questionText{font:bold clamp(1rem,3.5vw,1.4rem)/1.4 'Segoe UI',system-ui,sans-serif;
+  color:#fff}
+
+/* Answer grid */
+#answers{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.answer-btn{background:rgba(0,0,0,0.6);border:2px solid rgba(255,255,255,0.15);
+  border-radius:12px;padding:14px 16px;color:#fff;cursor:pointer;
+  font:bold clamp(0.85rem,2.5vw,1.05rem)/1.3 'Segoe UI',system-ui,sans-serif;
+  text-align:left;transition:all 0.2s;display:flex;align-items:center;gap:10px;
+  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.answer-btn:hover:not(.locked){border-color:rgba(122,182,72,0.5);
+  background:rgba(122,182,72,0.1)}
+.answer-btn:active:not(.locked){transform:scale(0.97)}
+.answer-btn .letter{font:bold 1.1rem 'Segoe UI',system-ui,sans-serif;
+  color:#7ab648;min-width:24px}
+.answer-btn.selected{border-color:#ffa500;background:rgba(255,165,0,0.2)}
+.answer-btn.correct{border-color:#7ab648;background:rgba(122,182,72,0.25);
+  box-shadow:0 0 15px rgba(122,182,72,0.3)}
+.answer-btn.wrong{border-color:#e74c3c;background:rgba(231,76,60,0.25);
+  box-shadow:0 0 15px rgba(231,76,60,0.3)}
+.answer-btn.locked{opacity:0.4;pointer-events:none}
+.answer-btn.eliminated{opacity:0.15;pointer-events:none}
+
+/* Lifelines */
+#lifelines{display:flex;gap:10px;justify-content:center;margin-bottom:14px}
+.lifeline{background:rgba(0,0,0,0.6);border:2px solid rgba(255,255,255,0.15);
+  border-radius:50%;width:52px;height:52px;display:flex;align-items:center;
+  justify-content:center;cursor:pointer;font-size:1.4rem;color:#fff;
+  transition:all 0.2s;position:relative}
+.lifeline:hover:not(.used){border-color:rgba(122,182,72,0.5);
+  background:rgba(122,182,72,0.1)}
+.lifeline.used{opacity:0.25;pointer-events:none;filter:grayscale(1)}
+.lifeline .tooltip{position:absolute;bottom:110%;left:50%;transform:translateX(-50%);
+  background:rgba(0,0,0,0.9);color:#fff;padding:4px 10px;border-radius:6px;
+  font:bold 11px 'Segoe UI',system-ui,sans-serif;white-space:nowrap;
+  opacity:0;pointer-events:none;transition:opacity 0.2s}
+.lifeline:hover .tooltip{opacity:1}
+
+/* Audience poll overlay */
+#audiencePoll{display:none;background:rgba(0,0,0,0.85);border:2px solid rgba(122,182,72,0.3);
+  border-radius:12px;padding:14px 18px;margin-bottom:10px;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#audiencePoll.show{display:block}
+#audiencePoll h3{color:#7ab648;font-size:0.9rem;margin-bottom:10px;text-align:center}
+.poll-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.poll-label{color:rgba(255,255,255,0.7);font:bold 14px 'Segoe UI',system-ui,sans-serif;
+  min-width:20px}
+.poll-bar-bg{flex:1;height:18px;background:rgba(255,255,255,0.1);border-radius:4px;
+  overflow:hidden}
+.poll-bar-fill{height:100%;background:linear-gradient(90deg,#7ab648,#5a9a2a);
+  border-radius:4px;transition:width 0.6s ease-out}
+.poll-pct{color:#fff;font:bold 13px 'Segoe UI',system-ui,sans-serif;min-width:36px;
+  text-align:right}
+
+/* Phone a friend */
+#phoneFriend{display:none;background:rgba(0,0,0,0.85);border:2px solid rgba(122,182,72,0.3);
+  border-radius:12px;padding:14px 18px;margin-bottom:10px;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  color:rgba(255,255,255,0.9);font-size:0.95rem;line-height:1.5;text-align:center}
+#phoneFriend.show{display:block}
+#phoneFriend .name{color:#7ab648;font-weight:bold}
+
+/* Result screen */
+#result{position:fixed;inset:0;z-index:30;display:none;flex-direction:column;
+  align-items:center;justify-content:center;
+  background:rgba(0,0,0,0.8);color:#fff;text-align:center}
+#result.active{display:flex}
+#result h2{font-size:clamp(1.8rem,6vw,3rem);margin-bottom:0.5rem}
+#result .score-text{font-size:clamp(1rem,3vw,1.4rem);color:#a0c4ff;margin-bottom:0.5rem}
+#result .reached{font-size:clamp(1.2rem,4vw,1.8rem);color:#ffd32a;
+  margin-bottom:2rem;font-weight:bold}
+#result button{padding:14px 40px;font-size:1.3rem;border:none;border-radius:12px;
+  background:linear-gradient(135deg,#7ab648,#5a9a2a);color:#fff;
+  cursor:pointer;font-weight:700;
+  box-shadow:0 4px 20px rgba(122,182,72,0.4);transition:transform 0.15s}
+#result button:hover{transform:scale(1.05)}
+#result button:active{transform:scale(0.95)}
+
+/* Timer bar */
+#timerWrap{width:100%;height:4px;background:rgba(255,255,255,0.1);
+  border-radius:2px;margin-top:10px;overflow:hidden}
+#timerBar{height:100%;background:linear-gradient(90deg,#7ab648,#ffd32a);
+  border-radius:2px;transition:width 0.1s linear;width:100%}
+#timerBar.warn{background:linear-gradient(90deg,#e74c3c,#ff6b6b)}
+
+/* Reading highlight */
+.reading{animation:readPulse 0.6s ease-in-out infinite alternate}
+@keyframes readPulse{
+  0%{box-shadow:0 0 8px rgba(160,196,255,0.4);border-color:rgba(160,196,255,0.6)}
+  100%{box-shadow:0 0 18px rgba(160,196,255,0.7);border-color:rgba(160,196,255,0.9)}
+}
+#questionBox.reading{border-color:rgba(160,196,255,0.6)}
+.answer-btn.reading{border-color:rgba(160,196,255,0.6);background:rgba(160,196,255,0.1)}
+
+@media(max-width:600px){
+  #answers{grid-template-columns:1fr}
+  #ladder{display:none}
+  .lifeline{width:44px;height:44px;font-size:1.2rem}
+}
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+<button id="muteBtn" aria-label="Toggle speech">&#x1F50A;</button>
+<canvas id="c"></canvas>
+
+<div id="overlay">
+  <h1>Treehouse Quiz</h1>
+  <div class="sub">Climb the 13-Story Treehouse!</div>
+  <div class="info">Answer 13 questions to reach the top of Andy &amp; Terry's treehouse.
+    Use your 3 lifelines wisely!</div>
+  <button id="startBtn">Climb Up!</button>
+</div>
+
+<div id="quiz">
+  <div id="ladder"></div>
+  <div id="questionArea">
+    <div id="audiencePoll">
+      <h3>The Monkeys Say...</h3>
+      <div id="pollBars"></div>
+    </div>
+    <div id="phoneFriend"></div>
+    <div id="questionBox">
+      <button id="repeatBtn" aria-label="Repeat question">&#x1F501;</button>
+      <div id="storeyLabel"></div>
+      <div id="questionText"></div>
+      <div id="timerWrap"><div id="timerBar"></div></div>
+    </div>
+    <div id="answers"></div>
+    <div id="lifelines">
+      <div class="lifeline" id="ll5050" data-ll="5050">
+        <span>&#xBD;</span>
+        <span class="tooltip">50:50</span>
+      </div>
+      <div class="lifeline" id="llPhone" data-ll="phone">
+        <span>&#x1F4DE;</span>
+        <span class="tooltip">Phone Terry</span>
+      </div>
+      <div class="lifeline" id="llAudience" data-ll="audience">
+        <span>&#x1F412;</span>
+        <span class="tooltip">Ask the Monkeys</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="result">
+  <h2 id="resultTitle"></h2>
+  <div class="score-text" id="resultSub"></div>
+  <div class="reached" id="resultReached"></div>
+  <button id="playAgainBtn">Play Again</button>
+</div>
+
+<script>
+// ─── Canvas background ───
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H;
+function resize() { W = canvas.width = innerWidth; H = canvas.height = innerHeight; }
+resize();
+window.addEventListener('resize', resize);
+
+// Leaves / particles
+const leaves = [];
+for (let i = 0; i < 30; i++) {
+  leaves.push({
+    x: Math.random() * 2000, y: Math.random() * 2000,
+    s: 4 + Math.random() * 8, vx: -0.3 - Math.random() * 0.5,
+    vy: 0.3 + Math.random() * 0.4, rot: Math.random() * Math.PI * 2,
+    vr: (Math.random() - 0.5) * 0.02,
+    hue: 90 + Math.random() * 40
+  });
+}
+
+let currentStorey = 0;
+const STOREYS = [
+  { num: 13 },
+  { num: 26 },
+  { num: 39 },
+  { num: 52 },
+  { num: 65 },
+  { num: 78 },
+  { num: 91 },
+  { num: 104 },
+  { num: 117 },
+  { num: 130 },
+  { num: 143 },
+  { num: 156 },
+  { num: 169 },
+];
+
+function drawBG() {
+  // Sky gradient
+  const gr = ctx.createLinearGradient(0, 0, 0, H);
+  gr.addColorStop(0, '#0a0a2e');
+  gr.addColorStop(0.5, '#141452');
+  gr.addColorStop(1, '#1a1a6e');
+  ctx.fillStyle = gr;
+  ctx.fillRect(0, 0, W, H);
+
+  // Tree trunk
+  const tx = W * 0.85, tw = 40;
+  ctx.fillStyle = '#3d2817';
+  ctx.fillRect(tx - tw / 2, H * 0.1, tw, H);
+  ctx.fillStyle = '#2a1a0e';
+  ctx.fillRect(tx - tw / 2 + 10, H * 0.1, 6, H);
+
+  // Draw all branches first (behind leaves)
+  ctx.lineWidth = 8;
+  ctx.strokeStyle = '#3d2817';
+  for (let i = 0; i < 13; i++) {
+    const by = H * 0.1 + (H * 0.85 / 13) * i;
+    const dir = i % 2 === 0 ? -1 : 1;
+    const bx = tx + dir * 110;
+    ctx.beginPath();
+    ctx.moveTo(tx, by);
+    ctx.quadraticCurveTo(tx + dir * 55, by - 15, bx, by - 5);
+    ctx.stroke();
+  }
+
+  // Leaf clusters (level indicator) — drawn bottom to top so higher levels are on top
+  const pulse = 0.7 + 0.3 * Math.sin(Date.now() * 0.004);
+  const curSt = currentStorey;
+  const leafYOff = 10; // shift leaves down to sit on branches
+  for (let i = 12; i >= 0; i--) {
+    const storeyIdx = 12 - i;
+    const by = H * 0.1 + (H * 0.85 / 13) * i;
+    const dir = i % 2 === 0 ? -1 : 1;
+    const bx = tx + dir * 110;
+    const cy = by + leafYOff; // centre y of cluster
+
+    const isCurrent = storeyIdx === curSt;
+    const isDone = storeyIdx < curSt;
+    let leafColor, leafAlpha, glowColor;
+    if (isDone) {
+      leafColor = '#7ab648';
+      leafAlpha = 0.85;
+    } else if (isCurrent) {
+      leafColor = '#7ab648';
+      leafAlpha = pulse;
+      glowColor = 'rgba(122,182,72,0.6)';
+    } else {
+      leafColor = '#1a3a0e';
+      leafAlpha = 0.35;
+    }
+
+    ctx.save();
+    ctx.globalAlpha = leafAlpha;
+
+    if (isCurrent) {
+      ctx.shadowColor = glowColor;
+      ctx.shadowBlur = 18;
+    }
+
+    // Overlapping leaf ellipses
+    ctx.fillStyle = leafColor;
+    const offsets = [[-48,-36],[48,-36],[0,-72],[-72,0],[72,0],[-32,-56],[32,-56],[-56,-20],[56,-20]];
+    for (const [ox, oy] of offsets) {
+      ctx.beginPath();
+      ctx.ellipse(bx + ox, cy - 30 + oy, 60, 36, (ox > 0 ? 0.3 : -0.3), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Center cluster
+    ctx.fillStyle = isDone ? '#8fcf55' : isCurrent ? '#8fcf55' : '#1a3a0e';
+    ctx.beginPath();
+    ctx.ellipse(bx, cy - 48, 48, 30, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+
+    // Dark badge behind level number
+    ctx.globalAlpha = isDone ? 0.95 : isCurrent ? 1 : 0.5;
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.beginPath();
+    ctx.arc(bx, cy - 40, 28, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = isDone || isCurrent ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Level number
+    ctx.fillStyle = isDone ? '#7ab648' : isCurrent ? '#fff' : 'rgba(255,255,255,0.5)';
+    ctx.font = `bold ${isCurrent ? 22 : 20}px 'Segoe UI',system-ui,sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(STOREYS[storeyIdx].num, bx, cy - 39);
+
+    ctx.restore();
+  }
+
+  // Floating leaves
+  for (const l of leaves) {
+    l.x += l.vx;
+    l.y += l.vy;
+    l.rot += l.vr;
+    if (l.x < -20) l.x = W + 20;
+    if (l.y > H + 20) { l.y = -20; l.x = Math.random() * W; }
+    ctx.save();
+    ctx.translate(l.x, l.y);
+    ctx.rotate(l.rot);
+    ctx.fillStyle = `hsla(${l.hue},60%,40%,0.4)`;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, l.s, l.s * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+function animLoop() {
+  drawBG();
+  requestAnimationFrame(animLoop);
+}
+animLoop();
+
+// ─── Audio ───
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function playTone(freq, duration, type, vol, endFreq) {
+  const c = ensureAudio();
+  const osc = c.createOscillator(), gain = c.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.setValueAtTime(freq, c.currentTime);
+  if (endFreq) osc.frequency.exponentialRampToValueAtTime(Math.max(endFreq, 20), c.currentTime + duration);
+  gain.gain.setValueAtTime(vol || 0.1, c.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + duration);
+  osc.connect(gain); gain.connect(c.destination);
+  osc.start(); osc.stop(c.currentTime + duration);
+}
+function sfxCorrect() {
+  playTone(523, 0.1, 'sine', 0.12);
+  setTimeout(() => playTone(659, 0.1, 'sine', 0.12), 100);
+  setTimeout(() => playTone(784, 0.2, 'sine', 0.12), 200);
+}
+function sfxWrong() {
+  playTone(300, 0.3, 'sine', 0.12, 150);
+  setTimeout(() => playTone(200, 0.4, 'sine', 0.1, 100), 150);
+}
+function sfxLifeline() { playTone(880, 0.15, 'triangle', 0.08); }
+function sfxVictory() {
+  [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => playTone(f, 0.3, 'triangle', 0.1), i * 150));
+}
+function sfxTick() { playTone(1000, 0.03, 'sine', 0.04); }
+function sfxSelect() { playTone(600, 0.08, 'sine', 0.06); }
+
+// ─── Shared localStorage ───
+function loadArcadeData() {
+  try { return JSON.parse(localStorage.getItem('calebArcadeData')) || {}; }
+  catch (e) { return {}; }
+}
+function saveArcadeData(data) {
+  localStorage.setItem('calebArcadeData', JSON.stringify(data));
+}
+
+// ─── Storey definitions (moved up, referenced by drawBG) ───
+
+// ─── Question bank ───
+// Difficulty: 1=easy, 2=medium, 3=hard. Correct answer is always index 0 (c:0).
+const ALL_QUESTIONS = [
+  // ===================== EASY (Storeys 1-5) =====================
+  { q: "What are the names of the two main characters who live in the treehouse?", a: ["Andy and Terry", "Tom and Jerry", "Andy and Jerry", "Terry and Bill"], c: 0, d: 1 },
+  { q: "What do Andy and Terry make together?", a: ["Books", "Pizzas", "Movies", "Video games"], c: 0, d: 1 },
+  { q: "What is the name of Andy and Terry's neighbour who loves animals?", a: ["Jill", "Jane", "Julie", "Jenny"], c: 0, d: 1 },
+  { q: "Who is Mr Big Nose?", a: ["Their publisher", "Their teacher", "A villain", "Jill's dad"], c: 0, d: 1 },
+  { q: "How many storeys does the treehouse have in the first book?", a: ["13", "26", "39", "52"], c: 0, d: 1 },
+  { q: "What kind of pool does the treehouse have?", a: ["A see-through swimming pool", "An infinity pool", "A ball pit pool", "A mud pool"], c: 0, d: 1 },
+  { q: "What dangerous fish live in the treehouse tank?", a: ["Man-eating sharks", "Piranhas", "Electric eels", "Giant squid"], c: 0, d: 1 },
+  { q: "What does Andy do — write or draw?", a: ["Write the words", "Draw the pictures", "Both", "Neither"], c: 0, d: 1 },
+  { q: "What does Terry do — write or draw?", a: ["Draw the pictures", "Write the words", "Both", "Neither"], c: 0, d: 1 },
+  { q: "What sweet treat does the treehouse have a machine for?", a: ["Marshmallows", "Chocolate", "Ice cream", "Gummy bears"], c: 0, d: 1 },
+  { q: "What kind of alley is in the treehouse?", a: ["A bowling alley", "A back alley", "A skittles alley", "A roller-skating alley"], c: 0, d: 1 },
+  { q: "What is the name of the book series?", a: ["The Treehouse Series", "The Tower Series", "The Clubhouse Books", "The Bunkbed Adventures"], c: 0, d: 1 },
+  { q: "Who illustrated the Treehouse books?", a: ["Terry Denton", "Andy Griffiths", "Jill Griffiths", "Mr Big Nose"], c: 0, d: 1 },
+  { q: "Who wrote the Treehouse books?", a: ["Andy Griffiths", "Terry Denton", "Andy Denton", "Terry Griffiths"], c: 0, d: 1 },
+  { q: "Where do Andy and Terry live?", a: ["In a treehouse", "In a castle", "In a cave", "On a boat"], c: 0, d: 1 },
+  { q: "Is the treehouse in a city or in nature?", a: ["In a forest", "In a city", "Underground", "On the moon"], c: 0, d: 1 },
+  { q: "What is the treehouse built in?", a: ["A tree", "A mountain", "A skyscraper", "A volcano"], c: 0, d: 1 },
+  { q: "Do the treehouse books have pictures in them?", a: ["Yes, lots of illustrations", "No, just words", "Only on the cover", "Only maps"], c: 0, d: 1 },
+  { q: "What does Mr Big Nose want Andy and Terry to do?", a: ["Finish their book on time", "Clean the treehouse", "Move out", "Stop drawing"], c: 0, d: 1 },
+  { q: "Is Jill a friend or an enemy?", a: ["A friend", "An enemy", "A stranger", "A robot"], c: 0, d: 1 },
+  { q: "What drink comes out of a special fountain in the treehouse?", a: ["Lemonade", "Orange juice", "Cola", "Water"], c: 0, d: 1 },
+  { q: "Andy and Terry's treehouse has a tank full of what?", a: ["Man-eating sharks", "Tropical fish", "Jellyfish", "Rubber ducks"], c: 0, d: 1 },
+  { q: "How do Andy and Terry get around between levels of the treehouse?", a: ["Vines, ladders and ramps", "An elevator only", "Stairs only", "They fly"], c: 0, d: 1 },
+  { q: "What is the treehouse full of?", a: ["Fun rooms and crazy inventions", "Boring furniture", "Nothing at all", "Just bedrooms"], c: 0, d: 1 },
+  { q: "Are the Treehouse books funny or serious?", a: ["Funny", "Very serious", "Scary", "Sad"], c: 0, d: 1 },
+  { q: "Do Andy and Terry ever get into trouble?", a: ["Yes, all the time", "Never", "Only once", "Only Terry does"], c: 0, d: 1 },
+  { q: "What grows taller with every new book?", a: ["The treehouse", "Andy", "The tree", "Mr Big Nose"], c: 0, d: 1 },
+  { q: "Who calls Andy and Terry on the phone to yell about deadlines?", a: ["Mr Big Nose", "Jill", "The President", "Their mum"], c: 0, d: 1 },
+  { q: "What are the Treehouse books full of?", a: ["Silly adventures and drawings", "Maths problems", "Recipes", "Song lyrics"], c: 0, d: 1 },
+  { q: "Where does Jill live?", a: ["Next door to the treehouse", "In the treehouse", "In another country", "In a cave"], c: 0, d: 1 },
+  { q: "Do the treehouse books have chapters?", a: ["Yes, 13 chapters each", "No chapters", "Only 2 chapters", "100 chapters"], c: 0, d: 1 },
+  { q: "What does the treehouse have that you can eat?", a: ["A marshmallow machine", "A pizza oven", "A sushi bar", "Nothing"], c: 0, d: 1 },
+  { q: "Who is always late finishing their book?", a: ["Andy and Terry", "Jill", "Mr Big Nose", "The postman"], c: 0, d: 1 },
+  { q: "What is on the cover of every Treehouse book?", a: ["A drawing of the treehouse", "A photograph", "Just text", "A map"], c: 0, d: 1 },
+  { q: "How many main characters live in the treehouse?", a: ["Two — Andy and Terry", "One — just Andy", "Three", "Five"], c: 0, d: 1 },
+  { q: "Is the treehouse small or enormous?", a: ["Enormous with many levels", "Tiny with one room", "Medium-sized", "It changes size"], c: 0, d: 1 },
+  { q: "What do Andy and Terry argue about a lot?", a: ["Silly things", "Money", "Food", "The weather"], c: 0, d: 1 },
+  { q: "Are there any animals in the treehouse?", a: ["Yes, including sharks and monkeys", "No animals at all", "Only a dog", "Only birds"], c: 0, d: 1 },
+  { q: "What do Andy and Terry have to deliver to Mr Big Nose?", a: ["Their finished book", "A pizza", "A letter", "A birthday present"], c: 0, d: 1 },
+  { q: "What does Terry love to do?", a: ["Draw and invent things", "Sleep all day", "Cook meals", "Play football"], c: 0, d: 1 },
+  { q: "What does Andy love to do?", a: ["Write stories", "Play video games", "Go shopping", "Watch TV"], c: 0, d: 1 },
+  { q: "Is the treehouse a real place or imaginary?", a: ["Imaginary — it's in a book", "A real place in Australia", "A real place in England", "A theme park"], c: 0, d: 1 },
+  { q: "What can you play in the treehouse's alley?", a: ["Bowling", "Tennis", "Basketball", "Hockey"], c: 0, d: 1 },
+  { q: "How many books are in the Treehouse series?", a: ["13 books", "3 books", "26 books", "7 books"], c: 0, d: 1 },
+  { q: "Does the treehouse have a swimming pool?", a: ["Yes, a see-through one", "No", "Yes, underground", "Yes, on the roof only"], c: 0, d: 1 },
+  { q: "Andy and Terry's books always have lots of what?", a: ["Pictures and jokes", "Long words", "Maps", "Footnotes"], c: 0, d: 1 },
+  { q: "What colour is Mr Big Nose's nose usually drawn?", a: ["Red", "Blue", "Green", "Purple"], c: 0, d: 1 },
+  { q: "What does every Treehouse book number go up by?", a: ["13", "10", "5", "20"], c: 0, d: 1 },
+  { q: "Who delivers the mail to Andy and Terry?", a: ["Bill the postman", "Jill", "A robot", "A bird"], c: 0, d: 1 },
+  { q: "What is Andy's last name?", a: ["Griffiths", "Denton", "Smith", "Jones"], c: 0, d: 1 },
+  { q: "What is Terry's last name?", a: ["Denton", "Griffiths", "Smith", "Brown"], c: 0, d: 1 },
+  { q: "Do Andy and Terry like their treehouse?", a: ["Yes, they love it", "No, they want to move", "They think it's boring", "They're scared of it"], c: 0, d: 1 },
+  { q: "How many storeys does the treehouse grow by in each book?", a: ["13 more storeys", "100 more", "1 more", "It stays the same"], c: 0, d: 1 },
+  { q: "Can you swim in the treehouse?", a: ["Yes, in the see-through pool", "No", "Only in winter", "Only on Tuesdays"], c: 0, d: 1 },
+  { q: "What shape are most of the treehouse books?", a: ["Tall and narrow", "Square", "Round", "Tiny pocket-sized"], c: 0, d: 1 },
+  { q: "Do Andy and Terry go on adventures?", a: ["Yes, wild ones every book", "No, they stay inside", "Only sometimes", "Only Terry does"], c: 0, d: 1 },
+  { q: "What style of drawings are in the books?", a: ["Black and white sketchy cartoons", "Realistic paintings", "Photographs", "Watercolours"], c: 0, d: 1 },
+  { q: "Are the Treehouse books for children or adults?", a: ["Children", "Adults only", "Babies", "Teenagers only"], c: 0, d: 1 },
+  { q: "What kind of machine makes a sweet snack in the treehouse?", a: ["A marshmallow machine", "A candy floss machine", "A popcorn machine", "A doughnut machine"], c: 0, d: 1 },
+  { q: "Is Jill good with animals?", a: ["Yes, she's amazing with animals", "No, animals don't like her", "She's scared of them", "She only likes fish"], c: 0, d: 1 },
+  { q: "How many Treehouse books start with a number?", a: ["All of them", "None of them", "Only the first one", "Half of them"], c: 0, d: 1 },
+  { q: "Do the books get bigger (more storeys) or smaller as the series goes on?", a: ["Bigger — 13 more each time", "Smaller", "They stay the same", "It's random"], c: 0, d: 1 },
+  { q: "What is the first thing in the title of every book?", a: ["The number of storeys", "The word 'The'", "Andy's name", "A colour"], c: 0, d: 1 },
+  { q: "Terry's inventions usually go wrong. True or false?", a: ["True", "False — they always work", "He doesn't invent things", "Only in the first book"], c: 0, d: 1 },
+  { q: "What is the treehouse surrounded by?", a: ["A forest", "A desert", "An ocean", "A city"], c: 0, d: 1 },
+  { q: "Do Andy and Terry work together or against each other?", a: ["Together, they're a team", "Against each other", "They never interact", "Only Andy works"], c: 0, d: 1 },
+  { q: "What does Mr Big Nose always want?", a: ["The book finished on time", "More money", "A bigger nose", "A holiday"], c: 0, d: 1 },
+  { q: "How do the books usually begin?", a: ["Andy introducing the treehouse", "A fight scene", "A dream sequence", "A recipe"], c: 0, d: 1 },
+  { q: "What are the treehouse levels full of?", a: ["Wacky rooms and inventions", "Just empty space", "Offices", "Classrooms"], c: 0, d: 1 },
+  { q: "Who often helps Andy and Terry solve problems?", a: ["Jill", "Mr Big Nose", "The sharks", "Nobody"], c: 0, d: 1 },
+
+  // ===================== MEDIUM (Storeys 6-10) =====================
+  // Specific events and details from the books
+  { q: "In The 13-Storey Treehouse, what do the sea monkeys do after escaping the tank?", a: ["They grow giant and attack the treehouse", "They swim to the ocean", "They shrink and disappear", "They become friendly pets"], c: 0, d: 2 },
+  { q: "In The 13-Storey Treehouse, how do Andy and Terry defeat the giant sea monkeys?", a: ["They lure them away with a trail of food", "They shrink them with a ray gun", "They ask Jill to talk to them", "They flush them down the toilet"], c: 0, d: 2 },
+  { q: "In The 26-Storey Treehouse, who puts Andy and Terry on trial?", a: ["The animals, with Judge Jill presiding", "Mr Big Nose", "The police", "A group of pirates"], c: 0, d: 2 },
+  { q: "In The 26-Storey Treehouse, what crime are Andy and Terry accused of?", a: ["Being cruel to animals", "Stealing ideas", "Building without permission", "Making too much noise"], c: 0, d: 2 },
+  { q: "In The 39-Storey Treehouse, where does the time machine first take Andy and Terry?", a: ["Back to prehistoric times with dinosaurs", "To ancient Egypt", "To the year 3000", "To medieval England"], c: 0, d: 2 },
+  { q: "In The 39-Storey Treehouse, what baby do Andy and Terry have to look after?", a: ["A baby version of Mr Big Nose", "A baby dinosaur", "A baby sea monkey", "A baby shark"], c: 0, d: 2 },
+  { q: "In The 52-Storey Treehouse, what does the 'Once-upon-a-time machine' do?", a: ["It brings drawings and stories to life", "It travels through time", "It makes things disappear", "It copies books automatically"], c: 0, d: 2 },
+  { q: "In The 52-Storey Treehouse, who is the vegetable inspector that visits?", a: ["Inspector Bubblewrap", "Inspector Turnip", "Inspector Cabbage", "Inspector Sprout"], c: 0, d: 2 },
+  { q: "In The 65-Storey Treehouse, what prehistoric creature chases Andy and Terry?", a: ["A dinosaur", "A woolly mammoth", "A sabre-toothed tiger", "A giant spider"], c: 0, d: 2 },
+  { q: "In The 78-Storey Treehouse, what do Andy and Terry accidentally do to themselves?", a: ["Turn themselves into super-powered versions", "Shrink themselves tiny", "Make themselves invisible", "Turn into animals"], c: 0, d: 2 },
+  { q: "What do Andy and Terry use to fight villains in The 78-Storey Treehouse?", a: ["Superhero powers", "Giant robots", "Catapults", "Laser guns"], c: 0, d: 2 },
+  { q: "In The 91-Storey Treehouse, what annoying animal causes problems?", a: ["The world's most annoying parrot", "A screaming monkey", "A biting crocodile", "A farting dog"], c: 0, d: 2 },
+  { q: "In The 104-Storey Treehouse, what goes wrong with Terry's teeth?", a: ["He loses a tooth and the Tooth Fairy causes chaos", "His teeth turn green", "He grows fangs", "His teeth fall out from eating marshmallows"], c: 0, d: 2 },
+  { q: "In The 117-Storey Treehouse, what natural disaster threatens them?", a: ["A volcano erupts near the treehouse", "An earthquake splits the tree", "A tornado lifts the treehouse", "A tsunami floods everything"], c: 0, d: 2 },
+  { q: "In The 130-Storey Treehouse, what dangerous thing do Andy and Terry create?", a: ["A black hole that starts sucking everything in", "A giant monster", "A self-aware robot", "An unstoppable fire"], c: 0, d: 2 },
+  { q: "In the first book, what does Andy say is the best thing about the treehouse?", a: ["That it's their home and it keeps getting bigger", "The marshmallow machine", "The swimming pool", "The bowling alley"], c: 0, d: 2 },
+  { q: "What do Andy and Terry have to do at the end of every book?", a: ["Rush to finish their book for Mr Big Nose", "Clean the treehouse", "Fix everything they broke", "Say goodbye to Jill"], c: 0, d: 2 },
+  { q: "In The 13-Storey Treehouse, who does Andy call on the phone for help?", a: ["Jill, to help with the sea monkeys", "Mr Big Nose", "The fire brigade", "His mum"], c: 0, d: 2 },
+  { q: "What happens to Bill the postman when he visits?", a: ["He often gets hurt or caught up in their adventures", "He just delivers mail and leaves", "He stays for lunch", "He refuses to come near the treehouse"], c: 0, d: 2 },
+  { q: "In The 26-Storey Treehouse, what does the shark tank get upgraded to?", a: ["A shark tank with even more sharks", "A dolphin pool", "A whale enclosure", "A penguin habitat"], c: 0, d: 2 },
+  { q: "In the books, what often happens to the labelled diagram of the treehouse?", a: ["It gets more and more detailed with each book", "It stays exactly the same", "It gets smaller", "It disappears after book 3"], c: 0, d: 2 },
+  { q: "In The 39-Storey Treehouse, what happens when they go to the future?", a: ["They see a crazy futuristic version of themselves", "Everything is destroyed", "The treehouse doesn't exist", "Aliens have taken over"], c: 0, d: 2 },
+  { q: "What does Terry do with the sea monkeys before they become dangerous?", a: ["He ignores the 'DO NOT PUT IN WATER' warning", "He feeds them too much", "He gives them a growth potion", "He puts them in the microwave"], c: 0, d: 2 },
+  { q: "In the series, what role does Jill often play when things go wrong?", a: ["She helps solve the problem using her animal knowledge", "She makes things worse", "She runs away", "She calls Mr Big Nose"], c: 0, d: 2 },
+  { q: "What do Andy and Terry argue about at the very start of the first book?", a: ["Whether it's Andy's or Terry's fault the book isn't done", "Who owns the treehouse", "What to have for dinner", "Who is taller"], c: 0, d: 2 },
+  { q: "In The 65-Storey Treehouse, what level has an 'anti-gravity chamber'?", a: ["One of the new 65-storey levels", "It doesn't exist in any book", "The 13th storey", "The basement"], c: 0, d: 2 },
+  { q: "In the books, what does the treehouse's bowling alley have that's unusual?", a: ["An exploding scoreboard", "Invisible pins", "Live penguins as pins", "A lava lane"], c: 0, d: 2 },
+  { q: "In The 91-Storey Treehouse, what kind of house is added to the treehouse?", a: ["A haunted house level", "A gingerbread house", "A doll's house", "A bouncy house"], c: 0, d: 2 },
+  { q: "How do Andy and Terry usually describe Mr Big Nose when he calls?", a: ["His nose is so big it comes through the phone", "He's calm and polite", "He whispers", "He sends a text message"], c: 0, d: 2 },
+  { q: "In The 52-Storey Treehouse, what happens when stories come to life?", a: ["The characters escape and cause chaos in the real world", "They become a TV show", "They turn into books", "Nothing — it doesn't work"], c: 0, d: 2 },
+  { q: "What do Andy and Terry discover about the tree itself in later books?", a: ["It has magical properties and seems almost alive", "It's actually plastic", "It's dying", "It's from another planet"], c: 0, d: 2 },
+  { q: "In The 143-Storey Treehouse, what threat looms over the treehouse?", a: ["The treehouse might be demolished or knocked down", "A dragon attacks", "It starts sinking", "The tree catches a disease"], c: 0, d: 2 },
+  { q: "In the books, what happens when Andy and Terry try to explain their adventures?", a: ["Nobody believes them except Jill", "Everyone believes them", "They can't remember", "They write it all down immediately"], c: 0, d: 2 },
+  { q: "What is unusual about how Andy introduces each new treehouse level?", a: ["He gives a guided tour with labelled illustrations", "He sings about each room", "He draws a map", "He lists them in a table"], c: 0, d: 2 },
+  { q: "In the first book, what warning label do the sea monkeys come with?", a: ["WARNING: DO NOT PUT IN WATER", "WARNING: KEEP AWAY FROM CHILDREN", "WARNING: DO NOT FEED", "WARNING: HANDLE WITH CARE"], c: 0, d: 2 },
+  { q: "In The 78-Storey Treehouse, who is the main villain?", a: ["A spy called Inspector Bubblewrap", "A giant squid", "An evil scientist", "A wicked witch"], c: 0, d: 2 },
+  { q: "In The 104-Storey Treehouse, what kind of fairy causes problems?", a: ["A tooth fairy", "A garden fairy", "A wish fairy", "A book fairy"], c: 0, d: 2 },
+  { q: "What do Andy and Terry always promise Mr Big Nose?", a: ["That the book will be finished on time", "That they'll stop building", "That they'll be quieter", "That they'll move out"], c: 0, d: 2 },
+  { q: "In The 117-Storey Treehouse, what do Andy and Terry build to escape danger?", a: ["A rocket to escape the erupting volcano", "A submarine", "A giant parachute", "Underground tunnels"], c: 0, d: 2 },
+  { q: "What is Jill's house like compared to the treehouse?", a: ["Much more organised, full of animals", "Exactly the same", "Completely empty", "Made of stone"], c: 0, d: 2 },
+  { q: "In The 156-Storey Treehouse, what is the big event?", a: ["A massive celebration or party at the treehouse", "The treehouse falls down", "Andy retires", "They sell the treehouse"], c: 0, d: 2 },
+  { q: "In the books, what does Terry's 'invention room' usually produce?", a: ["Crazy machines that malfunction spectacularly", "Perfectly working gadgets", "Nothing — it's always empty", "Food and drinks"], c: 0, d: 2 },
+  { q: "What is the see-through swimming pool's biggest problem?", a: ["People below can see up your swimsuit", "It leaks constantly", "Sharks get in", "It's always empty"], c: 0, d: 2 },
+  { q: "In the first book, where does the final battle with the sea monkeys take place?", a: ["At the treehouse and surrounding area", "At Jill's house", "In the ocean", "At Mr Big Nose's office"], c: 0, d: 2 },
+  { q: "What does Andy always say at the start of the books about the treehouse?", a: ["'Hi, my name is Andy' and introduces the treehouse to the reader", "He complains about the weather", "He reads a poem", "He talks about breakfast"], c: 0, d: 2 },
+
+  // ===================== HARD (Storeys 11-13) =====================
+  { q: "In The 13-Storey Treehouse, what specific warning is printed on the sea monkey packet?", a: ["WARNING: DO NOT PUT IN WATER", "WARNING: KEEP AWAY FROM LIGHT", "WARNING: FEED ONLY ONCE A DAY", "WARNING: NOT SUITABLE FOR CHILDREN"], c: 0, d: 3 },
+  { q: "In The 26-Storey Treehouse, which animal acts as the judge in the courtroom?", a: ["A judge in a wig (with animals as jury)", "A wise old owl", "Jill's cat Silky", "A parrot"], c: 0, d: 3 },
+  { q: "In The 26-Storey Treehouse, what are Andy and Terry specifically charged with?", a: ["Being bad neighbours to animals and mistreating creatures", "Stealing Jill's cats", "Building without a permit", "Polluting the forest"], c: 0, d: 3 },
+  { q: "In The 39-Storey Treehouse, whose baby version do they accidentally bring back in time?", a: ["Baby Mr Big Nose", "Baby Andy", "Baby Terry", "Baby Jill"], c: 0, d: 3 },
+  { q: "In The 52-Storey Treehouse, what does the 'Once-upon-a-time machine' accidentally unleash?", a: ["Fairy tale characters that wreak havoc", "Dinosaurs from a storybook", "A giant beanstalk", "An army of teddy bears"], c: 0, d: 3 },
+  { q: "In The 65-Storey Treehouse, which specific time period do Andy and Terry first land in?", a: ["The age of dinosaurs (prehistoric)", "Ancient Rome", "The Ice Age", "The Stone Age"], c: 0, d: 3 },
+  { q: "In The 78-Storey Treehouse, what specific superhero names do Andy and Terry take?", a: ["Super Andy and Wonder Terry", "Captain Treehouse and The Illustrator", "Tree Man and Draw Boy", "The Masked Writer and Pencil Man"], c: 0, d: 3 },
+  { q: "In The 91-Storey Treehouse, what is the name of the world's most annoying parrot?", a: ["Polly", "Crackers", "Squawky", "Captain Feathers"], c: 0, d: 3 },
+  { q: "In The 104-Storey Treehouse, what does the Tooth Fairy demand from Terry?", a: ["All of his teeth", "A golden tooth", "To build her a castle", "A million dollars"], c: 0, d: 3 },
+  { q: "In The 117-Storey Treehouse, what do Andy and Terry build to escape the volcano?", a: ["A rocket ship", "A hot air balloon", "A submarine", "A tunnel underground"], c: 0, d: 3 },
+  { q: "In The 130-Storey Treehouse, what starts getting sucked into the black hole?", a: ["Everything — the treehouse, characters, and the story itself", "Just the furniture", "Only the animals", "Just Terry's drawings"], c: 0, d: 3 },
+  { q: "In The 143-Storey Treehouse, who wants to demolish the treehouse?", a: ["The council or a demolition company", "Mr Big Nose", "A rival treehouse builder", "The tree itself"], c: 0, d: 3 },
+  { q: "What is the HIGHEST number of storeys the treehouse reaches in the series?", a: ["169", "156", "143", "182"], c: 0, d: 3 },
+  { q: "What year was the first Treehouse book published?", a: ["2011", "2009", "2013", "2007"], c: 0, d: 3 },
+  { q: "What was Andy Griffiths' first major book series before the Treehouse?", a: ["The Just! series", "Diary of a Wimpy Kid", "Captain Underpants", "The Bad Guys"], c: 0, d: 3 },
+  { q: "The Treehouse books have been adapted into what kind of live performance?", a: ["A stage play / theatre show", "A TV cartoon", "A movie", "A radio drama"], c: 0, d: 3 },
+  { q: "The Treehouse books are published by which Australian publisher?", a: ["Pan Macmillan Australia", "Penguin Random House", "HarperCollins", "Allen & Unwin"], c: 0, d: 3 },
+  { q: "In the first book, what does Terry do instead of working on the book?", a: ["He plays with his inventions and the sea monkeys", "He sleeps all day", "He goes on holiday", "He hides from Andy"], c: 0, d: 3 },
+  { q: "What are the sea monkeys in the first book a parody of?", a: ["Real 'sea monkey' toys sold in comic book ads", "A TV show", "A famous movie monster", "A fairy tale creature"], c: 0, d: 3 },
+  { q: "Which of these is NOT a real room in the original 13-storey treehouse?", a: ["A time-travel bathroom", "A tank of man-eating sharks", "A bowling alley", "A see-through swimming pool"], c: 0, d: 3 },
+  { q: "In the series, what is the name of Andy and Terry's cat?", a: ["Silky", "Fluffy", "Whiskers", "Mittens"], c: 0, d: 3 },
+  { q: "In The 26-Storey Treehouse, what do the animals specifically accuse Andy and Terry of?", a: ["Cruelty including the shark tank and catapult", "Eating meat", "Cutting down trees", "Being too loud"], c: 0, d: 3 },
+  { q: "In The 39-Storey Treehouse, what goes wrong with the time machine?", a: ["It keeps sending them to the wrong time periods", "It explodes", "It only goes backwards", "It turns them into babies"], c: 0, d: 3 },
+  { q: "In The 52-Storey Treehouse, what fairy tale character escapes the machine?", a: ["Characters from multiple tales including a giant", "Only Goldilocks", "Only the Big Bad Wolf", "Only Cinderella"], c: 0, d: 3 },
+  { q: "In the books, how does each adventure connect to the book Andy and Terry are writing?", a: ["The adventure IS the book — they write about what just happened to them", "They're completely separate", "Mr Big Nose writes it for them", "Jill turns it into a book"], c: 0, d: 3 },
+  { q: "What is special about the way Andy addresses the reader on page one?", a: ["He breaks the fourth wall and speaks directly to you", "He writes in third person", "He uses poetry", "He starts with a warning"], c: 0, d: 3 },
+  { q: "In The 65-Storey Treehouse, how do they eventually get back to the present?", a: ["By using the time machine again after many failed attempts", "A dinosaur carries them", "They wait millions of years", "Jill rescues them"], c: 0, d: 3 },
+  { q: "In The 91-Storey Treehouse, what is the haunted house level actually haunted by?", a: ["Ghosts that turn out to be not very scary", "Real vampires", "Invisible monsters", "Nothing — it's fake"], c: 0, d: 3 },
+  { q: "In The 130-Storey Treehouse, how do they fix the black hole problem?", a: ["By un-inventing it or reversing the process", "By feeding it marshmallows", "By asking Jill's animals to plug it", "They can't — the book ends on a cliffhanger"], c: 0, d: 3 },
+  { q: "What is the name of the LAST book in the Treehouse series?", a: ["The 169-Storey Treehouse", "The 156-Storey Treehouse", "The 182-Storey Treehouse", "The 143-Storey Treehouse"], c: 0, d: 3 },
+  { q: "In The 78-Storey Treehouse, what does Inspector Bubblewrap want to do?", a: ["Wrap everything in bubble wrap for safety", "Arrest Andy and Terry", "Steal their inventions", "Close down the treehouse"], c: 0, d: 3 },
+  { q: "Andy Griffiths and Terry Denton also collaborated on which other book series?", a: ["Just! and The Bad Book", "Diary of a Wimpy Kid", "Dog Man", "The Bad Guys"], c: 0, d: 3 },
+  { q: "In the series, what meta-joke is made about how the books are created?", a: ["The book you're reading IS the book Andy and Terry are writing in the story", "Andy admits he's not real", "Terry draws himself drawing", "Mr Big Nose reads the book to the reader"], c: 0, d: 3 },
+  { q: "In The 169-Storey Treehouse, what makes this book special in the series?", a: ["It's the final book — the grand conclusion of the series", "It's the longest book", "It has colour illustrations", "It's told from Terry's perspective"], c: 0, d: 3 },
+  { q: "In the first book, how do the sea monkeys actually escape from the tank?", a: ["They grow so big they burst out of it", "Terry leaves the lid open", "Andy accidentally breaks the glass", "Jill sets them free"], c: 0, d: 3 },
+  { q: "In The 104-Storey Treehouse, what does Terry lose that starts the whole adventure?", a: ["A tooth", "His drawing pen", "The treehouse key", "His favourite hat"], c: 0, d: 3 },
+  { q: "In the series, what running gag involves Bill the postman?", a: ["He keeps getting injured or attacked delivering mail to the treehouse", "He always delivers the wrong mail", "He's afraid of heights", "He reads their mail before delivering it"], c: 0, d: 3 },
+  { q: "What is the subtitle of The 13-Storey Treehouse?", a: ["A story with laughs on every page", "The greatest treehouse ever", "Where anything can happen", "Welcome to the madness"], c: 0, d: 3 },
+  { q: "In the books, what is the treehouse's address?", a: ["It doesn't have a normal address — it's just in a tree in the forest", "13 Tree Street", "1 Canopy Lane", "42 Forest Road"], c: 0, d: 3 },
+  { q: "In The 39-Storey Treehouse, what problem does bringing baby Mr Big Nose to the present cause?", a: ["There are now two Mr Big Noses — baby and adult — both angry", "The baby destroys the treehouse", "The timeline collapses", "Baby Mr Big Nose is actually nice"], c: 0, d: 3 },
+  { q: "Which Treehouse book first introduces time travel as a plot device?", a: ["The 39-Storey Treehouse", "The 13-Storey Treehouse", "The 52-Storey Treehouse", "The 65-Storey Treehouse"], c: 0, d: 3 },
+  { q: "In The 156-Storey Treehouse, what milestone is celebrated?", a: ["A huge anniversary or party celebrating the treehouse and its adventures", "Andy's birthday", "Terry learning to write", "Mr Big Nose retiring"], c: 0, d: 3 },
+  { q: "In the books, why does the labelled diagram get more complex with each book?", a: ["Because 13 new levels are added each time, all needing labels", "Because Terry keeps redrawing it wrong", "Because the tree grows", "Because Mr Big Nose demands more detail"], c: 0, d: 3 },
+  { q: "In the first book, what is the very first room Andy shows the reader on the treehouse tour?", a: ["The bowling alley", "The swimming pool", "The shark tank", "The marshmallow machine"], c: 0, d: 3 },
+  { q: "In The 117-Storey Treehouse, what level of the treehouse is near an active volcano?", a: ["The new underground levels", "The very top", "The swimming pool level", "The bowling alley"], c: 0, d: 3 },
+
+  // ── From takethequiz.co.uk — 13-Storey Treehouse ──
+  { q: "In The 13-Storey Treehouse, what did Terry do to Jill's cat?", a: ["He shaved it and rubbed lotion all over its body to lock in moisture", "He tossed it into the room full of pillows when it scratched him", "He fed it catnip and studied its reactions in the underground laboratory", "He painted it yellow and dropped it off the edge of the deck"], c: 0, d: 3 },
+  { q: "In The 13-Storey Treehouse, after the sea-monkeys were fed a second time, one began to what?", a: ["Blast water out of her gills", "Complain about the food, saying teenagers should be fed pizza", "Line up the other sea-monkeys and give them orders", "Grow until she looked like a mermaid"], c: 0, d: 3 },
+  { q: "In The 13-Storey Treehouse, what did Terry do after he mesmerised the monkeys?", a: ["Ushered them onto a space shuttle and sent them to the Moon", "Herded them onto a bus and drove them to the monkey house", "Took pictures of them with a flip camera", "Loaded them into a catapult and hurled them far away"], c: 0, d: 3 },
+  { q: "In The 13-Storey Treehouse, the gorilla stopped shaking the tree when what happened?", a: ["A beautiful woman drove by in her bright yellow convertible", "Some clowns driving circus wagons offered the gorilla a job", "Two kittens and a bunny offered the gorilla a basket of bananas", "A bunch of flying cats attacked the gorilla and carried it away"], c: 0, d: 3 },
+  { q: "In The 13-Storey Treehouse, why did Jill give Terry and Andy a ride in her pram?", a: ["So they could deliver the book to Mr Big Nose", "So they could visit Barky the Barking Dog's film set", "So they could write their names on the top of the Empire State Building", "So they could browse the Library of Congress"], c: 0, d: 3 },
+
+  // ── From takethequiz.co.uk — 26-Storey Treehouse ──
+  { q: "In The 26-Storey Treehouse, what did the sharks eat that made them sick?", a: ["Cement-flavoured ice cream", "Andy's robots", "A talking tube", "Terry's underpants"], c: 0, d: 3 },
+  { q: "In The 26-Storey Treehouse, what round object did Andy find inside one of the sharks?", a: ["Edward Scooperhands's favourite bowling ball", "A prop from a zombie film he and Terry had once made", "A 10p coin that had a hole in it", "Captain Woodenhead's wooden head"], c: 0, d: 3 },
+  { q: "In The 26-Storey Treehouse, what did Andy and the others find on the beach after the storm?", a: ["The missing piece of Captain Woodenhead's treasure map", "A giant alligator which Jill wanted to adopt", "Fourteen copies of Andy and Terry's last book", "Ten sailors from a wrecked ship"], c: 0, d: 3 },
+  { q: "In The 26-Storey Treehouse, why did Andy suggest going into the Maze of Doom?", a: ["He hoped Captain Woodenhead would run after them and get lost", "He had hidden an emergency speedboat in one of the dead-ends", "He wanted to show his friends the new emergency exits he had made", "He wanted to rescue Silky who had been lost for days"], c: 0, d: 3 },
+  { q: "In The 26-Storey Treehouse, what did Mr Big Nose say after their book was done?", a: ["The schedule had changed and the book was due on his desk in five minutes", "He wanted a picture of himself on the book's front cover", "He thought they should write another book all about Gorgonzola", "The book was going to have scratch-and-sniff pages"], c: 0, d: 3 },
+
+  // ── From takethequiz.co.uk — 39-Storey Treehouse ──
+  { q: "In The 39-Storey Treehouse, what did Bill say the Birthday Card Bandits had done?", a: ["They scared him by jumping out of a letter box", "They sent him presents that were booby-trapped", "They tricked him into giving them his wallet", "They tied him up and stole his uniform"], c: 0, d: 3 },
+  { q: "In The 39-Storey Treehouse, what had the people of Earth done to Professor Stupido?", a: ["They threw him down a deep hole which went right through Earth's centre", "They gave him a special award for making the world's worst invention", "They kept stealing his ideas and turned them into inventions of their own", "They tied him to a rocket and blasted him to the dark side of the moon"], c: 0, d: 3 },
+  { q: "In The 39-Storey Treehouse, what did Professor Stupido do after he un-invented the treehouse?", a: ["He un-invented the tree it had been in and then the entire forest", "He stopped un-inventing things because he'd upset Andy and Terry", "He accidentally un-invented his own rocket ship", "He un-invented Terry's trousers"], c: 0, d: 3 },
+  { q: "In The 39-Storey Treehouse, what did Terry use to re-draw the universe?", a: ["A half-spoon half-pencil he had hidden up his nose", "His fingers and a jar of jam left over from breakfast", "A stick of green chalk the Professor had kept in his sock", "A special pen made from cheese which Andy had nearly eaten"], c: 0, d: 3 },
+  { q: "In The 39-Storey Treehouse, what happened after the bandits stole the Once-upon-a-time machine?", a: ["Terry, Andy and Jill heard it explode", "Mr Big Nose chased after them and got it back", "A giant tidal wave flooded the treehouse", "Terry and Andy asked Bill to come live with them"], c: 0, d: 3 },
+
+  // ── From takethequiz.co.uk — 78-Storey Treehouse ──
+  { q: "In The 78-Storey Treehouse, what did Mr Big Shot say as Andy told readers about the film?", a: ["The film was supposed to be top secret", "The big Hollywood movie star had cancelled", "He would be cutting down the treehouse tree", "The film didn't need a narrator"], c: 0, d: 3 },
+  { q: "In The 78-Storey Treehouse, what did Mr Big Shot tell Andy about his part in the film?", a: ["A gibbon would be playing Andy", "He wanted Andy to wear a ballerina tutu", "Andy simply wasn't believable as a character", "Andy's part would be filmed underwater"], c: 0, d: 3 },
+  { q: "In The 78-Storey Treehouse, why did the observation deck on the set crumble and fall?", a: ["Mel Gibbon's Zumba class had danced a little too enthusiastically", "Mr Big Shot's angry stomping had weakened the deck", "It had been built by monkeys who didn't know anything about construction", "It was overloaded with too many Andys from Andyland"], c: 0, d: 3 },
+  { q: "In The 78-Storey Treehouse, as Terry and Mel made popcorn with the lid off, Andy did what?", a: ["Sneaked in and filled the salt shaker with sugar", "Broke their hot cocoa mugs", "Threw Mel Gibbon's pants into the shark tank", "Stormed in and accused Terry of stealing his chips"], c: 0, d: 3 },
+  { q: "In The 78-Storey Treehouse, how did Terry and Andy get their book to Mr Big Nose on time?", a: ["They sent it through the moles' underground vacuum-powered post tube", "Jill delivered it in her space-cat-powered intergalactic spacecraft", "They decided to try out Terry's new teleporting Tupperware invention", "The turbo tortoise hatched from the giant egg and flew it to him"], c: 0, d: 3 },
+
+  // ── User-supplied book questions ── Book 13
+  { q: "Who are the main characters in the Treehouse series?", a: ["Andy and Terry", "Mr Big Nose", "Silky", "Gorilla"], c: 0, d: 3 },
+  { q: "In The 13-Storey Treehouse, what fruit does Terry enlarge?", a: ["Banana", "Apple", "Coconut", "Strawberry"], c: 0, d: 3 },
+  { q: "In The 13-Storey Treehouse, what is the new deadline to finish the book?", a: ["Five o'clock tomorrow afternoon", "This evening", "Next Monday", "April"], c: 0, d: 3 },
+  { q: "Which of these is on Terry's 'To Don't' list?", a: ["Don't wash Andy's underwear", "Don't play with monkeys", "Don't do homework", "Don't get a girlfriend"], c: 0, d: 3 },
+  { q: "In The 13-Storey Treehouse, what will happen if Mr Big Nose gets too angry?", a: ["His nose will explode", "He will break your bones", "He will make you work in a monkey house", "He will put you in prison"], c: 0, d: 3 },
+  { q: "In The 13-Storey Treehouse, whose brain is the biggest?", a: ["Andy", "Terry", "Jill", "Mr Big Nose"], c: 0, d: 3 },
+
+  // ── Book 26
+  { q: "What is added to the treehouse in The 26-Storey Treehouse?", a: ["A maze", "A restaurant", "A jelly bean factory", "A rocket"], c: 0, d: 3 },
+  { q: "In The 26-Storey Treehouse, who captured Terry, Andy and Jill?", a: ["Pirates", "A gorilla", "A sea monster", "Mr Big Nose"], c: 0, d: 3 },
+  { q: "In The 26-Storey Treehouse, what were the ten unlucky pirates doing?", a: ["Swinging on the vine", "Eating ice cream", "Swimming at the pool", "Learning how to skate"], c: 0, d: 3 },
+  { q: "In The 26-Storey Treehouse, which story did Terry NOT mistakenly use when retelling how he met Andy?", a: ["Snow White and the Seven Dwarves", "Cinderella", "Hansel and Gretel", "Little Red Riding Hood"], c: 0, d: 3 },
+  { q: "In The 26-Storey Treehouse, where did Terry live as a little boy?", a: ["In a lonely apartment", "In a big house", "In a small cabin", "In a giant castle"], c: 0, d: 3 },
+  { q: "In The 26-Storey Treehouse, how did Terry save himself from the fire?", a: ["He jumped off the building", "He put it out with water", "He quickly ran away", "He called the police"], c: 0, d: 3 },
+
+  // ── Book 39
+  { q: "In The 39-Storey Treehouse, what machine does Terry invent?", a: ["The Once-upon-a-time Machine", "A time machine", "A jelly bean machine", "A Big Nose Machine"], c: 0, d: 3 },
+  { q: "In the Treehouse series, Mr Big Nose always calls at the start of which chapter?", a: ["Chapter 2", "Chapter 1", "Chapter 3", "Chapter 4"], c: 0, d: 3 },
+  { q: "What is added to the treehouse in The 39-Storey Treehouse?", a: ["An X-ray room", "A castle", "A pond", "A wishing well"], c: 0, d: 3 },
+  { q: "In The 39-Storey Treehouse, what did Terry and Andy do at the volcano level?", a: ["Toast marshmallows", "Play in the lava", "Dance", "Eat fire"], c: 0, d: 3 },
+
+  // ── Book 52
+  { q: "In The 52-Storey Treehouse, what did Andy and Terry eat while thinking about the Mystery of the Missing Mr Big Nose?", a: ["Hot jam donuts", "Sushi", "Chocolate donuts", "Marshmallows"], c: 0, d: 3 },
+  { q: "What is added to the treehouse in The 52-Storey Treehouse?", a: ["A ninja snail training academy", "A two-dollar shop", "A restaurant", "A park"], c: 0, d: 3 },
+  { q: "In The 52-Storey Treehouse, what happened when Andy kissed sleeping Jill?", a: ["Nothing happened", "Jill woke up", "Terry got jealous", "Andy fell asleep"], c: 0, d: 3 },
+  { q: "In The 52-Storey Treehouse, looking out the window, Andy saw what?", a: ["A castle on the hill", "A flying beetroot", "A UFO", "An enormous bird"], c: 0, d: 3 },
+  { q: "In The 52-Storey Treehouse, who did Andy, Terry, and Jill find in the dungeon?", a: ["Mr Big Nose", "Silky", "Superfinger", "A hungry caterpillar"], c: 0, d: 3 },
+  { q: "In The 52-Storey Treehouse, why did the vegetables kidnap Mr Big Nose?", a: ["Because he published a book about fighting vegetables", "Because he didn't eat vegetables", "Because the vegetables wanted to take care of him", "Because he hated all vegetables in the world"], c: 0, d: 3 },
+
+  // ── Book 65
+  { q: "In The 65-Storey Treehouse, when will the wrecking crew arrive?", a: ["12:00", "12:15", "13:14", "14:05"], c: 0, d: 3 },
+  { q: "In The 65-Storey Treehouse, why did the dinosaurs go extinct?", a: ["Because of Bignosesaurus", "Because of asteroids", "Because of volcanoes", "Because of a monster"], c: 0, d: 3 },
+
+  // ── Book 78
+  { q: "In The 78-Storey Treehouse, who did Mr Big Shot not like?", a: ["Andy", "Terry", "Jill's animals", "Jill"], c: 0, d: 3 },
+  { q: "In The 78-Storey Treehouse, what time was the movie premiere?", a: ["7:30 pm", "8:00 pm", "9:00 pm", "11:30 pm"], c: 0, d: 3 },
+  { q: "In The 78-Storey Treehouse, what is the title of Andy and Terry's movie?", a: ["Treehouse: The Movie", "The Greatest Movie Ever", "Andy, Terry, and the Treehouse", "The Treehouse Story"], c: 0, d: 3 },
+  { q: "In The 78-Storey Treehouse, what is the name of the evil genius in Andy's story?", a: ["Doctor Von Beerstein", "Doctor Steven Strange", "Master Robo-doc", "Master Albie Einstein"], c: 0, d: 3 },
+  { q: "In The 78-Storey Treehouse, at least how many more chairs did they need for the theatre?", a: ["10,000", "50", "700", "2,000"], c: 0, d: 3 },
+  { q: "In The 78-Storey Treehouse, what snack would they give to the movie-goers?", a: ["Popcorn", "Cheese sticks", "Tacos", "French fries"], c: 0, d: 3 },
+];
+
+// ─── Game state ───
+// currentStorey declared earlier (before drawBG)
+let questions = [];
+let lifelinesUsed = { '5050': false, phone: false, audience: false };
+let eliminated = [];
+let timerInterval = null;
+let timeLeft = 0;
+let answered = false;
+let gameActive = false;
+
+const TIMER_DURATIONS = [30, 30, 30, 30, 30, 25, 25, 25, 25, 25, 20, 20, 20]; // seconds per storey
+
+// ─── DOM refs ───
+const overlayEl = document.getElementById('overlay');
+const quizEl = document.getElementById('quiz');
+const ladderEl = document.getElementById('ladder');
+const storeyLabel = document.getElementById('storeyLabel');
+const questionText = document.getElementById('questionText');
+const answersEl = document.getElementById('answers');
+const timerBar = document.getElementById('timerBar');
+const resultEl = document.getElementById('result');
+const resultTitle = document.getElementById('resultTitle');
+const resultSub = document.getElementById('resultSub');
+const resultReached = document.getElementById('resultReached');
+const audiencePoll = document.getElementById('audiencePoll');
+const pollBars = document.getElementById('pollBars');
+const phoneFriend = document.getElementById('phoneFriend');
+
+// ─── Build ladder ───
+function buildLadder() {
+  ladderEl.innerHTML = '';
+  for (let i = 0; i < 13; i++) {
+    const s = STOREYS[i];
+    const div = document.createElement('div');
+    div.className = 'storey';
+    div.textContent = s.num;
+    div.id = 'storey-' + i;
+    ladderEl.appendChild(div);
+  }
+}
+
+function updateLadder() {
+  for (let i = 0; i < 13; i++) {
+    const el = document.getElementById('storey-' + i);
+    el.classList.remove('current', 'done');
+    if (i < currentStorey) el.classList.add('done');
+    if (i === currentStorey) el.classList.add('current');
+  }
+}
+
+// ─── Pick questions ───
+function pickQuestions() {
+  const clone = q => ({ q: q.q, a: [...q.a], c: 0, d: q.d });
+  const easy = shuffle(ALL_QUESTIONS.filter(q => q.d === 1)).slice(0, 5).map(clone);
+  const med = shuffle(ALL_QUESTIONS.filter(q => q.d === 2)).slice(0, 5).map(clone);
+  const hard = shuffle(ALL_QUESTIONS.filter(q => q.d === 3)).slice(0, 3).map(clone);
+  return [...easy, ...med, ...hard];
+}
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ─── Speech reader (Web Speech API) ───
+let readingDone = false;
+let speechMuted = false;
+let speechGen = 0; // generation counter to invalidate stale callbacks
+
+function cancelSpeech() {
+  speechGen++; // invalidate any in-flight callbacks
+  speechSynthesis.cancel();
+  clearReadingHighlights();
+}
+
+function clearReadingHighlights() {
+  document.querySelectorAll('.reading').forEach(el => el.classList.remove('reading'));
+}
+
+function beginReading() {
+  cancelSpeech();
+  if (!gameActive || answered || speechMuted) {
+    finishReading();
+    return;
+  }
+  readingDone = false;
+
+  const gen = speechGen; // capture current generation
+  const q = questions[currentStorey];
+  const letters = ['A', 'B', 'C', 'D'];
+  const btns = answersEl.querySelectorAll('.answer-btn');
+  const qBox = document.getElementById('questionBox');
+
+  const steps = [
+    { text: q.q, el: qBox },
+  ];
+  for (let i = 0; i < q.a.length; i++) {
+    steps.push({ text: `${letters[i]}.`, el: btns[i] });
+    steps.push({ text: q.a[i], el: btns[i] });
+  }
+
+  let idx = 0;
+  function speakNext() {
+    // Bail if this session was cancelled
+    if (gen !== speechGen) return;
+    if (idx >= steps.length || !gameActive || answered || speechMuted) {
+      finishReading();
+      return;
+    }
+    clearReadingHighlights();
+    const step = steps[idx];
+    idx++;
+    if (step.el) step.el.classList.add('reading');
+
+    const utt = new SpeechSynthesisUtterance(step.text);
+    utt.rate = 0.75;
+    const karen = speechSynthesis.getVoices().find(v => v.name.includes('Karen'));
+    if (karen) utt.voice = karen;
+    utt.onend = () => {
+      if (gen !== speechGen) return;
+      if (step.el) step.el.classList.remove('reading');
+      speakNext();
+    };
+    utt.onerror = () => {
+      if (gen !== speechGen) return;
+      if (step.el) step.el.classList.remove('reading');
+      speakNext();
+    };
+    speechSynthesis.speak(utt);
+  }
+
+  speakNext();
+}
+
+function finishReading() {
+  if (readingDone) return;
+  clearReadingHighlights();
+  readingDone = true;
+  if (gameActive && !answered) startTimer();
+}
+
+// ─── Show question ───
+function showQuestion() {
+  answered = false;
+  eliminated = [];
+  readingDone = false;
+  cancelSpeech();
+  audiencePoll.classList.remove('show');
+  phoneFriend.classList.remove('show');
+
+  const q = questions[currentStorey];
+  const s = STOREYS[currentStorey];
+  storeyLabel.textContent = `Level ${s.num}`;
+  questionText.textContent = q.q;
+
+  // Shuffle answer order if not yet shuffled for this question
+  if (!q._shuffled) {
+    const order = shuffle([0, 1, 2, 3]);
+    q.c = order.indexOf(0); // correct answer was originally at index 0
+    q.a = order.map(i => q.a[i]);
+    q._shuffled = true;
+  }
+
+  answersEl.innerHTML = '';
+  const letters = ['A', 'B', 'C', 'D'];
+  q.a.forEach((text, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'answer-btn';
+    btn.innerHTML = `<span class="letter">${letters[i]}</span><span>${text}</span>`;
+    btn.addEventListener('click', () => selectAnswer(i));
+    answersEl.appendChild(btn);
+  });
+
+  updateLadder();
+  // Timer starts after reading finishes, not immediately
+  beginReading();
+}
+
+// ─── Timer ───
+function startTimer() {
+  clearInterval(timerInterval);
+  timeLeft = TIMER_DURATIONS[currentStorey] * 10; // tenths of a second
+  const total = timeLeft;
+  timerBar.style.width = '100%';
+  timerBar.classList.remove('warn');
+
+  timerInterval = setInterval(() => {
+    timeLeft--;
+    const pct = (timeLeft / total) * 100;
+    timerBar.style.width = pct + '%';
+    if (pct < 25) timerBar.classList.add('warn');
+    if (timeLeft <= 50 && timeLeft > 0 && timeLeft % 10 === 0) sfxTick();
+    if (timeLeft <= 0) {
+      clearInterval(timerInterval);
+      timeUp();
+    }
+  }, 100);
+}
+
+function stopTimer() { clearInterval(timerInterval); }
+
+// ─── Answer selection ───
+function selectAnswer(idx) {
+  if (answered) return;
+  answered = true;
+  cancelSpeech();
+  stopTimer();
+  sfxSelect();
+
+  const btns = answersEl.querySelectorAll('.answer-btn');
+  btns[idx].classList.add('selected');
+  btns.forEach(b => b.style.pointerEvents = 'none');
+
+  // Reveal after delay
+  setTimeout(() => {
+    const q = questions[currentStorey];
+    if (idx === q.c) {
+      btns[idx].classList.remove('selected');
+      btns[idx].classList.add('correct');
+      sfxCorrect();
+      setTimeout(() => advanceStorey(), 1200);
+    } else {
+      btns[idx].classList.add('wrong');
+      btns[q.c].classList.add('correct');
+      sfxWrong();
+      setTimeout(() => gameOver(false), 1500);
+    }
+  }, 1000);
+}
+
+function timeUp() {
+  if (answered) return;
+  answered = true;
+  cancelSpeech();
+  const q = questions[currentStorey];
+  const btns = answersEl.querySelectorAll('.answer-btn');
+  btns[q.c].classList.add('correct');
+  sfxWrong();
+  setTimeout(() => gameOver(false), 1500);
+}
+
+// ─── Advance / Game Over ───
+function advanceStorey() {
+  currentStorey++;
+  if (currentStorey >= 13) {
+    victory();
+  } else {
+    showQuestion();
+  }
+}
+
+function gameOver(isVictory) {
+  gameActive = false;
+  cancelSpeech();
+  quizEl.classList.remove('active');
+  resultEl.classList.add('active');
+
+  if (isVictory) {
+    resultTitle.textContent = 'You Reached the Top!';
+    resultTitle.style.color = '#ffd32a';
+    resultSub.textContent = 'You climbed all the way to the 169-Story Treehouse!';
+    resultReached.textContent = 'The Top of the Treehouse!';
+  } else {
+    resultTitle.textContent = 'Oh No!';
+    resultTitle.style.color = '#e74c3c';
+    resultSub.textContent = `You fell from Level ${STOREYS[currentStorey].num}...`;
+    resultReached.textContent = 'Back to the ground!';
+  }
+
+  // Save best
+  const data = loadArcadeData();
+  if (!data.treehouse) data.treehouse = {};
+  const best = data.treehouse.bestStorey || 0;
+  const reached = isVictory ? 13 : currentStorey;
+  if (reached > best) {
+    data.treehouse.bestStorey = reached;
+    saveArcadeData(data);
+  }
+}
+
+function victory() {
+  sfxVictory();
+  gameOver(true);
+}
+
+// ─── Lifelines ───
+document.querySelectorAll('.lifeline').forEach(el => {
+  el.addEventListener('click', () => {
+    if (answered || !gameActive) return;
+    const type = el.dataset.ll;
+    if (lifelinesUsed[type]) return;
+    lifelinesUsed[type] = true;
+    el.classList.add('used');
+    sfxLifeline();
+
+    if (type === '5050') useFiftyFifty();
+    else if (type === 'phone') usePhoneFriend();
+    else if (type === 'audience') useAskAudience();
+  });
+});
+
+function useFiftyFifty() {
+  const q = questions[currentStorey];
+  const wrong = [0, 1, 2, 3].filter(i => i !== q.c);
+  const remove = shuffle(wrong).slice(0, 2);
+  eliminated = remove;
+  const btns = answersEl.querySelectorAll('.answer-btn');
+  remove.forEach(i => btns[i].classList.add('eliminated'));
+}
+
+function usePhoneFriend() {
+  const q = questions[currentStorey];
+  const correct = q.a[q.c];
+  const letters = ['A', 'B', 'C', 'D'];
+  // Terry is ~75% right on easy, ~60% on medium, ~50% on hard
+  const confidence = q.d === 1 ? 0.85 : q.d === 2 ? 0.65 : 0.5;
+  let guess;
+  if (Math.random() < confidence) {
+    guess = q.c;
+  } else {
+    const others = [0, 1, 2, 3].filter(i => i !== q.c && !eliminated.includes(i));
+    guess = others[Math.floor(Math.random() * others.length)] ?? q.c;
+  }
+
+  const phrases = [
+    `Hmm, I'm pretty sure it's ${letters[guess]}: ${q.a[guess]}. I drew a picture of it once!`,
+    `Oh! I think it's ${letters[guess]}: ${q.a[guess]}. But I was busy drawing at the time...`,
+    `I reckon it's ${letters[guess]}: ${q.a[guess]}. Andy might disagree though!`,
+    `Definitely ${letters[guess]}: ${q.a[guess]}! ...I think. My memory is a bit fuzzy.`,
+  ];
+
+  phoneFriend.innerHTML = `<span class="name">Terry says:</span><br>"${phrases[Math.floor(Math.random() * phrases.length)]}"`;
+  phoneFriend.classList.add('show');
+}
+
+function useAskAudience() {
+  const q = questions[currentStorey];
+  const letters = ['A', 'B', 'C', 'D'];
+  // Generate percentages biased toward correct answer
+  const bias = q.d === 1 ? 55 : q.d === 2 ? 40 : 30;
+  let pcts = [0, 0, 0, 0];
+  pcts[q.c] = bias + Math.floor(Math.random() * 15);
+  let remain = 100 - pcts[q.c];
+  for (let i = 0; i < 4; i++) {
+    if (i === q.c) continue;
+    if (eliminated.includes(i)) { pcts[i] = 0; continue; }
+    const max = remain;
+    pcts[i] = Math.floor(Math.random() * (max * 0.6));
+    remain -= pcts[i];
+  }
+  // Distribute remainder
+  const open = [0, 1, 2, 3].filter(i => i !== q.c && !eliminated.includes(i));
+  if (open.length > 0) pcts[open[0]] += remain;
+  else pcts[q.c] += remain;
+
+  pollBars.innerHTML = '';
+  for (let i = 0; i < 4; i++) {
+    if (eliminated.includes(i)) continue;
+    const row = document.createElement('div');
+    row.className = 'poll-bar-row';
+    row.innerHTML = `
+      <span class="poll-label">${letters[i]}</span>
+      <div class="poll-bar-bg"><div class="poll-bar-fill" style="width:0%"></div></div>
+      <span class="poll-pct">${pcts[i]}%</span>`;
+    pollBars.appendChild(row);
+    // Animate
+    setTimeout(() => {
+      row.querySelector('.poll-bar-fill').style.width = pcts[i] + '%';
+    }, 100);
+  }
+  audiencePoll.classList.add('show');
+}
+
+// ─── Start / Restart ───
+function startGame() {
+  overlayEl.classList.add('hidden');
+  resultEl.classList.remove('active');
+  quizEl.classList.add('active');
+  gameActive = true;
+  currentStorey = 0;
+  questions = pickQuestions();
+  lifelinesUsed = { '5050': false, phone: false, audience: false };
+  document.querySelectorAll('.lifeline').forEach(el => el.classList.remove('used'));
+  buildLadder();
+  showQuestion();
+}
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  ensureAudio();
+  startGame();
+});
+document.getElementById('playAgainBtn').addEventListener('click', startGame);
+
+// Mute toggle
+const muteBtn = document.getElementById('muteBtn');
+muteBtn.addEventListener('click', () => {
+  speechMuted = !speechMuted;
+  muteBtn.textContent = speechMuted ? '\u{1F507}' : '\u{1F50A}';
+  muteBtn.classList.toggle('muted', speechMuted);
+  if (speechMuted) cancelSpeech();
+});
+
+// Repeat question
+document.getElementById('repeatBtn').addEventListener('click', () => {
+  if (!gameActive || answered || speechMuted) return;
+  cancelSpeech();
+  document.getElementById('repeatBtn').blur();
+  readingDone = false;
+  beginReading();
+});
+</script>
+</body>
+</html>
