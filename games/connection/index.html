@@ -43,6 +43,7 @@ const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 const overlay = document.getElementById('overlay');
 
+let state = 'menu'; // menu, playing, gameover
 let W = innerWidth, H = innerHeight;
 canvas.width = W; canvas.height = H;
 function resize() { W = canvas.width = innerWidth; H = canvas.height = innerHeight; if (state === 'playing' || state === 'gameover') computeLayout(); }
@@ -133,7 +134,6 @@ function spawnParticles(x,y,color,count,speedMult) {
 }
 
 // --- Game State ---
-let state = 'menu'; // menu, playing, gameover
 window.addEventListener('resize', resize);
 let grid = [];       // grid[row][col] = cell
 let target = [];     // array of shape names
