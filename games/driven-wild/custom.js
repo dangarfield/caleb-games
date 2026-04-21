@@ -7,10 +7,10 @@
 // --- Player config ---
 const PLAYERS = {
     caleb: { name: 'CALEB', number: '8', plateText: 'CALEB', color: null },
-    ezra:  { name: 'EZRA',  number: '4', plateText: 'EZRA',  color: null }
+    ezra:  { name: 'EZRA',  number: '5', plateText: 'EZRA',  color: null }
 };
 let selectedPlayer = 'caleb';
-let noClockMode = false; // false = beat the clock (Caleb default), true = no clock (Ezra default)
+let gameMode = 'medium'; // 'easy' = no clock, 'medium' = 60s clock, 'hard' = 45s clock
 let customMenuVisible = true;
 let gameOverVisible = false;
 let touchLeft = false, touchRight = false;
@@ -37,22 +37,22 @@ PLAYERS.caleb.color = hsl(0.13, 0.9, 0.55); // Yellow/gold
 PLAYERS.ezra.color  = hsl(0.6, 0.8, 0.5);   // Blue
 
 // --- High scores (per player, per mode) ---
-// Keys: driven-wild-{player}-hard-best (distance), driven-wild-{player}-easy-time (completion time)
-function getHighScore(player) {
-    return parseInt(localStorage.getItem('driven-wild-' + player + '-hard-best') || '0');
+// Keys: driven-wild-{player}-{mode}-best (distance), driven-wild-{player}-{mode}-time (completion time)
+function getHighScore(player, mode) {
+    return parseInt(localStorage.getItem('driven-wild-' + player + '-' + mode + '-best') || '0');
 }
-function setHighScore(player, score) {
-    const best = getHighScore(player);
-    if (score > best) { localStorage.setItem('driven-wild-' + player + '-hard-best', score); return true; }
+function setHighScore(player, mode, score) {
+    const best = getHighScore(player, mode);
+    if (score > best) { localStorage.setItem('driven-wild-' + player + '-' + mode + '-best', score); return true; }
     return false;
 }
-function getHighTime(player) {
-    return parseFloat(localStorage.getItem('driven-wild-' + player + '-easy-time') || '0');
+function getHighTime(player, mode) {
+    return parseFloat(localStorage.getItem('driven-wild-' + player + '-' + mode + '-time') || '0');
 }
-function setHighTime(player, t) {
-    const best = getHighTime(player);
+function setHighTime(player, mode, t) {
+    const best = getHighTime(player, mode);
     if (t > 0 && (best === 0 || t < best)) {
-        localStorage.setItem('driven-wild-' + player + '-easy-time', t);
+        localStorage.setItem('driven-wild-' + player + '-' + mode + '-time', t);
         return true;
     }
     return false;
@@ -91,12 +91,17 @@ function updatePlayerSelection() {
 
 function updateModeScores() {
     const p = selectedPlayer;
-    const easyTime = getHighTime(p);
+    const easyTime = getHighTime(p, 'easy');
     document.getElementById('best-easy').textContent =
         easyTime > 0 ? formatTimeString(easyTime) : '';
-    const hardDist = getHighScore(p);
+    const medDist = getHighScore(p, 'medium');
+    const medTime = getHighTime(p, 'medium');
+    document.getElementById('best-medium').textContent =
+        medTime > 0 ? formatTimeString(medTime) : medDist > 0 ? formatDistance(medDist) : '';
+    const hardDist = getHighScore(p, 'hard');
+    const hardTime = getHighTime(p, 'hard');
     document.getElementById('best-hard').textContent =
-        hardDist > 0 ? formatDistance(hardDist) : '';
+        hardTime > 0 ? formatTimeString(hardTime) : hardDist > 0 ? formatDistance(hardDist) : '';
 }
 
 function selectPlayer(player) {
@@ -104,8 +109,8 @@ function selectPlayer(player) {
     updatePlayerSelection();
 }
 
-function selectModeAndStart(easy) {
-    noClockMode = easy;
+function selectModeAndStart(mode) {
+    gameMode = mode;
     startCustomGame();
 }
 
@@ -125,29 +130,29 @@ function showGameOverScreen() {
     let isNew = false;
     document.getElementById('go-title').classList.toggle('win', !!playerWin);
 
-    if (noClockMode) {
+    if (gameMode === 'easy') {
         // No clock mode: show time, save best time if finished
         document.getElementById('go-title').textContent = playerWin ? 'FINISHED!' : 'GAME OVER';
         document.getElementById('go-distance').textContent = 'TIME: ' + formatTimeString(raceTime);
         if (playerWin) {
-            isNew = setHighTime(selectedPlayer, raceTime);
-            const bestT = getHighTime(selectedPlayer);
+            isNew = setHighTime(selectedPlayer, 'easy', raceTime);
+            const bestT = getHighTime(selectedPlayer, 'easy');
             document.getElementById('go-best').textContent = 'Best: ' + formatTimeString(bestT);
         } else {
             document.getElementById('go-best').textContent = '';
         }
     } else {
-        // Beat the clock mode: show distance, save best distance
+        // Beat the clock mode (medium or hard): show distance, save best distance
         document.getElementById('go-title').textContent = playerWin ? 'YOU WIN!' : 'TIME\'S UP!';
         if (playerWin) {
-            isNew = setHighTime(selectedPlayer, raceTime);
+            isNew = setHighTime(selectedPlayer, gameMode, raceTime);
             document.getElementById('go-distance').textContent = 'TIME: ' + formatTimeString(raceTime);
-            const bestT = getHighTime(selectedPlayer);
+            const bestT = getHighTime(selectedPlayer, gameMode);
             document.getElementById('go-best').textContent = bestT > 0 ? 'Best: ' + formatTimeString(bestT) : '';
         } else {
-            isNew = setHighScore(selectedPlayer, dist);
+            isNew = setHighScore(selectedPlayer, gameMode, dist);
             document.getElementById('go-distance').textContent = formatDistance(dist);
-            const best = getHighScore(selectedPlayer);
+            const best = getHighScore(selectedPlayer, gameMode);
             document.getElementById('go-best').textContent = 'Best: ' + formatDistance(best);
         }
     }
@@ -167,10 +172,14 @@ function startCustomGame() {
     // Set player color
     playerVehicle.color = cfg.color;
 
-    // In no-clock mode, use freeRide so the original timer logic is bypassed
-    if (noClockMode) {
+    // Mode-specific setup
+    if (gameMode === 'easy') {
         freeRide = 1;
+    } else if (gameMode === 'hard') {
+        // Hard mode: 45s starting clock (gameStart sets it to 55, override here)
+        checkpointTimeLeft = 45;
     }
+    // Medium mode: uses default 55s from gameStart — close enough to 60s
 
     // Regenerate license plate and number textures for this player
     regeneratePlayerTextures(cfg);
@@ -367,8 +376,8 @@ gameUpdateInternal = function() {
         return;
     }
 
-    // In no-clock mode, track raceTime ourselves (freeRide skips it in original)
-    if (noClockMode && !startCountdown && !gameOverTimer.isSet()) {
+    // In easy mode, track raceTime ourselves (freeRide skips it in original)
+    if (gameMode === 'easy' && !startCountdown && !gameOverTimer.isSet()) {
         raceTime += timeDelta;
     }
 
@@ -380,7 +389,15 @@ gameUpdateInternal = function() {
         return;
     }
 
+    // Track checkpoint time before update to detect checkpoint bonus
+    const prevCheckpointTime = checkpointTimeLeft;
+
     _originalGameUpdateInternal();
+
+    // Hard mode: cap checkpoint bonus at 45s (original adds 50s capped to 60)
+    if (gameMode === 'hard' && checkpointTimeLeft > prevCheckpointTime) {
+        checkpointTimeLeft = Math.min(45, checkpointTimeLeft);
+    }
 
     // If original set titleScreenMode (e.g. Escape key), show our menu instead
     if (titleScreenMode && !customMenuVisible) {
@@ -517,7 +534,7 @@ drawHUD = function() {
             if (playerNewRecord || playerNewDistanceRecord && !bestTime)
                 drawHUDText('NEW RECORD', vec3(.5,.6), .08+wave1/4, RED, 'monospace',undefined,900,undefined,undefined,undefined,3);
         } else if (!startCountdownTimer.active() && !gameOverTimer.isSet()) {
-            if (noClockMode) {
+            if (gameMode === 'easy') {
                 // No clock mode: elapsed time top center
                 const timeString = formatTimeString(raceTime);
                 drawHUDText(timeString, vec3(.5,.05), .05, WHITE, 'monospace','center');
@@ -556,7 +573,7 @@ drawHUD = function() {
 // --- Menu event setup ---
 function initCustomMenus() {
     // Stop overlays from letting events through to game
-    for (const id of ['menu-overlay', 'gameover-overlay', 'back-btn', 'btn-easy', 'btn-hard']) {
+    for (const id of ['menu-overlay', 'gameover-overlay', 'back-btn', 'btn-easy', 'btn-medium', 'btn-hard']) {
         const el = document.getElementById(id);
         if (!el) continue;
         for (const evt of ['mousedown','mouseup','touchstart','touchmove','touchend','click','pointerdown','pointerup']) {
@@ -574,11 +591,15 @@ function initCustomMenus() {
     });
     document.getElementById('btn-easy').addEventListener('pointerdown', (e) => {
         e.stopPropagation();
-        selectModeAndStart(true);
+        selectModeAndStart('easy');
+    });
+    document.getElementById('btn-medium').addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        selectModeAndStart('medium');
     });
     document.getElementById('btn-hard').addEventListener('pointerdown', (e) => {
         e.stopPropagation();
-        selectModeAndStart(false);
+        selectModeAndStart('hard');
     });
     document.getElementById('gameover-overlay').addEventListener('pointerdown', (e) => {
         e.stopPropagation();
