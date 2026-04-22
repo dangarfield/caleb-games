@@ -79,13 +79,15 @@ export function getEquipLevel() {
 export function getChosenWeaponLvl() {
   const a = getArchers();
   const max = Math.max(1, Math.min(a.chaptersCleared + 1, 10));
-  return Math.min(a.chosenWeaponLvl || max, max);
+  if (a.chosenWeaponLvl === undefined) return max;
+  return Math.min(a.chosenWeaponLvl, max);
 }
 
 export function getChosenArmorLvl() {
   const a = getArchers();
   const max = Math.max(1, Math.min(a.chaptersCleared + 1, 10));
-  return Math.min(a.chosenArmorLvl || max, max);
+  if (a.chosenArmorLvl === undefined) return max;
+  return Math.min(a.chosenArmorLvl, max);
 }
 
 export function setChosenWeaponLvl(lvl) {
