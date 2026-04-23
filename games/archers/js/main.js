@@ -414,6 +414,21 @@ function update(dt) {
   p._vy += (targetVy - p._vy) * ease;
   p.x += p._vx * dt;
   p.y += p._vy * dt;
+
+  // Player facing direction (movement takes priority, then shooting)
+  if (p._facingAngle === undefined) p._facingAngle = -Math.PI / 2; // default: face up
+  let targetAngle = p._facingAngle;
+  if (input.moving) {
+    targetAngle = Math.atan2(input.dy, input.dx);
+  } else if (game._shootAngle !== undefined && game.enemies.length > 0) {
+    targetAngle = game._shootAngle;
+  }
+  // Ease toward target angle (shortest arc)
+  let diff = targetAngle - p._facingAngle;
+  while (diff > Math.PI) diff -= Math.PI * 2;
+  while (diff < -Math.PI) diff += Math.PI * 2;
+  p._facingAngle += diff * (1 - Math.exp(-12 * dt));
+
   const pr = PLAYER_R * T();
   p.x = clamp(p.x, a.x + pr, a.x + a.w - pr);
   // Allow player to move up into door area when door is open
@@ -1198,12 +1213,17 @@ function draw() {
     ctx.fillStyle = acol;
     ctx.beginPath(); ctx.arc(p.x, p.y, scaledR, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = bgTint;
-    ctx.beginPath();
     const cr = scaledR * 0.5;
-    ctx.moveTo(p.x, p.y - cr);
-    ctx.lineTo(p.x - cr * 0.8, p.y + cr * 0.5);
-    ctx.lineTo(p.x + cr * 0.8, p.y + cr * 0.5);
+    const fa = (p._facingAngle !== undefined ? p._facingAngle : -Math.PI / 2) + Math.PI / 2;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(fa);
+    ctx.beginPath();
+    ctx.moveTo(0, -cr);
+    ctx.lineTo(-cr * 0.8, cr * 0.5);
+    ctx.lineTo(cr * 0.8, cr * 0.5);
     ctx.closePath(); ctx.fill();
+    ctx.restore();
     ctx.restore();
     // HP bar with damage tween
     if (p._displayHp === undefined) p._displayHp = p.hp;

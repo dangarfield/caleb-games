@@ -18,9 +18,9 @@ export function updateShooting(dt) {
   }
   const input = getInput();
 
-  if (!input.moving && game.enemies.length > 0 && game.shootTimer <= 0) {
-    game.shootTimer = shootCD;
-    // Find nearest enemy with clear line of sight (fallback to nearest overall)
+  // Find best target: prefer clear line-of-sight, fallback to nearest
+  let shootTarget = null;
+  if (!input.moving && game.enemies.length > 0) {
     let nearest = null, nd = Infinity;
     let nearestClear = null, ncd = Infinity;
     for (const e of game.enemies) {
@@ -35,65 +35,68 @@ export function updateShooting(dt) {
         if (!blocked) { ncd = d; nearestClear = e; }
       }
     }
-    const target = nearestClear || nearest;
-    if (target) {
-      const ang = Math.atan2(target.y - p.y, target.x - p.x);
-      let effectiveDmgMult = p.dmgMult;
-      // Rage: damage scales with missing HP (proportional)
-      if (p.rage) {
-        const missingPct = 1 - p.hp / p.maxHp;
-        effectiveDmgMult *= (1 + missingPct);
-      }
+    shootTarget = nearestClear || nearest;
+    if (shootTarget) game._shootAngle = Math.atan2(shootTarget.y - p.y, shootTarget.x - p.x);
+  }
 
-      const baseDmg = 10 * effectiveDmgMult;
-      // Apply crit (includes crit aura bonus)
-      const applyCrit = () => {
-        let mult = 1;
-        const critAuraBonus = p._critAuraActive ? 0.45 * (p.critAuraStacks || 0) : 0;
-        const totalCrit = p.critChance + critAuraBonus;
-        if (totalCrit > 0 && Math.random() < totalCrit) mult = p.critDmg || 2;
-        return mult;
-      };
-
-      // Collect all arrow directions: { angle, dmgMult }
-      const arrows = [];
-
-      // Main arrow + front arrows: spread evenly from center
-      const frontCount = 1 + (p.frontArrows || 0);
-      const frontSpread = 0.06;
-      for (let f = 0; f < frontCount; f++) {
-        const offsetAng = ang + (f - (frontCount - 1) / 2) * frontSpread;
-        arrows.push({ angle: offsetAng, dmgMult: 1 });
-      }
-
-      // Rear arrow
-      if (p.rearShot) {
-        arrows.push({ angle: ang + Math.PI, dmgMult: 0.6 });
-      }
-
-      // Diagonal arrows (45-degree offset)
-      if (p.diagonalArrows) {
-        arrows.push({ angle: ang + Math.PI / 4, dmgMult: 0.6 });
-        arrows.push({ angle: ang - Math.PI / 4, dmgMult: 0.6 });
-      }
-
-      // Side arrows (perpendicular)
-      if (p.sideArrows) {
-        arrows.push({ angle: ang + Math.PI / 2, dmgMult: 0.5 });
-        arrows.push({ angle: ang - Math.PI / 2, dmgMult: 0.5 });
-      }
-
-      // Fire each arrow direction, plus multishot trailing copies behind
-      const trailSpacing = 0.88 * T(); // ~40px between trailing arrows
-      for (const arr of arrows) {
-        fireBullet(arr.angle, baseDmg * arr.dmgMult * applyCrit(), 0);
-        for (let s = 1; s <= p.extraShots; s++) {
-          fireBullet(arr.angle, baseDmg * arr.dmgMult * applyCrit(), s * trailSpacing, true);
-        }
-      }
-
-      sfxShoot();
+  if (shootTarget && game.shootTimer <= 0) {
+    game.shootTimer = shootCD;
+    const ang = game._shootAngle;
+    let effectiveDmgMult = p.dmgMult;
+    // Rage: damage scales with missing HP (proportional)
+    if (p.rage) {
+      const missingPct = 1 - p.hp / p.maxHp;
+      effectiveDmgMult *= (1 + missingPct);
     }
+
+    const baseDmg = 10 * effectiveDmgMult;
+    // Apply crit (includes crit aura bonus)
+    const applyCrit = () => {
+      let mult = 1;
+      const critAuraBonus = p._critAuraActive ? 0.45 * (p.critAuraStacks || 0) : 0;
+      const totalCrit = p.critChance + critAuraBonus;
+      if (totalCrit > 0 && Math.random() < totalCrit) mult = p.critDmg || 2;
+      return mult;
+    };
+
+    // Collect all arrow directions: { angle, dmgMult }
+    const arrows = [];
+
+    // Main arrow + front arrows: spread evenly from center
+    const frontCount = 1 + (p.frontArrows || 0);
+    const frontSpread = 0.06;
+    for (let f = 0; f < frontCount; f++) {
+      const offsetAng = ang + (f - (frontCount - 1) / 2) * frontSpread;
+      arrows.push({ angle: offsetAng, dmgMult: 1 });
+    }
+
+    // Rear arrow
+    if (p.rearShot) {
+      arrows.push({ angle: ang + Math.PI, dmgMult: 0.6 });
+    }
+
+    // Diagonal arrows (45-degree offset)
+    if (p.diagonalArrows) {
+      arrows.push({ angle: ang + Math.PI / 4, dmgMult: 0.6 });
+      arrows.push({ angle: ang - Math.PI / 4, dmgMult: 0.6 });
+    }
+
+    // Side arrows (perpendicular)
+    if (p.sideArrows) {
+      arrows.push({ angle: ang + Math.PI / 2, dmgMult: 0.5 });
+      arrows.push({ angle: ang - Math.PI / 2, dmgMult: 0.5 });
+    }
+
+    // Fire each arrow direction, plus multishot trailing copies behind
+    const trailSpacing = 0.88 * T(); // ~40px between trailing arrows
+    for (const arr of arrows) {
+      fireBullet(arr.angle, baseDmg * arr.dmgMult * applyCrit(), 0);
+      for (let s = 1; s <= p.extraShots; s++) {
+        fireBullet(arr.angle, baseDmg * arr.dmgMult * applyCrit(), s * trailSpacing, true);
+      }
+    }
+
+    sfxShoot();
   }
 }
 
