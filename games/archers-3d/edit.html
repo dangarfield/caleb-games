@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Archers - Level Editor</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#1a1a2e;--panel:#12122a;--border:#2a2a4e;--text:#e0e0ff;--accent:#00e5ff;--accent2:#e74c3c;--hover:rgba(0,229,255,0.12)}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;display:flex;height:100vh;overflow:hidden;user-select:none}
+
+/* LEFT PANEL */
+#left{width:240px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
+#left h2{padding:12px 14px 8px;font-size:14px;color:#888;text-transform:uppercase;letter-spacing:1px}
+#chapterList{flex:1;overflow-y:auto;padding:0 8px 8px}
+.chapter-group{margin-bottom:6px}
+.chapter-header{padding:6px 8px;font-size:13px;font-weight:700;color:var(--accent);cursor:pointer;border-radius:4px;display:flex;justify-content:space-between;align-items:center}
+.chapter-header:hover{background:var(--hover)}
+.chapter-header .arrow{transition:transform .2s;font-size:10px}
+.chapter-header.collapsed .arrow{transform:rotate(-90deg)}
+.stage-list{padding-left:4px}
+.stage-row{display:flex;align-items:center;gap:2px}
+.stage-btn{flex:1;padding:5px 8px;font-size:12px;color:var(--text);background:none;border:none;border-radius:4px;text-align:left;cursor:pointer;font-family:inherit;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stage-btn:hover{background:var(--hover)}
+.stage-btn.active{background:rgba(0,229,255,0.2);color:var(--accent);font-weight:600}
+.stage-btn .dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;background:#333;flex-shrink:0}
+.stage-btn .dot.has-data{background:var(--accent)}
+.stage-btn .type-tag{font-size:9px;color:#666;margin-left:4px;text-transform:uppercase}
+.remove-btn{width:18px;height:18px;border:1px solid transparent;background:none;color:#444;border-radius:3px;cursor:pointer;font-size:11px;font-family:inherit;display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;opacity:0;transition:opacity .15s}
+.stage-row:hover .remove-btn{opacity:1}
+.remove-btn:hover{border-color:var(--accent2);color:var(--accent2);background:rgba(231,76,60,0.1)}
+.remove-btn.disabled{pointer-events:none;opacity:0!important}
+.section-header{display:flex;align-items:center;justify-content:space-between;padding:5px 4px 2px;font-size:10px;color:#555;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px}
+.section-header:first-child{margin-top:0}
+.section-header .section-label{letter-spacing:0.5px}
+.add-btn{width:18px;height:18px;border:1px solid var(--border);background:var(--bg);color:#666;border-radius:3px;cursor:pointer;font-size:13px;font-family:inherit;display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;line-height:1}
+.add-btn:hover{border-color:#4caf50;color:#4caf50;background:rgba(76,175,80,0.1)}
+.group-footer{display:flex;justify-content:flex-end;padding:4px 4px 2px}
+.ch-config{padding:4px 4px 6px;display:flex;flex-direction:column;gap:4px;border-bottom:1px solid var(--border);margin-bottom:4px}
+.ch-config-row{display:flex;align-items:center;gap:4px;font-size:11px;color:#888}
+.ch-config-row label{min-width:52px;flex-shrink:0}
+.ch-config-row input{flex:1;min-width:0;padding:2px 4px;font-size:11px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:3px;font-family:inherit}
+.ch-config-row input:focus{outline:none;border-color:var(--accent)}
+.ch-config-row input[type="number"]{text-align:center;-moz-appearance:textfield}
+.ch-config-row input[type="number"]::-webkit-inner-spin-button,.ch-config-row input[type="number"]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+#leftFooter{padding:10px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px}
+#leftFooter button{padding:6px;font-size:12px;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:4px;cursor:pointer;font-family:inherit}
+#leftFooter button:hover{border-color:var(--accent);color:var(--accent)}
+
+/* CENTER */
+#center{flex:1;display:flex;flex-direction:column;min-width:0}
+#toolbar{height:38px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 12px;gap:10px;font-size:12px}
+#toolbar .sep{width:1px;height:20px;background:var(--border)}
+#toolbar button{padding:4px 10px;font-size:12px;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:4px;cursor:pointer;font-family:inherit}
+#toolbar button:hover{border-color:var(--accent);color:var(--accent)}
+#toolbar button.active-tool{border-color:var(--accent);background:rgba(0,229,255,0.15);color:var(--accent)}
+#toolbar label{display:flex;align-items:center;gap:4px;cursor:pointer}
+#toolbar input[type="number"]{-moz-appearance:textfield}
+#toolbar input[type="number"]::-webkit-inner-spin-button,#toolbar input[type="number"]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+#toolbar input:focus{outline:none;border-color:var(--accent)}
+#gridWrap{flex:1;overflow:hidden;position:relative;cursor:crosshair}
+#gridCanvas{display:block}
+#coords{position:absolute;bottom:8px;left:12px;font-size:11px;color:#666;pointer-events:none}
+
+/* RIGHT PANEL */
+#right{width:220px;background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
+#layerToggle{display:flex;border-bottom:1px solid var(--border)}
+#layerToggle button{flex:1;padding:10px;font-size:13px;font-weight:600;border:none;background:none;color:#666;cursor:pointer;font-family:inherit;border-bottom:2px solid transparent;transition:all .15s}
+#layerToggle button.active{color:var(--accent);border-bottom-color:var(--accent)}
+#palette{flex:1;overflow-y:auto;padding:8px}
+.palette-item{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:4px;cursor:pointer;font-size:13px;border:1px solid transparent;margin-bottom:2px}
+.palette-item:hover{background:var(--hover)}
+.palette-item.selected{border-color:var(--accent);background:rgba(0,229,255,0.12)}
+.palette-swatch{width:28px;height:28px;border-radius:4px;border:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.palette-label{font-size:12px}
+#rightFooter{padding:10px;border-top:1px solid var(--border);font-size:11px;color:#666;text-align:center;line-height:1.6}
+
+/* scrollbar */
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#333;border-radius:3px}
+</style>
+</head>
+<body>
+
+<!-- LEFT: Group / Stage selector -->
+<div id="left">
+  <h2>Stage Groups</h2>
+  <div id="chapterList"></div>
+  <div id="leftFooter">
+    <button id="btnExport">Export JSON</button>
+    <button id="btnImport">Import JSON</button>
+    <button id="btnClearStage">Clear Stage</button>
+    <button id="btnCopy">Copy Stage</button>
+    <button id="btnPaste" disabled>Paste Stage</button>
+  </div>
+</div>
+
+<!-- CENTER: Grid -->
+<div id="center">
+  <div id="toolbar">
+    <span>Zoom:</span>
+    <button id="zoomOut">-</button>
+    <span id="zoomLevel">32px</span>
+    <button id="zoomIn">+</button>
+    <div class="sep"></div>
+    <button id="btnUndo">Undo</button>
+    <button id="btnFill">Fill</button>
+    <div class="sep"></div>
+    <span>Size:</span>
+    <input id="inputW" type="number" min="3" max="49" step="2" value="11" style="width:42px;padding:2px 4px;font-size:12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;font-family:inherit;text-align:center">
+    <span>x</span>
+    <input id="inputH" type="number" min="3" max="50" value="15" style="width:42px;padding:2px 4px;font-size:12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;font-family:inherit;text-align:center">
+    <div class="sep"></div>
+    <span id="stageLabel" style="color:var(--accent);font-weight:600">Tutorial / Stage 1</span>
+  </div>
+  <div id="gridWrap">
+    <canvas id="gridCanvas"></canvas>
+    <div id="coords"></div>
+  </div>
+</div>
+
+<!-- RIGHT: Palette -->
+<div id="right">
+  <div id="layerToggle">
+    <button id="btnTerrain" class="active">Terrain</button>
+    <button id="btnEnemies">Entities</button>
+  </div>
+  <div id="palette"></div>
+  <div id="rightFooter">
+    Left-click: place<br>
+    Right-click: erase<br>
+    Shift-click: rect fill<br>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept=".json" style="display:none">
+
+<script type="module">
+import { CHAPTERS } from './js/chapters.js';
+import { ENEMY_TYPES } from './js/enemyTypes.js';
+import { TOTAL_CHAPTERS, STAGES_PER_CHAPTER } from './js/constants.js';
+
+// ── STAGE TYPES ──
+const STAGE_TYPES = {
+  stage:      { name: 'Stage',      pluralName: 'Stages',      color: '#e0e0ff' },
+  angel:      { name: 'Angel',      pluralName: 'Angels',      color: '#f0e68c' },
+  boss:       { name: 'Boss',       pluralName: 'Bosses',      color: '#e74c3c' },
+  final_boss: { name: 'Final Boss', pluralName: 'Final Bosses', color: '#ff6b00' },
+};
+const TYPE_ORDER = { stage: 0, angel: 1, boss: 2, final_boss: 3 };
+
+// ── GROUP DEFINITIONS ──
+const GROUPS = [
+  { id: 'common',   name: 'Common',     allowedTypes: ['stage'],  defaultType: 'stage' },
+  { id: 'angel',    name: 'Angel',      allowedTypes: ['angel'],  defaultType: 'angel' },
+];
+for (let i = 0; i <= TOTAL_CHAPTERS; i++) {
+  GROUPS.push({
+    id: 'ch' + i,
+    name: i === 0 ? 'Ch 0 (Tutorial)' : 'Chapter ' + i,
+    allowedTypes: ['stage', 'boss', 'final_boss'],
+    defaultType: i === 0 ? 'stage' : 'boss',
+    chapterIdx: i,
+  });
+}
+
+function getGroupById(id) { return GROUPS.find(g => g.id === id); }
+function getChapterIdx(groupId) {
+  const g = getGroupById(groupId);
+  if (g && g.chapterIdx != null) return g.chapterIdx;
+  return -1;
+}
+
+// ── DATA DEFINITIONS ──
+const DEFAULT_W = 11, DEFAULT_H = 15;
+
+const TERRAIN_TYPES = [
+  { id: 0, name: 'Floor',  color: '#3a3a5e', symbol: '' },
+  { id: 1, name: 'Wall',   color: '#6a6a7e', symbol: '' },
+  { id: 2, name: 'Water',  color: '#1a5a8e', symbol: '~' },
+  { id: 3, name: 'Spikes', color: '#8e3a3a', symbol: '^' },
+];
+
+// ── ENTITY REGISTRY ──
+const SPECIAL_ENTITIES = {
+  _player:  { name: 'Player',   color: '#00e5ff',  symbol: 'P', group: 'special' },
+  _angel:   { name: 'Angel',    color: '#f0e68c',  symbol: 'A', group: 'special' },
+  _chest:   { name: 'Chest',    color: '#c8860a',  symbol: 'C', group: 'special' },
+  _enemy1:  { name: 'Enemy 1',  color: '#e74c3c',  symbol: '1', group: 'enemy_slot', accent: '#fff' },
+  _enemy2:  { name: 'Enemy 2',  color: '#e74c3c',  symbol: '2', group: 'enemy_slot', accent: '#ffd700' },
+  _enemy3:  { name: 'Enemy 3',  color: '#e74c3c',  symbol: '3', group: 'enemy_slot', accent: '#00e5ff' },
+};
+
+const ENTITY_INFO = { ...SPECIAL_ENTITIES };
+for (const [key, et] of Object.entries(ENEMY_TYPES)) {
+  ENTITY_INFO[key] = {
+    name: et.name,
+    color: et.color,
+    symbol: et.boss ? 'B' : (et.draw || key)[0].toLowerCase(),
+    group: et.boss ? 'boss' : 'enemy',
+  };
+}
+
+// Get entity palette based on current group
+function getEntityPalette(groupId) {
+  const result = [
+    { typeKey: null, name: 'Empty', color: 'transparent', symbol: '', group: 'special' },
+    ...Object.entries(SPECIAL_ENTITIES).map(([k, v]) => ({ typeKey: k, ...v })),
+  ];
+
+  const chIdx = getChapterIdx(groupId);
+  if (chIdx < 0) return result; // common, angel: specials only
+
+  const ch = CHAPTERS[chIdx];
+  if (!ch) return result;
+
+  const poolKeys = new Set();
+  if (ch.enemyPool) ch.enemyPool.forEach(e => poolKeys.add(e.id));
+  if (ch.bossPool) ch.bossPool.forEach(e => poolKeys.add(e.id));
+
+  for (const key of poolKeys) {
+    const info = ENTITY_INFO[key];
+    if (info && info.group === 'enemy') result.push({ typeKey: key, ...info });
+  }
+  for (const key of poolKeys) {
+    const info = ENTITY_INFO[key];
+    if (info && info.group === 'boss') result.push({ typeKey: key, ...info });
+  }
+  return result;
+}
+
+// ── STAGE REGISTRY ──
+const STORAGE_KEY = 'archers-map';
+const REGISTRY_KEY = 'archers-stage-registry';
+const CONFIG_KEY = 'archers-chapter-config';
+let mapData = {};
+let stageRegistry = {}; // groupId -> [ { id, type }, ... ]
+let chapterConfig = {}; // chN -> { stageCount, angelStages, bossStages }
+
+function getDefaultRegistry() {
+  const reg = {};
+  reg.common = [];
+  for (let i = 1; i <= 25; i++) reg.common.push({ id: 'common-' + i, type: 'stage' });
+  reg.angel = [];
+  for (let i = 1; i <= 5; i++) reg.angel.push({ id: 'angel-' + i, type: 'angel' });
+  // Ch 0 (Tutorial): 3 stages
+  reg.ch0 = [];
+  for (let i = 1; i <= 3; i++) reg.ch0.push({ id: 'ch0-' + i, type: 'stage' });
+  reg.ch0.push({ id: 'ch0-4', type: 'final_boss' });
+  // Chapters 1-10: 1 final boss each
+  for (let ch = 1; ch <= TOTAL_CHAPTERS; ch++) {
+    reg['ch' + ch] = [{ id: 'ch' + ch + '-1', type: 'final_boss' }];
+  }
+  return reg;
+}
+
+function sortRegistry(groupId) {
+  const entries = stageRegistry[groupId];
+  if (!entries) return;
+  entries.sort((a, b) => (TYPE_ORDER[a.type] || 0) - (TYPE_ORDER[b.type] || 0));
+}
+
+function getNextId(groupId) {
+  const entries = stageRegistry[groupId] || [];
+  let max = 0;
+  for (const e of entries) {
+    const parts = e.id.split('-');
+    const n = parseInt(parts[parts.length - 1]);
+    if (n > max) max = n;
+  }
+  return groupId + '-' + (max + 1);
+}
+
+function addStage(groupId, type) {
+  if (!stageRegistry[groupId]) stageRegistry[groupId] = [];
+  const id = getNextId(groupId);
+  stageRegistry[groupId].push({ id, type });
+  sortRegistry(groupId);
+  saveAll();
+  return id;
+}
+
+function removeStage(groupId, stageId) {
+  const entries = stageRegistry[groupId];
+  if (!entries) return;
+  const idx = entries.findIndex(e => e.id === stageId);
+  if (idx === -1) return;
+  entries.splice(idx, 1);
+  delete mapData[stageId];
+  saveAll();
+}
+
+function canRemoveStage(groupId, stageId) {
+  const group = getGroupById(groupId);
+  if (!group) return true;
+  // Chapters must keep at least 1 final_boss
+  if (group.allowedTypes.includes('final_boss')) {
+    const entries = stageRegistry[groupId] || [];
+    const entry = entries.find(e => e.id === stageId);
+    if (entry && entry.type === 'final_boss') {
+      const fbCount = entries.filter(e => e.type === 'final_boss').length;
+      if (fbCount <= 1) return false;
+    }
+  }
+  return true;
+}
+
+function getStageName(groupId, stageEntry) {
+  const entries = stageRegistry[groupId] || [];
+  const sameType = entries.filter(e => e.type === stageEntry.type);
+  const idx = sameType.indexOf(stageEntry) + 1;
+  const typeName = STAGE_TYPES[stageEntry.type].name;
+  if (sameType.length <= 1) return typeName;
+  return `${typeName} ${idx}`;
+}
+
+// ── LEGEND ──
+const LEGEND_CHARS = '123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const EMPTY_CHAR = '.';
+
+// ── STATE ──
+let currentGroup = 'ch0';
+let currentStageId = 'ch0-1';
+let activeLayer = 'terrain';
+let selectedTypeKey = '_player';
+let selectedTerrain = 0;
+let cellSize = 32;
+let fillMode = false;
+let anchorCell = null;
+let scrollX = 0, scrollY = 0;
+let isPanning = false, panStart = null;
+
+function getChapterConfig(groupId) {
+  if (!chapterConfig[groupId]) {
+    if (groupId === 'ch0') {
+      chapterConfig[groupId] = { stageCount: 3, angelStages: '', bossStages: '' };
+    } else {
+      chapterConfig[groupId] = { stageCount: 25, angelStages: '5,15,25,35,45', bossStages: '10,20,30,40' };
+    }
+  }
+  return chapterConfig[groupId];
+}
+
+function saveChapterConfig() {
+  localStorage.setItem(CONFIG_KEY, JSON.stringify(chapterConfig));
+}
+
+function loadFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) mapData = JSON.parse(raw);
+  } catch(e) { mapData = {}; }
+  migrateOldKeys();
+  try {
+    const raw = localStorage.getItem(CONFIG_KEY);
+    if (raw) chapterConfig = JSON.parse(raw);
+    if (chapterConfig.tutorial) {
+      if (!chapterConfig.ch0) chapterConfig.ch0 = chapterConfig.tutorial;
+      delete chapterConfig.tutorial;
+    }
+  } catch(e) { chapterConfig = {}; }
+  try {
+    const raw = localStorage.getItem(REGISTRY_KEY);
+    if (raw) {
+      stageRegistry = JSON.parse(raw);
+      // Migrate tutorial registry to ch0
+      if (stageRegistry.tutorial) {
+        if (!stageRegistry.ch0) stageRegistry.ch0 = [];
+        for (const entry of stageRegistry.tutorial) {
+          const newId = entry.id.replace('tutorial-', 'ch0-');
+          if (!stageRegistry.ch0.find(e => e.id === newId)) {
+            stageRegistry.ch0.push({ id: newId, type: entry.type });
+          }
+        }
+        delete stageRegistry.tutorial;
+        // Ensure ch0 has at least one final_boss
+        if (!stageRegistry.ch0.find(e => e.type === 'final_boss')) {
+          const nextId = getNextId('ch0');
+          stageRegistry.ch0.push({ id: nextId, type: 'final_boss' });
+        }
+        sortRegistry('ch0');
+        saveRegistry();
+      }
+      return;
+    }
+  } catch(e) {}
+  stageRegistry = getDefaultRegistry();
+  saveRegistry();
+}
+
+// Migrate old keys to current format
+function migrateOldKeys() {
+  let migrated = false;
+  // Old 0-N -> ch0-N
+  for (let st = 1; st <= 3; st++) {
+    const oldKey = '0-' + st;
+    const newKey = 'ch0-' + st;
+    if (mapData[oldKey] && !mapData[newKey]) {
+      mapData[newKey] = mapData[oldKey];
+      delete mapData[oldKey];
+      migrated = true;
+    }
+  }
+  // tutorial-N -> ch0-N
+  for (let st = 1; st <= 50; st++) {
+    const oldKey = 'tutorial-' + st;
+    const newKey = 'ch0-' + st;
+    if (mapData[oldKey] && !mapData[newKey]) {
+      mapData[newKey] = mapData[oldKey];
+      delete mapData[oldKey];
+      migrated = true;
+    }
+  }
+  for (let st = 1; st <= STAGES_PER_CHAPTER; st++) {
+    const oldKey = '1-' + st;
+    const newKey = 'common-' + st;
+    if (mapData[oldKey] && !mapData[newKey]) {
+      mapData[newKey] = mapData[oldKey];
+      delete mapData[oldKey];
+      migrated = true;
+    }
+  }
+  for (let ch = 2; ch <= TOTAL_CHAPTERS; ch++) {
+    for (let st = 1; st <= STAGES_PER_CHAPTER; st++) {
+      const oldKey = ch + '-' + st;
+      if (mapData[oldKey]) { delete mapData[oldKey]; migrated = true; }
+    }
+  }
+  // Migrate _devil and _enemy references to _enemy1
+  for (const key of Object.keys(mapData)) {
+    const d = mapData[key];
+    if (d && d.el) {
+      for (const [ch, tk] of Object.entries(d.el)) {
+        if (tk === '_devil' || tk === '_enemy') d.el[ch] = '_enemy1';
+      }
+    }
+  }
+  if (migrated) localStorage.setItem(STORAGE_KEY, JSON.stringify(mapData));
+}
+
+function saveAll() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(mapData));
+  saveRegistry();
+  saveChapterConfig();
+  localStorage.setItem('archers-map-last', JSON.stringify({ group: currentGroup, id: currentStageId }));
+}
+
+function saveRegistry() {
+  localStorage.setItem(REGISTRY_KEY, JSON.stringify(stageRegistry));
+}
+
+function saveToStorage() { saveAll(); }
+
+// ── UNDO ──
+const undoStack = [];
+const MAX_UNDO = 50;
+
+function pushUndo() {
+  const d = mapData[currentStageId];
+  if (!d) return;
+  undoStack.push({ key: currentStageId, t: d.t, e: d.e, w: d.w, h: d.h, el: { ...d.el } });
+  if (undoStack.length > MAX_UNDO) undoStack.shift();
+}
+
+function doUndo() {
+  if (undoStack.length === 0) return;
+  const snap = undoStack.pop();
+  mapData[snap.key] = { t: snap.t, e: snap.e, w: snap.w, h: snap.h, el: snap.el };
+  saveAll();
+  syncDimensionInputs();
+  buildGroupList();
+  drawGrid();
+}
+
+function getStageData(stageId) {
+  if (!mapData[stageId]) {
+    const size = DEFAULT_W * DEFAULT_H;
+    const emptyE = EMPTY_CHAR.repeat(size);
+    const pIdx = (DEFAULT_H - 1) * DEFAULT_W + Math.floor(DEFAULT_W / 2);
+    mapData[stageId] = {
+      w: DEFAULT_W, h: DEFAULT_H,
+      t: '0'.repeat(size),
+      e: emptyE.substring(0, pIdx) + '1' + emptyE.substring(pIdx + 1),
+      el: { '1': '_player' },
+    };
+  }
+  const d = mapData[stageId];
+  if (!d.el) migrateStageData(d);
+  if (!d.w) { d.w = DEFAULT_W; d.h = DEFAULT_H; }
+  return d;
+}
+
+function migrateStageData(d) {
+  const oldSpecials = { '1': '_player', '2': '_angel', '3': '_devil', '4': '_chest' };
+  const el = {};
+  let newE = '';
+  let nextChar = 0;
+  const keyToChar = {};
+  for (let i = 0; i < d.e.length; i++) {
+    const c = d.e[i];
+    if (c === '0' || c === EMPTY_CHAR) { newE += EMPTY_CHAR; continue; }
+    let typeKey = oldSpecials[c];
+    if (typeKey === '_devil') typeKey = '_enemy1';
+    if (typeKey) {
+      if (!keyToChar[typeKey]) {
+        const ch = LEGEND_CHARS[nextChar++];
+        keyToChar[typeKey] = ch;
+        el[ch] = typeKey;
+      }
+      newE += keyToChar[typeKey];
+    } else {
+      newE += EMPTY_CHAR;
+    }
+  }
+  d.e = newE;
+  d.el = el;
+}
+
+function isDefaultStage(d) {
+  if (!d) return true;
+  const w = d.w || DEFAULT_W, h = d.h || DEFAULT_H;
+  if (d.t !== '0'.repeat(w * h)) return false;
+  let playerCount = 0, otherCount = 0;
+  for (let i = 0; i < d.e.length; i++) {
+    const c = d.e[i];
+    if (c === EMPTY_CHAR || c === '0') continue;
+    const typeKey = d.el?.[c];
+    if (typeKey === '_player') playerCount++;
+    else otherCount++;
+  }
+  return otherCount === 0 && playerCount <= 1;
+}
+
+function curData() { return getStageData(currentStageId); }
+function stageW() { return curData().w; }
+function stageH() { return curData().h; }
+
+function getLegendChar(d, typeKey) {
+  for (const [ch, key] of Object.entries(d.el)) {
+    if (key === typeKey) return ch;
+  }
+  const usedChars = new Set(Object.keys(d.el));
+  for (const ch of LEGEND_CHARS) {
+    if (!usedChars.has(ch)) { d.el[ch] = typeKey; return ch; }
+  }
+  return null;
+}
+
+function getEntityAt(x, y) {
+  const d = curData();
+  const c = d.e[y * d.w + x];
+  if (!c || c === EMPTY_CHAR) return null;
+  return d.el?.[c] || null;
+}
+
+function resizeStage(newW, newH) {
+  const d = curData();
+  const oldW = d.w, oldH = d.h;
+  if (newW === oldW && newH === oldH) return;
+  let newT = '', newE = '';
+  for (let y = 0; y < newH; y++) {
+    for (let x = 0; x < newW; x++) {
+      if (x < oldW && y < oldH) {
+        const idx = y * oldW + x;
+        newT += d.t[idx]; newE += d.e[idx];
+      } else {
+        newT += '0'; newE += EMPTY_CHAR;
+      }
+    }
+  }
+  d.w = newW; d.h = newH; d.t = newT; d.e = newE;
+  saveAll();
+}
+
+function getTerrainAt(x, y) {
+  const d = curData();
+  return parseInt(d.t[y * d.w + x], 36);
+}
+
+function setCell(layer, x, y, val) {
+  const d = curData();
+  const idx = y * d.w + x;
+  if (layer === 'terrain') {
+    d.t = d.t.substring(0, idx) + val.toString(36) + d.t.substring(idx + 1);
+  } else {
+    if (val === null) {
+      d.e = d.e.substring(0, idx) + EMPTY_CHAR + d.e.substring(idx + 1);
+    } else {
+      if (val === '_player') {
+        for (const [ch, key] of Object.entries(d.el)) {
+          if (key === '_player') {
+            const prev = d.e.indexOf(ch);
+            if (prev !== -1) d.e = d.e.substring(0, prev) + EMPTY_CHAR + d.e.substring(prev + 1);
+          }
+        }
+      }
+      const legendChar = getLegendChar(d, val);
+      d.e = d.e.substring(0, idx) + legendChar + d.e.substring(idx + 1);
+    }
+  }
+  saveAll();
+}
+
+function placeAt(gx, gy) {
+  if (gx < 0 || gx >= stageW() || gy < 0 || gy >= stageH()) return;
+  if (activeLayer === 'terrain') setCell('terrain', gx, gy, selectedTerrain);
+  else setCell('entities', gx, gy, selectedTypeKey);
+}
+
+function eraseAt(gx, gy) {
+  if (gx < 0 || gx >= stageW() || gy < 0 || gy >= stageH()) return;
+  if (activeLayer === 'terrain') setCell('terrain', gx, gy, 0);
+  else setCell('entities', gx, gy, null);
+}
+
+function fillRectWith(x1, y1, x2, y2) {
+  const minX = Math.max(0, Math.min(x1, x2)), maxX = Math.min(stageW() - 1, Math.max(x1, x2));
+  const minY = Math.max(0, Math.min(y1, y2)), maxY = Math.min(stageH() - 1, Math.max(y1, y2));
+  for (let y = minY; y <= maxY; y++)
+    for (let x = minX; x <= maxX; x++) placeAt(x, y);
+}
+
+function floodFill(sx, sy) {
+  const isTerrain = activeLayer === 'terrain';
+  const oldVal = isTerrain ? getTerrainAt(sx, sy) : getEntityAt(sx, sy);
+  const newVal = isTerrain ? selectedTerrain : selectedTypeKey;
+  if (oldVal === newVal) return;
+  const stack = [{ x: sx, y: sy }];
+  const visited = new Set();
+  while (stack.length > 0) {
+    const { x, y } = stack.pop();
+    const k = y * stageW() + x;
+    if (visited.has(k) || x < 0 || x >= stageW() || y < 0 || y >= stageH()) continue;
+    const curVal = isTerrain ? getTerrainAt(x, y) : getEntityAt(x, y);
+    if (curVal !== oldVal) continue;
+    visited.add(k);
+    setCell(isTerrain ? 'terrain' : 'entities', x, y, isTerrain ? selectedTerrain : selectedTypeKey);
+    stack.push({ x: x - 1, y }, { x: x + 1, y }, { x, y: y - 1 }, { x, y: y + 1 });
+  }
+}
+
+// ── LEFT PANEL ──
+const chapterListEl = document.getElementById('chapterList');
+const expandedGroups = new Set([currentGroup]);
+
+function getStageDisplayLabel(groupId, stageId) {
+  const group = getGroupById(groupId);
+  const entries = stageRegistry[groupId] || [];
+  const entry = entries.find(e => e.id === stageId);
+  if (!group || !entry) return stageId;
+  return `${group.name} / ${getStageName(groupId, entry)}`;
+}
+
+function buildGroupList() {
+  chapterListEl.innerHTML = '';
+  for (const group of GROUPS) {
+    const entries = stageRegistry[group.id] || [];
+    const grpDiv = document.createElement('div');
+    grpDiv.className = 'chapter-group';
+
+    if (group.id === currentGroup) expandedGroups.add(group.id);
+    const isExpanded = expandedGroups.has(group.id);
+
+    const header = document.createElement('div');
+    header.className = 'chapter-header';
+    header.innerHTML = `<span>${group.name}</span><span class="arrow">&#9660;</span>`;
+    if (!isExpanded) header.classList.add('collapsed');
+
+    const stageList = document.createElement('div');
+    stageList.className = 'stage-list';
+    if (!isExpanded) stageList.style.display = 'none';
+
+    header.addEventListener('click', () => {
+      if (expandedGroups.has(group.id)) expandedGroups.delete(group.id);
+      else expandedGroups.add(group.id);
+      header.classList.toggle('collapsed');
+      stageList.style.display = header.classList.contains('collapsed') ? 'none' : 'block';
+    });
+
+    // Chapter config (inline) for chapter groups
+    if (group.chapterIdx != null) {
+      const cfg = getChapterConfig(group.id);
+      const configDiv = document.createElement('div');
+      configDiv.className = 'ch-config';
+      configDiv.addEventListener('click', e => e.stopPropagation());
+
+      const r1 = document.createElement('div');
+      r1.className = 'ch-config-row';
+      r1.innerHTML = `<label>Stages</label>`;
+      const stageCountInput = document.createElement('input');
+      stageCountInput.type = 'number'; stageCountInput.min = '1'; stageCountInput.max = '99'; stageCountInput.value = cfg.stageCount;
+      stageCountInput.addEventListener('change', () => {
+        cfg.stageCount = Math.max(1, Math.min(99, parseInt(stageCountInput.value) || 25));
+        stageCountInput.value = cfg.stageCount;
+        saveChapterConfig();
+      });
+      r1.appendChild(stageCountInput);
+      configDiv.appendChild(r1);
+
+      const r2 = document.createElement('div');
+      r2.className = 'ch-config-row';
+      r2.innerHTML = `<label>Angel</label>`;
+      const angelInput = document.createElement('input');
+      angelInput.type = 'text'; angelInput.value = cfg.angelStages; angelInput.placeholder = '5,15,25';
+      angelInput.addEventListener('change', () => {
+        cfg.angelStages = angelInput.value.replace(/[^0-9,]/g, '');
+        angelInput.value = cfg.angelStages;
+        saveChapterConfig();
+      });
+      r2.appendChild(angelInput);
+      configDiv.appendChild(r2);
+
+      const r3 = document.createElement('div');
+      r3.className = 'ch-config-row';
+      r3.innerHTML = `<label>Boss</label>`;
+      const bossInput = document.createElement('input');
+      bossInput.type = 'text'; bossInput.value = cfg.bossStages; bossInput.placeholder = '5,10,15,20';
+      bossInput.addEventListener('change', () => {
+        cfg.bossStages = bossInput.value.replace(/[^0-9,]/g, '');
+        bossInput.value = cfg.bossStages;
+        saveChapterConfig();
+      });
+      r3.appendChild(bossInput);
+      configDiv.appendChild(r3);
+
+      stageList.appendChild(configDiv);
+    }
+
+    if (group.allowedTypes.length === 1) {
+      // Single-type group: flat list + add button
+      for (const entry of entries) {
+        stageList.appendChild(makeStageRow(group, entry));
+      }
+      const footer = document.createElement('div');
+      footer.className = 'group-footer';
+      const addBtn = document.createElement('button');
+      addBtn.className = 'add-btn';
+      addBtn.textContent = '+';
+      addBtn.title = `Add ${STAGE_TYPES[group.defaultType].name}`;
+      addBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        const id = addStage(group.id, group.defaultType);
+        selectStage(group.id, id);
+        buildGroupList();
+      });
+      footer.appendChild(addBtn);
+      stageList.appendChild(footer);
+    } else {
+      // Multi-type group: sub-sections per type
+      for (const type of group.allowedTypes) {
+        const typeEntries = entries.filter(e => e.type === type);
+        const sectionHeader = document.createElement('div');
+        sectionHeader.className = 'section-header';
+        const label = document.createElement('span');
+        label.className = 'section-label';
+        label.textContent = STAGE_TYPES[type].pluralName;
+        const addBtn = document.createElement('button');
+        addBtn.className = 'add-btn';
+        addBtn.textContent = '+';
+        addBtn.title = `Add ${STAGE_TYPES[type].name}`;
+        addBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          const id = addStage(group.id, type);
+          selectStage(group.id, id);
+          buildGroupList();
+        });
+        sectionHeader.appendChild(label);
+        sectionHeader.appendChild(addBtn);
+        stageList.appendChild(sectionHeader);
+
+        for (const entry of typeEntries) {
+          stageList.appendChild(makeStageRow(group, entry));
+        }
+      }
+    }
+
+    grpDiv.appendChild(header);
+    grpDiv.appendChild(stageList);
+    chapterListEl.appendChild(grpDiv);
+  }
+}
+
+function makeStageRow(group, entry) {
+  const row = document.createElement('div');
+  row.className = 'stage-row';
+
+  const btn = document.createElement('button');
+  btn.className = 'stage-btn';
+  if (entry.id === currentStageId) btn.classList.add('active');
+  const sd = mapData[entry.id];
+  const hasData = sd != null && !isDefaultStage(sd);
+  const name = getStageName(group.id, entry);
+  btn.innerHTML = `<span class="dot${hasData ? ' has-data' : ''}"></span>${name}`;
+  btn.addEventListener('click', () => selectStage(group.id, entry.id));
+
+  const rmBtn = document.createElement('button');
+  rmBtn.className = 'remove-btn';
+  if (!canRemoveStage(group.id, entry.id)) rmBtn.classList.add('disabled');
+  rmBtn.textContent = '\u00d7';
+  rmBtn.title = 'Remove stage';
+  rmBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (!canRemoveStage(group.id, entry.id)) return;
+    const hasContent = sd != null && !isDefaultStage(sd);
+    if (hasContent && !confirm(`Remove "${name}"? It has content.`)) return;
+    const wasSelected = entry.id === currentStageId;
+    removeStage(group.id, entry.id);
+    if (wasSelected) {
+      const remaining = stageRegistry[group.id] || [];
+      if (remaining.length > 0) selectStage(group.id, remaining[0].id);
+      else {
+        // Find first group with stages
+        for (const g of GROUPS) {
+          const re = stageRegistry[g.id] || [];
+          if (re.length > 0) { selectStage(g.id, re[0].id); break; }
+        }
+      }
+    }
+    buildGroupList();
+    drawGrid();
+  });
+
+  row.appendChild(btn);
+  row.appendChild(rmBtn);
+  return row;
+}
+
+function syncDimensionInputs() {
+  document.getElementById('inputW').value = stageW();
+  document.getElementById('inputH').value = stageH();
+}
+
+function selectStage(groupId, stageId) {
+  const groupChanged = groupId !== currentGroup;
+  currentGroup = groupId;
+  currentStageId = stageId;
+  localStorage.setItem('archers-map-last', JSON.stringify({ group: groupId, id: stageId }));
+  anchorCell = null;
+  document.getElementById('stageLabel').textContent = getStageDisplayLabel(groupId, stageId);
+  syncDimensionInputs();
+  if (groupChanged) {
+    if (activeLayer === 'entities') selectedTypeKey = '_player';
+    buildPalette();
+  }
+  buildGroupList();
+  drawGrid();
+}
+
+// ── RIGHT PANEL: Palette ──
+const paletteEl = document.getElementById('palette');
+const btnTerrain = document.getElementById('btnTerrain');
+const btnEnemies = document.getElementById('btnEnemies');
+
+function buildPalette() {
+  paletteEl.innerHTML = '';
+  if (activeLayer === 'terrain') {
+    TERRAIN_TYPES.forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'palette-item' + (selectedTerrain === item.id ? ' selected' : '');
+      div.innerHTML = `<div class="palette-swatch" style="background:${item.color}">${item.symbol}</div><span class="palette-label">${item.name}</span>`;
+      div.addEventListener('click', () => { selectedTerrain = item.id; buildPalette(); });
+      paletteEl.appendChild(div);
+    });
+  } else {
+    const items = getEntityPalette(currentGroup);
+    let lastGroup = null;
+    items.forEach(item => {
+      if (item.group && item.group !== lastGroup) {
+        if (lastGroup !== null) {
+          const hdr = document.createElement('div');
+          const label = item.group === 'enemy_slot' ? 'Enemy Slots' : item.group === 'enemy' ? 'Enemies' : item.group === 'boss' ? 'Bosses' : '';
+          hdr.style.cssText = 'padding:8px 8px 4px;font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;border-top:1px solid var(--border);margin-top:4px';
+          hdr.textContent = label;
+          paletteEl.appendChild(hdr);
+        }
+        lastGroup = item.group;
+      }
+      const isSelected = item.typeKey === selectedTypeKey;
+      const div = document.createElement('div');
+      div.className = 'palette-item' + (isSelected ? ' selected' : '');
+      const isBoss = item.group === 'boss';
+      const isEnemySlot = item.group === 'enemy_slot';
+      let swatchStyle = `background:${item.color};`;
+      if (isBoss) swatchStyle += 'border:2px solid #ffd700;';
+      const enemyAccent = isEnemySlot ? (item.accent || '#fff') : '';
+      if (isEnemySlot) swatchStyle += `border:2px solid ${enemyAccent};font-weight:bold;color:${enemyAccent};font-size:18px;`;
+      const labelExtra = isEnemySlot ? ` <span style="color:#888;font-size:10px">[${item.symbol}]</span>` : '';
+      div.innerHTML = `<div class="palette-swatch" style="${swatchStyle}">${item.symbol}</div><span class="palette-label">${item.name}${labelExtra}</span>`;
+      div.addEventListener('click', () => { selectedTypeKey = item.typeKey; buildPalette(); });
+      paletteEl.appendChild(div);
+    });
+  }
+}
+
+btnTerrain.addEventListener('click', () => {
+  activeLayer = 'terrain';
+  btnTerrain.classList.add('active');
+  btnEnemies.classList.remove('active');
+  buildPalette();
+  drawGrid();
+});
+
+btnEnemies.addEventListener('click', () => {
+  activeLayer = 'entities';
+  btnEnemies.classList.add('active');
+  btnTerrain.classList.remove('active');
+  buildPalette();
+  drawGrid();
+});
+
+// ── CENTER: Canvas grid ──
+const canvas = document.getElementById('gridCanvas');
+const ctx = canvas.getContext('2d');
+const gridWrap = document.getElementById('gridWrap');
+const coordsEl = document.getElementById('coords');
+
+function resizeCanvas() {
+  canvas.width = gridWrap.clientWidth;
+  canvas.height = gridWrap.clientHeight;
+  drawGrid();
+}
+
+function drawGrid() {
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#111128';
+  ctx.fillRect(0, 0, w, h);
+
+  const d = curData();
+  const terrainFocused = activeLayer === 'terrain';
+  const totalW = stageW() * cellSize;
+  const totalH = stageH() * cellSize;
+  const ox = Math.floor((w - totalW) / 2) + scrollX;
+  const oy = Math.floor((h - totalH) / 2) + scrollY;
+
+  // Terrain layer
+  ctx.globalAlpha = terrainFocused ? 1.0 : 0.25;
+  for (let gy = 0; gy < stageH(); gy++) {
+    for (let gx = 0; gx < stageW(); gx++) {
+      const idx = gy * stageW() + gx;
+      const tid = parseInt(d.t[idx], 36);
+      const tt = TERRAIN_TYPES[tid] || TERRAIN_TYPES[0];
+      const px = ox + gx * cellSize, py = oy + gy * cellSize;
+      ctx.fillStyle = (tid === 0) ? ((gx + gy) % 2 === 0 ? '#35355a' : '#3a3a5e') : tt.color;
+      ctx.fillRect(px, py, cellSize, cellSize);
+      if (tt.symbol && cellSize >= 16) {
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.font = `${Math.max(10, cellSize * 0.45)}px monospace`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(tt.symbol, px + cellSize / 2, py + cellSize / 2);
+      }
+    }
+  }
+
+  // Entity layer
+  ctx.globalAlpha = terrainFocused ? 0.25 : 1.0;
+  for (let gy = 0; gy < stageH(); gy++) {
+    for (let gx = 0; gx < stageW(); gx++) {
+      const idx = gy * stageW() + gx;
+      const ch = d.e[idx];
+      if (!ch || ch === EMPTY_CHAR) continue;
+      const typeKey = d.el?.[ch];
+      if (!typeKey) continue;
+      const info = ENTITY_INFO[typeKey];
+      if (!info) continue;
+      const px = ox + gx * cellSize, py = oy + gy * cellSize;
+      const isBoss = info.group === 'boss';
+      const cr = cellSize * (isBoss ? 0.45 : 0.38);
+      const cx = px + cellSize / 2, cy = py + cellSize / 2;
+      const isEnemy = typeKey.startsWith('_enemy');
+      ctx.fillStyle = info.color;
+      ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI * 2); ctx.fill();
+      if (isBoss) {
+        ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(cx, cy, cr + 1, 0, Math.PI * 2); ctx.stroke();
+      }
+      if (isEnemy) {
+        ctx.strokeStyle = info.accent || '#fff'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI * 2); ctx.stroke();
+      }
+      if (info.symbol && cellSize >= 16) {
+        ctx.fillStyle = isEnemy ? (info.accent || '#fff') : '#fff';
+        ctx.font = `bold ${Math.max(9, cellSize * (isEnemy ? 0.5 : 0.35))}px monospace`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(info.symbol, cx, cy);
+      }
+    }
+  }
+
+  // Grid lines
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
+  for (let gx = 0; gx <= stageW(); gx++) {
+    const px = ox + gx * cellSize;
+    ctx.beginPath(); ctx.moveTo(px + 0.5, oy); ctx.lineTo(px + 0.5, oy + totalH); ctx.stroke();
+  }
+  for (let gy = 0; gy <= stageH(); gy++) {
+    const py = oy + gy * cellSize;
+    ctx.beginPath(); ctx.moveTo(ox, py + 0.5); ctx.lineTo(ox + totalW, py + 0.5); ctx.stroke();
+  }
+
+  // Border
+  ctx.strokeStyle = 'rgba(0,229,255,0.25)'; ctx.lineWidth = 2;
+  ctx.strokeRect(ox, oy, totalW, totalH);
+
+  // Exit indicator
+  const exitW = 3, exitH = 1;
+  const exitX = ox + Math.floor((stageW() - exitW) / 2) * cellSize;
+  const exitY = oy - exitH * cellSize;
+  ctx.fillStyle = '#2a8e4a';
+  ctx.fillRect(exitX, exitY, exitW * cellSize, exitH * cellSize);
+  ctx.strokeStyle = 'rgba(42,142,74,0.6)'; ctx.lineWidth = 1.5;
+  ctx.strokeRect(exitX, exitY, exitW * cellSize, exitH * cellSize);
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.font = `bold ${Math.max(10, cellSize * 0.4)}px monospace`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('EXIT', exitX + (exitW * cellSize) / 2, exitY + (exitH * cellSize) / 2);
+
+  // Anchor highlight
+  if (anchorCell) {
+    const px = ox + anchorCell.x * cellSize, py = oy + anchorCell.y * cellSize;
+    ctx.strokeStyle = '#ffcc00'; ctx.lineWidth = 2;
+    ctx.strokeRect(px + 1, py + 1, cellSize - 2, cellSize - 2);
+  }
+
+  // Entity legend
+  if (d.el && Object.keys(d.el).length > 0) {
+    const legendX = ox + totalW + 16;
+    let legendY = oy;
+    const dotR = 6, lineH = 20;
+    ctx.globalAlpha = 0.85;
+    const placed = {};
+    for (let i = 0; i < d.e.length; i++) {
+      const c = d.e[i];
+      if (c === EMPTY_CHAR) continue;
+      const tk = d.el[c];
+      if (tk) placed[tk] = (placed[tk] || 0) + 1;
+    }
+    for (const [typeKey, count] of Object.entries(placed)) {
+      const info = ENTITY_INFO[typeKey];
+      if (!info) continue;
+      ctx.fillStyle = info.color;
+      ctx.beginPath(); ctx.arc(legendX + dotR, legendY + lineH / 2, dotR, 0, Math.PI * 2); ctx.fill();
+      if (info.symbol) {
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 8px monospace'; ctx.textAlign = 'center';
+        ctx.fillText(info.symbol, legendX + dotR, legendY + lineH / 2);
+      }
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.font = '11px "Segoe UI", system-ui, sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText(`${info.name}${count > 1 ? ' x' + count : ''}`, legendX + dotR * 2 + 6, legendY + lineH / 2);
+      legendY += lineH;
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+function screenToGrid(sx, sy) {
+  const w = canvas.width, h = canvas.height;
+  const totalW = stageW() * cellSize, totalH = stageH() * cellSize;
+  const ox = Math.floor((w - totalW) / 2) + scrollX;
+  const oy = Math.floor((h - totalH) / 2) + scrollY;
+  const gx = Math.floor((sx - ox) / cellSize), gy = Math.floor((sy - oy) / cellSize);
+  if (gx < 0 || gx >= stageW() || gy < 0 || gy >= stageH()) return null;
+  return { x: gx, y: gy };
+}
+
+// ── INTERACTION ──
+let isDrawing = false, isErasing = false;
+
+canvas.addEventListener('pointerdown', e => {
+  if (e.button === 1 || (e.button === 0 && e.altKey)) {
+    isPanning = true;
+    panStart = { x: e.clientX - scrollX, y: e.clientY - scrollY };
+    canvas.setPointerCapture(e.pointerId);
+    canvas.style.cursor = 'grabbing';
+    return;
+  }
+  const rect = canvas.getBoundingClientRect();
+  const cell = screenToGrid(e.clientX - rect.left, e.clientY - rect.top);
+  if (!cell) return;
+  pushUndo();
+  if (e.button === 0) {
+    if (fillMode) {
+      floodFill(cell.x, cell.y);
+      fillMode = false;
+      document.getElementById('btnFill').classList.remove('active-tool');
+      drawGrid(); buildGroupList();
+      return;
+    }
+    if (e.shiftKey && anchorCell) {
+      fillRectWith(anchorCell.x, anchorCell.y, cell.x, cell.y);
+      anchorCell = null;
+      drawGrid(); buildGroupList();
+      return;
+    }
+    anchorCell = { x: cell.x, y: cell.y };
+    isErasing = false;
+    placeAt(cell.x, cell.y);
+    isDrawing = true;
+    canvas.setPointerCapture(e.pointerId);
+  } else if (e.button === 2) {
+    isErasing = true;
+    eraseAt(cell.x, cell.y);
+    isDrawing = true;
+    canvas.setPointerCapture(e.pointerId);
+  }
+  drawGrid(); buildGroupList();
+});
+
+canvas.addEventListener('pointermove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  if (isPanning) {
+    scrollX = e.clientX - panStart.x; scrollY = e.clientY - panStart.y;
+    drawGrid(); return;
+  }
+  const cell = screenToGrid(mx, my);
+  if (cell) {
+    coordsEl.textContent = `${cell.x}, ${cell.y}`;
+    if (isDrawing) {
+      if (isErasing) eraseAt(cell.x, cell.y); else placeAt(cell.x, cell.y);
+      drawGrid();
+    }
+  } else coordsEl.textContent = '';
+});
+
+canvas.addEventListener('pointerup', () => {
+  if (isPanning) { isPanning = false; canvas.style.cursor = 'crosshair'; return; }
+  if (isDrawing) { isDrawing = false; buildGroupList(); }
+});
+
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+// Zoom
+const zoomLevels = [8, 12, 16, 20, 24, 28, 32, 40, 48, 56, 64];
+let zoomIdx = zoomLevels.indexOf(32);
+function setZoom(idx) {
+  zoomIdx = Math.max(0, Math.min(zoomLevels.length - 1, idx));
+  cellSize = zoomLevels[zoomIdx];
+  document.getElementById('zoomLevel').textContent = cellSize + 'px';
+  drawGrid();
+}
+document.getElementById('zoomIn').addEventListener('click', () => setZoom(zoomIdx + 1));
+document.getElementById('zoomOut').addEventListener('click', () => setZoom(zoomIdx - 1));
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  setZoom(zoomIdx + (e.deltaY < 0 ? 1 : -1));
+}, { passive: false });
+
+document.getElementById('btnUndo').addEventListener('click', doUndo);
+
+document.getElementById('btnFill').addEventListener('click', () => {
+  fillMode = !fillMode;
+  document.getElementById('btnFill').classList.toggle('active-tool', fillMode);
+});
+
+document.getElementById('btnClearStage').addEventListener('click', () => {
+  const label = getStageDisplayLabel(currentGroup, currentStageId);
+  if (!confirm(`Clear ${label}?`)) return;
+  pushUndo();
+  delete mapData[currentStageId];
+  saveAll();
+  buildGroupList();
+  drawGrid();
+});
+
+// Copy / Paste
+let clipboard = null;
+const btnPaste = document.getElementById('btnPaste');
+
+document.getElementById('btnCopy').addEventListener('click', () => {
+  const d = curData();
+  clipboard = { w: d.w, h: d.h, t: d.t, e: d.e, el: { ...d.el } };
+  btnPaste.disabled = false;
+  btnPaste.textContent = 'Paste Stage';
+});
+
+btnPaste.addEventListener('click', () => {
+  if (!clipboard) return;
+  pushUndo();
+  mapData[currentStageId] = { w: clipboard.w, h: clipboard.h, t: clipboard.t, e: clipboard.e, el: { ...clipboard.el } };
+  saveAll();
+  syncDimensionInputs();
+  buildGroupList();
+  drawGrid();
+});
+
+// Export (version 2: includes registry)
+document.getElementById('btnExport').addEventListener('click', () => {
+  const exportData = { version: 2, registry: stageRegistry, maps: mapData, config: chapterConfig };
+  const json = JSON.stringify(exportData, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'archers-map.json'; a.click();
+  URL.revokeObjectURL(url);
+});
+
+// Import (handles v1 and v2)
+document.getElementById('btnImport').addEventListener('click', () => {
+  document.getElementById('fileInput').click();
+});
+document.getElementById('fileInput').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const imported = JSON.parse(ev.target.result);
+      if (imported.version === 2) {
+        Object.assign(mapData, imported.maps || {});
+        Object.assign(stageRegistry, imported.registry || {});
+        Object.assign(chapterConfig, imported.config || {});
+      } else {
+        Object.assign(mapData, imported);
+      }
+      saveAll();
+      buildGroupList();
+      buildPalette();
+      drawGrid();
+    } catch(err) { alert('Invalid JSON file'); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  const tag = document.activeElement?.tagName;
+  const inInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+  // Allow normal typing in inputs — only intercept global shortcuts
+  if (inInput) return;
+  if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') { e.preventDefault(); doUndo(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.code === 'KeyC') { e.preventDefault(); document.getElementById('btnCopy').click(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.code === 'KeyV') { e.preventDefault(); btnPaste.click(); return; }
+  if (e.code === 'KeyW') {
+    activeLayer = 'terrain';
+    btnTerrain.classList.add('active');
+    btnEnemies.classList.remove('active');
+    selectedTerrain = 1; // Wall
+    buildPalette();
+    drawGrid();
+    return;
+  }
+  if (e.code === 'KeyF') {
+    fillMode = !fillMode;
+    document.getElementById('btnFill').classList.toggle('active-tool', fillMode);
+  }
+  if (e.code === 'BracketRight' || e.code === 'Equal') setZoom(zoomIdx + 1);
+  if (e.code === 'BracketLeft' || e.code === 'Minus') setZoom(zoomIdx - 1);
+  if (e.key === '1' || e.key === '2' || e.key === '3') {
+    if (activeLayer === 'terrain') {
+      // Switch to entities and select enemy N
+      activeLayer = 'entities';
+      btnEnemies.classList.add('active');
+      btnTerrain.classList.remove('active');
+    }
+    selectedTypeKey = '_enemy' + e.key;
+    buildPalette();
+    drawGrid();
+    return;
+  }
+  if (activeLayer === 'terrain') {
+    const num = parseInt(e.key);
+    if (!isNaN(num) && num < TERRAIN_TYPES.length) { selectedTerrain = num; buildPalette(); }
+  }
+  if (e.code === 'Tab' || e.code === 'KeyT' || e.code === 'KeyE') {
+    e.preventDefault();
+    if (activeLayer === 'terrain') btnEnemies.click(); else btnTerrain.click();
+  }
+});
+
+function onDimensionChange() {
+  let newW = Math.max(3, Math.min(49, parseInt(document.getElementById('inputW').value) || DEFAULT_W));
+  if (newW % 2 === 0) newW = newW + 1;
+  const newH = Math.max(3, Math.min(50, parseInt(document.getElementById('inputH').value) || DEFAULT_H));
+  pushUndo();
+  resizeStage(newW, newH);
+  anchorCell = null;
+  drawGrid();
+}
+document.getElementById('inputW').addEventListener('input', onDimensionChange);
+document.getElementById('inputH').addEventListener('input', onDimensionChange);
+
+// ── INIT ──
+loadFromStorage();
+try {
+  const last = JSON.parse(localStorage.getItem('archers-map-last'));
+  if (last) {
+    if (typeof last.group === 'string' && typeof last.id === 'string') {
+      // Migrate tutorial refs to ch0
+      currentGroup = last.group === 'tutorial' ? 'ch0' : last.group;
+      currentStageId = last.id.replace('tutorial-', 'ch0-');
+    } else if (typeof last.group === 'string' && typeof last.st === 'number') {
+      currentGroup = last.group === 'tutorial' ? 'ch0' : last.group;
+      currentStageId = currentGroup + '-' + last.st;
+    } else if (typeof last.ch === 'number') {
+      if (last.ch === 0) { currentGroup = 'ch0'; currentStageId = 'ch0-' + last.st; }
+      else { currentGroup = 'common'; currentStageId = 'common-' + last.st; }
+    }
+    expandedGroups.add(currentGroup);
+  }
+} catch(e) {}
+// Validate current stage exists in registry
+const regEntries = stageRegistry[currentGroup] || [];
+if (!regEntries.find(e => e.id === currentStageId) && regEntries.length > 0) {
+  currentStageId = regEntries[0].id;
+}
+document.getElementById('stageLabel').textContent = getStageDisplayLabel(currentGroup, currentStageId);
+buildGroupList();
+buildPalette();
+syncDimensionInputs();
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+</script>
+</body>
+</html>
