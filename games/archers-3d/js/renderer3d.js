@@ -4,9 +4,11 @@ import { game } from './state.js';
 import { arena, T } from './arena.js';
 
 export let scene, camera, renderer;
-let clock, ambientLight, dirLight, playerLight;
+let clock, ambientLight, dirLight;
 let threeCanvas;
 let _camTargetX = 0, _camTargetZ = 0;
+let _useOrtho = true; // current camera mode
+let _orthoCamera, _perspCamera; // both cameras kept alive
 
 export function initRenderer3D() {
   threeCanvas = document.getElementById('three-canvas');
@@ -14,15 +16,27 @@ export function initRenderer3D() {
   // Scene
   scene = new THREE.Scene();
   scene.background = new THREE.Color('#0a0a2e');
-  scene.fog = new THREE.Fog('#0a0a2e', 30, 60);
+  // No fog with orthographic camera
 
   // Clock
   clock = new THREE.Clock();
 
-  // Camera — top-down perspective (fits full arena width, only scrolls vertically)
-  camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 150);
-  camera.position.set(0, 22, 3);
-  camera.lookAt(0, 0, 0);
+  // Both cameras — toggle between them
+  const aspect = innerWidth / innerHeight;
+  const frustumSize = 23;
+  _orthoCamera = new THREE.OrthographicCamera(
+    -frustumSize * aspect / 2, frustumSize * aspect / 2,
+    frustumSize / 2, -frustumSize / 2,
+    0.1, 150
+  );
+  _orthoCamera.position.set(0, 32, 20);
+  _orthoCamera.lookAt(0, 0, 0);
+
+  _perspCamera = new THREE.PerspectiveCamera(40, aspect, 0.1, 150);
+  _perspCamera.position.set(0, 32, 18);
+  _perspCamera.lookAt(0, 0, 0);
+
+  camera = _useOrtho ? _orthoCamera : _perspCamera;
 
   // Renderer
   renderer = new THREE.WebGLRenderer({
@@ -34,34 +48,30 @@ export function initRenderer3D() {
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.BasicShadowMap;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.1;
+  renderer.toneMapping = THREE.LinearToneMapping;
+  renderer.toneMappingExposure = 2.0;
 
   // Lights
-  ambientLight = new THREE.AmbientLight('#b0c4de', 0.5);
+  ambientLight = new THREE.AmbientLight('#ffffff', 2.0);
   scene.add(ambientLight);
 
-  dirLight = new THREE.DirectionalLight('#fff5e6', 0.9);
-  dirLight.position.set(5, 15, 5);
+  dirLight = new THREE.DirectionalLight('#ffffff', 2.0);
+  dirLight.position.set(-3, 15, -8);
   dirLight.castShadow = true;
   dirLight.shadow.mapSize.set(1024, 1024);
   dirLight.shadow.camera.near = 1;
-  dirLight.shadow.camera.far = 60;
-  dirLight.shadow.camera.left = -16;
-  dirLight.shadow.camera.right = 16;
-  dirLight.shadow.camera.top = 16;
-  dirLight.shadow.camera.bottom = -16;
+  dirLight.shadow.camera.far = 80;
+  dirLight.shadow.camera.left = -20;
+  dirLight.shadow.camera.right = 20;
+  dirLight.shadow.camera.top = 20;
+  dirLight.shadow.camera.bottom = -20;
   dirLight.shadow.bias = -0.002;
   scene.add(dirLight);
   scene.add(dirLight.target);
 
-  // Player glow light
-  playerLight = new THREE.PointLight('#00e5ff', 0.6, 8);
-  playerLight.position.set(0, 1.5, 0);
-  scene.add(playerLight);
 
   // Hemisphere for softer fill
-  const hemiLight = new THREE.HemisphereLight('#8ecae6', '#2a1a3a', 0.3);
+  const hemiLight = new THREE.HemisphereLight('#ffffff', '#8888aa', 1.2);
   scene.add(hemiLight);
 
   // Resize handler
@@ -69,9 +79,20 @@ export function initRenderer3D() {
 }
 
 function onResize() {
-  if (!camera || !renderer) return;
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
+  if (!renderer) return;
+  const aspect = innerWidth / innerHeight;
+  const frustumSize = 23;
+  if (_orthoCamera) {
+    _orthoCamera.left = -frustumSize * aspect / 2;
+    _orthoCamera.right = frustumSize * aspect / 2;
+    _orthoCamera.top = frustumSize / 2;
+    _orthoCamera.bottom = -frustumSize / 2;
+    _orthoCamera.updateProjectionMatrix();
+  }
+  if (_perspCamera) {
+    _perspCamera.aspect = aspect;
+    _perspCamera.updateProjectionMatrix();
+  }
   renderer.setSize(innerWidth, innerHeight);
 }
 
@@ -91,6 +112,23 @@ export function worldScale(pixels) {
   return pixels / T();
 }
 
+export function snapCamera(playerGameX, playerGameY) {
+  if (!camera) return;
+  const target = gameToWorld(playerGameX, playerGameY);
+  _camTargetZ = target.z;
+  // Force clamp + position update with large dt
+  updateCamera(playerGameX, playerGameY, 10);
+}
+
+// Camera Z clamp — T units visible beyond the arena edge at screen top/bottom
+// When the player walks to the arena top edge and camera clamps:
+//   CAM_VISIBLE_BEYOND_TOP_T = how many T of space ABOVE the arena top edge are visible
+// When the player walks to the arena bottom edge and camera clamps:
+//   CAM_VISIBLE_BEYOND_BOTTOM_T = how many T of space BELOW the arena bottom edge are visible
+// The frustum half-height is ~11.5T, so the player shifts off-center when clamped.
+const CAM_VISIBLE_BEYOND_TOP_T = 2;    // 2T of boundary visible above arena
+const CAM_VISIBLE_BEYOND_BOTTOM_T = 1; // 1T of boundary visible below arena
+
 export function updateCamera(playerGameX, playerGameY, dt) {
   if (!camera) return;
   const target = gameToWorld(playerGameX, playerGameY);
@@ -99,28 +137,54 @@ export function updateCamera(playerGameX, playerGameY, dt) {
   const ease = 1 - Math.exp(-4 * dt);
   _camTargetZ += (target.z - _camTargetZ) * ease;
 
-  // Camera: high up, mostly top-down, fixed X at 0 (arena center), only scrolls Z
-  camera.position.set(0, 22, _camTargetZ + 3);
-  camera.lookAt(0, 0, _camTargetZ);
+  // Clamp camera Z so the screen edge doesn't show more than N tiles beyond arena
+  const a = arena();
+  const t = T();
+  const cy = a.y + a.h / 2;
+  const arenaTopZ = (a.y - cy) / t;           // world Z of arena top edge (negative)
+  const arenaBottomZ = (a.y + a.h - cy) / t;  // world Z of arena bottom edge (positive)
+  const frustumHalf = 23 / 2; // half the ortho frustum height in world units
+
+  // Camera center must be far enough south that screen top doesn't exceed arenaTopZ - beyondTop
+  // Screen top Z = camZ - frustumHalf, must be >= arenaTopZ - beyondTop
+  // So camZ >= arenaTopZ - beyondTop + frustumHalf
+  const camMinZ = arenaTopZ - CAM_VISIBLE_BEYOND_TOP_T + frustumHalf;
+
+  // Screen bottom Z = camZ + frustumHalf, must be <= arenaBottomZ + beyondBottom
+  // So camZ <= arenaBottomZ + beyondBottom - frustumHalf
+  const camMaxZ = arenaBottomZ + CAM_VISIBLE_BEYOND_BOTTOM_T - frustumHalf;
+
+  // Soft clamp: ease toward boundary instead of hard stop
+  if (camMinZ <= camMaxZ) {
+    // Normal case: arena + padding is larger than frustum
+    if (_camTargetZ < camMinZ) {
+      _camTargetZ += (camMinZ - _camTargetZ) * (1 - Math.exp(-8 * dt));
+    } else if (_camTargetZ > camMaxZ) {
+      _camTargetZ += (camMaxZ - _camTargetZ) * (1 - Math.exp(-8 * dt));
+    }
+  } else {
+    // Arena fits within frustum — just center on arena
+    const arenaCenterZ = (arenaTopZ + arenaBottomZ) / 2;
+    _camTargetZ += (arenaCenterZ - _camTargetZ) * (1 - Math.exp(-8 * dt));
+  }
+
+  // Both cameras track the same position
+  const orthoOffset = 0;
+  _orthoCamera.position.set(0, 32, _camTargetZ + orthoOffset + 20);
+  _orthoCamera.lookAt(0, 0, _camTargetZ + orthoOffset);
+  _perspCamera.position.set(0, 32, _camTargetZ + 20);
+  _perspCamera.lookAt(0, 0, _camTargetZ);
 
   // Move directional light with camera
-  dirLight.position.set(5, 20, _camTargetZ + 5);
+  dirLight.position.set(-3, 20, _camTargetZ - 8);
   dirLight.target.position.set(0, 0, _camTargetZ);
 
-  // Player glow light
-  playerLight.position.set(target.x, 1.5, target.z);
-  if (game.player && game.player.armorColor) {
-    playerLight.color.set(game.player.armorColor);
-  }
 }
 
 export function setChapterTheme(theme) {
   if (!theme || !scene) return;
   const bgColor = theme.boundary || '#0a0a2e';
   scene.background.set(bgColor);
-  if (scene.fog) {
-    scene.fog.color.set(bgColor);
-  }
   // Tint ambient slightly with boundary color
   const bg = new THREE.Color(bgColor);
   const warm = new THREE.Color('#b0c4de');
@@ -143,4 +207,14 @@ export function getScene() {
 
 export function getTime() {
   return clock ? clock.getElapsedTime() : 0;
+}
+
+export function toggleCamera() {
+  _useOrtho = !_useOrtho;
+  camera = _useOrtho ? _orthoCamera : _perspCamera;
+  return _useOrtho;
+}
+
+export function isOrthoCamera() {
+  return _useOrtho;
 }

@@ -38,6 +38,14 @@ export function updateShooting(dt) {
     shootTarget = nearestClear || nearest;
     if (shootTarget) game._shootAngle = Math.atan2(shootTarget.y - p.y, shootTarget.x - p.x);
   }
+  game._shootTarget = shootTarget; // expose for targeting indicator
+
+  // Delay first shot by 12ms when transitioning from moving to aiming
+  if (shootTarget && !game._wasAiming) {
+    game._wasAiming = true;
+    if (game.shootTimer <= 0) game.shootTimer = 0.015;
+  }
+  if (!shootTarget) game._wasAiming = false;
 
   if (shootTarget && game.shootTimer <= 0) {
     game.shootTimer = shootCD;
@@ -365,7 +373,7 @@ export function updateBullets(dt) {
         b.lobbed = false; // becomes a ground-hit, remove below
         game.enemyBullets.splice(i, 1);
         // Check player hit at landing
-        if (game.iFrames <= 0 && dist(b.targetX, b.targetY, p.x, p.y) < (ENEMY_BULLET_R + PLAYER_R + 0.18) * T()) {
+        if (game.state !== 'dying' && game.state !== 'dead' && game.iFrames <= 0 && dist(b.targetX, b.targetY, p.x, p.y) < (ENEMY_BULLET_R + PLAYER_R + 0.18) * T()) {
           applyEnemyBulletHit(b, p);
         }
         spawnParticles(b.targetX, b.targetY, '#ff2d55', 3, 40);
@@ -407,8 +415,8 @@ export function updateBullets(dt) {
       }
     }
 
-    // Hit player
-    if (game.iFrames <= 0 && dist(b.x, b.y, p.x, p.y) < (ENEMY_BULLET_R + PLAYER_R) * T()) {
+    // Hit player (skip during dying/dead — player already down)
+    if (game.state !== 'dying' && game.state !== 'dead' && game.iFrames <= 0 && dist(b.x, b.y, p.x, p.y) < (ENEMY_BULLET_R + PLAYER_R) * T()) {
       // Agility: dodge per % missing HP
       let totalDodge = p.dodgeChance || 0;
       if (p.agility) {

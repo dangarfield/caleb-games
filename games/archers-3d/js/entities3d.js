@@ -2,8 +2,10 @@
 // Manages player, enemies, shadow clone, and angel meshes in Three.js
 
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { game } from './state.js';
-import { T } from './arena.js';
+import { arena, T } from './arena.js';
+import { BASE_SHOOT_CD } from './constants.js';
 import { gameToWorld, worldScale, getScene, getTime } from './renderer3d.js';
 import { PLAYER_R } from './constants.js';
 
@@ -60,55 +62,134 @@ function mkGroup() {
   return new THREE.Group();
 }
 
-// ─── Player Mesh ────────────────────────────────────────────────────────────
+// ─── Player GLB Model ───────────────────────────────────────────────────────
 
 let playerGroup = null;
 let playerLight = null;
-let playerBodyMat = null;
+let playerMixer = null;       // THREE.AnimationMixer
+let playerActions = {};       // { idle, move, draw, recoil, hit, ko }
+let playerCurrentAction = null;
+let playerModelReady = false;
+let playerModelTemplate = null; // cached loaded model
+let playerAllMaterials = [];    // for iFrame flash
 
-function createPlayerMesh(color) {
-  const g = mkGroup();
-  g.name = 'player';
+// Animation name mapping
+const ANIM_MAP = {
+  'mouse-idle_5': 'idle',
+  'mouse-move_3': 'move',
+  'mouse-standing-draw_1': 'draw',
+  'mouse-standing-recoil_6': 'recoil',
+  'mouse-hit_4': 'hit',
+  'mouse-ko_2': 'ko',
+};
 
-  const r = 0.44; // PLAYER_R in world units
+// Preload the model — store the raw GLB arraybuffer so we can re-parse fresh each time
+const _loader = new GLTFLoader();
+let _glbArrayBuffer = null;
+let _glbAnimations = null; // animations from first load
+let _loadPromise = null;
 
-  // Body sphere
-  playerBodyMat = new MeshStdMat({
-    color: new THREE.Color(color),
-    emissive: new THREE.Color(color),
-    emissiveIntensity: 0.35,
-    metalness: 0.3,
-    roughness: 0.6,
-    transparent: true,
-    opacity: 1.0,
+function loadPlayerModel() {
+  if (_loadPromise) return _loadPromise;
+  _loadPromise = new Promise((resolve) => {
+    // Fetch raw binary so we can re-parse for fresh SkinnedMesh instances
+    fetch('models/mouse.glb')
+      .then(r => r.arrayBuffer())
+      .then(buf => {
+        _glbArrayBuffer = buf;
+        // Parse once to cache animations
+        _loader.parse(buf.slice(0), '', (gltf) => {
+          _glbAnimations = gltf.animations;
+          resolve(true);
+        }, (err) => {
+          console.error('Failed to parse player model:', err);
+          resolve(false);
+        });
+      })
+      .catch(err => {
+        console.error('Failed to fetch player model:', err);
+        resolve(false);
+      });
   });
-  const body = mkMesh(sphereGeo(), playerBodyMat);
-  body.scale.setScalar(r);
-  body.position.y = r;
-  g.add(body);
+  return _loadPromise;
+}
 
-  // Direction indicator cone
-  const dirMat = new MeshStdMat({
-    color: 0xffffff,
-    emissive: new THREE.Color(color),
-    emissiveIntensity: 0.5,
-    metalness: 0.1,
-    roughness: 0.7,
+// Start loading immediately on module init
+loadPlayerModel();
+
+function createPlayerFromGLB(callback) {
+  // Parse a fresh copy so SkinnedMesh + bones are properly bound
+  _loader.parse(_glbArrayBuffer.slice(0), '', (gltf) => {
+    const g = mkGroup();
+    g.name = 'player';
+
+    const model = gltf.scene;
+    playerAllMaterials = [];
+    model.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+        if (child.material) {
+          const mats = Array.isArray(child.material) ? child.material : [child.material];
+          for (const m of mats) {
+            m.transparent = true;
+            m.opacity = 1.0;
+            playerAllMaterials.push(m);
+          }
+        }
+      }
+    });
+
+    model.scale.setScalar(0.015);
+    model.name = 'playerModel';
+    g.add(model);
+
+    playerLight = null;
+
+    // Set up animation mixer on this fresh scene
+    playerMixer = new THREE.AnimationMixer(model);
+    playerActions = {};
+
+    for (const clip of gltf.animations) {
+      // Strip root motion — remove position tracks on the root bone/object
+      clip.tracks = clip.tracks.filter(track => {
+        // Remove .position tracks on the root (first node in the path or empty path)
+        const dotIdx = track.name.lastIndexOf('.');
+        const prop = track.name.substring(dotIdx + 1);
+        const target = track.name.substring(0, dotIdx);
+        // Strip position on root-level objects (no '/' in target path, or empty)
+        if (prop === 'position' && !target.includes('/')) return false;
+        return true;
+      });
+
+      const shortName = ANIM_MAP[clip.name];
+      if (shortName) {
+        const action = playerMixer.clipAction(clip);
+        playerActions[shortName] = action;
+        if (shortName === 'hit' || shortName === 'ko' || shortName === 'recoil') {
+          action.setLoop(THREE.LoopOnce);
+          action.clampWhenFinished = true;
+        }
+        if (shortName === 'move') {
+          action.timeScale = 1.7; // base speed, scaled dynamically with speedMult
+        }
+      }
+    }
+
+    playerModelReady = true;
+    callback(g);
   });
-  const dir = mkMesh(coneGeo(), dirMat);
-  dir.name = 'dirCone';
-  dir.scale.set(r * 0.3, r * 0.5, r * 0.3);
-  dir.position.set(0, r, r * 0.7);
-  dir.rotation.x = Math.PI / 2;
-  g.add(dir);
+}
 
-  // Subtle glow light
-  playerLight = new THREE.PointLight(new THREE.Color(color), 0.6, 4);
-  playerLight.position.y = r;
-  g.add(playerLight);
+function fadeToAction(name, duration = 0.2) {
+  const action = playerActions[name];
+  if (!action || action === playerCurrentAction) return;
 
-  g.castShadow = true;
-  return g;
+  if (playerCurrentAction) {
+    playerCurrentAction.fadeOut(duration);
+  }
+  action.reset().fadeIn(duration).play();
+  playerCurrentAction = action;
 }
 
 function syncPlayer() {
@@ -116,51 +197,102 @@ function syncPlayer() {
   if (!scene) return;
   const p = game.player;
   if (!p) {
-    if (playerGroup) { scene.remove(playerGroup); playerGroup = null; }
+    if (playerGroup && playerGroup !== 'loading') { scene.remove(playerGroup); }
+    playerGroup = null;
+    playerMixer = null;
+    playerActions = {};
+    playerCurrentAction = null;
+    playerModelReady = false;
+    playerAllMaterials = [];
     return;
   }
 
-  const color = p.armorColor || '#00e5ff';
+  const pos = gameToWorld(p.x, p.y);
 
   if (!playerGroup) {
-    playerGroup = createPlayerMesh(color);
-    scene.add(playerGroup);
+    if (!_glbArrayBuffer) return; // model not loaded yet
+    if (playerGroup === 'loading') return; // already parsing
+    playerGroup = 'loading'; // sentinel to prevent double-load
+    createPlayerFromGLB((g) => {
+      playerGroup = g;
+      const freshPos = gameToWorld(game.player.x, game.player.y);
+      playerGroup.position.set(freshPos.x, 0, freshPos.z);
+      scene.add(playerGroup);
+      fadeToAction('idle', 0);
+    });
+    return;
+  }
+  if (playerGroup === 'loading') return;
+
+
+  // Position (smooth easing)
+  const ease = 1 - Math.exp(-18 * (1 / 60));
+  playerGroup.position.x += (pos.x - playerGroup.position.x) * ease;
+  playerGroup.position.z += (pos.z - playerGroup.position.z) * ease;
+
+  // Y height: linearly rise from 0 to 1.0 over the 1T step zone
+  const a = arena();
+  const arenaTopZ = gameToWorld(a.x + a.w / 2, a.y).z;
+  // 5 zones over 2T: ground(0), step1(1), step2(2), flat(3), flat(4)
+  // Each step is a discrete flat tread, not a ramp
+  const totalGap = 2.0;
+  const zoneDepth = totalGap / 5;
+  const platformY = 1.0;
+  const pz = playerGroup.position.z;
+  const zone0End = arenaTopZ - zoneDepth;     // end of zone 0
+  const zone1End = arenaTopZ - zoneDepth * 2; // end of zone 1
+  const zone2End = arenaTopZ - zoneDepth * 3; // end of zone 2
+  if (pz >= zone0End) {
+    playerGroup.position.y = 0;               // zone 0: ground
+  } else if (pz >= zone1End) {
+    playerGroup.position.y = platformY * 0.5; // zone 1: step 1
+  } else if (pz >= zone2End) {
+    playerGroup.position.y = platformY;       // zone 2: step 2
+  } else {
+    playerGroup.position.y = platformY;       // zones 3-4: boundary height
   }
 
-  // Update color if changed
-  if (playerBodyMat && playerBodyMat.color.getHexString() !== new THREE.Color(color).getHexString()) {
-    const c = new THREE.Color(color);
-    playerBodyMat.color.copy(c);
-    playerBodyMat.emissive.copy(c);
-    if (playerLight) playerLight.color.copy(c);
-  }
-
-  // Position
-  const pos = gameToWorld(p.x, p.y);
-  playerGroup.position.set(pos.x, 0, pos.z);
-
-  // Facing direction: rotate the dir cone around Y
+  // Facing direction: rotate whole group around Y
   const fa = p._facingAngle !== undefined ? p._facingAngle : -Math.PI / 2;
-  const dirCone = playerGroup.getObjectByName('dirCone');
-  if (dirCone) {
-    const r = 0.44;
-    dirCone.position.set(Math.cos(fa) * r * 0.7, r, -Math.sin(fa) * r * 0.7);
-    dirCone.rotation.set(0, 0, 0);
-    dirCone.lookAt(
-      playerGroup.position.x + Math.cos(fa) * 2,
-      r,
-      playerGroup.position.z - Math.sin(fa) * 2
-    );
-    // Cone geometry points up by default; after lookAt, tilt so tip points forward
-    dirCone.rotateX(Math.PI / 2);
+  playerGroup.rotation.y = -fa + Math.PI / 2;
+
+  // ─── Animation state machine ───
+  // Scale draw/recoil animation speed to match attack speed
+  const shootCD = BASE_SHOOT_CD * (p.cdMult || 1);
+  const baseCD = BASE_SHOOT_CD; // default cooldown at 1x speed
+  const atkSpeedRatio = baseCD / shootCD; // >1 when attacking faster
+
+  if (game.state === 'dying' || game.state === 'dead') {
+    fadeToAction('ko');
+  } else if (game.iFrames > 0 && playerActions.hit) {
+    fadeToAction('hit');
+  } else if (p._vx !== undefined && (Math.abs(p._vx) > 0.5 || Math.abs(p._vy) > 0.5)) {
+    fadeToAction('move');
+  } else if (game.enemies.length > 0 && game.shootTimer <= 0.1) {
+    fadeToAction('recoil');
+  } else if (game.enemies.length > 0) {
+    fadeToAction('draw');
+  } else {
+    fadeToAction('idle');
   }
 
-  // iFrame flash
+  // Apply attack speed to draw and recoil animations
+  if (playerActions.draw) playerActions.draw.timeScale = atkSpeedRatio;
+  if (playerActions.recoil) playerActions.recoil.timeScale = atkSpeedRatio;
+  // Scale run animation with movement speed multiplier
+  if (playerActions.move) playerActions.move.timeScale = 1.7 * (p.speedMult || 1);
+
+  // iFrame flash — pulse opacity on all materials
   if (game.iFrames > 0) {
     const flash = Math.sin(getTime() * 20) > 0 ? 0.3 : 1.0;
-    playerBodyMat.opacity = flash;
+    for (const m of playerAllMaterials) m.opacity = flash;
   } else {
-    playerBodyMat.opacity = 1.0;
+    for (const m of playerAllMaterials) m.opacity = 1.0;
+  }
+
+  // Update animation mixer
+  if (playerMixer) {
+    playerMixer.update(1 / 60);
   }
 }
 
@@ -1299,9 +1431,178 @@ function syncAngel() {
   angelGroup.position.set(pos.x, angelTargetY + yOffset, pos.z);
 }
 
+// ─── Targeting Indicators ────────────────────────────────────────────────────
+
+let playerIndicator = null;
+let enemyIndicator = null;
+let enemyIndicatorFade = 0; // 0 = hidden, 1 = fully visible
+let _prevTargetId = null;
+
+function createIndicator(color, innerColor) {
+  const g = new THREE.Group();
+  g.name = 'indicator';
+
+  // Outer rotating ring
+  const outerRing = new THREE.Mesh(
+    new THREE.RingGeometry(0.38, 0.44, 32),
+    new MeshStdMat({
+      color: new THREE.Color(color),
+      emissive: new THREE.Color(color),
+      emissiveIntensity: 0.8,
+      transparent: true,
+      opacity: 0.6,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    })
+  );
+  outerRing.name = 'outerRing';
+  outerRing.rotation.x = -Math.PI / 2;
+  g.add(outerRing);
+
+  // Inner pulsing ring
+  const innerRing = new THREE.Mesh(
+    new THREE.RingGeometry(0.22, 0.28, 32),
+    new MeshStdMat({
+      color: new THREE.Color(innerColor || color),
+      emissive: new THREE.Color(innerColor || color),
+      emissiveIntensity: 1.0,
+      transparent: true,
+      opacity: 0.4,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    })
+  );
+  innerRing.name = 'innerRing';
+  innerRing.rotation.x = -Math.PI / 2;
+  g.add(innerRing);
+
+  // Dashed segmented arcs (4 segments for a tech feel)
+  for (let i = 0; i < 4; i++) {
+    const arc = new THREE.Mesh(
+      new THREE.RingGeometry(0.48, 0.52, 8, 1, (i / 4) * Math.PI * 2 + 0.1, Math.PI / 2 - 0.2),
+      new MeshStdMat({
+        color: new THREE.Color(color),
+        emissive: new THREE.Color(color),
+        emissiveIntensity: 0.6,
+        transparent: true,
+        opacity: 0.45,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      })
+    );
+    arc.name = 'arc' + i;
+    arc.rotation.x = -Math.PI / 2;
+    g.add(arc);
+  }
+
+  // Store base opacity on all materials for fade scaling
+  g.traverse((child) => {
+    if (child.isMesh && child.material) {
+      child.material._baseOpacity = child.material.opacity;
+    }
+  });
+
+  return g;
+}
+
+function syncIndicators() {
+  const scene = getScene();
+  if (!scene) return;
+  const time = getTime();
+
+  // ─── Player indicator ───
+  const playerPos = (playerGroup && playerGroup !== 'loading') ? playerGroup.position : null;
+  if (playerPos) {
+    if (!playerIndicator) {
+      playerIndicator = createIndicator('#00aaff', '#66ddff');
+      scene.add(playerIndicator);
+    }
+    playerIndicator.visible = true;
+    playerIndicator.position.set(playerPos.x, playerPos.y + 0.03, playerPos.z);
+
+    // Animate: outer ring spins one way, arcs spin the other, inner pulses
+    const outer = playerIndicator.getObjectByName('outerRing');
+    if (outer) outer.rotation.z = time * 1.5;
+    const inner = playerIndicator.getObjectByName('innerRing');
+    if (inner) {
+      inner.rotation.z = -time * 0.8;
+      inner.material.opacity = 0.3 + 0.15 * Math.sin(time * 4);
+    }
+    for (let i = 0; i < 4; i++) {
+      const arc = playerIndicator.getObjectByName('arc' + i);
+      if (arc) arc.rotation.z = -time * 2.0;
+    }
+  } else if (playerIndicator) {
+    playerIndicator.visible = false;
+  }
+
+  // ─── Enemy target indicator (with fade in/out) ───
+  const target = game._shootTarget;
+  const targetId = target ? (target._meshId || null) : null;
+  const dt = 1 / 60;
+  const fadeSpeed = 25; // fade in/out speed
+
+  if (target) {
+    // Fade in (or reset fade if target changed)
+    if (targetId !== _prevTargetId) enemyIndicatorFade = 0;
+    enemyIndicatorFade = Math.min(1, enemyIndicatorFade + fadeSpeed * dt);
+  } else {
+    // Fade out
+    enemyIndicatorFade = Math.max(0, enemyIndicatorFade - fadeSpeed * dt);
+  }
+  _prevTargetId = targetId;
+
+  if (enemyIndicatorFade > 0.001) {
+    if (!enemyIndicator) {
+      enemyIndicator = createIndicator('#ff3333', '#ff6644');
+      scene.add(enemyIndicator);
+    }
+    enemyIndicator.visible = true;
+
+    if (target) {
+      const ePos = gameToWorld(target.x, target.y);
+      enemyIndicator.position.set(ePos.x, 0.03, ePos.z);
+      const es = worldScale(target.r) * 2.5;
+      enemyIndicator.scale.setScalar(es);
+    }
+
+    // Apply fade to all child materials
+    const fade = enemyIndicatorFade;
+    enemyIndicator.traverse((child) => {
+      if (child.isMesh && child.material && child.material.transparent) {
+        child.material.opacity = child.material._baseOpacity * fade;
+      }
+    });
+
+    const outer = enemyIndicator.getObjectByName('outerRing');
+    if (outer) outer.rotation.z = -time * 2.0;
+    const inner = enemyIndicator.getObjectByName('innerRing');
+    if (inner) {
+      inner.rotation.z = time * 1.2;
+      inner.material.opacity = (0.35 + 0.2 * Math.sin(time * 5)) * fade;
+    }
+    for (let i = 0; i < 4; i++) {
+      const arc = enemyIndicator.getObjectByName('arc' + i);
+      if (arc) arc.rotation.z = time * 2.5;
+    }
+  } else if (enemyIndicator) {
+    enemyIndicator.visible = false;
+  }
+}
+
 // ─── Main Sync Function ────────────────────────────────────────────────────
 
 const activeEnemyIds = new Set();
+
+export function getKoAnimDuration() {
+  const koAction = playerActions.ko;
+  if (koAction && koAction.getClip()) return koAction.getClip().duration;
+  return 1.5; // fallback
+}
+
+export function getPlayerWorldPos() {
+  return (playerGroup && playerGroup !== 'loading') ? playerGroup.position : null;
+}
 
 export function syncEntities() {
   const scene = getScene();
@@ -1329,6 +1630,12 @@ export function syncEntities() {
 
     // Scale based on e.r
     g.scale.setScalar(ws);
+
+    // Facing rotation (game angle → Y rotation)
+    // Game angle 0 = +X, mesh default forward = +Z, so offset by PI/2
+    if (e._facingAngle !== undefined) {
+      g.rotation.y = -e._facingAngle + Math.PI / 2;
+    }
 
     // Spawn animation
     if (e._spawnTimer > 0) {
@@ -1362,6 +1669,9 @@ export function syncEntities() {
 
   // --- Sync angel ---
   syncAngel();
+
+  // --- Sync targeting indicators ---
+  syncIndicators();
 }
 
 // ─── Clear All Entities (stage transition) ──────────────────────────────────
@@ -1380,8 +1690,12 @@ export function clearEntities() {
   if (playerGroup) {
     if (scene) scene.remove(playerGroup);
     playerGroup = null;
-    playerBodyMat = null;
     playerLight = null;
+    if (playerMixer) { playerMixer.stopAllAction(); playerMixer = null; }
+    playerActions = {};
+    playerCurrentAction = null;
+    playerModelReady = false;
+    playerAllMaterials = [];
   }
 
   // Remove clone
@@ -1395,4 +1709,16 @@ export function clearEntities() {
     if (scene) scene.remove(angelGroup);
     angelGroup = null;
   }
+
+  // Remove indicators
+  if (playerIndicator) {
+    if (scene) scene.remove(playerIndicator);
+    playerIndicator = null;
+  }
+  if (enemyIndicator) {
+    if (scene) scene.remove(enemyIndicator);
+    enemyIndicator = null;
+  }
+  enemyIndicatorFade = 0;
+  _prevTargetId = null;
 }

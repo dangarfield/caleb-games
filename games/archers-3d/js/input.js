@@ -8,7 +8,11 @@ export function setupInput(canvas) {
   document.addEventListener('keyup', e => { keys[e.code] = false; });
 
   canvas.addEventListener('pointerdown', e => {
-    if (game.state !== 'playing' && game.state !== 'exiting') return;
+    if (game.state !== 'playing' && game.state !== 'exiting') {
+      // Release joystick if dying/dead
+      if (joystick.active) { joystick.active = false; joystick.dx = 0; joystick.dy = 0; }
+      return;
+    }
     if (!joystick.active) {
       joystick.active = true;
       joystick.id = e.pointerId;

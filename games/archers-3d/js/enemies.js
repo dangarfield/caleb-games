@@ -34,6 +34,7 @@ export function updateEnemies(dt) {
     }
 
     // ─── Movement ───
+    const prevX = e.x, prevY = e.y;
     if (e.knockback <= 0 && e.ai) {
       updateEnemyMovement(e, p, dt, a, game.obstacles);
       // Push out of water tiles (most enemies can't cross water)
@@ -49,6 +50,23 @@ export function updateEnemies(dt) {
     if (e.ai) {
       updateNewAttack(e, p, dt);
     }
+
+    // ─── Facing angle (for 3D rotation) ───
+    if (e._facingAngle === undefined) e._facingAngle = Math.atan2(p.y - e.y, p.x - e.x);
+    const movedDx = e.x - prevX, movedDy = e.y - prevY;
+    const movedDist = Math.sqrt(movedDx * movedDx + movedDy * movedDy);
+    let targetFacing;
+    if (movedDist > 0.5) {
+      // Moving — face movement direction
+      targetFacing = Math.atan2(movedDy, movedDx);
+    } else {
+      // Idle — face toward player
+      targetFacing = Math.atan2(p.y - e.y, p.x - e.x);
+    }
+    let fDiff = targetFacing - e._facingAngle;
+    while (fDiff > Math.PI) fDiff -= Math.PI * 2;
+    while (fDiff < -Math.PI) fDiff += Math.PI * 2;
+    e._facingAngle += fDiff * (1 - Math.exp(-10 * dt));
 
     // ─── Body collision with player ───
     if (!e._underground && game.iFrames <= 0 && dist(p.x, p.y, e.x, e.y) < PLAYER_R * T() + e.r) {

@@ -23,9 +23,10 @@ import { preloadIcons } from './icons.js';
 import { drawEnemy, drawAngel } from './enemyDraw.js';
 import { getEnemyType } from './enemyTypes.js';
 // 3D rendering modules
-import { initRenderer3D, gameToWorld, worldScale, updateCamera, setChapterTheme, render3D, setVisible as set3DVisible, getScene, getTime } from './renderer3d.js';
+import { initRenderer3D, gameToWorld, worldScale, updateCamera, snapCamera, setChapterTheme, render3D, setVisible as set3DVisible, getScene, getTime, camera } from './renderer3d.js';
+import * as THREE from 'three';
 import { buildArena as buildArena3D, updateArena as updateArena3D, clearArena as clearArena3D, setDoorOpen as setDoorOpen3D } from './arena3d.js';
-import { syncEntities, clearEntities } from './entities3d.js';
+import { syncEntities, clearEntities, getPlayerWorldPos, getKoAnimDuration } from './entities3d.js';
 import { syncEffects, clearEffects } from './effects3d.js';
 
 const canvas = document.getElementById('gameCanvas');
@@ -174,6 +175,7 @@ function initRun() {
 
   game.orbitals = [];
   game.strikeEffects = [];
+  game.strikeProjectiles = [];
   game.starProjectiles = [];
   game.meteorProjectiles = [];
   nextStage();
@@ -199,6 +201,7 @@ function nextStage() {
   game.particles = [];
   game.orbitals = [];
   game.strikeEffects = [];
+  game.strikeProjectiles = [];
   game.starProjectiles = [];
   game.meteorProjectiles = [];
   game.clones = [];
@@ -254,6 +257,7 @@ function nextStage() {
   clearArena3D(); clearEntities(); clearEffects();
   setChapterTheme(CHAPTER_THEMES[game.chapter] || CHAPTER_THEMES[0]);
   buildArena3D();
+  snapCamera(game.player.x, game.player.y);
   game.state = 'playing';
 }
 
@@ -395,6 +399,26 @@ function spawnExitEntities() {
 }
 
 function update(dt) {
+  // Dying state: only update projectiles/particles, countdown to dead
+  if (game.state === 'dying') {
+    game.dyingTimer -= dt;
+    if (game.dyingTimer <= 0) {
+      game.state = 'dead';
+    }
+    // Continue projectile/particle updates but no player movement or enemy AI
+    updateBullets(dt);
+    updateSummons(dt);
+    updateOrbitals(dt);
+    updateParticles(dt);
+    updateBoltArcs(dt);
+    // Update stuck arrows
+    for (let i = (game.stuckArrows || []).length - 1; i >= 0; i--) {
+      game.stuckArrows[i].life -= dt;
+      if (game.stuckArrows[i].life <= 0) game.stuckArrows.splice(i, 1);
+    }
+    return;
+  }
+
   if (game.state !== 'playing' && game.state !== 'exiting') return;
   const a = arena();
   const p = game.player;
@@ -581,10 +605,13 @@ function update(dt) {
     }
   }
 
-  // Player dead?
+  // Player dead? → enter dying state (KO animation plays, projectiles continue)
   if (p.hp <= 0) {
     p.hp = 0;
-    game.state = 'dead';
+    game.state = 'dying';
+    game.dyingTimer = getKoAnimDuration() + 0.3; // wait for KO anim + brief pause
+    game.iFrames = 0; // stop invincibility flashing
+    game._deadFadeTimer = 0; // reset game over screen fade-in
     sfxGameOver();
     clearLastRun();
     const globalStage = game.chapter * STAGES_PER_CHAPTER + game.stage;
@@ -671,10 +698,95 @@ function update(dt) {
   }
 }
 
+// Project a game-space position to screen coordinates via the 3D camera
+const _projVec = new THREE.Vector3();
+function gameToScreen(gx, gy, yOffset) {
+  const w = gameToWorld(gx, gy);
+  _projVec.set(w.x, yOffset || 0, w.z);
+  _projVec.project(camera);
+  return {
+    x: (_projVec.x * 0.5 + 0.5) * W,
+    y: (-_projVec.y * 0.5 + 0.5) * H,
+  };
+}
+
+function draw3DHealthBars(ctx, W, H) {
+  const p = game.player;
+  if (!p || !camera) return;
+
+  // ── Enemy HP bars ──
+  for (const e of game.enemies) {
+    if (e._spawnTimer > 0 || e._underground) continue;
+    if (e._displayHp === undefined) e._displayHp = e.hp;
+    e._displayHp += (e.hp - e._displayHp) * 0.08;
+    if (Math.abs(e._displayHp - e.hp) < 0.5) e._displayHp = e.hp;
+
+    const screen = gameToScreen(e.x, e.y - e.r - 0.22 * T(), 1.8);
+    const bw = 40, bh = 5;
+    const bx = screen.x - bw / 2, by = screen.y;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(bx, by, bw, bh);
+    const ghostRatio = clamp(e._displayHp / e.maxHp, 0, 1);
+    if (ghostRatio > 0) {
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fillRect(bx, by, bw * ghostRatio, bh);
+    }
+    const realRatio = clamp(e.hp / e.maxHp, 0, 1);
+    if (realRatio > 0) {
+      ctx.fillStyle = '#e74c3c';
+      ctx.fillRect(bx, by, bw * realRatio, bh);
+    }
+  }
+
+  // ── Player HP bar (follows eased 3D position) ──
+  if (p._displayHp === undefined) p._displayHp = p.hp;
+  p._displayHp += (p.hp - p._displayHp) * 0.08;
+  if (Math.abs(p._displayHp - p.hp) < 0.5) p._displayHp = p.hp;
+
+  // Project from the actual eased 3D player position, not the game position
+  const playerPos = getPlayerWorldPos();
+  if (!playerPos) return;
+  _projVec.set(playerPos.x, 0, playerPos.z + 0.8); // offset below player in world Z
+  _projVec.project(camera);
+  const pScreen = {
+    x: (_projVec.x * 0.5 + 0.5) * W,
+    y: (-_projVec.y * 0.5 + 0.5) * H,
+  };
+
+  const hpBarW = 56, hpBarH = 7;
+  const hpBarX = pScreen.x - hpBarW / 2, hpBarY = pScreen.y;
+  const hpRatio = clamp(p.hp / p.maxHp, 0, 1);
+  const ghostRatio = clamp(p._displayHp / p.maxHp, 0, 1);
+  const hpColor = p.hp > p.maxHp * 0.3 ? '#2ecc71' : '#e74c3c';
+
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.beginPath(); ctx.roundRect(hpBarX - 1, hpBarY - 1, hpBarW + 2, hpBarH + 2, 3); ctx.fill();
+  if (ghostRatio > 0) {
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.beginPath(); ctx.roundRect(hpBarX, hpBarY, hpBarW * ghostRatio, hpBarH, 2); ctx.fill();
+  }
+  if (hpRatio > 0) {
+    ctx.fillStyle = hpColor;
+    ctx.beginPath(); ctx.roundRect(hpBarX, hpBarY, hpBarW * hpRatio, hpBarH, 2); ctx.fill();
+  }
+  // HP text
+  const hpText = fmt(Math.ceil(p.hp));
+  ctx.font = 'bold 14px "Segoe UI",system-ui,sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+  ctx.lineWidth = 3;
+  ctx.lineJoin = 'round';
+  ctx.strokeText(hpText, pScreen.x, hpBarY - 2);
+  ctx.fillStyle = '#fff';
+  ctx.fillText(hpText, pScreen.x, hpBarY - 2);
+}
+
 function draw() {
   const isGameplay = game.state === 'playing' || game.state === 'exiting'
     || game.state === 'chapterClear' || game.state === 'levelUp'
-    || game.state === 'dead' || game.state === 'paused';
+    || game.state === 'dying' || game.state === 'dead' || game.state === 'paused';
 
   if (isGameplay) {
     // 3D rendering for gameplay
@@ -688,6 +800,7 @@ function draw() {
     // 2D canvas is transparent overlay for HUD + overlays
     ctx.clearRect(0, 0, W, H);
     drawHUD(ctx, W, H);
+    draw3DHealthBars(ctx, W, H);
     // Stage indicator
     if (game.stageIndicatorTimer > 0) {
       const fadeDur = 0.8;
@@ -1435,7 +1548,7 @@ function loop(ts) {
   }
   prevState = game.state;
 
-  if (game.state === 'playing' || game.state === 'exiting') update(dt);
+  if (game.state === 'playing' || game.state === 'exiting' || game.state === 'dying') update(dt);
   draw();
 }
 

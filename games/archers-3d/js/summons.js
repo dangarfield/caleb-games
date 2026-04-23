@@ -1,8 +1,8 @@
-// summons.js - Strikes (targeted AoE), Stars (homing), Meteors (big AoE)
+// summons.js - Strikes (side-swords), Stars (rapid-drops), Meteors (heavy-balls)
 import { game } from './state.js';
 import { dist, dmgVar } from './utils.js';
 import { spawnParticles } from './particles.js';
-import { T } from './arena.js';
+import { T, arena } from './arena.js';
 
 const ELEM_COLORS = {
   fire: '#ff6b2b', ice: '#74b9ff', poison: '#2ecc71', bolt: '#ffd32a'
@@ -13,6 +13,9 @@ const strikeTimers = { fire: 0, ice: 0, poison: 0, bolt: 0 };
 const starTimers = { fire: 0, ice: 0, poison: 0, bolt: 0 };
 const meteorTimers = { fire: 0, ice: 0, poison: 0, bolt: 0 };
 
+// Alternates left/right for strike sword spawn side
+let strikeSideFlip = 1;
+
 export function resetSummonTimers() {
   for (const k of Object.keys(strikeTimers)) {
     strikeTimers[k] = 0; starTimers[k] = 0; meteorTimers[k] = 0;
@@ -21,68 +24,77 @@ export function resetSummonTimers() {
 
 export function updateSummons(dt) {
   const p = game.player;
-  if (!p || game.enemies.length === 0) return;
+  if (!p) return;
 
+  const hasEnemies = game.enemies.length > 0;
   const elemDmg = p.elementDmgMult || 1;
+  const atkSpeedMult = 1 / (p.cdMult || 1); // higher = faster
 
-  // Strikes: every 2.5s per stack, deal instant AoE damage at a random enemy
+  // ─── Spawn new projectiles only when enemies exist ───
+
+  if (hasEnemies) {
+
+  // ─── Strikes: side-swords that launch from player toward enemy ───
   for (const elem of ['fire', 'ice', 'poison', 'bolt']) {
     const stacks = p.strikes[elem] || 0;
     if (stacks <= 0) continue;
-    strikeTimers[elem] -= dt * stacks; // more stacks = faster
+    const baseInterval = 2.0 / atkSpeedMult;
+    strikeTimers[elem] -= dt * stacks;
     if (strikeTimers[elem] <= 0) {
-      strikeTimers[elem] = 2.5;
+      strikeTimers[elem] = baseInterval;
       const target = game.enemies[Math.floor(Math.random() * game.enemies.length)];
       if (target) {
-        const dmg = 20 * elemDmg;
-        target.hp -= dmgVar(dmg);
-
-        // AoE splash
-        for (const other of game.enemies) {
-          if (other !== target && dist(target.x, target.y, other.x, other.y) < 1.1 * T()) {
-            other.hp -= dmgVar(dmg * 0.4);
-          }
-        }
-
-        // Visual: spawn a burst of particles at the strike point
-        spawnParticles(target.x, target.y, ELEM_COLORS[elem], 8, 120);
-
-        // Add a visual strike effect
-        game.strikeEffects.push({
-          x: target.x, y: target.y, life: 0.4, maxLife: 0.4,
-          color: ELEM_COLORS[elem], r: 0.88 * T()
+        // Spawn sword at player's side, lock angle toward target at launch
+        const side = strikeSideFlip;
+        strikeSideFlip *= -1;
+        const offsetX = side * 0.4 * T();
+        const spawnX = p.x + offsetX;
+        const spawnY = p.y;
+        const ang = Math.atan2(target.y - spawnY, target.x - spawnX);
+        game.strikeProjectiles.push({
+          x: spawnX,
+          y: spawnY,
+          ang: ang, // fixed direction, not homing
+          speed: 3.0 * T(), // starts slower
+          accel: 18.0 * T(), // accelerates fast
+          maxSpeed: 14.0 * T(),
+          dmg: 20 * elemDmg,
+          element: elem,
+          color: ELEM_COLORS[elem],
+          life: 2,
+          side: side,
+          hoverTimer: 0.15, // brief hover before launch
         });
-
-        // Apply elemental status
-        applyElemStatus(target, elem, elemDmg);
       }
     }
   }
 
-  // Stars: homing projectiles, spawn every 3s per stack
+  // ─── Stars: rapid-drops from above enemy ───
   for (const elem of ['fire', 'ice', 'poison', 'bolt']) {
     const stacks = p.stars[elem] || 0;
     if (stacks <= 0) continue;
     starTimers[elem] -= dt * stacks;
     if (starTimers[elem] <= 0) {
-      starTimers[elem] = 3;
-      // Spawn a homing star
+      starTimers[elem] = 2.5;
       const target = game.enemies[Math.floor(Math.random() * game.enemies.length)];
       if (target) {
+        // Star drops from directly above the enemy
         game.starProjectiles.push({
-          x: p.x, y: p.y,
-          targetIdx: game.enemies.indexOf(target),
-          speed: 4.4 * T(),
+          x: target.x + (Math.random() - 0.5) * 0.3 * T(),
+          y: target.y - 3.3 * T(), // start above in game coords
+          targetY: target.y,
+          startY: target.y - 3.3 * T(),
+          speed: 11 * T(), // fast drop
           dmg: 15 * elemDmg,
           element: elem,
           color: ELEM_COLORS[elem],
-          life: 4 // max lifetime
+          life: 2
         });
       }
     }
   }
 
-  // Meteors: big AoE, spawn every 5s per stack
+  // ─── Meteors: heavy-balls from above the door, arc toward target ───
   for (const elem of ['fire', 'ice', 'poison', 'bolt']) {
     const stacks = p.meteors[elem] || 0;
     if (stacks <= 0) continue;
@@ -91,85 +103,130 @@ export function updateSummons(dt) {
       meteorTimers[elem] = 5;
       const target = game.enemies[Math.floor(Math.random() * game.enemies.length)];
       if (target) {
-        // Meteor starts above and falls to target position
+        // Start from above the door (center X, well above arena top)
+        const ar = arena();
+        const arenaTopY = ar.y;
+        const startX = ar.x + ar.w / 2; // center of arena (door X)
+        const startY = arenaTopY - 8 * T(); // twice as high
+        const ang = Math.atan2(target.y - startY, target.x - startX);
         game.meteorProjectiles.push({
-          x: target.x + (Math.random() - 0.5) * 0.66 * T(),
+          x: startX,
+          y: startY,
+          targetX: target.x,
           targetY: target.y,
-          y: target.y - 4.4 * T(), // start above
-          speed: 7.7 * T(),
+          startX: startX,
+          startY: startY,
+          ang: ang,
+          speed: 5.5 * T(), // faster
           dmg: 35 * elemDmg,
           element: elem,
           color: ELEM_COLORS[elem],
-          r: 0.66 * T(), // AoE radius
-          life: 2
+          r: 0.88 * T(),
+          life: 4
         });
       }
     }
   }
 
-  // Update star projectiles (homing)
+  } // end if (hasEnemies) — spawning section
+
+  // ─── Update existing projectiles (always, even with no enemies) ───
+
+  // ─── Update strike projectiles (straight-line accelerating swords) ───
+  for (let i = game.strikeProjectiles.length - 1; i >= 0; i--) {
+    const s = game.strikeProjectiles[i];
+    s.life -= dt;
+    if (s.life <= 0) { game.strikeProjectiles.splice(i, 1); continue; }
+
+    // Hover phase
+    if (s.hoverTimer > 0) {
+      s.hoverTimer -= dt;
+      continue;
+    }
+
+    // Accelerate
+    s.speed = Math.min(s.speed + s.accel * dt, s.maxSpeed);
+
+    // Move in locked direction
+    s.x += Math.cos(s.ang) * s.speed * dt;
+    s.y += Math.sin(s.ang) * s.speed * dt;
+
+    // Hit check against all enemies in path
+    let hit = false;
+    for (const e of game.enemies) {
+      if (dist(s.x, s.y, e.x, e.y) < e.r + 0.22 * T()) {
+        if (!game.debug.noDmgToEnemy) e.hp -= dmgVar(s.dmg);
+        // Splash
+        for (const other of game.enemies) {
+          if (other !== e && dist(e.x, e.y, other.x, other.y) < 1.1 * T()) {
+            if (!game.debug.noDmgToEnemy) other.hp -= dmgVar(s.dmg * 0.3);
+          }
+        }
+        spawnParticles(s.x, s.y, s.color, 8, 120);
+        applyElemStatus(e, s.element, p.elementDmgMult || 1);
+        game.strikeEffects.push({
+          x: e.x, y: e.y, life: 0.5, maxLife: 0.5,
+          color: s.color, r: 0.66 * T()
+        });
+        hit = true;
+        break;
+      }
+    }
+    if (hit) { game.strikeProjectiles.splice(i, 1); }
+  }
+
+  // ─── Update star projectiles (rapid vertical drops) ───
   for (let i = game.starProjectiles.length - 1; i >= 0; i--) {
     const s = game.starProjectiles[i];
     s.life -= dt;
     if (s.life <= 0) { game.starProjectiles.splice(i, 1); continue; }
 
-    // Find target (may have died)
-    let target = game.enemies[s.targetIdx];
-    if (!target || target.hp <= 0) {
-      // Retarget nearest
-      let nd = Infinity;
-      target = null;
-      for (let j = 0; j < game.enemies.length; j++) {
-        const d = dist(s.x, s.y, game.enemies[j].x, game.enemies[j].y);
-        if (d < nd) { nd = d; target = game.enemies[j]; s.targetIdx = j; }
-      }
-    }
+    // Move downward (increasing y in game coords)
+    s.y += s.speed * dt;
 
-    if (target) {
-      const ang = Math.atan2(target.y - s.y, target.x - s.x);
-      s.x += Math.cos(ang) * s.speed * dt;
-      s.y += Math.sin(ang) * s.speed * dt;
-
-      // Hit check
-      if (dist(s.x, s.y, target.x, target.y) < target.r + 0.176 * T()) {
-        target.hp -= dmgVar(s.dmg);
-        spawnParticles(s.x, s.y, s.color, 5, 80);
-        applyElemStatus(target, s.element, p.elementDmgMult || 1);
-        game.starProjectiles.splice(i, 1);
+    // Hit ground (reached target Y)
+    if (s.y >= s.targetY) {
+      // Damage enemies near impact
+      for (const e of game.enemies) {
+        if (dist(s.x, s.y, e.x, e.y) < e.r + 0.33 * T()) {
+          if (!game.debug.noDmgToEnemy) e.hp -= dmgVar(s.dmg);
+          applyElemStatus(e, s.element, p.elementDmgMult || 1);
+        }
       }
-    } else {
-      // No enemies left, remove
+      spawnParticles(s.x, s.y, s.color, 5, 80);
       game.starProjectiles.splice(i, 1);
     }
   }
 
-  // Update meteor projectiles (falling)
+  // ─── Update meteor projectiles (arcing from door toward target) ───
   for (let i = game.meteorProjectiles.length - 1; i >= 0; i--) {
     const m = game.meteorProjectiles[i];
     m.life -= dt;
-    m.y += m.speed * dt;
+    // Move along locked angle
+    m.x += Math.cos(m.ang) * m.speed * dt;
+    m.y += Math.sin(m.ang) * m.speed * dt;
 
     if (m.life <= 0) { game.meteorProjectiles.splice(i, 1); continue; }
 
-    // Hit ground (reached target Y)
-    if (m.y >= m.targetY) {
-      // AoE damage
+    // Hit check: close enough to target position
+    if (dist(m.x, m.y, m.targetX, m.targetY) < 0.33 * T()) {
       for (const e of game.enemies) {
         if (dist(m.x, m.y, e.x, e.y) < m.r + e.r) {
-          e.hp -= dmgVar(m.dmg);
+          if (!game.debug.noDmgToEnemy) e.hp -= dmgVar(m.dmg);
           applyElemStatus(e, m.element, p.elementDmgMult || 1);
         }
       }
-      spawnParticles(m.x, m.y, m.color, 12, 150);
+      spawnParticles(m.x, m.y, m.color, 16, 180);
+      // Big ground explosion ring
       game.strikeEffects.push({
-        x: m.x, y: m.y, life: 0.5, maxLife: 0.5,
+        x: m.x, y: m.y, life: 0.7, maxLife: 0.7,
         color: m.color, r: m.r
       });
       game.meteorProjectiles.splice(i, 1);
     }
   }
 
-  // Update strike visual effects
+  // Update strike visual effects (impact rings)
   for (let i = game.strikeEffects.length - 1; i >= 0; i--) {
     game.strikeEffects[i].life -= dt;
     if (game.strikeEffects[i].life <= 0) game.strikeEffects.splice(i, 1);
@@ -183,7 +240,7 @@ function applyElemStatus(e, elem, elemDmgMult) {
   if (elem === 'bolt') {
     for (const other of game.enemies) {
       if (other !== e && dist(e.x, e.y, other.x, other.y) < 1.32 * T()) {
-        other.hp -= dmgVar(3 * elemDmgMult);
+        if (!game.debug.noDmgToEnemy) other.hp -= dmgVar(3 * elemDmgMult);
         break;
       }
     }
@@ -194,7 +251,7 @@ export function drawSummons(ctx) {
   const p = game.player;
   if (!p) return;
 
-  // Draw strike effects (expanding rings)
+  // Draw strike effects (expanding impact rings)
   for (const fx of game.strikeEffects) {
     const alpha = fx.life / fx.maxLife;
     const expandR = fx.r * (1 - alpha * 0.5);
@@ -211,68 +268,65 @@ export function drawSummons(ctx) {
     ctx.restore();
   }
 
-  // Draw star projectiles — glow pass then solid pass
-  if (game.starProjectiles.length > 0) {
-    ctx.save();
-    ctx.globalAlpha = 0.25;
-    for (const s of game.starProjectiles) {
-      ctx.fillStyle = s.color;
-      ctx.beginPath(); ctx.arc(s.x, s.y, 0.264 * T(), 0, Math.PI * 2); ctx.fill();
-    }
-    ctx.restore();
-
+  // Draw strike projectiles (glowing swords)
+  for (const s of game.strikeProjectiles) {
+    const ang = s.ang || Math.atan2(0, 1);
     ctx.save();
     ctx.globalAlpha = 0.9;
-    for (const s of game.starProjectiles) {
-      ctx.fillStyle = s.color;
-      const sr = 0.132 * T();
-      ctx.beginPath();
-      for (let j = 0; j < 8; j++) {
-        const a = (Math.PI / 4) * j;
-        const r = j % 2 === 0 ? sr : sr * 0.4;
-        if (j === 0) ctx.moveTo(s.x + Math.cos(a) * r, s.y + Math.sin(a) * r);
-        else ctx.lineTo(s.x + Math.cos(a) * r, s.y + Math.sin(a) * r);
-      }
-      ctx.closePath();
-      ctx.fill();
-    }
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = 0.066 * T();
+    ctx.lineCap = 'round';
+    const len = 0.33 * T();
+    ctx.beginPath();
+    ctx.moveTo(s.x - Math.cos(ang) * len * 0.3, s.y - Math.sin(ang) * len * 0.3);
+    ctx.lineTo(s.x + Math.cos(ang) * len * 0.7, s.y + Math.sin(ang) * len * 0.7);
+    ctx.stroke();
+    // Glow
+    ctx.globalAlpha = 0.2;
+    ctx.fillStyle = s.color;
+    ctx.beginPath(); ctx.arc(s.x, s.y, 0.22 * T(), 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 
-  // Draw meteor projectiles — glow pass, solid pass, trail pass
-  if (game.meteorProjectiles.length > 0) {
-    // Ground shadows
-    for (const m of game.meteorProjectiles) {
-      const shadowAlpha = 0.15 * (1 - Math.max(0, m.y - m.targetY + 50) / 200);
-      if (shadowAlpha > 0) {
-        ctx.save();
-        ctx.globalAlpha = shadowAlpha;
-        ctx.fillStyle = m.color;
-        ctx.beginPath();
-        ctx.ellipse(m.x, m.targetY, m.r * 0.6, m.r * 0.3, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      }
-    }
-
-    // Glow
+  // Draw star projectiles (small bright drops)
+  for (const s of game.starProjectiles) {
     ctx.save();
-    ctx.globalAlpha = 0.2;
-    for (const m of game.meteorProjectiles) {
-      ctx.fillStyle = m.color;
-      ctx.beginPath(); ctx.arc(m.x, m.y, 0.396 * T(), 0, Math.PI * 2); ctx.fill();
-    }
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = s.color;
+    ctx.beginPath(); ctx.arc(s.x, s.y, 0.22 * T(), 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(s.x, s.y, 0.088 * T(), 0, Math.PI * 2); ctx.fill();
     ctx.restore();
+  }
 
-    // Solid + trail
+  // Draw meteor projectiles
+  if (game.meteorProjectiles.length > 0) {
     for (const m of game.meteorProjectiles) {
+      // Ground shadow at target position
+      const totalDist = Math.sqrt((m.targetX - m.startX) ** 2 + (m.targetY - m.startY) ** 2) || 1;
+      const traveled = Math.sqrt((m.x - m.startX) ** 2 + (m.y - m.startY) ** 2);
+      const progress = Math.min(1, traveled / totalDist);
       ctx.save();
-      ctx.globalAlpha = 0.8;
+      ctx.globalAlpha = 0.15 * progress;
       ctx.fillStyle = m.color;
-      ctx.beginPath(); ctx.arc(m.x, m.y, 0.22 * T(), 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(m.targetX, m.targetY, m.r * 0.6, m.r * 0.3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Fireball + trail
+      ctx.save();
       ctx.globalAlpha = 0.3;
-      ctx.beginPath(); ctx.arc(m.x, m.y - 0.176 * T(), 0.132 * T(), 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(m.x, m.y - 0.308 * T(), 0.066 * T(), 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = m.color;
+      ctx.beginPath(); ctx.arc(m.x, m.y, 0.44 * T(), 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 0.8;
+      ctx.beginPath(); ctx.arc(m.x, m.y, 0.28 * T(), 0, Math.PI * 2); ctx.fill();
+      // Trail puffs
+      ctx.globalAlpha = 0.3;
+      ctx.beginPath(); ctx.arc(m.x, m.y - 0.22 * T(), 0.18 * T(), 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(m.x, m.y - 0.4 * T(), 0.11 * T(), 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(m.x, m.y - 0.55 * T(), 0.06 * T(), 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
   }

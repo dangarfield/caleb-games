@@ -1,5 +1,6 @@
 export const game = {
-  state: 'menu',       // 'menu','equip','map','skillInfo','playing','dead','stageClear','chapterClear','levelUp','paused'
+  state: 'menu',       // 'menu','equip','map','skillInfo','playing','dying','dead','stageClear','chapterClear','levelUp','paused'
+  dyingTimer: 0,       // countdown during 'dying' state before showing game over
   chapter: 1,          // current chapter (1-10)
   stage: 0,            // current stage within chapter (1-25)
   player: null,
@@ -11,6 +12,7 @@ export const game = {
   hearts: [],
   orbitals: [],
   strikeEffects: [],
+  strikeProjectiles: [],
   starProjectiles: [],
   meteorProjectiles: [],
   clones: [],

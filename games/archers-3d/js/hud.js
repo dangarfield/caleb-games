@@ -3,9 +3,11 @@ import { clamp, wrapText, fmt } from './utils.js';
 import { CHAPTERS, getChapterStages } from './chapters.js';
 import { getJoystick } from './input.js';
 import { ALL_SKILLS, rebuildPlayerFromSkills } from './skills.js';
+import { rebuildOrbitals } from './orbitals.js';
 import { getSkillIcon } from './icons.js';
 import { drawSkillCard } from './skillCard.js';
-import { saveDebug, saveChaptersCleared, saveCoins, unlockRing, setChosenWeaponLvl, setChosenArmorLvl } from './storage.js';
+import { saveDebug, saveChaptersCleared, saveCoins, unlockRing, setChosenWeaponLvl, setChosenArmorLvl, saveLastRun } from './storage.js';
+import { toggleCamera, isOrthoCamera } from './renderer3d.js';
 import { RINGS } from './equipment.js';
 import { TOTAL_CHAPTERS } from './constants.js';
 
@@ -233,6 +235,18 @@ export function drawPauseScreen(ctx, W, H) {
       dbg.noDmgToEnemy = !dbg.noDmgToEnemy;
       saveDebug(dbg);
     }});
+    rowY += toggleH + 6 * s;
+
+    // Camera mode toggle (ortho / perspective)
+    const ortho = isOrthoCamera();
+    ctx.fillStyle = ortho ? '#3498db' : '#9b59b6';
+    ctx.font = font(W, 10);
+    ctx.textAlign = 'left';
+    ctx.fillText('Camera: ' + (ortho ? 'Orthographic' : 'Perspective'), pad + 10 * s, rowY + toggleH / 2);
+    drawToggle(ctx, dbgTogX, rowY, toggleW, toggleH, ortho, s);
+    pauseClickRegions.push({ x: pad, y: rowY - 2, w: W - pad * 2, h: toggleH + 4, action: () => {
+      toggleCamera();
+    }});
     rowY += toggleH + 12 * s;
 
     // Debug action buttons
@@ -331,6 +345,14 @@ export function drawPauseScreen(ctx, W, H) {
         const cur = p.skills[skill.id] || 0;
         p.skills[skill.id] = cur >= skill.maxStacks ? 0 : cur + 1;
         rebuildPlayerFromSkills();
+        rebuildOrbitals();
+        // Persist debug skills so they survive refresh
+        saveLastRun(game.chapter, game.stage, {
+          skills: { ...p.skills },
+          level: p.level,
+          xp: p.xp,
+          xpToNext: p.xpToNext,
+        });
       }});
     }
   });

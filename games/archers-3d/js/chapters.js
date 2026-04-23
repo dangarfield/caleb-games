@@ -10,13 +10,13 @@ import { getChapterConfig } from './mapData.js';
 // Ch0 (Tutorial) shares Ch1's theme.
 export const CHAPTER_THEMES = [
   // Ch0 - Tutorial (same as Ch1)
-  { floor: '#1a3d1a', floorGrid: 'rgba(60,120,60,0.08)', floorAccent: '#0d2b0d',
+  { floor: '#6abf5a', floorGrid: 'rgba(0,0,0,0.15)', floorAccent: '#55a848',
     wall: '#5a5a5a', wallStroke: '#787878', wallDetail: '#444444',
     door: '#5a3a1e', doorStroke: '#8a6a3e', doorBars: '#4a2e14',
     doorGlow: '#90ee90', boundary: '#0d1f0d', boundaryEdge: 'rgba(60,120,60,0.25)',
     boundaryDetail: 'rgba(40,80,40,0.15)' },
   // Ch1 - Verdant Prairie
-  { floor: '#1a3d1a', floorGrid: 'rgba(60,120,60,0.08)', floorAccent: '#0d2b0d',
+  { floor: '#6abf5a', floorGrid: 'rgba(0,0,0,0.15)', floorAccent: '#55a848',
     wall: '#5a5a5a', wallStroke: '#787878', wallDetail: '#444444',
     door: '#5a3a1e', doorStroke: '#8a6a3e', doorBars: '#4a2e14',
     doorGlow: '#90ee90', boundary: '#0d1f0d', boundaryEdge: 'rgba(60,120,60,0.25)',

@@ -1155,6 +1155,14 @@ export function drawGameOver(ctx, W, H) {
   const s = sc(W);
   const pad = 16 * s;
 
+  // Fade in over 0.5s
+  if (!game._deadFadeTimer) game._deadFadeTimer = 0;
+  game._deadFadeTimer = Math.min(game._deadFadeTimer + 1 / 60, 0.5);
+  const fadeAlpha = Math.min(game._deadFadeTimer / 0.5, 1);
+
+  ctx.save();
+  ctx.globalAlpha = fadeAlpha;
+
   ctx.fillStyle = 'rgba(0,0,0,0.6)';
   ctx.fillRect(0, 0, W, H);
 
@@ -1202,6 +1210,8 @@ export function drawGameOver(ctx, W, H) {
   ctx.font = fontB(W, 16);
   ctx.fillText('Back to Armoury', W / 2, armoryY + btnH / 2);
   addClickRegion(bx, armoryY, btnW, btnH, () => { game.returnToEquip = true; });
+
+  ctx.restore(); // fade alpha
 }
 
 // ========== SKILL INFO SCREEN ==========

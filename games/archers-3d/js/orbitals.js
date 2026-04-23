@@ -22,9 +22,10 @@ export function rebuildOrbitals() {
   if (!p) return;
   game.orbitals = [];
 
-  // Circles
+  // Circles — 2 orbs per skill stack, placed opposite each other
   for (const [elem, count] of Object.entries(p.circles)) {
     for (let i = 0; i < count; i++) {
+      game.orbitals.push({ type: 'circle', element: elem, angle: 0, hitCooldowns: new Map(), dmgTimer: 0 });
       game.orbitals.push({ type: 'circle', element: elem, angle: 0, hitCooldowns: new Map(), dmgTimer: 0 });
     }
   }
@@ -41,7 +42,42 @@ export function rebuildOrbitals() {
     game.orbitals.push({ type: 'shield', element: 'ice', angle: 0, hitCooldowns: new Map(), dmgTimer: 0 });
   }
 
-  // Spread angles evenly
+  // Spread angles evenly, maximally separating similar orbitals
+  // Group by type, then interleave types, alternating elements within each type
+  const byType = new Map(); // type → [orbitals...]
+  for (const o of game.orbitals) {
+    if (!byType.has(o.type)) byType.set(o.type, []);
+    byType.get(o.type).push(o);
+  }
+  // Within each type, sort so same elements aren't adjacent (round-robin by element)
+  for (const [, arr] of byType) {
+    const byElem = new Map();
+    for (const o of arr) {
+      if (!byElem.has(o.element)) byElem.set(o.element, []);
+      byElem.get(o.element).push(o);
+    }
+    const elemArrays = [...byElem.values()];
+    arr.length = 0;
+    let maxE = 0;
+    for (const ea of elemArrays) maxE = Math.max(maxE, ea.length);
+    for (let r = 0; r < maxE; r++) {
+      for (const ea of elemArrays) {
+        if (r < ea.length) arr.push(ea[r]);
+      }
+    }
+  }
+  // Interleave types: round-robin across type groups
+  const typeArrays = [...byType.values()];
+  const sorted = [];
+  let maxLen = 0;
+  for (const arr of typeArrays) maxLen = Math.max(maxLen, arr.length);
+  for (let round = 0; round < maxLen; round++) {
+    for (const arr of typeArrays) {
+      if (round < arr.length) sorted.push(arr[round]);
+    }
+  }
+  game.orbitals = sorted;
+
   const n = game.orbitals.length;
   game.orbitals.forEach((o, i) => {
     o.angle = (Math.PI * 2 / n) * i;
@@ -110,7 +146,7 @@ export function updateOrbitals(dt) {
               // small chain
               for (const other of game.enemies) {
                 if (other !== e && dist(e.x, e.y, other.x, other.y) < 1.32 * T()) {
-                  other.hp -= dmgVar(4 * elemDmgMult);
+                  if (!game.debug.noDmgToEnemy) other.hp -= dmgVar(4 * elemDmgMult);
                   spawnParticles(other.x, other.y, '#ffd32a', 1, 40);
                   break;
                 }
@@ -126,7 +162,7 @@ export function updateOrbitals(dt) {
             if (o.element === 'bolt') {
               for (const other of game.enemies) {
                 if (other !== e && dist(e.x, e.y, other.x, other.y) < 1.54 * T()) {
-                  other.hp -= dmgVar(6 * elemDmgMult);
+                  if (!game.debug.noDmgToEnemy) other.hp -= dmgVar(6 * elemDmgMult);
                   spawnParticles(other.x, other.y, '#ffd32a', 2, 50);
                   break;
                 }
@@ -135,7 +171,7 @@ export function updateOrbitals(dt) {
           }
 
           if (dmg > 0) {
-            e.hp -= dmgVar(dmg);
+            if (!game.debug.noDmgToEnemy) e.hp -= dmgVar(dmg);
             spawnParticles(ox, oy, color, 2, 50);
           }
         }
