@@ -1,6 +1,6 @@
 import { game } from './state.js';
 import { BULLET_SPEED, BULLET_R, BASE_SHOOT_CD, ENEMY_BULLET_SPEED, ENEMY_BULLET_R, PLAYER_R } from './constants.js';
-import { dist, circRect, clamp, dmgVar } from './utils.js';
+import { dist, circRect, clamp, dmgVar, lineHitsRect } from './utils.js';
 import { arena, T } from './arena.js';
 import { sfxShoot, sfxHit, sfxEnemyShoot, sfxPlayerHit } from './audio.js';
 import { spawnParticles, spawnDmgNumber } from './particles.js';
@@ -20,15 +20,24 @@ export function updateShooting(dt) {
 
   if (!input.moving && game.enemies.length > 0 && game.shootTimer <= 0) {
     game.shootTimer = shootCD;
-    // Find nearest enemy
+    // Find nearest enemy with clear line of sight (fallback to nearest overall)
     let nearest = null, nd = Infinity;
+    let nearestClear = null, ncd = Infinity;
     for (const e of game.enemies) {
       if (e._spawnTimer > 0 || e._underground) continue;
       const d = dist(p.x, p.y, e.x, e.y);
       if (d < nd) { nd = d; nearest = e; }
+      if (d < ncd) {
+        let blocked = false;
+        for (const ob of game.obstacles) {
+          if (lineHitsRect(p.x, p.y, e.x, e.y, ob.x, ob.y, ob.w, ob.h)) { blocked = true; break; }
+        }
+        if (!blocked) { ncd = d; nearestClear = e; }
+      }
     }
-    if (nearest) {
-      const ang = Math.atan2(nearest.y - p.y, nearest.x - p.x);
+    const target = nearestClear || nearest;
+    if (target) {
+      const ang = Math.atan2(target.y - p.y, target.x - p.x);
       let effectiveDmgMult = p.dmgMult;
       // Rage: damage scales with missing HP (proportional)
       if (p.rage) {

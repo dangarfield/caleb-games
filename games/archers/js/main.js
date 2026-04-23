@@ -1,6 +1,6 @@
 import { game } from './state.js';
 import { PLAYER_R, PLAYER_BASE_SPEED, CRYSTAL_R, BULLET_R, ENEMY_BULLET_R, STAGES_PER_CHAPTER, TOTAL_CHAPTERS, BULLET_SPEED, BASE_SHOOT_CD } from './constants.js';
-import { dist, clamp, pushOutRect, fmt, dmgVar } from './utils.js';
+import { dist, clamp, pushOutRect, fmt, dmgVar, lineHitsRect } from './utils.js';
 import { arena, T } from './arena.js';
 import { ensureAudio, sfxStageClear, sfxGameOver, sfxChapterClear, sfxPlayerHit } from './audio.js';
 import { saveBest, saveCoins, getCoins, saveChaptersCleared, getChaptersCleared, loadDebug, saveLastRun, clearLastRun, getLastRun } from './storage.js';
@@ -197,6 +197,7 @@ function nextStage() {
   game.starProjectiles = [];
   game.meteorProjectiles = [];
   game.clones = [];
+  game._cloneTrail = [];
   game._delayedBullets = [];
   game.specialEntities = [];
   game.deferredEntities = [];
@@ -342,7 +343,7 @@ function applyMapLayout(parsed, stageType) {
       game.deferredEntities.push({ type: 'angel', x: cx, y: cy, r: 36 });
       if (stageType === 'angel') {
         // Angel stages have no enemies, spawn immediately
-        game.specialEntities.push({ type: 'angel', x: cx, y: cy, r: 36 });
+        game.specialEntities.push({ type: 'angel', x: cx, y: cy, r: 36, _spawnTime: performance.now() / 1000 });
         game.skipExitSpawns = true;
       }
     } else if (ent.typeKey === '_chest') {
@@ -376,7 +377,9 @@ function applyMapLayout(parsed, stageType) {
 
 function spawnExitEntities() {
   // Spawn deferred entities from map (angels placed at map positions)
+  const now = performance.now() / 1000;
   for (const de of game.deferredEntities || []) {
+    de._spawnTime = now;
     game.specialEntities.push(de);
   }
   game.deferredEntities = [];
@@ -398,11 +401,19 @@ function update(dt) {
   if (game.iFrames > 0) game.iFrames -= dt;
   if (game.stageIndicatorTimer > 0) game.stageIndicatorTimer -= dt;
 
-  // Move player (apply speed aura dynamically)
+  // Move player (apply speed aura dynamically, with subtle easing)
   const speedAuraBonus = p._speedAuraActive ? 0.6 * p.speedAuraStacks : 0;
   const pSpeed = PLAYER_BASE_SPEED * T() * (p.speedMult + speedAuraBonus);
-  p.x += input.dx * pSpeed * dt;
-  p.y += input.dy * pSpeed * dt;
+  const targetVx = input.dx * pSpeed;
+  const targetVy = input.dy * pSpeed;
+  if (!p._vx) p._vx = 0;
+  if (!p._vy) p._vy = 0;
+  const accel = input.moving ? 18 : 24; // accelerate slightly slower than decelerate
+  const ease = 1 - Math.exp(-accel * dt);
+  p._vx += (targetVx - p._vx) * ease;
+  p._vy += (targetVy - p._vy) * ease;
+  p.x += p._vx * dt;
+  p.y += p._vy * dt;
   const pr = PLAYER_R * T();
   p.x = clamp(p.x, a.x + pr, a.x + a.w - pr);
   // Allow player to move up into door area when door is open
@@ -486,22 +497,53 @@ function update(dt) {
   updateOrbitals(dt);
   updateSummons(dt);
 
-  // Shadow clone
+  // Shadow clone - follows player with a delay
   if (p.shadowClones > 0) {
+    // Maintain position trail (only record when player moves)
+    if (!game._cloneTrail) game._cloneTrail = [];
+    const lastTrail = game._cloneTrail[game._cloneTrail.length - 1];
+    if (!lastTrail || Math.abs(p.x - lastTrail.x) > 0.5 || Math.abs(p.y - lastTrail.y) > 0.5) {
+      game._cloneTrail.push({ x: p.x, y: p.y });
+    }
+    const trailDelay = 12; // frames of delay
+    if (game._cloneTrail.length > trailDelay + 10) {
+      game._cloneTrail.splice(0, game._cloneTrail.length - trailDelay - 10);
+    }
+    // Clone reads from the delayed position, or stays at last known spot
+    if (game._cloneTrail.length > trailDelay) {
+      const trailIdx = game._cloneTrail.length - 1 - trailDelay;
+      game._cloneX = game._cloneTrail[trailIdx].x;
+      game._cloneY = game._cloneTrail[trailIdx].y;
+    } else if (game._cloneX === undefined) {
+      // Initial position: offset from player
+      game._cloneX = p.x - 1.1 * T();
+      game._cloneY = p.y + 0.44 * T();
+    }
+
     if (!game.cloneShootTimer) game.cloneShootTimer = 0;
     game.cloneShootTimer -= dt;
     const cloneInput = getInput();
     if (!cloneInput.moving && game.enemies.length > 0 && game.cloneShootTimer <= 0) {
-      game.cloneShootTimer = BASE_SHOOT_CD * p.cdMult * 1.2; // slightly slower than player
-      const cloneX = p.x - 1.1 * T();
-      const cloneY = p.y + 0.44 * T();
+      game.cloneShootTimer = BASE_SHOOT_CD * p.cdMult * 1.2;
+      const cloneX = game._cloneX;
+      const cloneY = game._cloneY;
       let nearest = null, nd = Infinity;
+      let nearestClear = null, ncd = Infinity;
       for (const e of game.enemies) {
+        if (e._spawnTimer > 0 || e._underground) continue;
         const d = dist(cloneX, cloneY, e.x, e.y);
         if (d < nd) { nd = d; nearest = e; }
+        if (d < ncd) {
+          let blocked = false;
+          for (const ob of game.obstacles) {
+            if (lineHitsRect(cloneX, cloneY, e.x, e.y, ob.x, ob.y, ob.w, ob.h)) { blocked = true; break; }
+          }
+          if (!blocked) { ncd = d; nearestClear = e; }
+        }
       }
-      if (nearest) {
-        const ang = Math.atan2(nearest.y - cloneY, nearest.x - cloneX);
+      const cloneTarget = nearestClear || nearest;
+      if (cloneTarget) {
+        const ang = Math.atan2(cloneTarget.y - cloneY, cloneTarget.x - cloneX);
         const cloneDmg = 10 * p.dmgMult * 0.5;
         game.bullets.push({
           x: cloneX + Math.cos(ang) * 0.44 * T(),
@@ -555,9 +597,11 @@ function update(dt) {
     magnetAllCrystals(dt);
     magnetAllHearts(dt);
 
-    // Touch detection for angel
+    // Touch detection for angel (skip during entrance animation)
+    const nowSec = performance.now() / 1000;
     for (let i = game.specialEntities.length - 1; i >= 0; i--) {
       const se = game.specialEntities[i];
+      if (se._spawnTime && nowSec - se._spawnTime < 0.8) continue;
       if (dist(p.x, p.y, se.x, se.y) < PLAYER_R * T() + se.r) {
         // Open 2-choice skill panel (angel blessing) — discard any pending XP level-ups
         game._pendingLevelUps = 0;
@@ -1074,7 +1118,19 @@ function draw() {
   // Special entities (angel)
   const drawTime = performance.now() / 1000;
   for (const se of game.specialEntities) {
-    if (se.type === 'angel') drawAngel(ctx, se.x, se.y, se.r, drawTime);
+    if (se.type === 'angel') {
+      const animDur = 0.8; // seconds to fly in
+      const elapsed = se._spawnTime ? drawTime - se._spawnTime : animDur;
+      const t = Math.min(elapsed / animDur, 1);
+      // Ease out cubic
+      const ease = 1 - Math.pow(1 - t, 3);
+      const offsetY = (1 - ease) * -200;
+      const alpha = ease;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      drawAngel(ctx, se.x, se.y + offsetY, se.r, drawTime);
+      ctx.restore();
+    }
   }
 
   // Blaze ground indicators (drawn under enemies)
@@ -1190,15 +1246,13 @@ function draw() {
     ctx.textBaseline = 'middle';
     ctx.fillText(hpText, p.x, textBgY + textBgH / 2);
 
-    // Shadow clone
-    if (p.shadowClones > 0) {
-      const cloneOffX = -1.1 * T();
-      const cloneOffY = 0.44 * T();
+    // Shadow clone (follows player with delay)
+    if (p.shadowClones > 0 && game._cloneX !== undefined) {
       ctx.save();
       ctx.globalAlpha = 0.35;
       ctx.fillStyle = '#6c5ce7';
       ctx.beginPath();
-      ctx.arc(p.x + cloneOffX, p.y + cloneOffY, PLAYER_R * T() * 0.85, 0, Math.PI * 2);
+      ctx.arc(game._cloneX, game._cloneY, PLAYER_R * T() * 0.85, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }

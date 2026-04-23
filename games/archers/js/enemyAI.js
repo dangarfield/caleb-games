@@ -280,7 +280,7 @@ function aiSpinCharge(e, p, dt) {
   }
 }
 
-function aiBounce(e, p, dt, a) {
+function aiBounce(e, p, dt, a, obstacles) {
   const params = e.aiParams || {};
   const spd = params.bounceSpeed || 3.96 * T();
 
@@ -299,6 +299,25 @@ function aiBounce(e, p, dt, a) {
   if (e.x + e.r > a.x + a.w) { e.x = a.x + a.w - e.r; e._bvx = -Math.abs(e._bvx); }
   if (e.y - e.r < a.y) { e.y = a.y + e.r; e._bvy = Math.abs(e._bvy); }
   if (e.y + e.r > a.y + a.h) { e.y = a.y + a.h - e.r; e._bvy = -Math.abs(e._bvy); }
+
+  // Bounce off obstacles
+  if (obstacles) {
+    for (const ob of obstacles) {
+      const pushed = pushOutRect(e.x, e.y, e.r, ob.x, ob.y, ob.w, ob.h);
+      if (pushed) {
+        const dx = pushed.x - e.x;
+        const dy = pushed.y - e.y;
+        e.x = pushed.x;
+        e.y = pushed.y;
+        // Reflect velocity based on push direction
+        if (Math.abs(dx) > Math.abs(dy)) {
+          e._bvx = dx > 0 ? Math.abs(e._bvx) : -Math.abs(e._bvx);
+        } else {
+          e._bvy = dy > 0 ? Math.abs(e._bvy) : -Math.abs(e._bvy);
+        }
+      }
+    }
+  }
 }
 
 function aiBurrow(e, p, dt, a) {

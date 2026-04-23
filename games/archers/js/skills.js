@@ -18,9 +18,9 @@ export const CATEGORY_ICONS = {
 // unlockChapter: the chapter from which this skill can appear in level-up rolls
 export const ALL_SKILLS = [
   // ── Arrow (8) ──
-  { id: 'multishot', name: 'Multishot', desc: '+1 arrow (-10% dmg, -15% speed)', icon: '\u{1F3AF}', maxStacks: 3, unlockChapter: 2, category: 'Arrow',
+  { id: 'multishot', name: 'Multishot', desc: '+1 arrow (-10% dmg, -15% speed)', icon: '\u{1F3AF}', maxStacks: 3, unlockChapter: 1, category: 'Arrow',
     onPick(p) { p.extraShots += 1; p.dmgMult *= 0.9; p.cdMult *= (1 / 0.85); } },
-  { id: 'frontArrow', name: 'Front Arrow +1', desc: '+1 front arrow (-25% dmg all)', icon: '\u2B06\uFE0F', maxStacks: 2, unlockChapter: 2, category: 'Arrow',
+  { id: 'frontArrow', name: 'Front Arrow +1', desc: '+1 front arrow (-25% dmg all)', icon: '\u2B06\uFE0F', maxStacks: 2, unlockChapter: 1, category: 'Arrow',
     onPick(p) { p.frontArrows = (p.frontArrows || 0) + 1; p.dmgMult *= 0.75; } },
   { id: 'diagonalArrows', name: 'Diagonal Arrows +1', desc: 'Fire 2 diagonal arrows', icon: '\u2197\uFE0F', maxStacks: 1, unlockChapter: 3, category: 'Arrow',
     onPick(p) { p.diagonalArrows = true; } },
@@ -28,7 +28,7 @@ export const ALL_SKILLS = [
     onPick(p) { p.sideArrows = true; } },
   { id: 'rearArrow', name: 'Rear Arrow +1', desc: 'Fire backwards too', icon: '\u2B07\uFE0F', maxStacks: 1, unlockChapter: 3, category: 'Arrow',
     onPick(p) { p.rearShot = true; } },
-  { id: 'pierce', name: 'Piercing Shot', desc: 'Pierce +1 enemy (-33% per pierce)', icon: '\u{1F4A0}', maxStacks: 3, unlockChapter: 2, category: 'Arrow',
+  { id: 'pierce', name: 'Piercing Shot', desc: 'Pierce +1 enemy (-33% per pierce)', icon: '\u{1F4A0}', maxStacks: 3, unlockChapter: 1, category: 'Arrow',
     onPick(p) { p.pierce += 1; } },
   { id: 'bouncy', name: 'Bouncy Wall', desc: 'Arrows bounce off walls (-50% per bounce)', icon: '\u{1F4AB}', maxStacks: 1, unlockChapter: 4, category: 'Arrow',
     onPick(p) { p.bouncy = true; } },
@@ -36,9 +36,9 @@ export const ALL_SKILLS = [
     onPick(p) { p.ricochet = true; } },
 
   // ── Elemental (7) ──
-  { id: 'blaze', name: 'Blaze', desc: 'Arrows ignite enemies (fire DoT)', icon: '\u{1F525}', maxStacks: 1, unlockChapter: 2, category: 'Elemental',
+  { id: 'blaze', name: 'Blaze', desc: 'Arrows ignite enemies (fire DoT)', icon: '\u{1F525}', maxStacks: 1, unlockChapter: 1, category: 'Elemental',
     onPick(p) { p.blaze = true; } },
-  { id: 'freeze', name: 'Freeze', desc: 'Chance to freeze + deal ice damage', icon: '\u2744\uFE0F', maxStacks: 1, unlockChapter: 2, category: 'Elemental',
+  { id: 'freeze', name: 'Freeze', desc: 'Chance to freeze + deal ice damage', icon: '\u2744\uFE0F', maxStacks: 1, unlockChapter: 1, category: 'Elemental',
     onPick(p) { p.freeze = true; } },
   { id: 'poisonTouch', name: 'Poison Touch', desc: 'Arrows poison enemies (poison DoT)', icon: '\u2620\uFE0F', maxStacks: 1, unlockChapter: 3, category: 'Elemental',
     onPick(p) { p.poisonTouch = true; } },
@@ -59,22 +59,16 @@ export const ALL_SKILLS = [
   { id: 'chillingBlast', name: 'Chilling Blast', desc: 'Frozen enemies AoE freeze on death', icon: '\u{1F9CA}', maxStacks: 1, unlockChapter: 3, category: 'Explosive',
     onPick(p) { p.chillingBlast = true; } },
 
-  // ── Boost (6) ──
-  { id: 'atkBoostMajor', name: 'Attack Boost+', desc: '+30% damage', icon: '\u2694\uFE0F', maxStacks: 5, unlockChapter: 1, category: 'Boost',
-    onPick(p) { p.dmgMult += 0.3; } },
-  { id: 'atkBoostMinor', name: 'Attack Boost', desc: '+15% damage', icon: '\u{1F5E1}\uFE0F', maxStacks: 10, unlockChapter: 1, category: 'Boost',
-    onPick(p) { p.dmgMult += 0.15; } },
-  { id: 'atkSpdMajor', name: 'Attack Speed+', desc: '+25% attack speed', icon: '\u{1F3F9}', maxStacks: 5, unlockChapter: 1, category: 'Boost',
-    onPick(p) { p.cdMult *= 0.75; } },
-  { id: 'atkSpdMinor', name: 'Attack Speed', desc: '+12% attack speed', icon: '\u{1F52B}', maxStacks: 10, unlockChapter: 1, category: 'Boost',
-    onPick(p) { p.cdMult *= 0.88; } },
-  { id: 'critMajor', name: 'Crit Master+', desc: '+10% crit, +40% crit dmg', icon: '\u{1F48E}', maxStacks: 3, unlockChapter: 3, category: 'Boost',
-    onPick(p) { p.critChance += 0.10; p.critDmg = (p.critDmg || 2) + 0.4; } },
-  { id: 'critMinor', name: 'Crit Master', desc: '+5% crit, +20% crit dmg', icon: '\u2728', maxStacks: 5, unlockChapter: 2, category: 'Boost',
-    onPick(p) { p.critChance += 0.05; p.critDmg = (p.critDmg || 2) + 0.2; } },
+  // ── Boost (3) ──
+  { id: 'atkBoostMinor', name: 'Attack Boost', desc: '+20% damage', icon: '\u{1F5E1}\uFE0F', maxStacks: 5, unlockChapter: 1, category: 'Boost',
+    onPick(p) { p.dmgMult += 0.2; } },
+  { id: 'atkSpdMinor', name: 'Attack Speed', desc: '+15% attack speed', icon: '\u{1F52B}', maxStacks: 5, unlockChapter: 1, category: 'Boost',
+    onPick(p) { p.cdMult *= 0.85; } },
+  { id: 'critMinor', name: 'Crit Master', desc: '+8% crit, +25% crit dmg', icon: '\u2728', maxStacks: 5, unlockChapter: 1, category: 'Boost',
+    onPick(p) { p.critChance += 0.08; p.critDmg = (p.critDmg || 2) + 0.25; } },
 
   // ── Plus (4) - Reward for clearing a room without damage ──
-  { id: 'hpPlus', name: 'HP Plus', desc: '+2.2% HP on no-damage rooms', icon: '\u2764\uFE0F\u200D\u{1F525}', maxStacks: 3, unlockChapter: 2, category: 'Plus',
+  { id: 'hpPlus', name: 'HP Plus', desc: '+2.2% HP on no-damage rooms', icon: '\u2764\uFE0F\u200D\u{1F525}', maxStacks: 3, unlockChapter: 1, category: 'Plus',
     onPick(p) { p.hpPlusStacks = (p.hpPlusStacks || 0) + 1; } },
   { id: 'atkPlus', name: 'Attack Plus', desc: '+2.25% ATK on no-damage rooms', icon: '\u2694\uFE0F', maxStacks: 3, unlockChapter: 3, category: 'Plus',
     onPick(p) { p.atkPlusStacks = (p.atkPlusStacks || 0) + 1; } },
@@ -86,7 +80,7 @@ export const ALL_SKILLS = [
   // ── Aura (3) - Activate for current room + next 2 rooms ──
   { id: 'hpGainAura', name: 'HP Gain Aura', desc: 'Regenerate 1 HP/sec', icon: '\u{1F49A}', maxStacks: 3, unlockChapter: 3, category: 'Aura',
     onPick(p) { p.hpRegen = (p.hpRegen || 0) + 1; } },
-  { id: 'speedAura', name: 'Speed Aura', desc: '+60% speed for 3 rooms', icon: '\u{1F4A8}', maxStacks: 3, unlockChapter: 2, category: 'Aura',
+  { id: 'speedAura', name: 'Speed Aura', desc: '+60% speed for 3 rooms', icon: '\u{1F4A8}', maxStacks: 3, unlockChapter: 1, category: 'Aura',
     onPick(p) { p.speedAuraStacks = (p.speedAuraStacks || 0) + 1; } },
   { id: 'critAura', name: 'Crit Aura', desc: '+45% crit for 3 rooms', icon: '\u{1F534}', maxStacks: 3, unlockChapter: 4, category: 'Aura',
     onPick(p) { p.critAuraStacks = (p.critAuraStacks || 0) + 1; } },
@@ -98,11 +92,11 @@ export const ALL_SKILLS = [
     onPick(p) { p.shieldGuards = (p.shieldGuards || 0) + 1; } },
 
   // ── Health (4) ──
-  { id: 'hpBoost', name: 'HP Boost', desc: '+20% max HP & heal', icon: '\u2764\uFE0F', maxStacks: 10, unlockChapter: 1, category: 'Health',
+  { id: 'hpBoost', name: 'HP Boost', desc: '+20% max HP & heal', icon: '\u2764\uFE0F', maxStacks: 5, unlockChapter: 1, category: 'Health',
     onPick(p) { const gain = Math.floor(p.maxHp * 0.2); p.maxHp += gain; p.hp = Math.min(p.hp + gain, p.maxHp); } },
-  { id: 'strongHeart', name: 'Strong Heart', desc: '+40% heart heal & drop rate', icon: '\u{1F497}', maxStacks: 3, unlockChapter: 2, category: 'Health',
+  { id: 'strongHeart', name: 'Strong Heart', desc: '+40% heart heal & drop rate', icon: '\u{1F497}', maxStacks: 3, unlockChapter: 1, category: 'Health',
     onPick(p) { p.heartHealMult = (p.heartHealMult || 1) + 0.4; p.heartDropChance = (p.heartDropChance || 0) + 0.03; } },
-  { id: 'heal', name: 'Heal', desc: 'Heal 40% HP now', icon: '\u{1FA79}', maxStacks: 99, unlockChapter: 1, category: 'Health',
+  { id: 'heal', name: 'Heal', desc: 'Heal 40% HP now', icon: '\u{1FA79}', maxStacks: 1, instant: true, unlockChapter: 1, category: 'Health',
     onPick(p) { p.hp = Math.min(p.hp + Math.floor(p.maxHp * 0.4), p.maxHp); } },
   { id: 'bloodthirst', name: 'Bloodthirst', desc: 'Heal 1.5% base HP per kill', icon: '\u{1FA78}', maxStacks: 3, unlockChapter: 3, category: 'Health',
     onPick(p) { p.healOnKillPct = (p.healOnKillPct || 0) + 0.015; } },
@@ -120,13 +114,13 @@ export const ALL_SKILLS = [
     onPick(p) { p.circles.obsidian = (p.circles.obsidian || 0) + 1; } },
 
   // ── Sword (4) - Orbiting swords, 100% dmg ──
-  { id: 'fireSword', name: 'Fire Sword', desc: 'Orbiting fire sword', icon: '\u{1F5E1}\uFE0F', maxStacks: 1, unlockChapter: 2, category: 'Sword',
+  { id: 'fireSword', name: 'Fire Sword', desc: 'Orbiting fire sword', icon: '\u{1F5E1}\uFE0F', maxStacks: 1, unlockChapter: 1, category: 'Sword',
     onPick(p) { p.swords.fire = (p.swords.fire || 0) + 1; } },
-  { id: 'iceSword', name: 'Ice Sword', desc: 'Orbiting ice sword', icon: '\u{1F5E1}\uFE0F', maxStacks: 1, unlockChapter: 2, category: 'Sword',
+  { id: 'iceSword', name: 'Ice Sword', desc: 'Orbiting ice sword', icon: '\u{1F5E1}\uFE0F', maxStacks: 1, unlockChapter: 1, category: 'Sword',
     onPick(p) { p.swords.ice = (p.swords.ice || 0) + 1; } },
-  { id: 'poisonSword', name: 'Poison Sword', desc: 'Orbiting poison sword', icon: '\u{1F5E1}\uFE0F', maxStacks: 1, unlockChapter: 2, category: 'Sword',
+  { id: 'poisonSword', name: 'Poison Sword', desc: 'Orbiting poison sword', icon: '\u{1F5E1}\uFE0F', maxStacks: 1, unlockChapter: 1, category: 'Sword',
     onPick(p) { p.swords.poison = (p.swords.poison || 0) + 1; } },
-  { id: 'boltSword', name: 'Bolt Sword', desc: 'Orbiting bolt sword', icon: '\u{1F5E1}\uFE0F', maxStacks: 1, unlockChapter: 2, category: 'Sword',
+  { id: 'boltSword', name: 'Bolt Sword', desc: 'Orbiting bolt sword', icon: '\u{1F5E1}\uFE0F', maxStacks: 1, unlockChapter: 1, category: 'Sword',
     onPick(p) { p.swords.bolt = (p.swords.bolt || 0) + 1; } },
 
   // ── Strike (4) - Summoned swords, 150% dmg ──
@@ -172,7 +166,7 @@ export const ALL_SKILLS = [
   // ── Other ──
   { id: 'headshot', name: 'Headshot', desc: '12.5% instant kill chance', icon: '\u{1F3AA}', maxStacks: 1, unlockChapter: 6, category: 'Other',
     onPick(p) { p.headshot = true; } },
-  { id: 'smart', name: 'Smart', desc: '+30% XP, +2 max level', icon: '\u{1F9E0}', maxStacks: 3, unlockChapter: 2, category: 'Other',
+  { id: 'smart', name: 'Smart', desc: '+30% XP, +2 max level', icon: '\u{1F9E0}', maxStacks: 3, unlockChapter: 1, category: 'Other',
     onPick(p) { p.xpMult = (p.xpMult || 1) + 0.3; p.maxLevelBonus = (p.maxLevelBonus || 0) + 2; } },
   { id: 'greed', name: 'Greed', desc: '+25% gems, enemies +20% dmg', icon: '\u{1F4B0}', maxStacks: 2, unlockChapter: 3, category: 'Other',
     onPick(p) { p.greedMult = (p.greedMult || 1) + 0.25; p.greedDmgTaken = (p.greedDmgTaken || 1) + 0.2; } },
@@ -194,7 +188,7 @@ export const ALL_SKILLS = [
 
 export function getAvailableSkills(player) {
   return ALL_SKILLS.filter(s =>
-    (player.skills[s.id] || 0) < s.maxStacks &&
+    (s.instant || (player.skills[s.id] || 0) < s.maxStacks) &&
     game.chapter >= (s.unlockChapter || 1)
   );
 }
@@ -210,7 +204,9 @@ export function pickSkill(index) {
   if (index < 0 || index >= game.levelUpChoices.length) return;
   const skill = game.levelUpChoices[index];
   const p = game.player;
-  p.skills[skill.id] = (p.skills[skill.id] || 0) + 1;
+  if (!skill.instant) {
+    p.skills[skill.id] = (p.skills[skill.id] || 0) + 1;
+  }
   skill.onPick(p);
   game.levelUpChoices = [];
 

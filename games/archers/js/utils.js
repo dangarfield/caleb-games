@@ -27,6 +27,33 @@ export function pushOutRect(cx, cy, cr, rx, ry, rw, rh) {
   return null;
 }
 
+// Does line segment (x1,y1)->(x2,y2) intersect axis-aligned rect?
+export function lineHitsRect(x1, y1, x2, y2, rx, ry, rw, rh) {
+  let tMin = 0, tMax = 1;
+  const dx = x2 - x1, dy = y2 - y1;
+  // Check X slab
+  if (Math.abs(dx) < 1e-8) {
+    if (x1 < rx || x1 > rx + rw) return false;
+  } else {
+    let t1 = (rx - x1) / dx, t2 = (rx + rw - x1) / dx;
+    if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
+    tMin = Math.max(tMin, t1);
+    tMax = Math.min(tMax, t2);
+    if (tMin > tMax) return false;
+  }
+  // Check Y slab
+  if (Math.abs(dy) < 1e-8) {
+    if (y1 < ry || y1 > ry + rh) return false;
+  } else {
+    let t1 = (ry - y1) / dy, t2 = (ry + rh - y1) / dy;
+    if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
+    tMin = Math.max(tMin, t1);
+    tMax = Math.min(tMax, t2);
+    if (tMin > tMax) return false;
+  }
+  return true;
+}
+
 export function randItem(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
