@@ -116,8 +116,8 @@ function buildBoundary(theme) {
   const a = arena();
   const floorW = worldScale(a.w);
   const floorH = worldScale(a.h);
-  const wallHeight = 1.2;
-  const wallThickness = 0.15;
+  const wallHeight = 3.0;
+  const wallThickness = 0.3;
   const center = gameToWorld(a.w / 2, a.h / 2);
 
   const color = new THREE.Color(theme.boundary || '#0d1f0d');

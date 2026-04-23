@@ -14,14 +14,14 @@ export function initRenderer3D() {
   // Scene
   scene = new THREE.Scene();
   scene.background = new THREE.Color('#0a0a2e');
-  scene.fog = new THREE.Fog('#0a0a2e', 20, 40);
+  scene.fog = new THREE.Fog('#0a0a2e', 30, 60);
 
   // Clock
   clock = new THREE.Clock();
 
-  // Camera — semi-top-down perspective
-  camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 100);
-  camera.position.set(0, 12, 7);
+  // Camera — top-down perspective (fits full arena width, only scrolls vertically)
+  camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 150);
+  camera.position.set(0, 22, 3);
   camera.lookAt(0, 0, 0);
 
   // Renderer
@@ -46,11 +46,11 @@ export function initRenderer3D() {
   dirLight.castShadow = true;
   dirLight.shadow.mapSize.set(1024, 1024);
   dirLight.shadow.camera.near = 1;
-  dirLight.shadow.camera.far = 40;
-  dirLight.shadow.camera.left = -12;
-  dirLight.shadow.camera.right = 12;
-  dirLight.shadow.camera.top = 12;
-  dirLight.shadow.camera.bottom = -12;
+  dirLight.shadow.camera.far = 60;
+  dirLight.shadow.camera.left = -16;
+  dirLight.shadow.camera.right = 16;
+  dirLight.shadow.camera.top = 16;
+  dirLight.shadow.camera.bottom = -16;
   dirLight.shadow.bias = -0.002;
   scene.add(dirLight);
   scene.add(dirLight.target);
@@ -95,22 +95,17 @@ export function updateCamera(playerGameX, playerGameY, dt) {
   if (!camera) return;
   const target = gameToWorld(playerGameX, playerGameY);
 
-  // Smooth ease toward player
+  // Smooth ease toward player (only Z axis, X stays centered on arena)
   const ease = 1 - Math.exp(-4 * dt);
-  _camTargetX += (target.x - _camTargetX) * ease;
   _camTargetZ += (target.z - _camTargetZ) * ease;
 
-  // Camera offset: above and behind (looking down at ~60-65 degrees)
-  camera.position.set(
-    _camTargetX,
-    12,
-    _camTargetZ + 7
-  );
-  camera.lookAt(_camTargetX, 0, _camTargetZ);
+  // Camera: high up, mostly top-down, fixed X at 0 (arena center), only scrolls Z
+  camera.position.set(0, 22, _camTargetZ + 3);
+  camera.lookAt(0, 0, _camTargetZ);
 
   // Move directional light with camera
-  dirLight.position.set(_camTargetX + 5, 15, _camTargetZ + 5);
-  dirLight.target.position.set(_camTargetX, 0, _camTargetZ);
+  dirLight.position.set(5, 20, _camTargetZ + 5);
+  dirLight.target.position.set(0, 0, _camTargetZ);
 
   // Player glow light
   playerLight.position.set(target.x, 1.5, target.z);

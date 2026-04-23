@@ -154,14 +154,14 @@ function acquire(pool) {
 // ─── Enemy bullet style helpers ───
 
 const ENEMY_STYLE_CONFIG = {
-  rock:    { geo: () => geoBox,   color: '#8B7355', scale: 0.07, emissiveIntensity: 0.1, tumble: true },
-  acid:    { geo: () => geoSphere, color: '#2ecc71', scale: 0.055, emissiveIntensity: 0.5, transparent: true, opacity: 0.75 },
+  rock:    { geo: () => geoBox,   color: '#8B7355', scale: 0.3, emissiveIntensity: 0.1, tumble: true },
+  acid:    { geo: () => geoSphere, color: '#2ecc71', scale: 0.25, emissiveIntensity: 0.5, transparent: true, opacity: 0.75 },
   arrow:   { geo: () => geoCone,  color: '#c8a96e', scale: 1, emissiveIntensity: 0.15, useConeGeo: true },
-  fire:    { geo: () => geoSphere, color: '#ff6b2b', scale: 0.06, emissiveIntensity: 0.9 },
-  ice:     { geo: () => geoIcosa, color: '#74b9ff', scale: 0.06, emissiveIntensity: 0.4 },
-  bolt:    { geo: () => geoSphere, color: '#ffd32a', scale: 0.04, emissiveIntensity: 1.2, pointLight: true },
-  skull:   { geo: () => geoSphere, color: '#2d2d2d', scale: 0.055, emissive: '#8e44ad', emissiveIntensity: 0.8 },
-  default: { geo: () => geoSphere, color: '#e74c3c', scale: 0.055, emissiveIntensity: 0.5 },
+  fire:    { geo: () => geoSphere, color: '#ff6b2b', scale: 0.25, emissiveIntensity: 0.9 },
+  ice:     { geo: () => geoIcosa, color: '#74b9ff', scale: 0.25, emissiveIntensity: 0.4 },
+  bolt:    { geo: () => geoSphere, color: '#ffd32a', scale: 0.2, emissiveIntensity: 1.2, pointLight: true },
+  skull:   { geo: () => geoSphere, color: '#2d2d2d', scale: 0.25, emissive: '#8e44ad', emissiveIntensity: 0.8 },
+  default: { geo: () => geoSphere, color: '#e74c3c', scale: 0.25, emissiveIntensity: 0.5 },
 };
 
 // ─── Element colors for orbitals ───
@@ -197,7 +197,7 @@ function initPools() {
   pools.enemyBullets = createPool('enemyBullets', MAX_ENEMY_BULLETS, () => {
     // We'll set geometry/material dynamically per style, but start with a sphere
     const mesh = new THREE.Mesh(geoSphere.clone(), getCachedMaterial('#e74c3c'));
-    mesh.scale.setScalar(0.055);
+    mesh.scale.setScalar(0.25);
     return mesh;
   });
 
@@ -209,7 +209,7 @@ function initPools() {
     const mesh = new THREE.Mesh(geoOcta, getCachedMaterial('#a29bfe', {
       emissive: '#a29bfe', emissiveIntensity: 0.8, metalness: 0.5, roughness: 0.15,
     }));
-    mesh.scale.setScalar(0.06);
+    mesh.scale.setScalar(0.25);
     return mesh;
   });
 
@@ -218,7 +218,7 @@ function initPools() {
     const mesh = new THREE.Mesh(geoSphere, getCachedMaterial('#ff6b81', {
       emissive: '#ff6b81', emissiveIntensity: 0.7, roughness: 0.2,
     }));
-    mesh.scale.setScalar(0.05);
+    mesh.scale.setScalar(0.2);
     return mesh;
   });
 
@@ -226,7 +226,7 @@ function initPools() {
   pools.orbitals = createPool('orbitals', MAX_ORBITALS, () => {
     // Start as a circle; type/material set during sync
     const mesh = new THREE.Mesh(geoSphere, getCachedMaterial('#ff6b2b'));
-    mesh.scale.setScalar(0.05);
+    mesh.scale.setScalar(0.2);
     return mesh;
   });
 
@@ -235,7 +235,7 @@ function initPools() {
     const mesh = new THREE.Mesh(geoTorus, getCachedMaterial('#ff6b2b', {
       emissiveIntensity: 1.0, transparent: true, opacity: 0.8,
     }));
-    mesh.scale.setScalar(0.2);
+    mesh.scale.setScalar(0.8);
     return mesh;
   });
 
@@ -244,7 +244,7 @@ function initPools() {
     const mesh = new THREE.Mesh(geoOcta, getCachedMaterial('#ffd32a', {
       emissiveIntensity: 1.0,
     }));
-    mesh.scale.set(0.05, 0.08, 0.05);
+    mesh.scale.set(0.2, 0.35, 0.2);
     return mesh;
   });
 
@@ -253,7 +253,7 @@ function initPools() {
     const mesh = new THREE.Mesh(geoSphere, getCachedMaterial('#ff6b2b', {
       emissive: '#ff4500', emissiveIntensity: 1.2,
     }));
-    mesh.scale.setScalar(0.12);
+    mesh.scale.setScalar(0.5);
     return mesh;
   });
 
@@ -376,7 +376,7 @@ function syncPlayerBullets() {
     mesh.material = arrowMat;
 
     // Scale based on damage (slightly larger for stronger arrows)
-    const dmgScale = Math.min(1 + (b.dmg || 10) / 80, 1.5);
+    const dmgScale = Math.min(1 + (b.dmg || 10) / 80, 1.5) * 3;
     mesh.scale.set(dmgScale, dmgScale, dmgScale);
 
     // Holy bullets: show ring
@@ -468,7 +468,7 @@ function syncParticles() {
     particleColors[idx3 + 2] = col.b;
 
     // Size: map the 2D radius (in pixels) to a 3D point size
-    const baseSize = worldScale(p.r || 3) * 12;
+    const baseSize = worldScale(p.r || 3) * 50;
     particleSizes[i] = baseSize * lifeRatio;
     particleAlphas[i] = lifeRatio;
   }
@@ -522,7 +522,7 @@ function syncHearts() {
 
     // Gentle pulse
     const pulse = 1 + Math.sin(time * 4 + (h.bobPhase || 0)) * 0.12;
-    mesh.scale.setScalar(0.05 * pulse);
+    mesh.scale.setScalar(0.2 * pulse);
   }
 }
 
@@ -549,12 +549,12 @@ function syncOrbitals() {
     if (o.type === 'circle') {
       mesh.geometry = geoSphere;
       mesh.material = getCachedMaterial(elemColor, { emissiveIntensity: 0.7 });
-      mesh.scale.setScalar(0.055);
+      mesh.scale.setScalar(0.22);
       mesh.rotation.set(0, 0, 0);
     } else if (o.type === 'sword') {
       mesh.geometry = geoSword;
       mesh.material = getCachedMaterial(elemColor, { emissiveIntensity: 0.5, metalness: 0.6, roughness: 0.2 });
-      mesh.scale.set(1, 1, 1);
+      mesh.scale.set(4, 4, 4);
       // Sword points tangent to orbit
       mesh.rotation.set(0, o.angle + PI / 2, PI / 6);
     } else if (o.type === 'shield') {
@@ -563,7 +563,7 @@ function syncOrbitals() {
         emissive: '#4fc3f7', emissiveIntensity: 0.5,
         transparent: true, opacity: 0.45, roughness: 0.1,
       });
-      mesh.scale.setScalar(0.065);
+      mesh.scale.setScalar(0.28);
       mesh.rotation.set(0, 0, 0);
     }
   }
@@ -616,7 +616,7 @@ function syncStarProjectiles() {
 
     // Spin the star
     mesh.rotation.set(time * 5, time * 3, time * 4);
-    mesh.scale.set(0.05, 0.08, 0.05);
+    mesh.scale.set(0.2, 0.35, 0.2);
   }
 }
 
