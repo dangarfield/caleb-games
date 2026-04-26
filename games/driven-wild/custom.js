@@ -23,7 +23,7 @@ const JUMP_BOOST_TARGET = 260;      // ~30% above normal top speed ~200
 const JUMP_LAUNCH_VY = 50;          // upward velocity on launch (big air)
 const JUMP_LANE_HALF_W = 700;       // half a lane width for detection
 
-let jumpZones = [];                  // array of { triggerZ, laneX }
+let jumpZones = [];                  // array of { triggerZ, coveredLanes: [x,...], gapLaneX }
 let jumpFlipActive = false;
 let jumpFlipTime = 0;
 let jumpBoostTimeLeft = 0;
@@ -197,11 +197,16 @@ function placeJumpRamps() {
             const triggerSeg = Math.round(s0 + span * frac + rng.int(-150, 150));
             const triggerZ = triggerSeg * trackSegmentLength;
 
-            // Pick a random lane for this ramp
-            const lane = rng.int(lanes);
-            const laneX = lane * laneWidth - (lanes - 1) * laneWidth / 2;
+            // Pick one lane as the GAP — ramp covers all other lanes
+            const gapLane = rng.int(lanes);
+            const gapLaneX = gapLane * laneWidth - (lanes - 1) * laneWidth / 2;
+            const coveredLanes = [];
+            for (let l = 0; l < lanes; l++) {
+                if (l !== gapLane)
+                    coveredLanes.push(l * laneWidth - (lanes - 1) * laneWidth / 2);
+            }
 
-            // Color a few road segments as approach warning (full width, just visual cue)
+            // Color a few road segments as approach warning
             for (let i = triggerSeg - JUMP_RAMP_ZONE; i <= triggerSeg + 2 && i < track.length; i++) {
                 if (!track[i]) continue;
                 const stripe = Math.floor(i / 2) % 2;
@@ -209,7 +214,7 @@ function placeJumpRamps() {
                 track[i].colorLine = track[i].colorRoad;
             }
 
-            jumpZones.push({ triggerZ, laneX });
+            jumpZones.push({ triggerZ, coveredLanes, gapLaneX });
         }
     }
 }
@@ -227,21 +232,23 @@ function drawJumpRamps() {
         const trackSeg = track[seg];
         if (!trackSeg || !trackSeg.pos) continue;
 
-        // Position in the jump lane
-        const pos = trackSeg.pos.copy();
-        pos.x += jz.laneX;
-        pos.y += 80; // sit on road surface
-
-        // Render ramp: wide as one lane, low, tilted like a ramp
         const pitch = trackSeg.pitch - 0.3;
-        const m = buildMatrix(pos, vec3(pitch, 0, 0), vec3(550, 60, 500));
-        cubeMesh.render(m, hsl(0.12, 1, 0.55));
 
-        // Chevron stripe on top
-        glPolygonOffset(20);
-        const m2 = buildMatrix(pos.add(vec3(0, 30, 0)), vec3(pitch, 0, 0), vec3(400, 30, 350));
-        cubeMesh.render(m2, hsl(0.15, 1, 0.65));
-        glPolygonOffset();
+        // Render a ramp block in each covered lane
+        for (const lx of jz.coveredLanes) {
+            const pos = trackSeg.pos.copy();
+            pos.x += lx;
+            pos.y += 80;
+
+            const m = buildMatrix(pos, vec3(pitch, 0, 0), vec3(550, 60, 500));
+            cubeMesh.render(m, hsl(0.12, 1, 0.55));
+
+            // Chevron stripe on top
+            glPolygonOffset(20);
+            const m2 = buildMatrix(pos.add(vec3(0, 30, 0)), vec3(pitch, 0, 0), vec3(400, 30, 350));
+            cubeMesh.render(m2, hsl(0.15, 1, 0.65));
+            glPolygonOffset();
+        }
     }
 }
 
@@ -543,17 +550,18 @@ PlayerVehicle.prototype.update = function() {
 
     _originalPlayerUpdate.call(this);
 
-    // --- Jump detection: player drives over a ramp in the correct lane ---
+    // --- Jump detection: player drives over ramp (covers all lanes except the gap) ---
     if (!jumpFlipActive && !gameOverTimer.isSet()) {
         for (const jz of jumpZones) {
             const dz = this.pos.z - jz.triggerZ;
             if (dz > -200 && dz < 600 && jz.triggerZ > lastJumpPeakZ) {
-                // Check if player is in the ramp's lane
-                if (abs(this.pos.x - jz.laneX) < JUMP_LANE_HALF_W) {
+                // Check if player is in any covered lane (not the gap)
+                const inRamp = jz.coveredLanes.some(lx => abs(this.pos.x - lx) < JUMP_LANE_HALF_W);
+                if (inRamp) {
                     jumpFlipActive = true;
                     jumpFlipTime = 0;
                     lastJumpPeakZ = jz.triggerZ;
-                    this.velocity.y = JUMP_LAUNCH_VY; // launch upward
+                    this.velocity.y = JUMP_LAUNCH_VY;
                     this.onGround = 0;
                     sound_checkpoint.play(1, 2);
                     break;
