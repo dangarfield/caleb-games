@@ -951,8 +951,13 @@ getLevel = function(x, z, type, excludeObj) {
 var player;
 var copyNormalDone = false;
 var gameStarted = false;
-function render() {
-	frame++;
+var lastFrameTime = 0;
+function render(now) {
+	if (!lastFrameTime) lastFrameTime = now;
+	var rawDt = (now - lastFrameTime) / (1000 / 60);
+	var dt = Math.min(rawDt, 3);
+	lastFrameTime = now;
+	frame += dt;
 	ctx.clearRect(0,0,window.innerWidth,window.innerHeight);
 	
 	if (levelEnCours==12) {
@@ -975,15 +980,27 @@ function render() {
 		var oldZ = player.z+0.5|0;
 		
 		if (Math.abs(player.x - player.targetX)>0.01) {
+			var dirX = (player.x - player.targetX)>0 ? -1 : 1;
+			var stepX = 0.1 * dt * dirX;
 			if (player.pushObj) {
-				player.pushObj.x += (player.x - player.targetX)>0 ? -0.1 : 0.1;
+				player.pushObj.x += stepX;
 			}
-			player.x += (player.x - player.targetX)>0 ? -0.1 : 0.1;
+			player.x += stepX;
+			if ((player.x - player.targetX) * dirX > 0) {
+				if (player.pushObj) { player.pushObj.x += player.targetX - player.x; }
+				player.x = player.targetX;
+			}
 		} else if (Math.abs(player.z - player.targetZ)>0.01) {
+			var dirZ = (player.z - player.targetZ)>0 ? -1 : 1;
+			var stepZ = 0.1 * dt * dirZ;
 			if (player.pushObj) {
-				player.pushObj.z += (player.z - player.targetZ)>0 ? -0.1 : 0.1;
+				player.pushObj.z += stepZ;
 			}
-			player.z += (player.z - player.targetZ)>0 ? -0.1 : 0.1;
+			player.z += stepZ;
+			if ((player.z - player.targetZ) * dirZ > 0) {
+				if (player.pushObj) { player.pushObj.z += player.targetZ - player.z; }
+				player.z = player.targetZ;
+			}
 		} else {
 			player.inMove = false;
 			
@@ -1035,7 +1052,11 @@ function render() {
 			var h = levels[levelEnCours].tiles[z][x].h;
 			if (levels[levelEnCours].tiles[z][x].targetH!==false) {
 				if (Math.abs(levels[levelEnCours].tiles[z][x].targetH - h) > 0.01) {
-					h+=levels[levelEnCours].tiles[z][x].targetH > h ? 0.1 : -0.1;
+					var hDir = levels[levelEnCours].tiles[z][x].targetH > h ? 1 : -1;
+					h += 0.1 * dt * hDir;
+					if ((h - levels[levelEnCours].tiles[z][x].targetH) * hDir > 0) {
+						h = levels[levelEnCours].tiles[z][x].targetH;
+					}
 					levels[levelEnCours].tiles[z][x].h = h;
 					
 				} else {
@@ -1058,8 +1079,8 @@ function render() {
 		if (player.G==0) {
 			player.G = 0.1;
 		}
-		player.G*=1.05;
-		player.y += (player.y > player.targetY) ? -player.G : player.G;
+		player.G*=Math.pow(1.05, dt);
+		player.y += ((player.y > player.targetY) ? -player.G : player.G) * dt;
 		if (player.y < player.targetY) {
 			player.y = player.targetY;
 			player.G=0;
@@ -1077,8 +1098,8 @@ function render() {
 		//Là le problème quand je pose une caisse sur une autre, c'est que quand je passe sur l'object d'en dessous, je détecte une hauteur supérieur (car je regare la caisse), donc je monte la caisse du dessous et ça merde
 		
 		if ((objTmp.y - objTmp.targetY)>0.01) { //Il faut descendre
-			objTmp.G+=0.01;
-			objTmp.y += objTmp.y > objTmp.targetY ? -objTmp.G : objTmp.G;
+			objTmp.G+=0.01 * dt;
+			objTmp.y += (objTmp.y > objTmp.targetY ? -objTmp.G : objTmp.G) * dt;
 			objTmp.y = Math['max'](objTmp.y, objTmp.targetY);
 		} else {
 			objTmp.y = objTmp.targetY - objTmp.y < 1 ? objTmp.targetY : objTmp.y; //Pour éviter un bug, je suis obligé de vérifier que je ne fait pas un saut de 1.0
@@ -1094,8 +1115,8 @@ function render() {
 		if (player.isDead==0) {
 			playSound([3,0,1,0,0,0.35173364,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0.25]);
 		}
-		player.isDead++;
-		if (player.isDead==50) {
+		player.isDead += dt;
+		if (player.isDead>=50) {
 			initLevels();
 		}
 	}
@@ -1371,7 +1392,7 @@ function render() {
 		
 		// Anim en cas de mort
 		if (player.isDead) {
-			gl.uniform1i(shader.isPlayer, 20+player.isDead);
+			gl.uniform1i(shader.isPlayer, 20+(player.isDead|0));
 		}
 		
 		gl.uniform3fv(shader.endPosition, levels[levelEnCours].end);
@@ -1689,7 +1710,7 @@ function init() {
 	initShadows()
 	
 	initLevels();
-	render();
+	requestAnimationFrame(render);
 }
 
 

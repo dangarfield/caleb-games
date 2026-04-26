@@ -153,6 +153,9 @@ let scoreY = 0, targetY = 0, timerY = 0;
 let targetShapeSize = 0;
 let giveUpX = 0, giveUpY = 0, giveUpW = 0, giveUpH = 0;
 
+// Frame-rate independence
+let lastFrameTime = 0;
+
 // Animation state
 let screenShake = 0;
 let scorePop = 0;        // 0..1 pop animation
@@ -333,6 +336,7 @@ function startGame() {
   levelUpT = 0;
   particles = [];
   selectedCells = [];
+  lastFrameTime = 0;
   state = 'playing';
   overlay.classList.add('hidden');
   computeLayout();
@@ -609,19 +613,19 @@ function initDemo() {
 initDemo();
 
 // --- Update ---
-function update() {
-  ticks++;
+function update(dt) {
+  ticks += dt;
 
   // Particles
   particles = particles.filter(p => {
-    p.x += p.vx; p.y += p.vy; p.vy += 0.05; p.vx *= 0.98; p.life -= p.decay;
+    p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 0.05 * dt; p.vx *= Math.pow(0.98, dt); p.life -= p.decay * dt;
     return p.life > 0;
   });
 
   if (state === 'menu') {
     // Animate demo shapes
     for (const s of demoShapes) {
-      s.x += s.vx; s.y += s.vy; s.rot += s.rotSpeed;
+      s.x += s.vx * dt; s.y += s.vy * dt; s.rot += s.rotSpeed * dt;
       if (s.x<-50) s.x=W+50; if (s.x>W+50) s.x=-50;
       if (s.y<-50) s.y=H+50; if (s.y>H+50) s.y=-50;
     }
@@ -631,7 +635,7 @@ function update() {
   if (state === 'playing') {
     // Timer drain (speed up with score)
     const drainRate = 0.0008 + score * 0.000012;
-    timer -= drainRate;
+    timer -= drainRate * dt;
     if (timer <= 0) { timer = 0; triggerGameOver(); return; }
 
     // Cell animations
@@ -639,40 +643,40 @@ function update() {
       const cell = grid[r][c];
       // Fall animation
       if (Math.abs(cell.offsetY) > 0.5) {
-        cell.offsetY *= 0.82; // smooth ease
+        cell.offsetY *= Math.pow(0.82, dt); // smooth ease
         if (Math.abs(cell.offsetY) < 1) cell.offsetY = 0;
       } else {
         cell.offsetY = 0;
       }
       // Enter animation
       if (!cell.entered) {
-        cell.enterT += 0.04;
+        cell.enterT += 0.04 * dt;
         if (cell.enterT >= 1) { cell.enterT = 1; cell.entered = true; }
       }
       // Glow pulse for selected
-      if (cell.selected) cell.glowT += 0.08;
+      if (cell.selected) cell.glowT += 0.08 * dt;
       // Shake decay
-      if (cell.shakeX > 0) cell.shakeX *= 0.85;
+      if (cell.shakeX > 0) cell.shakeX *= Math.pow(0.85, dt);
       if (cell.shakeX < 0.5) cell.shakeX = 0;
     }
 
     // Screen shake decay
-    if (screenShake > 0) { screenShake *= 0.88; if (screenShake < 0.5) screenShake = 0; }
+    if (screenShake > 0) { screenShake *= Math.pow(0.88, dt); if (screenShake < 0.5) screenShake = 0; }
 
     // Flash decays
-    if (scorePop > 0) scorePop = Math.max(0, scorePop - 0.04);
-    if (correctFlash > 0) correctFlash = Math.max(0, correctFlash - 0.03);
-    if (wrongFlash > 0) wrongFlash = Math.max(0, wrongFlash - 0.04);
+    if (scorePop > 0) scorePop = Math.max(0, scorePop - 0.04 * dt);
+    if (correctFlash > 0) correctFlash = Math.max(0, correctFlash - 0.03 * dt);
+    if (wrongFlash > 0) wrongFlash = Math.max(0, wrongFlash - 0.04 * dt);
     // Target transition
-    if (targetExitT < 1) { targetExitT = Math.min(1, targetExitT + 0.08); }
-    if (targetExitT >= 0.4 && targetEnterT < 1) { targetEnterT = Math.min(1, targetEnterT + 0.07); }
+    if (targetExitT < 1) { targetExitT = Math.min(1, targetExitT + 0.08 * dt); }
+    if (targetExitT >= 0.4 && targetEnterT < 1) { targetEnterT = Math.min(1, targetEnterT + 0.07 * dt); }
     // Level up notification
-    if (levelUpT > 0) levelUpT--;
+    if (levelUpT > 0) levelUpT -= dt;
   }
 
   if (state === 'gameover') {
-    gameOverT++;
-    gameOverAlpha = Math.min(0.75, gameOverAlpha + 0.015);
+    gameOverT += dt;
+    gameOverAlpha = Math.min(0.75, gameOverAlpha + 0.015 * dt);
   }
 }
 
@@ -1112,8 +1116,16 @@ document.getElementById('startBtn').addEventListener('touchend', e => { e.preven
 buildMenu();
 
 // --- Game Loop ---
-function loop() { update(); draw(); requestAnimationFrame(loop); }
-loop();
+function loop(now) {
+  if (!lastFrameTime) lastFrameTime = now;
+  const rawDt = (now - lastFrameTime) / (1000 / 60);
+  const dt = Math.min(rawDt, 3);
+  lastFrameTime = now;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
 </script>
 </body>
 </html>

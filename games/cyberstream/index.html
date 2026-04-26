@@ -176,6 +176,7 @@ let gateSpeed = 3, spawnTimer = 0, spawnInterval = 80;
 let elapsed = 0, frameCount = 0, difficulty = 0;
 let screenShake = 0;
 let scrollOffset = 0, animFrame;
+let lastFrameTime = 0;
 
 
 // Background
@@ -265,15 +266,15 @@ canvas.addEventListener('mouseup', (e) => {
 // --- Update ---
 const PLAYER_X = 100;
 
-function update() {
-    frameCount++; elapsed++; scrollOffset += gateSpeed;
+function update(dt) {
+    frameCount++; elapsed += dt; scrollOffset += gateSpeed * dt;
 
     difficulty = Math.min(elapsed / 4000, 4);
     gateSpeed = 3 + difficulty * 1.0;
     spawnInterval = Math.max(40, 80 - difficulty * 6);
 
     // Spawning
-    spawnTimer++;
+    spawnTimer += dt;
     if (spawnTimer >= spawnInterval) {
         spawnTimer = 0;
         if (Math.random() < 0.15 + difficulty * 0.015) spawnGlitch();
@@ -281,17 +282,17 @@ function update() {
         if (Math.random() < difficulty * 0.08) spawnGate();
     }
 
-    // Smooth lane transition
+    // Smooth lane transition (exponential lerp for frame-rate independence)
     playerTargetY = getLaneY(playerLane);
-    playerVisualY += (playerTargetY - playerVisualY) * 0.28;
+    playerVisualY += (playerTargetY - playerVisualY) * (1 - Math.pow(1 - 0.28, dt));
 
-    if (invincible > 0) invincible--;
-    if (lifeLossFlash > 0) lifeLossFlash--;
+    if (invincible > 0) invincible -= dt;
+    if (lifeLossFlash > 0) lifeLossFlash -= dt;
 
     // Gates
     for (let i = gates.length - 1; i >= 0; i--) {
         const g = gates[i];
-        g.x -= gateSpeed;
+        g.x -= gateSpeed * dt;
 
         if (!g.passed && g.x < PLAYER_X + 18 && g.x + g.width > PLAYER_X - 18 && g.lane === playerLane) {
             if (g.isGlitch) {
@@ -315,18 +316,18 @@ function update() {
         if (g.x + g.width < -10) gates.splice(i, 1);
     }
 
-    if (screenShake > 0) { screenShake *= 0.88; if (screenShake < 0.5) screenShake = 0; }
+    if (screenShake > 0) { screenShake *= Math.pow(0.88, dt); if (screenShake < 0.5) screenShake = 0; }
 
     for (let i = matchParticles.length - 1; i >= 0; i--) {
-        const p = matchParticles[i]; p.x += p.vx; p.y += p.vy; p.life -= 0.025;
+        const p = matchParticles[i]; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= 0.025 * dt;
         if (p.life <= 0) matchParticles.splice(i, 1);
     }
     for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.1; p.life -= 0.018;
+        const p = particles[i]; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 0.1 * dt; p.life -= 0.018 * dt;
         if (p.life <= 0) particles.splice(i, 1);
     }
     for (const d of codeDrops) {
-        d.y += d.speed * 0.016;
+        d.y += d.speed * 0.016 * dt;
         if (d.y > H + 20) { d.y = -20; d.x = Math.random() * W; d.char = String.fromCharCode(0x30A0 + Math.random() * 96); }
     }
 }
@@ -560,7 +561,6 @@ function draw() {
 
     // --- GAME OVER ---
     if (gameOver) {
-        gameOverAnim = Math.min(gameOverAnim + 0.03, 1);
         const a = gameOverAnim;
 
         ctx.fillStyle = `rgba(10,0,0,${0.8*a})`; ctx.fillRect(0,0,W,H);
@@ -612,20 +612,25 @@ function handleRestart(e) {
     resetGame();
 }
 
-function gameLoop() {
-    if (!gameOver) update();
+function gameLoop(now) {
+    if (!lastFrameTime) lastFrameTime = now;
+    const rawDt = (now - lastFrameTime) / (1000 / 60);
+    const dt = Math.min(rawDt, 3);
+    lastFrameTime = now;
+
+    if (!gameOver) update(dt);
     else {
-        gameOverAnim = Math.min(gameOverAnim + 0.03, 1);
+        gameOverAnim = Math.min(gameOverAnim + 0.03 * dt, 1);
         if (gameOverAnim >= 0.8 && !restartReady) {
             restartReady = true;
             canvas.addEventListener('click', handleRestart);
             canvas.addEventListener('touchstart', handleRestart, { passive: false });
         }
         for (let i = particles.length-1; i >= 0; i--) {
-            const p = particles[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.1; p.life -= 0.018;
+            const p = particles[i]; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 0.1 * dt; p.life -= 0.018 * dt;
             if (p.life <= 0) particles.splice(i, 1);
         }
-        if (screenShake > 0) { screenShake *= 0.88; if (screenShake < 0.5) screenShake = 0; }
+        if (screenShake > 0) { screenShake *= Math.pow(0.88, dt); if (screenShake < 0.5) screenShake = 0; }
         frameCount++;
     }
     draw();
@@ -643,7 +648,8 @@ function resetGame() {
     gameOver = false; gameOverAnim = 0; restartReady = false;
     laneTypes = [0, 1, 2];
     playerVisualY = getLaneY(1); playerTargetY = playerVisualY;
-    gameLoop();
+    lastFrameTime = 0;
+    animFrame = requestAnimationFrame(gameLoop);
 }
 
 startBtn.addEventListener('click', () => {

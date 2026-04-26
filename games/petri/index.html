@@ -196,6 +196,7 @@ let particles = [];
 let bgParticles = [];
 let levelUpNotif = null;
 let demoMode = false;
+let lastFrameTime = 0;
 
 // --- Helpers ---
 function massToRadius(mass) { return Math.sqrt(mass) * 1.8; }
@@ -367,6 +368,7 @@ function initGame() {
     levelUpNotif = null;
     demoMode = false;
     boosting = false;
+    lastFrameTime = 0;
     boostBtn.classList.remove('hidden', 'active');
     startAmbient();
 }
@@ -386,6 +388,7 @@ function initDemo() {
     levelUpNotif = null;
     demoMode = true;
     boosting = false;
+    lastFrameTime = 0;
     boostBtn.classList.add('hidden');
 }
 
@@ -413,8 +416,8 @@ function movePlayerPart(part, tx, ty, dt) {
     const speed = Math.max(2.5, 5.5 - massToRadius(part.mass) * 0.012);
     const boostMult = boosting ? 1.8 : 1;
     const force = Math.min(d, speed * boostMult) / d;
-    part.vx += dx * force * 0.06;
-    part.vy += dy * force * 0.06;
+    part.vx += dx * force * 0.06 * dt;
+    part.vy += dy * force * 0.06 * dt;
 }
 
 
@@ -459,21 +462,20 @@ function getNearby(grid, x, y, cellSize) {
 }
 
 // --- Update ---
-function update() {
-    ticks++;
+function update(dt) {
+    ticks += dt;
     const lvl = getLevel();
     const worldR = lvl.worldR;
-    const dt = 1;
 
     // Update particles
     particles = particles.filter(p => {
-        p.x += p.vx; p.y += p.vy; p.vx *= 0.97; p.vy *= 0.97; p.life -= p.decay;
+        p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= Math.pow(0.97, dt); p.vy *= Math.pow(0.97, dt); p.life -= p.decay * dt;
         return p.life > 0;
     });
 
     // Level up notification
     if (levelUpNotif) {
-        levelUpNotif.t++;
+        levelUpNotif.t += dt;
         if (levelUpNotif.t >= levelUpNotif.duration) levelUpNotif = null;
     }
 
@@ -481,10 +483,10 @@ function update() {
 
     // Background particles drift
     for (const p of bgParticles) {
-        p.x += p.vx; p.y += p.vy;
-        p.twinkle += 0.02;
+        p.x += p.vx * dt; p.y += p.vy * dt;
+        p.twinkle += 0.02 * dt;
         const d = Math.sqrt(p.x * p.x + p.y * p.y);
-        if (d > worldR) { p.x *= 0.99; p.y *= 0.99; }
+        if (d > worldR) { const damp = Math.pow(0.99, dt); p.x *= damp; p.y *= damp; }
     }
 
     // --- Player movement ---
@@ -541,9 +543,9 @@ function update() {
     // --- Physics for all ---
     const allMoving = [...playerParts, ...cells.filter(c => c.alive)];
     for (const c of allMoving) {
-        c.x += c.vx; c.y += c.vy;
-        c.vx *= 0.92; c.vy *= 0.92;
-        c.wobblePhase += c.wobbleSpeed;
+        c.x += c.vx * dt; c.y += c.vy * dt;
+        c.vx *= Math.pow(0.92, dt); c.vy *= Math.pow(0.92, dt);
+        c.wobblePhase += c.wobbleSpeed * dt;
 
         // World boundary
         const d = Math.sqrt(c.x * c.x + c.y * c.y);
@@ -564,22 +566,22 @@ function update() {
     function steerToward(c, tx, ty, strength) {
         const dx = tx - c.x, dy = ty - c.y;
         const dn = Math.sqrt(dx * dx + dy * dy) || 1;
-        c.vx += (dx / dn) * strength;
-        c.vy += (dy / dn) * strength;
+        c.vx += (dx / dn) * strength * dt;
+        c.vy += (dy / dn) * strength * dt;
     }
     function steerAway(c, tx, ty, strength) {
         const dx = c.x - tx, dy = c.y - ty;
         const dn = Math.sqrt(dx * dx + dy * dy) || 1;
-        c.vx += (dx / dn) * strength;
-        c.vy += (dy / dn) * strength;
+        c.vx += (dx / dn) * strength * dt;
+        c.vy += (dy / dn) * strength * dt;
     }
 
     for (const c of cells) {
         if (!c.alive) continue;
-        c.aiTimer++;
+        c.aiTimer += dt;
 
         if (c.type === 'passive') {
-            if (Math.random() < 0.01) { c.vx += rng(-0.15, 0.15); c.vy += rng(-0.15, 0.15); }
+            if (Math.random() < 0.01 * dt) { c.vx += rng(-0.15, 0.15); c.vy += rng(-0.15, 0.15); }
         }
         else if (c.type === 'fleeing') {
             // Flee from anything bigger nearby (player AND other cells)
@@ -595,7 +597,7 @@ function update() {
                     if (d2 < 200) steerAway(c, other.x, other.y, 0.2);
                 }
             }
-            if (Math.random() < 0.005) { c.vx += rng(-0.2, 0.2); c.vy += rng(-0.2, 0.2); }
+            if (Math.random() < 0.005 * dt) { c.vx += rng(-0.2, 0.2); c.vy += rng(-0.2, 0.2); }
         }
         else if (c.type === 'hunter') {
             // Aggressive: chase anything edible — player or other cells
@@ -608,7 +610,7 @@ function update() {
                 chasing = true;
             }
             // Also hunt other cells for food
-            if (!chasing && c.aiTimer % 30 === 0) {
+            if (!chasing && Math.random() < dt / 30) {
                 let best = null, bestVal = 0;
                 for (const other of cells) {
                     if (other === c || !other.alive || other.type === 'toxic') continue;
@@ -625,7 +627,7 @@ function update() {
             if (!chasing && c.targetCell && c.targetCell.alive) {
                 steerToward(c, c.targetCell.x, c.targetCell.y, 0.2);
             } else if (!chasing) {
-                if (Math.random() < 0.01) { c.vx += rng(-0.3, 0.3); c.vy += rng(-0.3, 0.3); }
+                if (Math.random() < 0.01 * dt) { c.vx += rng(-0.3, 0.3); c.vy += rng(-0.3, 0.3); }
             }
             // Flee from bigger things
             if (totalPlayerMass > c.mass * 1.5 && dp < 300) {
@@ -663,7 +665,7 @@ function update() {
                 if (flockN >= 2) steerToward(c, playerCenter.x, playerCenter.y, 0.12);
             }
             // Find food
-            if (c.aiTimer % 20 === 0) {
+            if (Math.random() < dt / 20) {
                 let best = null, bestD = Infinity;
                 for (const other of cells) {
                     if (other === c || !other.alive || other.type === 'toxic' || other.type === 'swarm') continue;
@@ -675,7 +677,7 @@ function update() {
                 c.targetCell = best;
             }
             if (c.targetCell && c.targetCell.alive) steerToward(c, c.targetCell.x, c.targetCell.y, 0.15);
-            else if (Math.random() < 0.02) { c.vx += rng(-0.3, 0.3); c.vy += rng(-0.3, 0.3); }
+            else if (Math.random() < 0.02 * dt) { c.vx += rng(-0.3, 0.3); c.vy += rng(-0.3, 0.3); }
             // Eat on contact
             for (const other of cells) {
                 if (other === c || !other.alive || other.type === 'toxic' || other.type === 'swarm') continue;
@@ -698,7 +700,7 @@ function update() {
             } else if (c.mass < totalPlayerMass * 0.5 && dp < 300) {
                 steerAway(c, playerCenter.x, playerCenter.y, 0.15);
             } else {
-                if (Math.random() < 0.008) { c.vx += rng(-0.25, 0.25); c.vy += rng(-0.25, 0.25); }
+                if (Math.random() < 0.008 * dt) { c.vx += rng(-0.25, 0.25); c.vy += rng(-0.25, 0.25); }
             }
             // Split periodically
             if (c.aiTimer > 400 && c.mass > 60) {
@@ -727,7 +729,7 @@ function update() {
         }
         else if (c.type === 'toxic') {
             // Wander, can't be eaten, damages on contact
-            if (Math.random() < 0.008) { c.vx += rng(-0.15, 0.15); c.vy += rng(-0.15, 0.15); }
+            if (Math.random() < 0.008 * dt) { c.vx += rng(-0.15, 0.15); c.vy += rng(-0.15, 0.15); }
         }
         else if (c.type === 'predator') {
             // Large, slow, relentless pursuit
@@ -737,7 +739,7 @@ function update() {
                 const speed = Math.max(0.08, 0.18 - massToRadius(c.mass) * 0.0003);
                 steerToward(c, playerCenter.x, playerCenter.y, speed);
             } else {
-                if (Math.random() < 0.005) { c.vx += rng(-0.15, 0.15); c.vy += rng(-0.15, 0.15); }
+                if (Math.random() < 0.005 * dt) { c.vx += rng(-0.15, 0.15); c.vy += rng(-0.15, 0.15); }
             }
             // Eat everything on contact
             for (const other of cells) {
@@ -826,10 +828,11 @@ function update() {
     if (nearDanger && !demoMode) startDangerPulse();
     else stopDangerPulse();
 
-    // Passive mass loss
-    if (!gameOver && !demoMode && ticks % 60 === 0) {
+    // Passive mass loss (continuous, equivalent to 0.998x every 60 frames)
+    if (!gameOver && !demoMode) {
+        const massDecay = Math.pow(0.998, dt / 60);
         for (const part of playerParts) {
-            if (part.mass > 55) part.mass *= 0.998;
+            if (part.mass > 55) part.mass *= massDecay;
         }
     }
 
@@ -837,9 +840,9 @@ function update() {
     if (boosting && !gameOver && !demoMode) {
         for (const part of playerParts) {
             if (part.mass > 30) {
-                part.mass *= 0.997;
-                // Trail particles while boosting
-                if (ticks % 3 === 0) {
+                part.mass *= Math.pow(0.997, dt);
+                // Trail particles while boosting (~every 3 frames)
+                if (Math.random() < dt / 3) {
                     spawnAbsorbParticles(part.x, part.y, '#f39c12', 1);
                 }
             } else {
@@ -855,13 +858,13 @@ function update() {
     for (const c of cells) if (aliveCount[c.type] !== undefined) aliveCount[c.type]++;
 
     if (aliveCount.nutrient < lvl.nutrients) cells.push(spawnNutrient(lvl, worldR));
-    if (aliveCount.passive < lvl.passive && Math.random() < 0.02) cells.push(spawnPassive(lvl, worldR));
-    if (aliveCount.fleeing < lvl.fleeing && Math.random() < 0.01) cells.push(spawnFleeing(lvl, worldR));
-    if (aliveCount.hunter < (lvl.hunters || 0) && Math.random() < 0.008) cells.push(spawnHunter(lvl, worldR, totalPlayerMass));
-    if (aliveCount.swarm < (lvl.swarm || 0) && Math.random() < 0.015) cells.push(spawnSwarm(lvl, worldR));
-    if (aliveCount.splitter < (lvl.splitters || 0) && Math.random() < 0.005) cells.push(spawnSplitter(lvl, worldR, totalPlayerMass));
-    if (aliveCount.toxic < (lvl.toxic || 0) && Math.random() < 0.003) cells.push(spawnToxic(lvl, worldR));
-    if (aliveCount.predator < lvl.predators && Math.random() < 0.004) cells.push(spawnPredator(lvl, worldR, totalPlayerMass));
+    if (aliveCount.passive < lvl.passive && Math.random() < 0.02 * dt) cells.push(spawnPassive(lvl, worldR));
+    if (aliveCount.fleeing < lvl.fleeing && Math.random() < 0.01 * dt) cells.push(spawnFleeing(lvl, worldR));
+    if (aliveCount.hunter < (lvl.hunters || 0) && Math.random() < 0.008 * dt) cells.push(spawnHunter(lvl, worldR, totalPlayerMass));
+    if (aliveCount.swarm < (lvl.swarm || 0) && Math.random() < 0.015 * dt) cells.push(spawnSwarm(lvl, worldR));
+    if (aliveCount.splitter < (lvl.splitters || 0) && Math.random() < 0.005 * dt) cells.push(spawnSplitter(lvl, worldR, totalPlayerMass));
+    if (aliveCount.toxic < (lvl.toxic || 0) && Math.random() < 0.003 * dt) cells.push(spawnToxic(lvl, worldR));
+    if (aliveCount.predator < lvl.predators && Math.random() < 0.004 * dt) cells.push(spawnPredator(lvl, worldR, totalPlayerMass));
 
     // --- Level complete check ---
     if (!gameOver && !demoMode && totalPlayerMass >= lvl.targetMass) {
@@ -891,9 +894,9 @@ function update() {
     const center = getPlayerCenter();
     const totalMass = getPlayerTotalMass();
     const targetZoom = clamp(30 / (massToRadius(totalMass) + 10), 0.15, 1.2);
-    camera.zoom += (targetZoom - camera.zoom) * 0.03;
-    camera.x += (center.x - camera.x) * 0.08;
-    camera.y += (center.y - camera.y) * 0.08;
+    camera.zoom += (targetZoom - camera.zoom) * (1 - Math.pow(1 - 0.03, dt));
+    camera.x += (center.x - camera.x) * (1 - Math.pow(1 - 0.08, dt));
+    camera.y += (center.y - camera.y) * (1 - Math.pow(1 - 0.08, dt));
 }
 
 // --- Drawing ---
@@ -1355,8 +1358,16 @@ window.addEventListener('touchend', stopBoost);
 initDemo();
 
 // --- Game loop ---
-function loop() { update(); draw(); requestAnimationFrame(loop); }
-loop();
+function loop(now) {
+    if (!lastFrameTime) lastFrameTime = now;
+    const rawDt = (now - lastFrameTime) / (1000 / 60);
+    const dt = Math.min(rawDt, 3);
+    lastFrameTime = now;
+    update(dt);
+    draw();
+    requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
 </script>
 </body>
 </html>

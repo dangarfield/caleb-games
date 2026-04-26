@@ -234,6 +234,8 @@ let slowTimeDuration = 0; // total frames for full effect
 let slowTimePhase = 'idle'; // 'ramp-down','hold','ramp-up','idle'
 let slowTimeSpeedMult = 1; // current speed multiplier (1 = normal, 0.5 = slow)
 let levelUpNotif = null; // { text, subtext, t, duration }
+let lastFrameTime = 0;
+let frameDt = 1; // delta time normalized to 60fps (1.0 = 60fps, 2.0 = 30fps)
 
 const NODE_RADIUS = 28;
 const SAFE_ZONE = 40;
@@ -290,6 +292,7 @@ function initGame() {
     slowTimeSpeedMult = 1;
     slowTimeBtn.classList.remove('active');
     levelUpNotif = null;
+    lastFrameTime = 0;
     updateSlowTimeUI();
 
     const startY = H * 0.75;
@@ -324,6 +327,7 @@ function initDemo() {
     slowTimePhase = 'idle';
     slowTimeSpeedMult = 1;
     slowTimeBtn.classList.add('hidden');
+    lastFrameTime = 0;
 
     const startY = H * 0.75;
     addNode(W / 2, startY);
@@ -560,46 +564,46 @@ canvas.addEventListener('pointerdown', e => {
 });
 
 // --- Update ---
-function update() {
-    ticks++;
+function update(dt) {
+    ticks += dt;
 
     // Tween background
-    if (bgTransT < 1) bgTransT = Math.min(1, bgTransT + 0.008);
+    if (bgTransT < 1) bgTransT = Math.min(1, bgTransT + 0.008 * dt);
 
     // Level up notification
     if (levelUpNotif) {
-        levelUpNotif.t++;
+        levelUpNotif.t += dt;
         if (levelUpNotif.t >= levelUpNotif.duration) levelUpNotif = null;
     }
 
     // Death animation
     if (deathAnim) {
-        deathAnim.t++;
-        if (deathAnim.t < 40 && deathAnim.t % 3 === 0) {
+        deathAnim.t += dt;
+        if (deathAnim.t < 40 && Math.random() < dt / 3) {
             spawnParticles(deathAnim.x + (Math.random() - 0.5) * 60, deathAnim.y + (Math.random() - 0.5) * 60,
                 Math.random() < 0.5 ? getTheme().bar : getTheme().accent, 5, 1.5);
         }
     }
-    if (screenShake > 0) screenShake *= 0.9;
+    if (screenShake > 0) screenShake *= Math.pow(0.9, dt);
     if (screenShake < 0.5) screenShake = 0;
 
     // Particles always update
     particles = particles.filter(p => {
-        p.x += p.vx; p.y += p.vy; p.vy += 0.04; p.vx *= 0.99; p.life -= p.decay;
+        p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 0.04 * dt; p.vx *= Math.pow(0.99, dt); p.life -= p.decay * dt;
         return p.life > 0;
     });
 
     // Update slow time effect
     if (slowTimePhase === 'ramp-down') {
         // 300ms at 60fps ≈ 18 frames
-        slowTimeSpeedMult = Math.max(0.5, slowTimeSpeedMult - (0.5 / 18));
+        slowTimeSpeedMult = Math.max(0.5, slowTimeSpeedMult - (0.5 / 18) * dt);
         if (slowTimeSpeedMult <= 0.5) { slowTimeSpeedMult = 0.5; slowTimePhase = 'hold'; slowTimeT = 0; updateSlowTimeUI(); }
     } else if (slowTimePhase === 'hold') {
         // 6 seconds at 60fps = 360 frames
-        slowTimeT++;
+        slowTimeT += dt;
         if (slowTimeT >= 360) { slowTimePhase = 'ramp-up'; playSlowTimeEnd(); updateSlowTimeUI(); }
     } else if (slowTimePhase === 'ramp-up') {
-        slowTimeSpeedMult = Math.min(1, slowTimeSpeedMult + (0.5 / 18));
+        slowTimeSpeedMult = Math.min(1, slowTimeSpeedMult + (0.5 / 18) * dt);
         if (slowTimeSpeedMult >= 1) { slowTimeSpeedMult = 1; slowTimePhase = 'idle'; slowTimeBtn.classList.remove('active'); updateSlowTimeUI(); }
     }
     // Keep button colors in sync during level transitions
@@ -608,13 +612,13 @@ function update() {
     // Spin barriers always
     const demoMult = autoPlay ? 0.35 : 1;
     for (const node of nodes) {
-        node.angle += node.spinSpeed * (gameRunning ? difficulty : difficulty * 0.3) * slowTimeSpeedMult * demoMult;
-        node.pulse += 0.05;
+        node.angle += node.spinSpeed * (gameRunning ? difficulty : difficulty * 0.3) * slowTimeSpeedMult * demoMult * dt;
+        node.pulse += 0.05 * dt;
     }
 
     // Death jump animation (player flies to collision point)
     if (deathJumpAnim) {
-        deathJumpAnim.t++;
+        deathJumpAnim.t += dt;
         if (deathJumpAnim.t >= deathJumpAnim.duration) {
             const dx = deathJumpAnim.toX, dy = deathJumpAnim.toY;
             triggerDeathExplosion(dx, dy);
@@ -628,7 +632,7 @@ function update() {
 
     // Auto-play AI
     if (autoPlay) {
-        autoPlayTimer++;
+        autoPlayTimer += dt;
         if (!jumpAnim && !gameOver && autoPlayTimer > 60) {
             // Try to jump - check if path is clear
             if (nextNodeIndex < nodes.length) {
@@ -648,7 +652,7 @@ function update() {
 
     // Jump animation
     if (jumpAnim) {
-        jumpAnim.t++;
+        jumpAnim.t += dt;
         if (jumpAnim.t >= jumpAnim.duration) {
             jumpAnim = null;
             completeJump();
@@ -660,14 +664,14 @@ function update() {
     if (playerNode) {
         const py = jumpAnim ? lerp(jumpAnim.fromY, jumpAnim.toY, jumpAnim.t / jumpAnim.duration) : playerNode.y;
         if (py < targetY) {
-            const scrollAmt = (targetY - py) * 0.08;
+            const scrollAmt = (targetY - py) * (1 - Math.pow(0.92, dt));
             for (const node of nodes) node.y += scrollAmt;
             if (jumpAnim) { jumpAnim.fromY += scrollAmt; jumpAnim.toY += scrollAmt; }
         }
     }
 
     // Passive scroll
-    const passiveScroll = (0.15 + difficulty * 0.08) * (autoPlay ? 0.35 : 1);
+    const passiveScroll = (0.15 + difficulty * 0.08) * (autoPlay ? 0.35 : 1) * dt;
     for (const node of nodes) node.y += passiveScroll;
     if (jumpAnim) { jumpAnim.fromY += passiveScroll; jumpAnim.toY += passiveScroll; }
 
@@ -774,7 +778,7 @@ function drawJumpLine() {
     ctx.beginPath(); ctx.arc(cx, cy, NODE_RADIUS * 0.4, 0, Math.PI * 2); ctx.fill();
 
     // Sparks during death jump
-    if (deathJumpAnim && deathJumpAnim.t % 2 === 0) {
+    if (deathJumpAnim && Math.random() < frameDt / 2) {
         spawnParticles(cx, cy, theme.bar, 2, 1);
     }
 }
@@ -842,7 +846,7 @@ function drawLevelProgress() {
     // Tween displayed progress toward actual progress
     const target = getLevelTarget();
     const actualProgress = Math.min(levelScore / target, 1);
-    displayedProgress += (actualProgress - displayedProgress) * 0.08;
+    displayedProgress += (actualProgress - displayedProgress) * (1 - Math.pow(0.92, frameDt));
     if (Math.abs(displayedProgress - actualProgress) < 0.002) displayedProgress = actualProgress;
 
     // Track background
@@ -1000,8 +1004,16 @@ function draw() {
 }
 
 // --- Game loop ---
-function loop() { update(); draw(); requestAnimationFrame(loop); }
-loop();
+function loop(now) {
+    if (!lastFrameTime) lastFrameTime = now;
+    const rawDt = (now - lastFrameTime) / (1000 / 60);
+    frameDt = Math.min(rawDt || 1, 3);
+    lastFrameTime = now;
+    update(frameDt);
+    draw();
+    requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
 </script>
 </body>
 </html>
