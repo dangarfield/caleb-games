@@ -20,7 +20,7 @@ const JUMP_RAMP_ZONE = 8;           // colored road segments as approach warning
 const JUMP_FLIP_SECS = 1.0;          // flip animation duration (two full rotations)
 const JUMP_BOOST_SECS = 5;          // boost duration after landing
 const JUMP_BOOST_TARGET = 260;      // ~30% above normal top speed ~200
-const JUMP_LAUNCH_VY = 50;          // upward velocity on launch (big air)
+const JUMP_LAUNCH_VY = 70;          // upward velocity on launch (big air)
 const JUMP_LANE_HALF_W = 700;       // half a lane width for detection
 
 let jumpZones = [];                  // array of { triggerZ, coveredLanes: [x,...], gapLaneX }
@@ -574,7 +574,7 @@ PlayerVehicle.prototype.update = function() {
     if (jumpFlipActive) {
         jumpFlipTime += timeDelta;
         // Gravity reduction for big hangtime
-        if (!this.onGround) this.velocity.y += 1.3;
+        if (!this.onGround) this.velocity.y += 1.8;
         // Smooth 720° double front flip — finishes before car lands
         const progress = clamp(jumpFlipTime / JUMP_FLIP_SECS);
         this.drawPitch = smoothStep(progress) * 4 * PI;
