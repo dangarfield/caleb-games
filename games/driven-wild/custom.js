@@ -15,6 +15,20 @@ let customMenuVisible = true;
 let gameOverVisible = false;
 let touchLeft = false, touchRight = false;
 
+// --- Jump Ramp System ---
+const JUMP_RAMP_ZONE = 8;           // colored road segments as approach warning
+const JUMP_FLIP_SECS = 1.0;          // flip animation duration (two full rotations)
+const JUMP_BOOST_SECS = 5;          // boost duration after landing
+const JUMP_BOOST_TARGET = 260;      // ~30% above normal top speed ~200
+const JUMP_LAUNCH_VY = 50;          // upward velocity on launch (big air)
+const JUMP_LANE_HALF_W = 700;       // half a lane width for detection
+
+let jumpZones = [];                  // array of { triggerZ, laneX }
+let jumpFlipActive = false;
+let jumpFlipTime = 0;
+let jumpBoostTimeLeft = 0;
+let lastJumpPeakZ = -Infinity;
+
 // --- Mobile/Tablet Performance Optimization ---
 const isMobileDevice = /Android|iPad|iPhone|iPod/i.test(navigator.userAgent) ||
     (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) <= 1024);
@@ -160,6 +174,86 @@ function showGameOverScreen() {
     document.getElementById('gameover-overlay').classList.add('active');
 }
 
+function placeJumpRamps() {
+    jumpZones = [];
+    lastJumpPeakZ = -Infinity;
+    jumpFlipActive = false;
+    jumpFlipTime = 0;
+    jumpBoostTimeLeft = 0;
+
+    const rng = new Random;
+    rng.setSeed(trackSeed + 777);
+
+    for (let stage = 0; stage < levelGoal; stage++) {
+        const base = stage * checkpointTrackSegments;
+        const s0 = base + 500;        // avoid checkpoint zones
+        const s1 = base + checkpointTrackSegments - 500;
+        const span = s1 - s0;
+        const levelInfo = getLevelInfo(stage);
+        const lanes = levelInfo.laneCount;
+
+        for (let j = 0; j < 2; j++) {
+            const frac = (j + 0.5) / 2;
+            const triggerSeg = Math.round(s0 + span * frac + rng.int(-150, 150));
+            const triggerZ = triggerSeg * trackSegmentLength;
+
+            // Pick a random lane for this ramp
+            const lane = rng.int(lanes);
+            const laneX = lane * laneWidth - (lanes - 1) * laneWidth / 2;
+
+            // Color a few road segments as approach warning (full width, just visual cue)
+            for (let i = triggerSeg - JUMP_RAMP_ZONE; i <= triggerSeg + 2 && i < track.length; i++) {
+                if (!track[i]) continue;
+                const stripe = Math.floor(i / 2) % 2;
+                track[i].colorRoad = stripe ? hsl(0.08, 1, 0.55) : hsl(0.15, 1, 0.6);
+                track[i].colorLine = track[i].colorRoad;
+            }
+
+            jumpZones.push({ triggerZ, laneX });
+        }
+    }
+}
+
+// --- Render 3D ramp objects in jump lanes ---
+function drawJumpRamps() {
+    if (titleScreenMode) return;
+
+    const camSeg = new TrackSegmentInfo(cameraOffset).segmentIndex;
+
+    for (const jz of jumpZones) {
+        const seg = Math.round(jz.triggerZ / trackSegmentLength);
+        if (seg < camSeg - 10 || seg > camSeg + drawDistance) continue;
+
+        const trackSeg = track[seg];
+        if (!trackSeg || !trackSeg.pos) continue;
+
+        // Position in the jump lane
+        const pos = trackSeg.pos.copy();
+        pos.x += jz.laneX;
+        pos.y += 80; // sit on road surface
+
+        // Render ramp: wide as one lane, low, tilted like a ramp
+        const pitch = trackSeg.pitch - 0.3;
+        const m = buildMatrix(pos, vec3(pitch, 0, 0), vec3(550, 60, 500));
+        cubeMesh.render(m, hsl(0.12, 1, 0.55));
+
+        // Chevron stripe on top
+        glPolygonOffset(20);
+        const m2 = buildMatrix(pos.add(vec3(0, 30, 0)), vec3(pitch, 0, 0), vec3(400, 30, 350));
+        cubeMesh.render(m2, hsl(0.15, 1, 0.65));
+        glPolygonOffset();
+    }
+}
+
+// --- Patch drawScene to render jump ramps ---
+const _origDrawScene = drawScene;
+drawScene = function() {
+    _origDrawScene();
+    glSetDepthTest();
+    glEnableLighting = 1;
+    drawJumpRamps();
+};
+
 function startCustomGame() {
     const cfg = PLAYERS[selectedPlayer];
 
@@ -168,6 +262,7 @@ function startCustomGame() {
 
     // Rebuild track and start game
     gameStart();
+    placeJumpRamps();
 
     // Set player color
     playerVehicle.color = cfg.color;
@@ -417,7 +512,7 @@ gameUpdateInternal = function() {
 const _originalMouseWasPressed = mouseWasPressed;
 // Can't easily override this, so we'll just block input when overlay is active.
 
-// --- Patch: Auto-accelerate + touch steering in PlayerVehicle.update ---
+// --- Patch: Auto-accelerate + touch steering + jump system in PlayerVehicle.update ---
 const _originalPlayerUpdate = PlayerVehicle.prototype.update;
 PlayerVehicle.prototype.update = function() {
     if (customMenuVisible || titleScreenMode) {
@@ -447,6 +542,53 @@ PlayerVehicle.prototype.update = function() {
     }
 
     _originalPlayerUpdate.call(this);
+
+    // --- Jump detection: player drives over a ramp in the correct lane ---
+    if (!jumpFlipActive && !gameOverTimer.isSet()) {
+        for (const jz of jumpZones) {
+            const dz = this.pos.z - jz.triggerZ;
+            if (dz > -200 && dz < 600 && jz.triggerZ > lastJumpPeakZ) {
+                // Check if player is in the ramp's lane
+                if (abs(this.pos.x - jz.laneX) < JUMP_LANE_HALF_W) {
+                    jumpFlipActive = true;
+                    jumpFlipTime = 0;
+                    lastJumpPeakZ = jz.triggerZ;
+                    this.velocity.y = JUMP_LAUNCH_VY; // launch upward
+                    this.onGround = 0;
+                    sound_checkpoint.play(1, 2);
+                    break;
+                }
+            }
+        }
+    }
+
+    // --- Flip animation (completes before landing) ---
+    if (jumpFlipActive) {
+        jumpFlipTime += timeDelta;
+        // Gravity reduction for big hangtime
+        if (!this.onGround) this.velocity.y += 1.3;
+        // Smooth 720° double front flip — finishes before car lands
+        const progress = clamp(jumpFlipTime / JUMP_FLIP_SECS);
+        this.drawPitch = smoothStep(progress) * 4 * PI;
+
+        if (this.onGround && jumpFlipTime > 0.15) {
+            // Landed — start speed boost
+            jumpFlipActive = false;
+            this.drawPitch = 0; // wheels down
+            jumpBoostTimeLeft = JUMP_BOOST_SECS;
+            sound_beep.play(1, 2);
+        }
+    }
+
+    // --- Speed boost (30% for 5 seconds) ---
+    if (jumpBoostTimeLeft > 0) {
+        jumpBoostTimeLeft -= timeDelta;
+        if (this.onGround && this.velocity.z > 0 && !gameOverTimer.isSet()) {
+            if (this.velocity.z < JUMP_BOOST_TARGET) {
+                this.velocity.z += 2;
+            }
+        }
+    }
 };
 
 // Override keyIsDown for keyboard auto-accelerate and touch steering
@@ -567,6 +709,20 @@ drawHUD = function() {
     if (!titleScreenMode && !gameOverTimer.isSet()) {
         const dist = Math.round(playerVehicle.pos.z / 100);
         drawHUDText(formatDistance(dist), vec3(.99,.95), .06, WHITE, 'monospace','right',900,'italic');
+    }
+
+    // Jump flip indicator
+    if (!titleScreenMode && !gameOverTimer.isSet() && jumpFlipActive) {
+        const c = hsl(0.55, 1, 0.7);
+        c.a = 0.7 + 0.3 * Math.sin(time * 15);
+        drawHUDText('FLIP!', vec3(.5, .78), .08, c, undefined, 'center', 900, 'italic');
+    }
+
+    // Speed boost indicator
+    if (!titleScreenMode && !gameOverTimer.isSet() && jumpBoostTimeLeft > 0) {
+        const c = hsl(0.12, 1, 0.55);
+        c.a = jumpBoostTimeLeft < 1 ? jumpBoostTimeLeft : (0.7 + 0.3 * Math.sin(time * 10));
+        drawHUDText('BOOST!', vec3(.5, .85), .06, c, 'monospace', 'center', 900, 'italic');
     }
 };
 
