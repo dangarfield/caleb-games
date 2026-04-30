@@ -2,6 +2,9 @@ import { game } from './state.js';
 
 const keys = {};
 const joystick = { active: false, sx: 0, sy: 0, cx: 0, cy: 0, dx: 0, dy: 0, id: null };
+const _gw = document.getElementById('game-wrapper');
+function _lx(cx) { return _gw ? cx - _gw.getBoundingClientRect().left : cx; }
+function _ly(cy) { return _gw ? cy - _gw.getBoundingClientRect().top : cy; }
 
 export function setupInput(canvas) {
   document.addEventListener('keydown', e => { keys[e.code] = true; });
@@ -16,10 +19,10 @@ export function setupInput(canvas) {
     if (!joystick.active) {
       joystick.active = true;
       joystick.id = e.pointerId;
-      joystick.sx = e.clientX;
-      joystick.sy = e.clientY;
-      joystick.cx = e.clientX;
-      joystick.cy = e.clientY;
+      joystick.sx = _lx(e.clientX);
+      joystick.sy = _ly(e.clientY);
+      joystick.cx = _lx(e.clientX);
+      joystick.cy = _ly(e.clientY);
       joystick.dx = 0;
       joystick.dy = 0;
       canvas.setPointerCapture(e.pointerId);
@@ -28,8 +31,8 @@ export function setupInput(canvas) {
 
   canvas.addEventListener('pointermove', e => {
     if (joystick.active && e.pointerId === joystick.id) {
-      joystick.cx = e.clientX;
-      joystick.cy = e.clientY;
+      joystick.cx = _lx(e.clientX);
+      joystick.cy = _ly(e.clientY);
       const dx = joystick.cx - joystick.sx;
       const dy = joystick.cy - joystick.sy;
       const d = Math.sqrt(dx * dx + dy * dy);

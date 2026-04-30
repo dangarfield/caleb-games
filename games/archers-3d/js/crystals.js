@@ -4,6 +4,7 @@ import { dist } from './utils.js';
 import { sfxCoin } from './audio.js';
 import { spawnParticles } from './particles.js';
 import { T } from './arena.js';
+import { isEnemyAlive } from './enemies.js';
 
 export function spawnCrystals(x, y, count) {
   for (let c = 0; c < count; c++) {
@@ -21,7 +22,7 @@ export function updateCrystals(dt) {
   const p = game.player;
   const attractR = CRYSTAL_ATTRACT_R * T() * (p.magnetMult || 1);
   // Crystals can only be collected after all enemies are dead
-  const canCollect = game.enemies.length === 0;
+  const canCollect = game.enemies.every(e => !isEnemyAlive(e));
 
   for (let i = game.crystals.length - 1; i >= 0; i--) {
     const c = game.crystals[i];
@@ -54,10 +55,14 @@ export function magnetAllCrystals(dt) {
   for (let i = game.crystals.length - 1; i >= 0; i--) {
     const c = game.crystals[i];
     c.bobPhase += dt * 4;
+    if (c._magnetTime === undefined) c._magnetTime = 0;
+    c._magnetTime += dt;
+    const accel = Math.min(c._magnetTime * 3, 1); // 0→1 over ~0.33s
+    const speed = (2 + accel * accel * 14) * T(); // starts slow, ramps up fast
     const d = dist(c.x, c.y, p.x, p.y);
     const ang = Math.atan2(p.y - c.y, p.x - c.x);
-    c.x += Math.cos(ang) * 6.6 * T() * dt;
-    c.y += Math.sin(ang) * 6.6 * T() * dt;
+    c.x += Math.cos(ang) * speed * dt;
+    c.y += Math.sin(ang) * speed * dt;
     if (d < (PLAYER_R + CRYSTAL_R + 0.11) * T()) {
       game.runCoins += c.value;
       sfxCoin();

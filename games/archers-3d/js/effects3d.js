@@ -6,6 +6,11 @@ import { game } from './state.js';
 import { T } from './arena.js';
 import { BULLET_R, ENEMY_BULLET_R, CRYSTAL_R } from './constants.js';
 import { gameToWorld, worldScale, getScene, getTime } from './renderer3d.js';
+import { GPUParticleSystem, GroundShadowPool, ImpactRingPool, emitElementTrail, emitImpactBurst, ELEM_VFX } from './vfx3d.js';
+
+let vfxParticles = null;  // GPUParticleSystem instance
+let groundShadows = null; // GroundShadowPool instance
+let impactRings = null;   // ImpactRingPool instance
 
 // ─── Constants ───
 
@@ -24,8 +29,8 @@ const METEOR_START_HEIGHT = 5.0;       // meteors start this high
 // Pool limits
 const MAX_PLAYER_BULLETS = 128;
 const MAX_ENEMY_BULLETS = 256;
-const MAX_PARTICLES = 512;
-const MAX_CRYSTALS = 64;
+const MAX_PARTICLES = 1024;
+const MAX_CRYSTALS = 128;
 const MAX_HEARTS = 16;
 const MAX_ORBITALS = 24;
 const MAX_STRIKE_EFFECTS = 16;
@@ -81,6 +86,7 @@ let geoIcosa;       // icosahedron
 let geoOcta;        // octahedron (crystals, star projectiles)
 let geoTorus;       // torus for strike rings
 let geoSword;       // elongated thin box for orbital swords
+let geoIceShard;    // elongated crystal for ice bullets
 
 function ensureGeometries() {
   if (geoArrow) return;
@@ -95,6 +101,10 @@ function ensureGeometries() {
   geoOcta = new THREE.OctahedronGeometry(1, 0);
   geoTorus = new THREE.TorusGeometry(1, 0.12, 8, 24);
   geoTorus.rotateX(PI / 2); // lay flat
+
+  // Ice shard — slightly elongated faceted crystal, 1 subdivision to soften edges
+  geoIceShard = new THREE.OctahedronGeometry(1, 1);
+  geoIceShard.scale(0.7, 1.2, 0.7);
   geoSword = new THREE.BoxGeometry(0.025, 0.025, 0.2);
 }
 
@@ -156,14 +166,14 @@ function acquire(pool) {
 // ─── Enemy bullet style helpers ───
 
 const ENEMY_STYLE_CONFIG = {
-  rock:    { geo: () => geoBox,   color: '#8B7355', scale: 0.3, emissiveIntensity: 0.1, tumble: true },
-  acid:    { geo: () => geoSphere, color: '#2ecc71', scale: 0.25, emissiveIntensity: 0.5, transparent: true, opacity: 0.75 },
-  arrow:   { geo: () => geoCone,  color: '#c8a96e', scale: 1, emissiveIntensity: 0.15, useConeGeo: true },
-  fire:    { geo: () => geoSphere, color: '#ff6b2b', scale: 0.25, emissiveIntensity: 0.9 },
-  ice:     { geo: () => geoIcosa, color: '#74b9ff', scale: 0.25, emissiveIntensity: 0.4 },
-  bolt:    { geo: () => geoSphere, color: '#ffd32a', scale: 0.2, emissiveIntensity: 1.2, pointLight: true },
-  skull:   { geo: () => geoSphere, color: '#2d2d2d', scale: 0.25, emissive: '#8e44ad', emissiveIntensity: 0.8 },
-  default: { geo: () => geoSphere, color: '#e74c3c', scale: 0.25, emissiveIntensity: 0.5 },
+  rock:    { geo: () => geoBox,   color: '#8B7355', scale: 0.18, emissive: '#8B7355', emissiveIntensity: 0.3, tumble: true },
+  acid:    { geo: () => geoSphere, color: '#2ecc71', scale: 0.15, emissiveIntensity: 0.5, transparent: true, opacity: 0.75 },
+  arrow:   { geo: () => geoCone,  color: '#c8a96e', scale: 0.6, emissiveIntensity: 0.15, useConeGeo: true },
+  fire:    { geo: () => geoSphere, color: '#ff6b2b', scale: 0.15, emissiveIntensity: 0.9 },
+  ice:     { geo: () => geoIceShard, color: '#aaddff', scale: 0.18, emissive: '#74b9ff', emissiveIntensity: 0.7, transparent: true, opacity: 0.85 },
+  bolt:    { geo: () => geoSphere, color: '#ffd32a', scale: 0.12, emissiveIntensity: 1.2 },
+  skull:   { geo: () => geoSphere, color: '#2d2d2d', scale: 0.15, emissive: '#8e44ad', emissiveIntensity: 0.8 },
+  default: { geo: () => geoSphere, color: '#e74c3c', scale: 0.15, emissiveIntensity: 0.5 },
 };
 
 // ─── Element colors for orbitals ───
@@ -195,8 +205,8 @@ function initPools() {
     g.add(shaft);
 
     // Arrowhead — cone at front
-    const headLen = 0.06;
-    const headGeo = new THREE.ConeGeometry(0.02, headLen, 4);
+    const headLen = 0.08;
+    const headGeo = new THREE.ConeGeometry(0.03, headLen, 4);
     headGeo.rotateX(PI / 2); // point along +Z
     const headMat = getCachedMaterial('#cccccc', { emissiveIntensity: 0.3, metalness: 0.5, roughness: 0.3 });
     const head = new THREE.Mesh(headGeo, headMat);
@@ -234,11 +244,10 @@ function initPools() {
     return g;
   });
 
-  // Enemy bullets: each pool entry is a group with potential point light
+  // Enemy bullets: simple mesh per bullet (trails handled by GPU particles)
   pools.enemyBullets = createPool('enemyBullets', MAX_ENEMY_BULLETS, () => {
-    // We'll set geometry/material dynamically per style, but start with a sphere
     const mesh = new THREE.Mesh(geoSphere.clone(), getCachedMaterial('#e74c3c'));
-    mesh.scale.setScalar(0.25);
+    mesh.scale.setScalar(0.15);
     return mesh;
   });
 
@@ -246,21 +255,45 @@ function initPools() {
   initParticleSystem();
 
   // Crystals (gems)
+  // Crystals — faceted diamond (flat crown + pointed pavilion)
   pools.crystals = createPool('crystals', MAX_CRYSTALS, () => {
-    const mesh = new THREE.Mesh(geoOcta, getCachedMaterial('#a29bfe', {
-      emissive: '#a29bfe', emissiveIntensity: 0.8, metalness: 0.5, roughness: 0.15,
-    }));
-    mesh.scale.setScalar(0.25);
-    return mesh;
+    const g = new THREE.Group();
+    const gemMat = getCachedMaterial('#6ea8fe', {
+      emissive: '#5b9bff', emissiveIntensity: 0.8, metalness: 0.7, roughness: 0.1,
+    });
+    // Crown — short wide cone (flat top, wider bottom = girdle)
+    const crown = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.06, 6), gemMat);
+    crown.position.y = 0.03;
+    crown.rotation.z = PI; // flip so wide end is at bottom (girdle)
+    g.add(crown);
+    // Pavilion — taller cone pointing down
+    const pavilion = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.14, 6), gemMat);
+    pavilion.position.y = -0.04;
+    g.add(pavilion);
+    return g;
   });
 
-  // Hearts
+  // Hearts — heart shape from two spheres + cone
   pools.hearts = createPool('hearts', MAX_HEARTS, () => {
-    const mesh = new THREE.Mesh(geoSphere, getCachedMaterial('#ff6b81', {
-      emissive: '#ff6b81', emissiveIntensity: 0.7, roughness: 0.2,
-    }));
-    mesh.scale.setScalar(0.2);
-    return mesh;
+    const g = new THREE.Group();
+    const heartMat = getCachedMaterial('#e00030', {
+      emissive: '#cc0020', emissiveIntensity: 0.8, roughness: 0.25,
+    });
+    // Two lobes (top bumps)
+    const lobeGeo = new THREE.SphereGeometry(0.09, 8, 6);
+    const left = new THREE.Mesh(lobeGeo, heartMat);
+    left.position.set(-0.065, 0.03, 0);
+    g.add(left);
+    const right = new THREE.Mesh(lobeGeo, heartMat);
+    right.position.set(0.065, 0.03, 0);
+    g.add(right);
+    // Bottom point (cone pointing down)
+    const pointGeo = new THREE.ConeGeometry(0.115, 0.16, 8);
+    const point = new THREE.Mesh(pointGeo, heartMat);
+    point.position.set(0, -0.05, 0);
+    point.rotation.z = PI; // point downward
+    g.add(point);
+    return g;
   });
 
   // Orbitals — each pool entry is a Group with sub-meshes for all types (toggled by visibility)
@@ -418,18 +451,18 @@ function initPools() {
     // Core bright point
     const core = new THREE.Mesh(geoSphere, getCachedMaterial('#ffffff', { emissiveIntensity: 1.5 }));
     core.name = 'core';
-    core.scale.setScalar(0.08);
+    core.scale.setScalar(0.048);
     g.add(core);
     // Glow
     const glow = new THREE.Mesh(geoSphere, getCachedMaterial('#ffd32a', {
       emissiveIntensity: 1.0, transparent: true, opacity: 0.4,
     }));
     glow.name = 'glow';
-    glow.scale.setScalar(0.2);
+    glow.scale.setScalar(0.12);
     g.add(glow);
     // Trail (elongated, stretched upward)
     const trail = new THREE.Mesh(
-      new THREE.ConeGeometry(0.06, 0.4, 6),
+      new THREE.ConeGeometry(0.036, 0.24, 6),
       getCachedMaterial('#ffd32a', { emissiveIntensity: 0.8, transparent: true, opacity: 0.3 })
     );
     trail.name = 'trail';
@@ -446,14 +479,14 @@ function initPools() {
       emissive: '#ff4500', emissiveIntensity: 1.5,
     }));
     core.name = 'core';
-    core.scale.setScalar(0.4);
+    core.scale.setScalar(0.24);
     g.add(core);
     // Inner glow
     const glow = new THREE.Mesh(geoSphere, getCachedMaterial('#ffaa00', {
       emissiveIntensity: 1.0, transparent: true, opacity: 0.5,
     }));
     glow.name = 'glow';
-    glow.scale.setScalar(0.55);
+    glow.scale.setScalar(0.33);
     g.add(glow);
     // Trail puffs (stacked above)
     for (let t = 0; t < 3; t++) {
@@ -461,7 +494,7 @@ function initPools() {
         emissiveIntensity: 0.4, transparent: true, opacity: 0.2,
       }));
       puff.name = 'trail' + t;
-      puff.scale.setScalar(0.3 - t * 0.07);
+      puff.scale.setScalar(0.18 - t * 0.042);
       puff.position.y = 0.5 + t * 0.35;
       g.add(puff);
     }
@@ -506,35 +539,35 @@ function initParticleSystem() {
   geo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(particleColors, 3));
   geo.setAttribute('size', new THREE.BufferAttribute(particleSizes, 1));
+  geo.setAttribute('alpha', new THREE.BufferAttribute(particleAlphas, 1));
 
   // Custom shader material for per-particle alpha and color
   const mat = new THREE.ShaderMaterial({
-    uniforms: {
-      uAlphas: { value: particleAlphas },
-    },
+    uniforms: {},
     vertexShader: `
       attribute float size;
+      attribute float alpha;
       attribute vec3 color;
       varying vec3 vColor;
-      varying float vIndex;
+      varying float vLife;
       void main() {
         vColor = color;
-        vIndex = float(gl_VertexID);
+        vLife = alpha;
         vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
-        gl_PointSize = size * (200.0 / -mvPos.z);
-        gl_PointSize = clamp(gl_PointSize, 1.0, 32.0);
+        gl_PointSize = size * (350.0 / -mvPos.z);
+        gl_PointSize = clamp(gl_PointSize, 1.0, 64.0);
         gl_Position = projectionMatrix * mvPos;
       }
     `,
     fragmentShader: `
       varying vec3 vColor;
+      varying float vLife;
       void main() {
-        // Soft circle shape
         vec2 uv = gl_PointCoord - vec2(0.5);
         float d = length(uv);
         if (d > 0.5) discard;
-        float alpha = smoothstep(0.5, 0.15, d);
-        gl_FragColor = vec4(vColor, alpha * 0.85);
+        float alpha = smoothstep(0.5, 0.15, d) * vLife * 0.85;
+        gl_FragColor = vec4(vColor, alpha);
       }
     `,
     transparent: true,
@@ -592,8 +625,9 @@ function syncPlayerBullets() {
     });
 
     // Scale based on damage (slightly larger for stronger arrows)
-    const dmgScale = Math.min(1 + (b.dmg || 10) / 80, 1.5) * 3;
+    const dmgScale = Math.min(1 + (b.dmg || 10) / 80, 1.5) * 1.8;
     mesh.scale.set(dmgScale, dmgScale, dmgScale);
+
 
     // Holy bullets: show halo instead of arrow
     if (b.isHoly) {
@@ -604,7 +638,7 @@ function syncPlayerBullets() {
         ring.position.set(pos.x, BULLET_HEIGHT, pos.z);
         // Lay flat (horizontal) and spin based on travel direction
         ring.rotation.set(-PI / 2, 0, -(b.ang || 0));
-        const haloScale = 2.5;
+        const haloScale = 1.5;
         ring.scale.setScalar(haloScale);
       }
     }
@@ -615,6 +649,12 @@ function syncEnemyBullets() {
   hideAll(pools.enemyBullets);
 
   const time = getTime();
+
+  // Glow color map for each style
+  const GLOW_COLORS = {
+    rock: '#a08060', acid: '#44ff44', fire: '#ff6b2b', ice: '#88ccff',
+    bolt: '#ffd32a', skull: '#8e44ad', default: '#e74c3c', arrow: '#c8a96e',
+  };
 
   for (let i = 0; i < game.enemyBullets.length; i++) {
     const eb = game.enemyBullets[i];
@@ -657,17 +697,83 @@ function syncEnemyBullets() {
 
     // Rotation based on style
     if (style.tumble) {
-      // Rock: tumble rotation over time
       mesh.rotation.set(time * 4.5, time * 3.2, time * 2.1);
     } else if (style.useConeGeo || eb.style === 'arrow') {
-      // Arrow-type: face travel direction
       const ang = eb.ang ?? Math.atan2(eb.vy || 0, eb.vx || 0);
       mesh.rotation.set(0, -ang + PI / 2, 0);
     } else {
-      // Reset rotation for spheres
       mesh.rotation.set(0, 0, 0);
     }
+
+    // Style-specific animations
+    const s = style.scale;
+    if (eb.style === 'acid') {
+      mesh.scale.set(s + Math.sin(time * 6) * 0.03, s - Math.sin(time * 6) * 0.03, s);
+    } else if (eb.style === 'fire') {
+      mesh.scale.setScalar(s * (1 + Math.sin(time * 12) * 0.1));
+    } else if (eb.style === 'ice') {
+      mesh.rotation.set(time * 1.5, time * 2, time * 0.8);
+    } else if (eb.style === 'bolt') {
+      mesh.position.x += (Math.random() - 0.5) * 0.04;
+      mesh.position.z += (Math.random() - 0.5) * 0.04;
+    } else if (eb.style === 'skull') {
+      mesh.scale.setScalar(s * (1 + Math.sin(time * 3) * 0.06));
+    }
+
+    // Ground shadow for lobbed projectiles
+    if (eb.lobbed && groundShadows) {
+      groundShadows.show(pos.x, pos.z, worldY, 0.6);
+    }
+
+    // Element trail particles for elemental bullets
+    // Trail particles — spawn behind the projectile
+    if (vfxParticles) {
+      // Offset trail behind the bullet's velocity direction
+      const spd = Math.sqrt((eb.vx||0)*(eb.vx||0) + (eb.vy||0)*(eb.vy||0)) || 1;
+      const behindX = pos.x - ((eb.vx||0) / spd) * 0.3;
+      const behindZ = pos.z - ((eb.vy||0) / spd) * 0.3;
+      const tPos = { x: behindX, y: worldY - 0.15, z: behindZ };
+      const st = eb.style;
+
+      if (st === 'fire') {
+        vfxParticles.trail(tPos, '#ff6b2b', 7.0, 0.4, { velY: 0.6, spread: 0.1, drag: 0.93 });
+      } else if (st === 'ice') {
+        vfxParticles.trail(tPos, '#aaddff', 7.0, 0.45, { velY: 0.05, spread: 0.12, drag: 0.97 });
+      } else if (st === 'bolt') {
+        vfxParticles.trail(tPos, '#ffd32a', 6.0, 0.25, { velY: 0.4, spread: 0.14, drag: 0.88 });
+      } else if (st === 'poison' || st === 'acid') {
+        vfxParticles.trail(tPos, '#2ecc71', 6.5, 0.4, { velY: -0.3, spread: 0.1, drag: 0.92 });
+      } else if (st === 'skull') {
+        vfxParticles.trail(tPos, '#8e44ad', 6.5, 0.45, { velY: 0.2, spread: 0.12, drag: 0.96 });
+      } else if (st === 'rock') {
+        vfxParticles.trail(tPos, '#a08060', 6.0, 0.35, { velY: 0.15, spread: 0.1, drag: 0.95 });
+      } else {
+        const tc = GLOW_COLORS[st] || GLOW_COLORS.default;
+        vfxParticles.trail(tPos, tc, 6.0, 0.35, { velY: 0.2, spread: 0.08, drag: 0.95 });
+      }
+    }
+
+    // Bounce impact effects for bouncy bullets
+    if (vfxParticles && eb.bouncy) {
+      if (eb._lastBouncesLeft === undefined) {
+        eb._lastBouncesLeft = eb.bouncesLeft ?? 99;
+      }
+      if (eb.bouncesLeft !== undefined && eb.bouncesLeft < eb._lastBouncesLeft) {
+        // A bounce just happened — emit impact burst
+        const bColor = GLOW_COLORS[eb.style] || GLOW_COLORS.default;
+        vfxParticles.burst(
+          { x: pos.x, y: worldY, z: pos.z },
+          bColor, 12, 3.5, 5.0, 0.4, { drag: 0.9, gravity: 2, spread: 1.5 }
+        );
+        // Impact ring on the ground
+        if (impactRings) {
+          impactRings.spawn(pos.x, pos.z, 1.2, bColor, 0.3, 0.8);
+        }
+        eb._lastBouncesLeft = eb.bouncesLeft;
+      }
+    }
   }
+
 }
 
 function syncParticles() {
@@ -704,6 +810,7 @@ function syncParticles() {
   geo.attributes.position.needsUpdate = true;
   geo.attributes.color.needsUpdate = true;
   geo.attributes.size.needsUpdate = true;
+  geo.attributes.alpha.needsUpdate = true;
   geo.setDrawRange(0, count);
 }
 
@@ -743,7 +850,7 @@ function syncHearts() {
 
     // Gentle pulse
     const pulse = 1 + Math.sin(time * 4 + (h.bobPhase || 0)) * 0.12;
-    mesh.scale.setScalar(0.2 * pulse);
+    mesh.scale.setScalar(pulse);
   }
 }
 
@@ -806,6 +913,8 @@ function syncOrbitals() {
   }
 }
 
+const _strikeEffectBurstDone = new WeakSet();
+
 function syncStrikeEffects() {
   hideAll(pools.strikeEffects);
 
@@ -831,6 +940,13 @@ function syncStrikeEffects() {
       transparent: true,
       opacity: Math.max(0.2, quantizedOpacity),
     });
+
+    // Emit impact burst on first appearance
+    if (vfxParticles && impactRings && !_strikeEffectBurstDone.has(se)) {
+      _strikeEffectBurstDone.add(se);
+      const burstElement = se.element || 'fire';
+      emitImpactBurst(vfxParticles, impactRings, { x: pos.x, y: 0.3, z: pos.z }, burstElement, maxRadius);
+    }
   }
 }
 
@@ -872,6 +988,24 @@ function syncStrikeProjectiles() {
         if (child.name === 'glow') child.material = glowMat;
       }
     });
+
+    // VFX particles: charge swirl while hovering, element trail while flying
+    if (vfxParticles) {
+      const sPos = { x: pos.x, y: h, z: pos.z };
+      if (hovering) {
+        // Swirling charge particles converging inward
+        const angle = time * 8 + i;
+        const offX = Math.cos(angle) * 0.3;
+        const offZ = Math.sin(angle) * 0.3;
+        vfxParticles.emit(
+          { x: sPos.x + offX, y: sPos.y, z: sPos.z + offZ },
+          { x: -offX * 2, y: 0.5, z: -offZ * 2 },
+          new THREE.Color(sColor), 1.5, 0.2, 0.9, 0
+        );
+      } else {
+        emitElementTrail(vfxParticles, sPos, s.element || 'fire', 1.0);
+      }
+    }
   }
 }
 
@@ -911,6 +1045,20 @@ function syncStarProjectiles() {
     // Scale: 2x base, brighter as it gets close
     const brightScale = (0.8 + (1 - starHeight / 4.0) * 0.4) * 2.0;
     group.scale.setScalar(brightScale);
+
+    // Ground shadow indicator
+    if (groundShadows) {
+      groundShadows.show(pos.x, pos.z, starHeight, 0.8);
+    }
+
+    // Bright flash burst when star is near ground
+    if (vfxParticles && starHeight < 0.5) {
+      const sColor = sp.color || '#ffd32a';
+      vfxParticles.burst(
+        { x: pos.x, y: Math.max(0.1, starHeight), z: pos.z },
+        sColor, 4, 1.5, 2.0, 0.15
+      );
+    }
   }
 }
 
@@ -940,8 +1088,10 @@ function syncMeteorProjectiles() {
 
     group.position.set(pos.x, Math.max(0.15, meteorY), pos.z);
 
-    // Face direction of travel
-    group.rotation.set(0, -m.ang + PI / 2, 0);
+    // Tumble rotation for dramatic effect
+    const time = getTime();
+    group.rotation.x = time * 3;
+    group.rotation.z = time * 2;
 
     // Color core + glow to match element
     const mColor = m.color || '#ff6b2b';
@@ -955,6 +1105,20 @@ function syncMeteorProjectiles() {
     // Scale by AoE radius
     const mScale = worldScale((m.r || 20) * 2) * 1.0;
     group.scale.setScalar(Math.max(0.3, mScale));
+
+    // Ground shadow
+    if (groundShadows) {
+      groundShadows.show(pos.x, pos.z, meteorY, 1.5);
+    }
+
+    // Fire + smoke trail particles
+    if (vfxParticles) {
+      const mPos = { x: pos.x, y: Math.max(0.15, meteorY), z: pos.z };
+      // Fire trail
+      vfxParticles.trail(mPos, mColor, 3.0, 0.5, { velY: 1.0, drag: 0.93, spread: 0.15 });
+      // Smoke
+      vfxParticles.trail(mPos, '#444444', 2.5, 0.7, { velY: 0.8, drag: 0.96, spread: 0.2 });
+    }
   }
 }
 
@@ -975,7 +1139,13 @@ function syncBoltArcs() {
 
     for (let j = 0; j < count; j++) {
       const wp = gameToWorld(pts[j].x, pts[j].y);
-      posAttr.setXYZ(j, wp.x, 0.4, wp.z);
+      // Re-jitter interior points for flickering effect
+      const jitterAmt = (j > 0 && j < count - 1) ? 0.04 : 0;
+      posAttr.setXYZ(j,
+        wp.x + (Math.random() - 0.5) * jitterAmt,
+        0.4 + (Math.random() - 0.5) * jitterAmt,
+        wp.z + (Math.random() - 0.5) * jitterAmt
+      );
     }
     posAttr.needsUpdate = true;
     geo.setDrawRange(0, count);
@@ -983,6 +1153,14 @@ function syncBoltArcs() {
     // Fade with life
     const alpha = Math.max(0, arc.life / 0.15);
     line.material = getLineMaterial('#ffd32a', Math.min(1, alpha));
+
+    // Emit spark particles at endpoints
+    if (vfxParticles && count >= 2) {
+      const startPt = gameToWorld(pts[0].x, pts[0].y);
+      const endPt = gameToWorld(pts[count - 1].x, pts[count - 1].y);
+      vfxParticles.trail({ x: startPt.x, y: 0.4, z: startPt.z }, '#ffd32a', 1.0, 0.08, { velY: 0.5, spread: 0.1, drag: 0.8 });
+      vfxParticles.trail({ x: endPt.x, y: 0.4, z: endPt.z }, '#ffffff', 1.2, 0.1, { velY: 0.6, spread: 0.12, drag: 0.8 });
+    }
   }
 }
 
@@ -1024,6 +1202,16 @@ export function syncEffects() {
     getScene().add(effectsGroup);
     initPools();
   }
+
+  if (!vfxParticles) {
+    const scene = getScene();
+    vfxParticles = new GPUParticleSystem(scene, 4096);
+    groundShadows = new GroundShadowPool(scene, 64);
+    impactRings = new ImpactRingPool(scene, 24);
+  }
+
+  // Reset ground shadows each frame so only active ones are shown
+  if (groundShadows) groundShadows.hideAll();
 
   syncPlayerBullets();
   syncEnemyBullets();
@@ -1074,8 +1262,90 @@ export function clearEffects() {
   particleSizes = null;
   particleAlphas = null;
 
+  // Dispose VFX systems
+  if (vfxParticles) { vfxParticles.dispose?.(); vfxParticles = null; }
+  if (groundShadows) { groundShadows.dispose?.(); groundShadows = null; }
+  if (impactRings) { impactRings.dispose?.(); impactRings = null; }
+
   // Note: shared geometries (geoArrow, etc.) are NOT disposed — they persist
   // across stages for reuse. Materials in the cache also persist.
+}
+
+/**
+ * Update VFX particle systems. Called from main.js each frame with delta time.
+ */
+export function updateVFX(dt) {
+  if (vfxParticles) vfxParticles.update(dt);
+  if (impactRings) impactRings.update(dt);
+}
+
+/**
+ * Spawn a kid-friendly firework/fountain burst when an enemy dies.
+ * pos: {x, y, z} in world coords, color: hex string of enemy color
+ */
+export function spawnDeathPoof(pos, color, scale = 1) {
+  if (!vfxParticles) return;
+
+  const baseColor = color || '#ffdd44';
+  // Firework palette — bright rainbow colors mixed with the enemy's color
+  const fireworkColors = [
+    '#ff3366', '#ff9933', '#ffee33', '#33ff66',
+    '#33ccff', '#cc66ff', '#ff66cc', '#ffffff',
+    baseColor
+  ];
+
+  // === Fountain spray — shoots upward and rains down ===
+  const fountainCount = 18;
+  for (let i = 0; i < fountainCount; i++) {
+    const c = fireworkColors[Math.floor(Math.random() * fireworkColors.length)];
+    const angle = Math.random() * Math.PI * 2;
+    const spread = Math.random() * 0.4;
+    const spd = (4 + Math.random() * 4) * scale;
+    vfxParticles.emit(
+      { x: pos.x + Math.cos(angle) * spread * scale, y: pos.y, z: pos.z + Math.sin(angle) * spread * scale },
+      { x: Math.cos(angle) * spread * spd * 0.3, y: spd, z: Math.sin(angle) * spread * spd * 0.3 },
+      new THREE.Color(c), (2 + Math.random() * 2) * scale, 0.4 + Math.random() * 0.2, 0.94, 6
+    );
+  }
+
+  // === Radial starburst — shoots outward in a ring ===
+  const starCount = 12;
+  for (let i = 0; i < starCount; i++) {
+    const c = fireworkColors[Math.floor(Math.random() * fireworkColors.length)];
+    const angle = (i / starCount) * Math.PI * 2 + Math.random() * 0.3;
+    const spd = (3 + Math.random() * 2) * scale;
+    const upBias = 0.3 + Math.random() * 0.5;
+    vfxParticles.emit(
+      { x: pos.x, y: pos.y + 0.1, z: pos.z },
+      { x: Math.cos(angle) * spd, y: upBias * spd, z: Math.sin(angle) * spd },
+      new THREE.Color(c), (1.5 + Math.random() * 1.5) * scale, 0.3 + Math.random() * 0.15, 0.91, 5
+    );
+  }
+
+  // === Confetti sparkles — slow floaty bits ===
+  const confettiCount = 10;
+  for (let i = 0; i < confettiCount; i++) {
+    const c = fireworkColors[Math.floor(Math.random() * fireworkColors.length)];
+    vfxParticles.emit(
+      { x: pos.x + (Math.random() - 0.5) * scale, y: pos.y + Math.random() * scale * 0.5, z: pos.z + (Math.random() - 0.5) * scale },
+      { x: (Math.random() - 0.5) * 2, y: 1 + Math.random() * 2, z: (Math.random() - 0.5) * 2 },
+      new THREE.Color(c), (1 + Math.random()) * scale, 0.4 + Math.random() * 0.2, 0.96, 2
+    );
+  }
+
+  // === Central white flash ===
+  for (let i = 0; i < 4; i++) {
+    vfxParticles.emit(
+      { x: pos.x, y: pos.y, z: pos.z },
+      { x: (Math.random() - 0.5) * 1, y: Math.random() * 1.5, z: (Math.random() - 0.5) * 1 },
+      new THREE.Color('#ffffff'), 4 * scale, 0.1 + Math.random() * 0.05, 0.85, 0
+    );
+  }
+
+  // === Impact ring on the ground ===
+  if (impactRings) {
+    impactRings.spawn(pos.x, pos.z, 1.2 * scale, baseColor, 0.4, 2.0);
+  }
 }
 
 /**
@@ -1084,5 +1354,6 @@ export function clearEffects() {
 function isSharedGeometry(geo) {
   return geo === geoArrow || geo === geoHolyRing || geo === geoSphere ||
          geo === geoCone || geo === geoBox || geo === geoIcosa ||
-         geo === geoOcta || geo === geoTorus || geo === geoSword;
+         geo === geoOcta || geo === geoTorus || geo === geoSword ||
+         geo === geoIceShard;
 }

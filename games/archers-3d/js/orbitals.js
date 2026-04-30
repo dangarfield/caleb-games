@@ -3,6 +3,7 @@ import { game } from './state.js';
 import { dist, dmgVar } from './utils.js';
 import { spawnParticles } from './particles.js';
 import { T } from './arena.js';
+import { isEnemyAlive } from './enemies.js';
 
 // Element colors
 const ELEM_COLORS = {
@@ -128,6 +129,7 @@ export function updateOrbitals(dt) {
       o.dmgTimer = 0.3; // tick every 0.3s
 
       for (const e of game.enemies) {
+        if (!isEnemyAlive(e)) continue;
         if (dist(ox, oy, e.x, e.y) < hitR + e.r) {
           const eKey = game.enemies.indexOf(e);
           if (o.hitCooldowns.has(eKey)) continue;

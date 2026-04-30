@@ -56,10 +56,14 @@ export function magnetAllHearts(dt) {
   for (let i = game.hearts.length - 1; i >= 0; i--) {
     const h = game.hearts[i];
     h.bobPhase += dt * 4;
+    if (h._magnetTime === undefined) h._magnetTime = 0;
+    h._magnetTime += dt;
+    const accel = Math.min(h._magnetTime * 3, 1); // 0→1 over ~0.33s
+    const speed = (2 + accel * accel * 14) * T(); // starts slow, ramps up fast
     const d = dist(h.x, h.y, p.x, p.y);
     const ang = Math.atan2(p.y - h.y, p.x - h.x);
-    h.x += Math.cos(ang) * 6.6 * T() * dt;
-    h.y += Math.sin(ang) * 6.6 * T() * dt;
+    h.x += Math.cos(ang) * speed * dt;
+    h.y += Math.sin(ang) * speed * dt;
     if (d < (PLAYER_R + HEART_R + 0.11) * T()) {
       let healAmt = p.maxHp * HEART_HEAL_PCT * (p.heartHealMult || 1);
       // Grace: +0.6% more heal per 1% HP missing

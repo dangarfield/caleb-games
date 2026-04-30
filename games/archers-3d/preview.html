@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Archers 3D - Enemy Preview</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a2e;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif;color:#fff}
+canvas{display:block;width:100%;height:100%}
+#three-canvas{position:fixed;inset:0;z-index:0}
+#gameCanvas{position:fixed;inset:0;z-index:1;pointer-events:none}
+#toolbar{position:fixed;top:0;left:0;right:0;z-index:100;
+  background:rgba(0,0,0,0.75);backdrop-filter:blur(8px);
+  border-bottom:1px solid rgba(255,255,255,0.12);
+  padding:8px 14px;display:flex;flex-direction:column;gap:6px}
+#toolbar .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#toolbar label{font-size:12px;color:#888;white-space:nowrap}
+#toolbar select,#toolbar button{padding:5px 10px;border-radius:5px;border:1px solid rgba(255,255,255,0.2);
+  background:rgba(255,255,255,0.1);color:#fff;font-size:13px;cursor:pointer}
+#toolbar select:hover,#toolbar button:hover{background:rgba(255,255,255,0.2)}
+#toolbar button.active{background:rgba(100,180,255,0.3);border-color:rgba(100,180,255,0.5)}
+#toolbar .sep{width:1px;height:20px;background:rgba(255,255,255,0.15);margin:0 2px}
+#toolbar .map-label{font-size:13px;color:#ccc;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#info{position:fixed;bottom:10px;left:10px;z-index:100;background:rgba(0,0,0,0.6);padding:8px 12px;
+  border-radius:8px;border:1px solid rgba(255,255,255,0.08);font-size:11px;color:#777;max-width:360px}
+
+/* Map picker modal */
+#map-modal-overlay{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.7);
+  backdrop-filter:blur(4px);justify-content:center;align-items:center}
+#map-modal-overlay.open{display:flex}
+#map-modal{background:#1a1a2e;border:1px solid rgba(255,255,255,0.2);border-radius:14px;padding:20px;
+  max-width:90vw;max-height:85vh;overflow-y:auto;min-width:320px}
+#map-modal h2{font-size:16px;color:#7aafff;margin-bottom:12px}
+#map-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+.map-card{cursor:pointer;border:2px solid rgba(255,255,255,0.15);border-radius:8px;padding:6px;
+  background:rgba(255,255,255,0.05);transition:border-color 0.15s,background 0.15s;text-align:center}
+.map-card:hover{border-color:rgba(100,180,255,0.5);background:rgba(100,180,255,0.1)}
+.map-card.selected{border-color:#7aafff;background:rgba(100,180,255,0.15)}
+.map-card canvas{display:block;margin:0 auto 4px;image-rendering:pixelated}
+.map-card .map-label{font-size:11px;color:#aaa}
+.map-card .map-type{font-size:10px;color:#666;text-transform:uppercase}
+#map-modal .close-btn{float:right;background:none;border:none;color:#aaa;font-size:20px;cursor:pointer;
+  padding:0 4px;line-height:1}
+#map-modal .close-btn:hover{color:#fff}
+</style>
+</head>
+<body>
+<canvas id="three-canvas"></canvas>
+<canvas id="gameCanvas"></canvas>
+
+<div id="toolbar">
+  <!-- Row 1: Chapter, Map, Enemy -->
+  <div class="row">
+    <label>Chapter</label>
+    <select id="chapterSelect"></select>
+    <div class="sep"></div>
+    <label>Map</label>
+    <span class="map-label" id="currentMapLabel">None</span>
+    <button id="pickMapBtn">Pick</button>
+    <div class="sep"></div>
+    <label>Enemy</label>
+    <select id="enemySelect" style="max-width:220px"></select>
+  </div>
+  <!-- Row 2: Camera, Playback -->
+  <div class="row">
+    <label>Camera</label>
+    <button id="camOrtho">Ortho</button>
+    <button id="camPersp" class="active">Perspective</button>
+    <button id="camOrbit">Free Orbit</button>
+    <div class="sep"></div>
+    <button id="pauseBtn">Pause</button>
+    <button id="reloadBtn">Reload</button>
+  </div>
+</div>
+
+<div id="info">
+  <strong>Enemy Preview</strong> — Pick chapter, map &amp; enemy. Full AI, no damage.
+</div>
+
+<!-- Map picker modal -->
+<div id="map-modal-overlay">
+  <div id="map-modal">
+    <button class="close-btn" id="mapModalClose">&times;</button>
+    <h2>Pick a Map Layout</h2>
+    <div id="map-grid"></div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import { game } from './js/state.js';
+import { arena, T } from './js/arena.js';
+import { loadMapData, getMapData, parseStageMap } from './js/mapData.js';
+import { CHAPTERS, CHAPTER_THEMES, getStageScale } from './js/chapters.js';
+import { ENEMY_TYPES, getEnemyType } from './js/enemyTypes.js';
+import { spawnEnemyAt, updateEnemies } from './js/enemies.js';
+import { updateBullets } from './js/bullets.js';
+import { updateParticles, updateBoltArcs } from './js/particles.js';
+import { initRenderer3D, render3D, setChapterTheme, updateCamera, snapCamera, gameToWorld, toggleCamera, isOrthoCamera, camera } from './js/renderer3d.js';
+import { buildArena } from './js/arena3d.js';
+import { syncEntities, clearEntities } from './js/entities3d.js';
+import { syncEffects, clearEffects, updateVFX } from './js/effects3d.js';
+import { preloadEnemyModels } from './js/enemyModels.js';
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ─── LocalStorage persistence ───
+const STORAGE_KEY = 'archers3d_preview';
+function loadPrefs() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch { return {}; }
+}
+function savePrefs() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    chapter: parseInt(document.getElementById('chapterSelect').value),
+    mapId: currentMapId,
+    enemyId: currentEnemyId,
+  }));
+}
+
+// ─── State ───
+let paused = false;
+let orbitMode = false;
+let orbitControls = null;
+let animId = null;
+let currentMapId = null;
+let currentEnemyId = null;
+const canvas2d = document.getElementById('gameCanvas');
+const ctx = canvas2d.getContext('2d');
+
+// ─── Minimal player stub ───
+function createPreviewPlayer() {
+  const a = arena();
+  game.player = {
+    x: a.x + a.w / 2, y: a.y + a.h * 0.8,
+    hp: 999, maxHp: 999, xp: 0, level: 1, xpToNext: 99999,
+    dmgMult: 1, speedMult: 1, cdMult: 1, critChance: 0, critDmg: 2,
+    extraShots: 0, frontArrows: 0, diagonalArrows: false, sideArrows: false, rearShot: false,
+    pierce: 0, bouncy: false, ricochet: false,
+    blaze: false, freeze: false, poisonTouch: false, bolt: false, darkTouch: false,
+    elementDmgMult: 1, elementBurst: false,
+    deathBomb: false, deathNova: false, chillingBlast: false,
+    healOnKillPct: 0, shieldCharges: 0, heartDropChance: 0,
+    heartHealMult: 1, hpRegen: 0, iFrameBonus: 0, dodgeChance: 0,
+    starDuration: 0, shieldGuards: 0, starCycleTimer: 0,
+    circles: { fire: 0, ice: 0, poison: 0, bolt: 0, obsidian: 0 },
+    swords: { fire: 0, ice: 0, poison: 0, bolt: 0 },
+    strikes: { fire: 0, ice: 0, poison: 0, bolt: 0 },
+    stars: { fire: 0, ice: 0, poison: 0, bolt: 0 },
+    meteors: { fire: 0, ice: 0, poison: 0, bolt: 0 },
+    fury: false, rage: false, grace: false, agility: false,
+    headshot: false, xpMult: 1, greedMult: 1, greedDmgTaken: 1,
+    holyTouchStacks: 0, slowProjectile: 0, shadowClones: 0,
+    magnetMult: 1, maxLevelBonus: 0, sizeScale: 1,
+    hpPlusStacks: 0, atkPlusStacks: 0, critPlusStacks: 0, spdPlusStacks: 0,
+    speedAuraStacks: 0, critAuraStacks: 0, speedAuraRooms: 0, critAuraRooms: 0,
+    tookDamageThisStage: false, skills: {},
+    arrowColor: '#00e5ff',
+  };
+}
+
+function resetGameArrays() {
+  game.enemies = [];
+  game.bullets = [];
+  game.enemyBullets = [];
+  game.crystals = [];
+  game.hearts = [];
+  game.obstacles = [];
+  game.waterTiles = [];
+  game.spikeTiles = [];
+  game.particles = [];
+  game.orbitals = [];
+  game.strikeEffects = [];
+  game.strikeProjectiles = [];
+  game.starProjectiles = [];
+  game.meteorProjectiles = [];
+  game.clones = [];
+  game._cloneTrail = [];
+  game._delayedBullets = [];
+  game.specialEntities = [];
+  game.deferredEntities = [];
+  game.stuckArrows = [];
+  game.boltArcs = [];
+  game.mapGrid = null;
+  game.doorWalls = [];
+  game.doorOpen = false;
+  game.iFrames = 0;
+  game.shakeTimer = 0; game.shakeX = 0; game.shakeY = 0;
+}
+
+// ─── Get all available maps for a chapter ───
+function getAvailableMaps(chapterNum) {
+  const data = getMapData();
+  if (!data) return [];
+  const maps = [];
+  const chKey = `ch${chapterNum}`;
+  for (const entry of (data.registry[chKey] || [])) {
+    maps.push({ id: entry.id, type: entry.type, group: chKey });
+  }
+  for (const entry of (data.registry.common || [])) {
+    maps.push({ id: entry.id, type: entry.type, group: 'common' });
+  }
+  for (const entry of (data.registry.angel || [])) {
+    maps.push({ id: entry.id, type: entry.type, group: 'angel' });
+  }
+  return maps;
+}
+
+// ─── Render a mini map preview to a canvas ───
+function renderMapThumbnail(mapId, size) {
+  const data = getMapData();
+  const m = data?.maps?.[mapId];
+  if (!m) return null;
+  const c = document.createElement('canvas');
+  const cellSize = Math.floor(size / Math.max(m.w, m.h));
+  c.width = m.w * cellSize;
+  c.height = m.h * cellSize;
+  const cx = c.getContext('2d');
+  const terrainColors = { 0: '#3a6a30', 1: '#5a5a5a', 2: '#2288aa', 3: '#cc4444' };
+
+  for (let row = 0; row < m.h; row++) {
+    for (let col = 0; col < m.w; col++) {
+      const idx = row * m.w + col;
+      const tType = parseInt(m.t[idx], 36);
+      cx.fillStyle = terrainColors[tType] || '#3a6a30';
+      cx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+      const eChar = m.e[idx];
+      if (eChar !== '.') {
+        const typeKey = m.el?.[eChar];
+        if (typeKey === '_player') {
+          cx.fillStyle = '#00e5ff';
+          cx.beginPath();
+          cx.arc(col * cellSize + cellSize / 2, row * cellSize + cellSize / 2, cellSize * 0.35, 0, Math.PI * 2);
+          cx.fill();
+        } else if (typeKey === '_angel') {
+          cx.fillStyle = '#ffd700';
+          cx.beginPath();
+          cx.arc(col * cellSize + cellSize / 2, row * cellSize + cellSize / 2, cellSize * 0.3, 0, Math.PI * 2);
+          cx.fill();
+        } else if (typeKey === '_chest') {
+          cx.fillStyle = '#f39c12';
+          cx.fillRect(col * cellSize + 1, row * cellSize + 1, cellSize - 2, cellSize - 2);
+        } else if (typeKey?.startsWith('_enemy')) {
+          cx.fillStyle = '#ff4444';
+          cx.beginPath();
+          cx.arc(col * cellSize + cellSize / 2, row * cellSize + cellSize / 2, cellSize * 0.3, 0, Math.PI * 2);
+          cx.fill();
+        } else {
+          cx.fillStyle = '#ff8800';
+          cx.beginPath();
+          cx.arc(col * cellSize + cellSize / 2, row * cellSize + cellSize / 2, cellSize * 0.35, 0, Math.PI * 2);
+          cx.fill();
+        }
+      }
+    }
+  }
+  cx.strokeStyle = 'rgba(0,0,0,0.2)';
+  cx.lineWidth = 0.5;
+  for (let row = 0; row <= m.h; row++) {
+    cx.beginPath(); cx.moveTo(0, row * cellSize); cx.lineTo(m.w * cellSize, row * cellSize); cx.stroke();
+  }
+  for (let col = 0; col <= m.w; col++) {
+    cx.beginPath(); cx.moveTo(col * cellSize, 0); cx.lineTo(col * cellSize, m.h * cellSize); cx.stroke();
+  }
+  return c;
+}
+
+// ─── Load map + enemy onto stage ───
+function loadPreview() {
+  if (!currentMapId) return;
+
+  const ch = parseInt(document.getElementById('chapterSelect').value);
+  game.chapter = ch;
+  game.stage = 1;
+  game.state = 'playing';
+
+  resetGameArrays();
+  createPreviewPlayer();
+
+  const parsed = parseStageMap(currentMapId);
+  if (!parsed) { console.error('Parse failed for', currentMapId); return; }
+
+  game.mapGrid = { w: parsed.w, h: parsed.h };
+  const a = arena();
+  const p = game.player;
+  const cell = a.cellSize;
+  p.x = a.x + a.w / 2;
+  p.y = a.y + a.h * 0.8;
+
+  for (const w of parsed.walls) {
+    game.obstacles.push({ x: a.x + w.col * cell, y: a.y + w.row * cell, w: cell, h: cell });
+  }
+  for (const wt of parsed.water) {
+    game.waterTiles.push({ x: a.x + wt.col * cell, y: a.y + wt.row * cell, w: cell, h: cell });
+  }
+  for (const sp of parsed.spikes) {
+    game.spikeTiles.push({ x: a.x + sp.col * cell, y: a.y + sp.row * cell, w: cell, h: cell });
+  }
+
+  const enemySpots = [];
+  for (const ent of parsed.entities) {
+    const cx = a.x + (ent.col + 0.5) * cell;
+    const cy = a.y + (ent.row + 0.5) * cell;
+    if (ent.typeKey === '_player') {
+      p.x = cx; p.y = cy;
+    } else if (ent.typeKey !== '_angel' && ent.typeKey !== '_chest') {
+      enemySpots.push({ x: cx, y: cy });
+    }
+  }
+
+  if (currentEnemyId && enemySpots.length > 0) {
+    const typeDef = getEnemyType(currentEnemyId);
+    if (typeDef) {
+      const scale = getStageScale(ch, 1);
+      const isBoss = typeDef.boss || false;
+      preloadEnemyModels([currentEnemyId]);
+      for (const spot of enemySpots) {
+        spawnEnemyAt(currentEnemyId, typeDef, scale, spot.x, spot.y, { isBoss, guaranteedDrop: false });
+      }
+    }
+  }
+
+  // Door wall
+  const grid = game.mapGrid;
+  const cellW = a.w / grid.w;
+  const gateH = cellW * 2;
+  const wallY = a.y - gateH;
+  const doorCells = 3;
+  const doorStart = Math.floor((grid.w - doorCells) / 2);
+  if (doorStart > 0)
+    game.obstacles.push({ x: a.x, y: wallY, w: doorStart * cellW, h: gateH, _isDoorWall: true });
+  const doorEnd = doorStart + doorCells;
+  if (doorEnd < grid.w)
+    game.obstacles.push({ x: a.x + doorEnd * cellW, y: wallY, w: (grid.w - doorEnd) * cellW, h: gateH, _isDoorWall: true });
+  game.obstacles.push({ x: a.x + doorStart * cellW, y: wallY, w: doorCells * cellW, h: gateH, _isDoorWall: true, _isDoor: true });
+
+  game.debug.noDmgToPlayer = true;
+  for (const e of game.enemies) e._spawnTimer = 0;
+
+  clearEntities();
+  clearEffects();
+  setChapterTheme(CHAPTER_THEMES[ch] || CHAPTER_THEMES[0]);
+  buildArena();
+  snapCamera(p.x, p.y);
+
+  savePrefs();
+}
+
+// ─── Populate chapter dropdown ───
+function populateChapterSelect(defaultCh) {
+  const sel = document.getElementById('chapterSelect');
+  sel.innerHTML = '';
+  for (let i = 0; i < CHAPTERS.length; i++) {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `Ch${i}: ${CHAPTERS[i].name}`;
+    sel.appendChild(opt);
+  }
+  sel.value = String(defaultCh ?? 1);
+}
+
+// ─── Populate enemy dropdown for selected chapter ───
+function populateEnemySelect(defaultEnemyId) {
+  const sel = document.getElementById('enemySelect');
+  const ch = parseInt(document.getElementById('chapterSelect').value);
+  const chapter = CHAPTERS[ch];
+  sel.innerHTML = '';
+  if (!chapter) return;
+
+  if (chapter.bossPool?.length > 0) {
+    const group = document.createElement('optgroup');
+    group.label = 'Bosses';
+    for (const entry of chapter.bossPool) {
+      const typeDef = getEnemyType(entry.id);
+      const opt = document.createElement('option');
+      opt.value = entry.id;
+      opt.textContent = typeDef?.name || entry.id;
+      if (entry.stage) opt.textContent += ` (stg ${entry.stage})`;
+      group.appendChild(opt);
+    }
+    sel.appendChild(group);
+  }
+
+  if (chapter.enemyPool?.length > 0) {
+    const group = document.createElement('optgroup');
+    group.label = 'Enemy Pool';
+    for (const entry of chapter.enemyPool) {
+      const typeDef = getEnemyType(entry.id);
+      const opt = document.createElement('option');
+      opt.value = entry.id;
+      opt.textContent = typeDef?.name || entry.id;
+      group.appendChild(opt);
+    }
+    sel.appendChild(group);
+  }
+
+  const chapterIds = new Set([
+    ...(chapter.bossPool || []).map(e => e.id),
+    ...(chapter.enemyPool || []).map(e => e.id),
+  ]);
+  const otherIds = Object.keys(ENEMY_TYPES).filter(id => !chapterIds.has(id)).sort((a, b) => {
+    const ta = ENEMY_TYPES[a], tb = ENEMY_TYPES[b];
+    if (ta.boss && !tb.boss) return 1;
+    if (!ta.boss && tb.boss) return -1;
+    return (ta.name || a).localeCompare(tb.name || b);
+  });
+  if (otherIds.length > 0) {
+    const group = document.createElement('optgroup');
+    group.label = 'All Other Enemies';
+    for (const id of otherIds) {
+      const typeDef = ENEMY_TYPES[id];
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = `${typeDef.name || id}${typeDef.boss ? ' [BOSS]' : ''}`;
+      group.appendChild(opt);
+    }
+    sel.appendChild(group);
+  }
+
+  // Try to restore requested enemy, else pick first boss/pool entry
+  if (defaultEnemyId && sel.querySelector(`option[value="${defaultEnemyId}"]`)) {
+    sel.value = defaultEnemyId;
+  } else if (chapter.bossPool?.length > 0) {
+    sel.value = chapter.bossPool[0].id;
+  } else if (chapter.enemyPool?.length > 0) {
+    sel.value = chapter.enemyPool[0].id;
+  }
+  currentEnemyId = sel.value;
+}
+
+// ─── Map picker modal ───
+function openMapModal() {
+  const ch = parseInt(document.getElementById('chapterSelect').value);
+  const maps = getAvailableMaps(ch);
+  const grid = document.getElementById('map-grid');
+  grid.innerHTML = '';
+
+  const groups = [
+    { label: `Chapter ${ch}`, entries: maps.filter(m => m.group === `ch${ch}`) },
+    { label: 'Common Stages', entries: maps.filter(m => m.group === 'common') },
+    { label: 'Angel Rooms', entries: maps.filter(m => m.group === 'angel') },
+  ];
+
+  for (const g of groups) {
+    if (g.entries.length === 0) continue;
+    const header = document.createElement('div');
+    header.style.cssText = 'grid-column:1/-1;font-size:13px;color:#7aafff;padding:6px 0 2px;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:2px';
+    header.textContent = g.label;
+    grid.appendChild(header);
+
+    for (const entry of g.entries) {
+      const card = document.createElement('div');
+      card.className = 'map-card' + (entry.id === currentMapId ? ' selected' : '');
+      const thumb = renderMapThumbnail(entry.id, 120);
+      if (thumb) card.appendChild(thumb);
+      const label = document.createElement('div');
+      label.className = 'map-label';
+      label.textContent = entry.id;
+      card.appendChild(label);
+      const typeLabel = document.createElement('div');
+      typeLabel.className = 'map-type';
+      typeLabel.textContent = entry.type;
+      card.appendChild(typeLabel);
+      card.addEventListener('click', () => {
+        currentMapId = entry.id;
+        document.getElementById('currentMapLabel').textContent = entry.id;
+        closeMapModal();
+        loadPreview();
+      });
+      grid.appendChild(card);
+    }
+  }
+
+  document.getElementById('map-modal-overlay').classList.add('open');
+}
+
+function closeMapModal() {
+  document.getElementById('map-modal-overlay').classList.remove('open');
+}
+
+// ─── Camera modes ───
+function setOrthoMode() {
+  if (!isOrthoCamera()) toggleCamera();
+  disableOrbit();
+  document.getElementById('camOrtho').classList.add('active');
+  document.getElementById('camPersp').classList.remove('active');
+  document.getElementById('camOrbit').classList.remove('active');
+}
+
+function setPerspMode() {
+  if (isOrthoCamera()) toggleCamera();
+  disableOrbit();
+  document.getElementById('camOrtho').classList.remove('active');
+  document.getElementById('camPersp').classList.add('active');
+  document.getElementById('camOrbit').classList.remove('active');
+}
+
+function setOrbitMode() {
+  if (isOrthoCamera()) toggleCamera();
+  enableOrbit();
+  document.getElementById('camOrtho').classList.remove('active');
+  document.getElementById('camPersp').classList.remove('active');
+  document.getElementById('camOrbit').classList.add('active');
+}
+
+function enableOrbit() {
+  if (orbitControls) return;
+  orbitMode = true;
+  const threeCanvas = document.getElementById('three-canvas');
+  threeCanvas.style.pointerEvents = 'auto';
+  orbitControls = new OrbitControls(camera, threeCanvas);
+  orbitControls.enableDamping = true;
+  orbitControls.dampingFactor = 0.08;
+  orbitControls.minDistance = 5;
+  orbitControls.maxDistance = 60;
+  if (game.player) {
+    const wp = gameToWorld(game.player.x, game.player.y);
+    orbitControls.target.set(wp.x, 0, wp.z);
+  }
+}
+
+function disableOrbit() {
+  orbitMode = false;
+  const threeCanvas = document.getElementById('three-canvas');
+  threeCanvas.style.pointerEvents = 'none';
+  if (orbitControls) {
+    orbitControls.dispose();
+    orbitControls = null;
+  }
+}
+
+// ─── Render loop ───
+let lastTime = performance.now();
+function loop(ts) {
+  animId = requestAnimationFrame(loop);
+  const realDt = Math.min((ts - lastTime) / 1000, 0.05);
+  lastTime = ts;
+
+  if (canvas2d.width !== innerWidth || canvas2d.height !== innerHeight) {
+    canvas2d.width = innerWidth;
+    canvas2d.height = innerHeight;
+  }
+  ctx.clearRect(0, 0, canvas2d.width, canvas2d.height);
+
+  if (game.state !== 'playing') {
+    render3D();
+    return;
+  }
+
+  const dt = paused ? 0 : realDt;
+
+  if (!paused) {
+    updateEnemies(dt);
+    updateBullets(dt);
+    updateParticles(dt);
+    updateBoltArcs(dt);
+    if (game.iFrames > 0) game.iFrames -= dt;
+  }
+
+  if (!orbitMode && game.player) {
+    updateCamera(game.player.x, game.player.y, dt);
+  }
+  if (orbitControls) orbitControls.update();
+
+  syncEntities();
+  syncEffects();
+  updateVFX(dt);
+  render3D();
+}
+
+// ─── Event handlers ───
+document.getElementById('chapterSelect').addEventListener('change', () => {
+  populateEnemySelect();
+  if (currentMapId) loadPreview();
+});
+
+document.getElementById('enemySelect').addEventListener('change', () => {
+  currentEnemyId = document.getElementById('enemySelect').value;
+  if (currentMapId) loadPreview();
+});
+
+document.getElementById('pickMapBtn').addEventListener('click', openMapModal);
+document.getElementById('mapModalClose').addEventListener('click', closeMapModal);
+document.getElementById('map-modal-overlay').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeMapModal();
+});
+
+document.getElementById('camOrtho').addEventListener('click', setOrthoMode);
+document.getElementById('camPersp').addEventListener('click', setPerspMode);
+document.getElementById('camOrbit').addEventListener('click', setOrbitMode);
+
+document.getElementById('pauseBtn').addEventListener('click', () => {
+  paused = !paused;
+  document.getElementById('pauseBtn').textContent = paused ? 'Play' : 'Pause';
+  document.getElementById('pauseBtn').classList.toggle('active', paused);
+});
+
+document.getElementById('reloadBtn').addEventListener('click', () => {
+  if (currentMapId) loadPreview();
+});
+
+// ─── Init ───
+async function init() {
+  canvas2d.width = innerWidth;
+  canvas2d.height = innerHeight;
+
+  await loadMapData();
+  initRenderer3D();
+
+  // Restore saved prefs or use defaults
+  const prefs = loadPrefs();
+  const defaultCh = prefs.chapter ?? 1;
+
+  populateChapterSelect(defaultCh);
+  populateEnemySelect(prefs.enemyId);
+
+  // Restore map or pick first common
+  if (prefs.mapId && getMapData()?.maps?.[prefs.mapId]) {
+    currentMapId = prefs.mapId;
+  } else {
+    const maps = getAvailableMaps(defaultCh);
+    currentMapId = maps.find(m => m.group === 'common')?.id || maps[0]?.id || null;
+  }
+  if (currentMapId) {
+    document.getElementById('currentMapLabel').textContent = currentMapId;
+  }
+
+  loadPreview();
+  lastTime = performance.now();
+  requestAnimationFrame(loop);
+
+}
+
+init().catch(e => console.error('Preview init failed:', e));
+</script>
+</body>
+</html>

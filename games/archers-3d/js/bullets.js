@@ -5,7 +5,7 @@ import { arena, T } from './arena.js';
 import { sfxShoot, sfxHit, sfxEnemyShoot, sfxPlayerHit } from './audio.js';
 import { spawnParticles, spawnDmgNumber } from './particles.js';
 import { getInput } from './input.js';
-import { updateDelayedBullets } from './enemies.js';
+import { updateDelayedBullets, isEnemyAlive } from './enemies.js';
 
 export function updateShooting(dt) {
   game.shootTimer -= dt;
@@ -24,7 +24,7 @@ export function updateShooting(dt) {
     let nearest = null, nd = Infinity;
     let nearestClear = null, ncd = Infinity;
     for (const e of game.enemies) {
-      if (e._spawnTimer > 0 || e._underground) continue;
+      if (e._spawnTimer > 0 || e._underground || !isEnemyAlive(e)) continue;
       const d = dist(p.x, p.y, e.x, e.y);
       if (d < nd) { nd = d; nearest = e; }
       if (d < ncd) {
@@ -126,7 +126,7 @@ function fireBullet(ang, dmg, trailDist, fadeIn) {
   });
 }
 
-function spawnBoltArc(x1, y1, x2, y2) {
+function spawnBoltArc(x1, y1, x2, y2, color) {
   // Pre-compute 4-segment zigzag between source and target
   const segs = 4;
   const pts = [{ x: x1, y: y1 }];
@@ -142,7 +142,7 @@ function spawnBoltArc(x1, y1, x2, y2) {
     pts.push({ x: mx + px * off, y: my + py * off });
   }
   pts.push({ x: x2, y: y2 });
-  game.boltArcs.push({ pts, life: 0.15 });
+  game.boltArcs.push({ pts, life: 0.15, color: color || '#ffd32a' });
 }
 
 function spawnStuckArrow(x, y, ang) {
@@ -186,12 +186,15 @@ export function updateBullets(dt) {
       }
     }
     // OOB check (always, for bounced-out or non-bouncy bullets)
-    if (b.x < a.x - br || b.x > a.x + a.w + br || b.y < a.y - 20 || b.y > a.y + a.h + br) oob = true;
+    // After a bounce, stop at boundaries immediately (no margin)
+    if (b.bounces > 0) {
+      if (b.x < a.x + br || b.x > a.x + a.w - br || b.y < a.y + br || b.y > a.y + a.h - br) oob = true;
+    } else if (b.x < a.x - br || b.x > a.x + a.w + br || b.y < a.y - 20 || b.y > a.y + a.h + br) oob = true;
     if (oob) { if (!b.isHoly) spawnStuckArrow(b.x, b.y, b.ang); game.bullets.splice(i, 1); continue; }
 
-    // Obstacle collision — bounce off if bouncy, else destroy
+    // Obstacle collision — bounce off if bouncy and haven't already bounced, else destroy
     let hitOb = false;
-    if (p.bouncy && !b.isHoly) {
+    if (p.bouncy && !b.isHoly && b.bounces < 1) {
       for (const ob of game.obstacles) {
         if (circRect(b.x, b.y, br, ob.x, ob.y, ob.w, ob.h)) {
           // Determine bounce direction based on overlap
@@ -220,7 +223,7 @@ export function updateBullets(dt) {
     let hit = false;
     if (!b._hitEnemies) b._hitEnemies = new Set();
     for (const e of game.enemies) {
-      if (e._underground || e._spawnTimer > 0) continue;
+      if (e._underground || e._spawnTimer > 0 || !isEnemyAlive(e)) continue;
       if (b._hitEnemies.has(e)) continue; // already pierced through this one
       if (dist(b.x, b.y, e.x, e.y) < br + e.r) {
         // Dark Curse damage amplification
@@ -234,6 +237,7 @@ export function updateBullets(dt) {
         e.knockback = 0.01;
         e.kbx = b.vx * kbStr;
         e.kby = b.vy * kbStr;
+        e._hitAnim = 0.25; // damage animation duration
         sfxHit();
         spawnParticles(b.x, b.y, e.color, 3, 80);
 
@@ -405,8 +409,27 @@ export function updateBullets(dt) {
         }
       }
 
-      // Obstacle collision (non-lobbed, non-bouncy only)
-      if (!b.bouncy) {
+      // Obstacle collision
+      if (b.bouncy && b.bouncesLeft > 0) {
+        // Bouncy bullets reflect off internal walls
+        for (const ob of game.obstacles) {
+          if (circRect(b.x, b.y, ebr, ob.x, ob.y, ob.w, ob.h)) {
+            // Determine which face was hit and reflect
+            const cx = ob.x + ob.w / 2, cy = ob.y + ob.h / 2;
+            const dx = b.x - cx, dy = b.y - cy;
+            if (Math.abs(dx / ob.w) > Math.abs(dy / ob.h)) {
+              b.vx *= -1;
+              b.x = dx > 0 ? ob.x + ob.w + ebr : ob.x - ebr;
+            } else {
+              b.vy *= -1;
+              b.y = dy > 0 ? ob.y + ob.h + ebr : ob.y - ebr;
+            }
+            b.bouncesLeft--;
+            break;
+          }
+        }
+      } else {
+        // Non-bouncy bullets OR bouncy bullets that used all bounces: destroy on obstacle hit
         let hitOb = false;
         for (const ob of game.obstacles) {
           if (circRect(b.x, b.y, ebr, ob.x, ob.y, ob.w, ob.h)) { hitOb = true; break; }

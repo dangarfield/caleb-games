@@ -8,6 +8,7 @@ import { sfxEquip, sfxSkillPick } from './audio.js';
 import { TOTAL_CHAPTERS } from './constants.js';
 import { getSkillIcon } from './icons.js';
 import { drawSkillCard } from './skillCard.js';
+import { renderArmouryPreview } from './armouryPreview.js';
 
 // UI scale factor - all sizes relative to 400px base width
 function sc(W) { return Math.max(1, W / 400); }
@@ -25,6 +26,43 @@ function drawSkillIcon(ctx, skill, cx, cy, size) {
     ctx.textBaseline = 'middle';
     ctx.fillText(skill.icon, cx, cy);
   }
+}
+
+// Equipment icon image cache
+const _equipImgCache = {};
+function getEquipImg(imgPath) {
+  if (!imgPath) return null;
+  if (_equipImgCache[imgPath]) return _equipImgCache[imgPath].complete ? _equipImgCache[imgPath] : null;
+  const img = new Image();
+  img.src = imgPath;
+  _equipImgCache[imgPath] = img;
+  return img.complete ? img : null;
+}
+
+function drawEquipIcon(ctx, item, cx, cy, size) {
+  const r = size * 0.18;
+  const x = cx - size / 2, y = cy - size / 2;
+  const img = item.img ? getEquipImg(item.img) : null;
+  if (img) {
+    ctx.save();
+    ctx.beginPath(); ctx.roundRect(x, y, size, size, r); ctx.clip();
+    ctx.drawImage(img, x, y, size, size);
+    ctx.restore();
+  } else {
+    ctx.save();
+    ctx.fillStyle = 'rgba(30,20,60,0.6)';
+    ctx.beginPath(); ctx.roundRect(x, y, size, size, r); ctx.fill();
+    ctx.restore();
+    ctx.font = Math.round(size * 0.65) + 'px "Segoe UI Emoji","Apple Color Emoji",sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(item.icon, cx, cy);
+  }
+  // Purple border
+  ctx.strokeStyle = '#a29bfe';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.roundRect(x, y, size, size, r); ctx.stroke();
 }
 
 // Track clickable regions for the current frame
@@ -257,20 +295,21 @@ export function drawEquipScreen(ctx, W, H) {
 
     // Resolve what's in this slot
     let icon = null, name = null, subtitle = null, nameColor = '#a29bfe';
+    let itemRef = null;
     let notBest = false;
     if (def.slot === 'weapon') {
-      icon = weapon.icon; name = weapon.name; subtitle = 'Lv.' + chosenWpn;
+      itemRef = weapon; icon = weapon.icon; name = weapon.name; subtitle = 'Lv.' + chosenWpn;
       nameColor = RARITY_COLORS[weapon.rarity] || '#fff';
       notBest = chosenWpn < equipLvl;
     } else if (def.slot === 'armor') {
-      icon = armor.icon; name = armor.name; subtitle = 'Lv.' + chosenArm;
+      itemRef = armor; icon = armor.icon; name = armor.name; subtitle = 'Lv.' + chosenArm;
       nameColor = RARITY_COLORS[armor.rarity] || '#fff';
       notBest = chosenArm < equipLvl;
     } else {
       const ri = def.slot === 'ring1' ? 0 : 1;
       const ring = equippedRings[ri] ? getRingById(equippedRings[ri]) : null;
       if (ring && unlockedRings.includes(ring.id)) {
-        icon = ring.icon; name = ring.name; subtitle = ring.trait;
+        itemRef = ring; icon = ring.icon; name = ring.name; subtitle = ring.trait;
       }
     }
 
@@ -284,37 +323,31 @@ export function drawEquipScreen(ctx, W, H) {
     ctx.beginPath(); ctx.roundRect(sx, sy, colW, slotH, slotR); ctx.stroke();
 
     if (hasItem) {
-      const iconSize = slotH * 0.45;
-      const iconY = sy + slotH / 2 + 4 * s;
+      const iconSize = slotH * 0.5;
+      const midY = sy + slotH / 2;
 
       if (rightAligned) {
-        const iconX = sx + colW - 6 * s - iconSize / 2;
-        ctx.font = Math.round(iconSize * 0.7) + 'px "Segoe UI Emoji","Apple Color Emoji",sans-serif';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#fff';
-        ctx.fillText(icon, iconX, iconY);
-        const textX = sx + colW - iconSize - 12 * s;
-        ctx.textAlign = 'right';
+        const iconX = sx + colW - 8 * s - iconSize / 2;
+        drawEquipIcon(ctx, itemRef, iconX, midY, iconSize);
+        const textX = sx + colW - iconSize - 14 * s;
+        ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
         ctx.fillStyle = nameColor;
         ctx.font = fontB(W, 10);
-        ctx.fillText(name, textX, sy + 22 * s);
+        ctx.fillText(name, textX, midY - 7 * s);
         ctx.fillStyle = 'rgba(255,255,255,0.4)';
         ctx.font = font(W, 8);
-        ctx.fillText(subtitle, textX, sy + 34 * s);
+        ctx.fillText(subtitle, textX, midY + 7 * s);
       } else {
-        const iconX = sx + 6 * s + iconSize / 2;
-        ctx.font = Math.round(iconSize * 0.7) + 'px "Segoe UI Emoji","Apple Color Emoji",sans-serif';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#fff';
-        ctx.fillText(icon, iconX, iconY);
-        const textX = sx + iconSize + 12 * s;
-        ctx.textAlign = 'left';
+        const iconX = sx + 8 * s + iconSize / 2;
+        drawEquipIcon(ctx, itemRef, iconX, midY, iconSize);
+        const textX = sx + iconSize + 14 * s;
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
         ctx.fillStyle = nameColor;
         ctx.font = fontB(W, 10);
-        ctx.fillText(name, textX, sy + 22 * s);
+        ctx.fillText(name, textX, midY - 7 * s);
         ctx.fillStyle = 'rgba(255,255,255,0.4)';
         ctx.font = font(W, 8);
-        ctx.fillText(subtitle, textX, sy + 34 * s);
+        ctx.fillText(subtitle, textX, midY + 7 * s);
       }
       // Notification badge top-right of card when not using best
       if (notBest) {
@@ -344,61 +377,42 @@ export function drawEquipScreen(ctx, W, H) {
     });
   });
 
-  // Middle column: player avatar + stats + ring buffs
+  // Middle column: player avatar (background) + stats overlay + ring buffs
   const midX = pad + colW + colGap;
   const midCx = midX + colW / 2;
-
-  // Player avatar
-  const avatarR = 20 * s;
-  const avatarY = gridTop + 20 * s;
-  ctx.save();
   const armorColor = RARITY_COLORS[armor.rarity] || '#00e5ff';
-  ctx.shadowColor = armorColor; ctx.shadowBlur = 14 * s;
-  ctx.fillStyle = armorColor;
-  ctx.beginPath(); ctx.arc(midCx, avatarY, avatarR, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#0a0a2e';
-  const cr = avatarR * 0.5;
-  ctx.beginPath();
-  ctx.moveTo(midCx, avatarY - cr);
-  ctx.lineTo(midCx - cr * 0.8, avatarY + cr * 0.5);
-  ctx.lineTo(midCx + cr * 0.8, avatarY + cr * 0.5);
-  ctx.closePath(); ctx.fill();
-  ctx.restore();
 
-  // Stats
-  const statsStartY = avatarY + avatarR + 14 * s;
+  // Player avatar — 3D rendered preview (square, centered in middle column)
+  const avatarSize = 2 * (slotH + slotGap);
+  const avatarY = gridTop + (slotH + slotGap) - avatarSize / 2;
+
+  const previewCanvas = renderArmouryPreview();
+  if (previewCanvas) {
+    ctx.drawImage(previewCanvas, midCx - avatarSize / 2, avatarY, avatarSize, avatarSize);
+  }
+
+  // ATK / HP overlaid on top of the character, label left / value right
   const statLines = [
     { label: 'ATK', value: fmt(weapon.atk * 10), color: '#e74c3c' },
     { label: 'HP',  value: fmt(armor.hp),         color: '#2ecc71' },
   ];
+  const statsBaseY = gridTop + 2 * (slotH + slotGap) - 12 * s;
   statLines.forEach((st, i) => {
-    const sy2 = statsStartY + i * 18 * s;
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.font = fontB(W, 11);
+    const sy2 = statsBaseY - (statLines.length - 1 - i) * 16 * s;
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur = 4 * s;
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = fontB(W, 10);
     ctx.textAlign = 'left';
     ctx.fillText(st.label, midX + 4 * s, sy2);
     ctx.fillStyle = st.color;
     ctx.font = fontB(W, 11);
     ctx.textAlign = 'right';
     ctx.fillText(st.value, midX + colW - 4 * s, sy2);
+    ctx.shadowBlur = 0;
   });
 
-  // Ring buff traits
-  const traits = [];
-  for (const rid of equippedRings) {
-    if (!rid) continue;
-    const r = getRingById(rid);
-    if (r && unlockedRings.includes(rid)) traits.push(r.trait);
-  }
-  if (traits.length > 0) {
-    const buffY = statsStartY + statLines.length * 18 * s + 8 * s;
-    ctx.textAlign = 'center';
-    traits.forEach((t, i) => {
-      ctx.fillStyle = '#a29bfe';
-      ctx.font = fontB(W, 9);
-      ctx.fillText(t, midCx, buffY + i * 14 * s);
-    });
-  }
 
   // ─── Selection panel (below 3-col grid) ───
   const invTop = gridTop + 2 * (slotH + slotGap) + 6 * s;
@@ -416,7 +430,7 @@ export function drawEquipScreen(ctx, W, H) {
       for (let lvl = equipLvl; lvl >= 1; lvl--) {
         const w = getWeapon(lvl);
         items.push({
-          icon: w.icon, name: w.name, pills: ['Lv.' + lvl, 'ATK ' + fmt(w.atk * 10)],
+          icon: w.icon, img: w.img, name: w.name, pills: ['Lv.' + lvl, 'ATK ' + fmt(w.atk * 10)],
           nameColor: RARITY_COLORS[w.rarity] || '#fff',
           isCurrent: lvl === chosenWpn, isOther: false,
           action: () => { setChosenWeaponLvl(lvl); sfxEquip(); }
@@ -426,7 +440,7 @@ export function drawEquipScreen(ctx, W, H) {
       for (let lvl = equipLvl; lvl >= 1; lvl--) {
         const a = getArmor(lvl);
         items.push({
-          icon: a.icon, name: a.name, pills: ['Lv.' + lvl, 'HP ' + fmt(a.hp)],
+          icon: a.icon, img: a.img, name: a.name, pills: ['Lv.' + lvl, 'HP ' + fmt(a.hp)],
           nameColor: RARITY_COLORS[a.rarity] || '#fff',
           isCurrent: lvl === chosenArm, isOther: false,
           action: () => { setChosenArmorLvl(lvl); sfxEquip(); }
@@ -440,7 +454,7 @@ export function drawEquipScreen(ctx, W, H) {
         const isCurrent = equippedRings[ringSlotIdx] === ring.id;
         const isOther = otherRingId === ring.id;
         items.push({
-          icon: ring.icon, name: ring.name, pills: [ring.trait],
+          icon: ring.icon, img: ring.img, name: ring.name, pills: [ring.trait],
           isCurrent, isOther, owned, cost: ring.cost, canAfford: coins >= ring.cost, ringId: ring.id,
           action: owned ? () => {
             if (isCurrent) {
@@ -497,20 +511,20 @@ export function drawEquipScreen(ctx, W, H) {
       ctx.globalAlpha = item.isOther ? 0.45 : (item.owned === false ? 0.5 : 1);
 
       // Icon
-      ctx.font = font(W, 18);
-      ctx.textAlign = 'left';
-      ctx.fillStyle = '#fff';
-      ctx.fillText(item.icon, pad + 10 * s, iy + itemH / 2 - 2 * s);
+      const listIconSize = 32 * s;
+      const listMidY = iy + (itemH - 4 * s) / 2;
+      drawEquipIcon(ctx, item, pad + 10 * s + listIconSize / 2, listMidY, listIconSize);
 
       // Name + pills (two lines)
       const lineGap = 14 * s;
-      const topLineY = iy + itemH / 2 - lineGap / 2;
-      const pillY = iy + itemH / 2 + lineGap / 2;
+      const topLineY = listMidY - lineGap / 2;
+      const pillY = listMidY + lineGap / 2;
 
+      const textStartX = pad + 10 * s + listIconSize + 10 * s;
       ctx.fillStyle = item.nameColor || '#a29bfe';
       ctx.font = fontB(W, 12);
       ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-      ctx.fillText(item.name, pad + 34 * s, topLineY);
+      ctx.fillText(item.name, textStartX, topLineY);
 
       // Stat pills
       const pillH2 = 14 * s;
@@ -518,7 +532,7 @@ export function drawEquipScreen(ctx, W, H) {
       const pillPadX2 = 6 * s;
       const pillGap2 = 3 * s;
       ctx.font = font(W, 9);
-      let px2 = pad + 34 * s;
+      let px2 = textStartX;
       const highlighted = item.isCurrent;
       for (const label of (item.pills || [])) {
         const tw2 = ctx.measureText(label).width;
@@ -640,6 +654,19 @@ const CHAPTER_ICONS = [
   '\u{1F3F0}', '\u{1F9B4}', '\u{1F311}', '\u{1F41D}', '\u{2744}\uFE0F', '\u{1F525}',
 ];
 
+// Preload chapter icon images
+const CHAPTER_ICON_IMGS = [];
+const CHAPTER_ICON_NAMES = [
+  'ch0_tutorial', 'ch1_verdant_prairie', 'ch2_storm_desert', 'ch3_abandoned_dungeon',
+  'ch4_crystal_mines', 'ch5_lost_castle', 'ch6_cave_of_bones', 'ch7_barrens_of_shadow',
+  'ch8_silent_expanse', 'ch9_frozen_pinnacle', 'ch10_land_of_doom',
+];
+for (let i = 0; i < CHAPTER_ICON_NAMES.length; i++) {
+  const img = new Image();
+  img.src = `images/chapters/${CHAPTER_ICON_NAMES[i]}.jpg`;
+  CHAPTER_ICON_IMGS[i] = img;
+}
+
 const CHAPTER_COLORS = [
   '#4CAF50', '#66BB6A', '#FF9800', '#5C6BC0', '#26C6DA',
   '#7E57C2', '#8D6E63', '#37474F', '#FDD835', '#42A5F5', '#EF5350',
@@ -653,9 +680,13 @@ export function handleMapSwipe(deltaX) {
   mapSwipeDrag += deltaX;
 }
 
+const _gwS = document.getElementById('game-wrapper');
+function _sw() { return _gwS ? _gwS.clientWidth : innerWidth; }
+function _sh() { return _gwS ? _gwS.clientHeight : innerHeight; }
+
 export function resetMapSwipe() {
   // Touch ended - snap to nearest chapter from drag
-  const W = innerWidth;
+  const W = _sw();
   const dragChapters = mapSwipeDrag / (W * 0.4); // how many chapters the drag covers
   const target = game.chapter + dragChapters;
   const snapped = clamp(Math.round(target), 0, TOTAL_CHAPTERS);
@@ -687,14 +718,50 @@ function drawChapterCard(ctx, W, H, chIdx, cardX, cardTop, cardW, cardH, r, s, c
   ctx.fillStyle = imgGrad;
   ctx.fillRect(cardX, cardTop, cardW, imgH);
 
-  // Large icon (lock for locked, chapter icon for unlocked)
-  const iconSize = Math.min(cardW, imgH) * 0.4;
-  ctx.font = Math.round(iconSize) + 'px "Segoe UI Emoji","Apple Color Emoji",sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.globalAlpha = isLocked ? 0.35 : 0.8;
-  ctx.fillText(isLocked ? '\u{1F512}' : (CHAPTER_ICONS[chIdx] || '\u2753'), cardX + cardW / 2, cardTop + imgH / 2);
-  ctx.globalAlpha = 1;
+  // Chapter icon image (or lock for locked)
+  const chImg = CHAPTER_ICON_IMGS[chIdx];
+  if (chImg && chImg.complete && chImg.naturalWidth > 0) {
+    ctx.globalAlpha = isLocked ? 0.3 : 1.0;
+    // Fill the image area, maintaining aspect ratio (cover)
+    const imgAspect = chImg.naturalWidth / chImg.naturalHeight;
+    const areaAspect = cardW / imgH;
+    let drawW, drawH, drawX, drawY;
+    if (imgAspect > areaAspect) {
+      drawH = imgH;
+      drawW = imgH * imgAspect;
+      drawX = cardX + (cardW - drawW) / 2;
+      drawY = cardTop;
+    } else {
+      drawW = cardW;
+      drawH = cardW / imgAspect;
+      drawX = cardX;
+      drawY = cardTop + (imgH - drawH) / 2;
+    }
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(cardX, cardTop, cardW, imgH);
+    ctx.clip();
+    ctx.drawImage(chImg, drawX, drawY, drawW, drawH);
+    ctx.restore();
+    ctx.globalAlpha = 1;
+    // Lock overlay icon
+    if (isLocked) {
+      const lockSize = Math.min(cardW, imgH) * 0.3;
+      ctx.font = Math.round(lockSize) + 'px "Segoe UI Emoji","Apple Color Emoji",sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.globalAlpha = 0.7;
+      ctx.fillText('\u{1F512}', cardX + cardW / 2, cardTop + imgH / 2);
+      ctx.globalAlpha = 1;
+    }
+  } else {
+    // Fallback emoji while loading
+    const iconSize = Math.min(cardW, imgH) * 0.4;
+    ctx.font = Math.round(iconSize) + 'px "Segoe UI Emoji","Apple Color Emoji",sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.globalAlpha = isLocked ? 0.35 : 0.8;
+    ctx.fillText(isLocked ? '\u{1F512}' : (CHAPTER_ICONS[chIdx] || '\u2753'), cardX + cardW / 2, cardTop + imgH / 2);
+    ctx.globalAlpha = 1;
+  }
 
   // Divider
   ctx.strokeStyle = chColor + (isLocked ? '30' : '60');
@@ -964,11 +1031,24 @@ export function drawMapScreen(ctx, W, H) {
 }
 
 // ========== LEVEL UP SCREEN ==========
+// Level-up animation state
+let _luAnimStart = 0;
+let _luAnimPrevState = '';
+
 export function drawLevelUpScreen(ctx, W, H) {
   clearClickRegions();
   const s = sc(W);
 
-  ctx.fillStyle = 'rgba(0,0,0,0.65)';
+  // Track animation start
+  if (_luAnimPrevState !== 'levelUp') {
+    _luAnimStart = performance.now();
+    _luAnimPrevState = 'levelUp';
+  }
+  const elapsed = (performance.now() - _luAnimStart) / 1000;
+
+  // Fade in overlay
+  const overlayAlpha = Math.min(elapsed / 0.3, 1) * 0.65;
+  ctx.fillStyle = `rgba(0,0,0,${overlayAlpha})`;
   ctx.fillRect(0, 0, W, H);
 
   const src = game._levelUpSource;
@@ -976,24 +1056,43 @@ export function drawLevelUpScreen(ctx, W, H) {
   const title = src === 'angel' ? 'You found an Angel!' : 'Level Up!';
   const subtitle = src === 'angel' ? 'Choose a blessing' : 'Level ' + game.player.level;
 
+  // Title: scale bounce + fade in
+  const titleT = clamp((elapsed - 0.1) / 0.4, 0, 1);
+  const titleScale = titleT < 1 ? 1 + (1 - titleT) * 0.3 : 1; // starts big, settles to 1
+  const titleAlpha = titleT;
+
   ctx.save();
-  ctx.shadowColor = glowColor; ctx.shadowBlur = 25;
+  ctx.globalAlpha = titleAlpha;
+  ctx.translate(W / 2, H * 0.22);
+  ctx.scale(titleScale, titleScale);
+  ctx.shadowColor = glowColor; ctx.shadowBlur = 25 + Math.sin(elapsed * 3) * 8;
   ctx.fillStyle = '#fff';
   ctx.font = fontB(W, 36);
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(title, W / 2, H * 0.22);
+  ctx.fillText(title, 0, 0);
   ctx.restore();
 
+  // Subtitle fade in
+  const subT = clamp((elapsed - 0.3) / 0.3, 0, 1);
+  ctx.save();
+  ctx.globalAlpha = subT;
   ctx.fillStyle = glowColor;
   ctx.font = fontB(W, 20);
   ctx.textAlign = 'center';
   ctx.fillText(subtitle, W / 2, H * 0.22 + 36 * s);
+  ctx.restore();
 
   const numChoices = game.levelUpChoices.length || 3;
 
-  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  // "Choose an upgrade" fade in
+  const chooseT = clamp((elapsed - 0.45) / 0.3, 0, 1);
+  ctx.save();
+  ctx.globalAlpha = chooseT * 0.5;
+  ctx.fillStyle = '#fff';
   ctx.font = font(W, 13);
+  ctx.textAlign = 'center';
   ctx.fillText('Choose an upgrade', W / 2, H * 0.22 + 60 * s);
+  ctx.restore();
 
   const pad = 16 * s;
   const cardGap = 10 * s;
@@ -1002,6 +1101,17 @@ export function drawLevelUpScreen(ctx, W, H) {
   const cardY = H * 0.38;
 
   game.levelUpChoices.forEach((skill, idx) => {
+    // Stagger each card's entrance
+    const cardDelay = 0.4 + idx * 0.1;
+    const cardT = clamp((elapsed - cardDelay) / 0.35, 0, 1);
+    // Ease out cubic
+    const cardEase = 1 - Math.pow(1 - cardT, 3);
+    const slideUp = (1 - cardEase) * 40 * s;
+
+    ctx.save();
+    ctx.globalAlpha = cardEase;
+    ctx.translate(0, slideUp);
+
     const cx = pad + idx * (cardW + cardGap);
     const stacks = game.player.skills[skill.id] || 0;
 
@@ -1060,11 +1170,18 @@ export function drawLevelUpScreen(ctx, W, H) {
       }
     }
 
+    ctx.restore(); // end card slide/fade
+
     addClickRegion(cx, cardY, cardW, cardH, () => {
       sfxSkillPick();
       pickSkill(idx);
     });
   });
+}
+
+// Reset level-up animation when leaving the state
+export function resetLevelUpAnim() {
+  _luAnimPrevState = '';
 }
 
 // ========== STAGE CLEAR ==========
@@ -1122,12 +1239,15 @@ export function drawChapterClear(ctx, W, H) {
   ctx.font = fontB(W, 14);
   ctx.fillText('Lv.' + newLvl + ' equipment unlocked!', W / 2, contentY);
   contentY += 26 * s;
-  ctx.fillStyle = '#e74c3c';
   ctx.font = font(W, 13);
-  ctx.fillText(newWeapon.icon + ' ' + newWeapon.name + '  \u00B7  ATK ' + fmt(newWeapon.atk * 10), W / 2, contentY);
+  const equipIconSz = 20 * s;
+  ctx.fillStyle = '#e74c3c';
+  drawEquipIcon(ctx, newWeapon, W / 2 - ctx.measureText(newWeapon.name + '  \u00B7  ATK ' + fmt(newWeapon.atk * 10)).width / 2 - equipIconSz, contentY, equipIconSz);
+  ctx.fillText(newWeapon.name + '  \u00B7  ATK ' + fmt(newWeapon.atk * 10), W / 2, contentY);
   contentY += 22 * s;
   ctx.fillStyle = '#2ecc71';
-  ctx.fillText(newArmor.icon + ' ' + newArmor.name + '  \u00B7  HP ' + fmt(newArmor.hp), W / 2, contentY);
+  drawEquipIcon(ctx, newArmor, W / 2 - ctx.measureText(newArmor.name + '  \u00B7  HP ' + fmt(newArmor.hp)).width / 2 - equipIconSz, contentY, equipIconSz);
+  ctx.fillText(newArmor.name + '  \u00B7  HP ' + fmt(newArmor.hp), W / 2, contentY);
   contentY += 30 * s;
 
   // Reminder to equip
@@ -1358,11 +1478,11 @@ export function drawSkillInfoScreen(ctx, W, H) {
 }
 
 export function handleSkillInfoScroll(deltaY) {
-  const s = sc(innerWidth);
+  const s = sc(_sw());
   const titleY = 40 * s;
   const startY = titleY + 44 * s;
   const btnH = 40 * s;
-  const bottomBarTop = innerHeight - btnH - 12 * s - 8 * s;
+  const bottomBarTop = _sh() - btnH - 12 * s - 8 * s;
   const totalHeight = getSkillLayoutTotalHeight(s);
   const visibleHeight = bottomBarTop - startY;
   const maxScroll = Math.max(0, totalHeight - visibleHeight);

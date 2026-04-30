@@ -13,6 +13,11 @@ import { getStageScale, getSpeedScale } from './chapters.js';
 
 const SPAWN_FADE_TIME = 0.6; // seconds for enemies to fade in
 
+/** True if enemy is alive and interactive (not in death animation). */
+export function isEnemyAlive(e) {
+  return e.hp > 0 && !e._deathTimer;
+}
+
 export function updateEnemies(dt) {
   const a = arena();
   const p = game.player;
@@ -26,12 +31,23 @@ export function updateEnemies(dt) {
       continue; // skip all logic while fading in
     }
 
+    // Death animation countdown — enemy is inert, just waiting to be removed
+    if (e._deathTimer > 0) {
+      e._deathTimer -= dt;
+      if (e._deathTimer <= 0) {
+        game.enemies.splice(i, 1);
+      }
+      continue;
+    }
+
     // Knockback
     if (e.knockback > 0) {
       e.x += e.kbx * dt * 60;
       e.y += e.kby * dt * 60;
       e.knockback -= dt;
     }
+    // Hit animation timer (visual only, independent of knockback physics)
+    if (e._hitAnim > 0) e._hitAnim -= dt;
 
     // ─── Movement ───
     const prevX = e.x, prevY = e.y;
@@ -137,7 +153,7 @@ export function updateEnemies(dt) {
     }
 
     // ─── Death ───
-    if (e.hp <= 0) {
+    if (e.hp <= 0 && !e._deathTimer) {
       handleDeath(e, p, i);
     }
   }
@@ -182,8 +198,18 @@ function updateNewAttack(e, p, dt) {
   e.shootTimer -= dt;
   if (e.shootTimer <= 0) {
     e.shootTimer = interval;
-    fireAttackPattern(e, p, e.attack, e.attackParams);
+    e._attackAnim = 0.4; // trigger attack animation for 0.4s
+    e._attackWindup = 0.2; // delay shot by 200ms for windup
   }
+  // Fire after windup completes
+  if (e._attackWindup > 0) {
+    e._attackWindup -= dt;
+    if (e._attackWindup <= 0) {
+      fireAttackPattern(e, p, e.attack, e.attackParams);
+    }
+  }
+  // Tick down attack animation timer
+  if (e._attackAnim > 0) e._attackAnim -= dt;
 }
 
 function fireAttackPattern(e, p, pattern, params) {
@@ -468,7 +494,8 @@ function handleDeath(e, p, i) {
     }
   }
 
-  game.enemies.splice(i, 1);
+  // Start death animation timer (keeps enemy in array but inert)
+  e._deathTimer = 1.5;
 }
 
 // ─── Spawn helpers ───
@@ -573,6 +600,7 @@ export function spawnEnemyAt(typeId, typeDef, scale, x, y, opts = {}) {
       moveAngle: Math.random() * Math.PI * 2,
       knockback: 0, kbx: 0, kby: 0,
       _spawnTimer: SPAWN_FADE_TIME,
+      _ignoreWater: typeDef.ignoreWater || typeDef.ai === 'bounce' || false,
     });
   }
 }
@@ -626,6 +654,7 @@ export function spawnEnemies(enemyDefs) {
       moveAngle: Math.random() * Math.PI * 2,
       knockback: 0, kbx: 0, kby: 0,
       _spawnTimer: SPAWN_FADE_TIME,
+      _ignoreWater: typeDef.ignoreWater || typeDef.ai === 'bounce' || false,
     });
   }
 }

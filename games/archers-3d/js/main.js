@@ -11,12 +11,12 @@ import { createPlayer } from './player.js';
 import { updateShooting, updateBullets } from './bullets.js';
 import { updateCrystals, magnetAllCrystals } from './crystals.js';
 import { updateHearts, magnetAllHearts } from './hearts.js';
-import { updateEnemies, spawnEnemyAt } from './enemies.js';
+import { updateEnemies, spawnEnemyAt, isEnemyAlive } from './enemies.js';
 import { pickSkill, rollSkillChoices, processPendingLevelUps, flushPendingXP, applyPlusBonuses, activateAuras, tickAuraRooms, rebuildPlayerFromSkills } from './skills.js';
 import { CHAPTERS, CHAPTER_THEMES, getChapterStages, pickRandomEnemy, getStageScale } from './chapters.js';
 import { loadMapData, pickStageMap, parseStageMap, resetUsedMaps } from './mapData.js';
 import { drawHUD, drawPauseScreen, getPauseBtnRect, handlePauseClick, resetPauseScroll, handlePauseScroll } from './hud.js';
-import { drawEquipScreen, drawMapScreen, drawLevelUpScreen, drawChapterClear, drawGameOver, drawSkillInfoScreen, handleClick, clearClickRegions, handleSkillInfoScroll, handleArmoryScroll, handleMapSwipe, resetMapSwipe } from './screens.js';
+import { drawEquipScreen, drawMapScreen, drawLevelUpScreen, drawChapterClear, drawGameOver, drawSkillInfoScreen, handleClick, clearClickRegions, handleSkillInfoScroll, handleArmoryScroll, handleMapSwipe, resetMapSwipe, resetLevelUpAnim } from './screens.js';
 import { initOrbitals, rebuildOrbitals, updateOrbitals, drawOrbitals } from './orbitals.js';
 import { resetSummonTimers, updateSummons, drawSummons } from './summons.js';
 import { preloadIcons } from './icons.js';
@@ -27,7 +27,8 @@ import { initRenderer3D, gameToWorld, worldScale, updateCamera, snapCamera, setC
 import * as THREE from 'three';
 import { buildArena as buildArena3D, updateArena as updateArena3D, clearArena as clearArena3D, setDoorOpen as setDoorOpen3D } from './arena3d.js';
 import { syncEntities, clearEntities, getPlayerWorldPos, getKoAnimDuration } from './entities3d.js';
-import { syncEffects, clearEffects } from './effects3d.js';
+import { syncEffects, clearEffects, updateVFX } from './effects3d.js';
+import { preloadEnemyModels } from './enemyModels.js';
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -35,7 +36,12 @@ const overlay = document.getElementById('overlay');
 const startBtn = document.getElementById('playBtn');
 
 let W, H;
-function resize() { W = canvas.width = innerWidth; H = canvas.height = innerHeight; }
+const _gameWrapper = document.getElementById('game-wrapper');
+function resize() {
+  const rect = _gameWrapper ? _gameWrapper.getBoundingClientRect() : { width: innerWidth, height: innerHeight };
+  W = canvas.width = Math.round(rect.width);
+  H = canvas.height = Math.round(rect.height);
+}
 resize();
 window.addEventListener('resize', resize);
 
@@ -46,20 +52,25 @@ preloadIcons();
 // Load map data (starts immediately, awaited before first run)
 const mapReady = loadMapData();
 
+// Convert viewport clientX/Y to game-local coords (accounts for wrapper offset in landscape)
+function localX(cx) { return _gameWrapper ? cx - _gameWrapper.getBoundingClientRect().left : cx; }
+function localY(cy) { return _gameWrapper ? cy - _gameWrapper.getBoundingClientRect().top : cy; }
+
 // Pointer handlers for screen clicks - only register taps, not drag releases
 let _tapStartX = 0, _tapStartY = 0, _tapStartTime = 0, _tapPointerId = null;
 canvas.addEventListener('pointerdown', e => {
   if (game.state === 'equip' || game.state === 'map' || game.state === 'skillInfo' || game.state === 'levelUp' || game.state === 'dead' || game.state === 'chapterClear' || game.state === 'paused' || game.state === 'playing' || game.state === 'exiting') {
-    _tapStartX = e.clientX;
-    _tapStartY = e.clientY;
+    _tapStartX = localX(e.clientX);
+    _tapStartY = localY(e.clientY);
     _tapStartTime = performance.now();
     _tapPointerId = e.pointerId;
   }
 });
 canvas.addEventListener('pointerup', e => {
   if (e.pointerId !== _tapPointerId) return;
-  const dx = e.clientX - _tapStartX;
-  const dy = e.clientY - _tapStartY;
+  const lx = localX(e.clientX), ly = localY(e.clientY);
+  const dx = lx - _tapStartX;
+  const dy = ly - _tapStartY;
   const dt = performance.now() - _tapStartTime;
   const isTap = Math.sqrt(dx * dx + dy * dy) < 20 && dt < 500;
   _tapPointerId = null;
@@ -68,7 +79,7 @@ canvas.addEventListener('pointerup', e => {
 
   // Pause screen: try click regions first, resume if not consumed
   if (game.state === 'paused') {
-    if (!handlePauseClick(e.clientX, e.clientY)) {
+    if (!handlePauseClick(lx, ly)) {
       game.state = game._pausedFrom || 'playing';
       game._pausedFrom = null;
     }
@@ -78,7 +89,7 @@ canvas.addEventListener('pointerup', e => {
   // Pause button tap during gameplay
   if (game.state === 'playing' || game.state === 'exiting') {
     const btn = getPauseBtnRect();
-    if (btn && e.clientX >= btn.x && e.clientX <= btn.x + btn.w && e.clientY >= btn.y && e.clientY <= btn.y + btn.h) {
+    if (btn && lx >= btn.x && lx <= btn.x + btn.w && ly >= btn.y && ly <= btn.y + btn.h) {
       game._pausedFrom = game.state;
       game.state = 'paused';
       resetPauseScroll();
@@ -88,7 +99,7 @@ canvas.addEventListener('pointerup', e => {
 
   // UI screen taps
   if (game.state === 'equip' || game.state === 'map' || game.state === 'skillInfo' || game.state === 'levelUp' || game.state === 'dead' || game.state === 'chapterClear') {
-    handleClick(e.clientX, e.clientY);
+    handleClick(lx, ly);
   }
 });
 
@@ -356,7 +367,7 @@ function applyMapLayout(parsed, stageType) {
       game.deferredEntities.push({ type: 'angel', x: cx, y: cy, r: 36 });
       if (stageType === 'angel') {
         // Angel stages have no enemies, spawn immediately
-        game.specialEntities.push({ type: 'angel', x: cx, y: cy, r: 36, _spawnTime: performance.now() / 1000 });
+        game.specialEntities.push({ type: 'angel', x: cx, y: cy, r: 36, _spawnTime: getTime() });
         game.skipExitSpawns = true;
       }
     } else if (ent.typeKey === '_chest') {
@@ -386,11 +397,29 @@ function applyMapLayout(parsed, stageType) {
       }
     }
   }
+
+  // Preload GLB models for all enemies on this stage (+ angel + split children)
+  const typeIds = new Set(game.enemies.map(e => e.typeId).filter(Boolean));
+  typeIds.add('angel');
+  // Recursively collect split spawn types
+  const queue = [...typeIds];
+  while (queue.length) {
+    const id = queue.pop();
+    const def = getEnemyType(id);
+    if (def && def.splitOnDeath && def.splitOnDeath.spawnType) {
+      const childId = def.splitOnDeath.spawnType;
+      if (!typeIds.has(childId)) {
+        typeIds.add(childId);
+        queue.push(childId);
+      }
+    }
+  }
+  preloadEnemyModels([...typeIds]);
 }
 
 function spawnExitEntities() {
   // Spawn deferred entities from map (angels placed at map positions)
-  const now = performance.now() / 1000;
+  const now = getTime(); // use Three.js clock to match 3D animation
   for (const de of game.deferredEntities || []) {
     de._spawnTime = now;
     game.specialEntities.push(de);
@@ -578,7 +607,7 @@ function update(dt) {
       let nearest = null, nd = Infinity;
       let nearestClear = null, ncd = Infinity;
       for (const e of game.enemies) {
-        if (e._spawnTimer > 0 || e._underground) continue;
+        if (e._spawnTimer > 0 || e._underground || !isEnemyAlive(e)) continue;
         const d = dist(cloneX, cloneY, e.x, e.y);
         if (d < nd) { nd = d; nearest = e; }
         if (d < ncd) {
@@ -621,7 +650,7 @@ function update(dt) {
   }
 
   // All enemies dead → flush XP, process level-ups, then enter exit phase
-  if (game.enemies.length === 0 && game.state === 'playing') {
+  if (game.enemies.every(e => !isEnemyAlive(e)) && game.state === 'playing') {
     flushPendingXP();
     // Plus skill bonuses: reward for clearing room without damage
     if (!p.tookDamageThisStage) {
@@ -650,10 +679,10 @@ function update(dt) {
     magnetAllHearts(dt);
 
     // Touch detection for angel (skip during entrance animation)
-    const nowSec = performance.now() / 1000;
+    const nowSec = getTime();
     for (let i = game.specialEntities.length - 1; i >= 0; i--) {
       const se = game.specialEntities[i];
-      if (se._spawnTime && nowSec - se._spawnTime < 0.8) continue;
+      if (se._spawnTime && nowSec - se._spawnTime < 0.5) continue;
       if (dist(p.x, p.y, se.x, se.y) < PLAYER_R * T() + se.r) {
         // Open 2-choice skill panel (angel blessing) — discard any pending XP level-ups
         game._pendingLevelUps = 0;
@@ -717,6 +746,7 @@ function draw3DHealthBars(ctx, W, H) {
   // ── Enemy HP bars ──
   for (const e of game.enemies) {
     if (e._spawnTimer > 0 || e._underground) continue;
+    if (e._deathTimer) continue; // hide bar during death animation
     if (e._displayHp === undefined) e._displayHp = e.hp;
     e._displayHp += (e.hp - e._displayHp) * 0.08;
     if (Math.abs(e._displayHp - e.hp) < 0.5) e._displayHp = e.hp;
@@ -725,17 +755,17 @@ function draw3DHealthBars(ctx, W, H) {
     const bw = 40, bh = 5;
     const bx = screen.x - bw / 2, by = screen.y;
 
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.beginPath(); ctx.roundRect(bx - 1, by - 1, bw + 2, bh + 2, 3); ctx.fill();
     const ghostRatio = clamp(e._displayHp / e.maxHp, 0, 1);
     if (ghostRatio > 0) {
       ctx.fillStyle = 'rgba(255,255,255,0.5)';
-      ctx.fillRect(bx, by, bw * ghostRatio, bh);
+      ctx.beginPath(); ctx.roundRect(bx, by, bw * ghostRatio, bh, 2); ctx.fill();
     }
     const realRatio = clamp(e.hp / e.maxHp, 0, 1);
     if (realRatio > 0) {
       ctx.fillStyle = '#e74c3c';
-      ctx.fillRect(bx, by, bw * realRatio, bh);
+      ctx.beginPath(); ctx.roundRect(bx, by, bw * realRatio, bh, 2); ctx.fill();
     }
   }
 
@@ -796,6 +826,7 @@ function draw() {
     updateArena3D(1 / 60);
     syncEntities();
     syncEffects();
+    updateVFX(1 / 60);
     render3D();
     // 2D canvas is transparent overlay for HUD + overlays
     ctx.clearRect(0, 0, W, H);
@@ -1545,6 +1576,7 @@ function loop(ts) {
   // Rebuild orbitals after level-up skill pick
   if (prevState === 'levelUp' && (game.state === 'playing' || game.state === 'exiting')) {
     rebuildOrbitals();
+    resetLevelUpAnim();
   }
   prevState = game.state;
 

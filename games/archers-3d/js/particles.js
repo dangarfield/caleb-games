@@ -36,8 +36,31 @@ export function spawnDmgNumber(x, y, amount, color) {
 export function updateBoltArcs(dt) {
   let len = game.boltArcs.length;
   for (let i = len - 1; i >= 0; i--) {
-    game.boltArcs[i].life -= dt;
-    if (game.boltArcs[i].life <= 0) { game.boltArcs[i] = game.boltArcs[--len]; }
+    const arc = game.boltArcs[i];
+    arc.life -= dt;
+    if (arc.life <= 0) { game.boltArcs[i] = game.boltArcs[--len]; continue; }
+
+    // Re-jitter intermediate points each frame for flickering lightning effect
+    const pts = arc.pts;
+    if (pts && pts.length >= 2) {
+      const src = pts[0];
+      const tgt = pts[pts.length - 1];
+      const count = pts.length;
+      const dx = tgt.x - src.x;
+      const dy = tgt.y - src.y;
+      const segLen = Math.sqrt(dx * dx + dy * dy) || 1;
+      const perpX = -dy / segLen;
+      const perpY = dx / segLen;
+      const jitter = segLen * 0.15;
+      for (let j = 1; j < count - 1; j++) {
+        const t = j / (count - 1);
+        const offset = (Math.random() - 0.5) * 2 * jitter;
+        pts[j] = {
+          x: src.x + dx * t + perpX * offset,
+          y: src.y + dy * t + perpY * offset,
+        };
+      }
+    }
   }
   game.boltArcs.length = len;
 }

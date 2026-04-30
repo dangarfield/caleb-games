@@ -6,12 +6,22 @@ import { arena, T } from './arena.js';
 export let scene, camera, renderer;
 let clock, ambientLight, dirLight;
 let threeCanvas;
+let _gameWrapper;
 let _camTargetX = 0, _camTargetZ = 0;
-let _useOrtho = true; // current camera mode
+let _useOrtho = false; // current camera mode
 let _orthoCamera, _perspCamera; // both cameras kept alive
+
+function getGameSize() {
+  if (_gameWrapper) {
+    const r = _gameWrapper.getBoundingClientRect();
+    return { w: r.width, h: r.height };
+  }
+  return { w: innerWidth, h: innerHeight };
+}
 
 export function initRenderer3D() {
   threeCanvas = document.getElementById('three-canvas');
+  _gameWrapper = document.getElementById('game-wrapper');
 
   // Scene
   scene = new THREE.Scene();
@@ -22,7 +32,8 @@ export function initRenderer3D() {
   clock = new THREE.Clock();
 
   // Both cameras — toggle between them
-  const aspect = innerWidth / innerHeight;
+  const { w, h } = getGameSize();
+  const aspect = w / h;
   const frustumSize = 23;
   _orthoCamera = new THREE.OrthographicCamera(
     -frustumSize * aspect / 2, frustumSize * aspect / 2,
@@ -32,7 +43,7 @@ export function initRenderer3D() {
   _orthoCamera.position.set(0, 32, 20);
   _orthoCamera.lookAt(0, 0, 0);
 
-  _perspCamera = new THREE.PerspectiveCamera(40, aspect, 0.1, 150);
+  _perspCamera = new THREE.PerspectiveCamera(35, aspect, 0.1, 150);
   _perspCamera.position.set(0, 32, 18);
   _perspCamera.lookAt(0, 0, 0);
 
@@ -44,10 +55,10 @@ export function initRenderer3D() {
     antialias: true,
     alpha: false,
   });
-  renderer.setSize(innerWidth, innerHeight);
+  renderer.setSize(w, h);
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.BasicShadowMap;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.LinearToneMapping;
   renderer.toneMappingExposure = 2.0;
 
@@ -58,14 +69,15 @@ export function initRenderer3D() {
   dirLight = new THREE.DirectionalLight('#ffffff', 2.0);
   dirLight.position.set(-3, 15, -8);
   dirLight.castShadow = true;
-  dirLight.shadow.mapSize.set(1024, 1024);
+  dirLight.shadow.mapSize.set(2048, 2048);
   dirLight.shadow.camera.near = 1;
   dirLight.shadow.camera.far = 80;
   dirLight.shadow.camera.left = -20;
   dirLight.shadow.camera.right = 20;
   dirLight.shadow.camera.top = 20;
   dirLight.shadow.camera.bottom = -20;
-  dirLight.shadow.bias = -0.002;
+  dirLight.shadow.bias = 0;
+  dirLight.shadow.normalBias = 0.02;
   scene.add(dirLight);
   scene.add(dirLight.target);
 
@@ -80,7 +92,8 @@ export function initRenderer3D() {
 
 function onResize() {
   if (!renderer) return;
-  const aspect = innerWidth / innerHeight;
+  const { w, h } = getGameSize();
+  const aspect = w / h;
   const frustumSize = 23;
   if (_orthoCamera) {
     _orthoCamera.left = -frustumSize * aspect / 2;
@@ -93,7 +106,7 @@ function onResize() {
     _perspCamera.aspect = aspect;
     _perspCamera.updateProjectionMatrix();
   }
-  renderer.setSize(innerWidth, innerHeight);
+  renderer.setSize(w, h);
 }
 
 export function gameToWorld(gx, gy) {

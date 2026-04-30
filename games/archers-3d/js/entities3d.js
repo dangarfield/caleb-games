@@ -6,8 +6,10 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { game } from './state.js';
 import { arena, T } from './arena.js';
 import { BASE_SHOOT_CD } from './constants.js';
-import { gameToWorld, worldScale, getScene, getTime } from './renderer3d.js';
+import { gameToWorld, worldScale, getScene, getTime, camera as r3dCamera } from './renderer3d.js';
 import { PLAYER_R } from './constants.js';
+import { createGLBEnemy, updateGLBAnimation, isGLBReady, disposeGLBEnemy } from './enemyModels.js';
+import { spawnDeathPoof } from './effects3d.js';
 
 // Shorthand to avoid repetition
 const MeshStdMat = THREE.MeshStandardMaterial;
@@ -230,26 +232,23 @@ function syncPlayer() {
   playerGroup.position.x += (pos.x - playerGroup.position.x) * ease;
   playerGroup.position.z += (pos.z - playerGroup.position.z) * ease;
 
-  // Y height: linearly rise from 0 to 1.0 over the 1T step zone
+  // Y height: linear ramp from 0 to 1.0 over zones 0-2 (first 3 zones = 1.2T)
   const a = arena();
   const arenaTopZ = gameToWorld(a.x + a.w / 2, a.y).z;
-  // 5 zones over 2T: ground(0), step1(1), step2(2), flat(3), flat(4)
-  // Each step is a discrete flat tread, not a ramp
   const totalGap = 2.0;
   const zoneDepth = totalGap / 5;
   const platformY = 1.0;
   const pz = playerGroup.position.z;
-  const zone0End = arenaTopZ - zoneDepth;     // end of zone 0
-  const zone1End = arenaTopZ - zoneDepth * 2; // end of zone 1
-  const zone2End = arenaTopZ - zoneDepth * 3; // end of zone 2
-  if (pz >= zone0End) {
-    playerGroup.position.y = 0;               // zone 0: ground
-  } else if (pz >= zone1End) {
-    playerGroup.position.y = platformY * 0.5; // zone 1: step 1
-  } else if (pz >= zone2End) {
-    playerGroup.position.y = platformY;       // zone 2: step 2
+  const rampStart = arenaTopZ;                  // zone 0 start (ground level)
+  const rampEnd = arenaTopZ - zoneDepth * 3;    // end of zone 2 (boundary level)
+  if (pz >= rampStart) {
+    playerGroup.position.y = 0;                 // on arena floor
+  } else if (pz > rampEnd) {
+    // Linear interpolation from 0 to platformY
+    const t = (rampStart - pz) / (rampStart - rampEnd);
+    playerGroup.position.y = platformY * t;
   } else {
-    playerGroup.position.y = platformY;       // zones 3-4: boundary height
+    playerGroup.position.y = platformY;         // zones 3-4: boundary height
   }
 
   // Facing direction: rotate whole group around Y
@@ -1205,15 +1204,42 @@ function getOrCreateEnemyMesh(e) {
   let entry = enemyMeshes.get(id);
 
   if (!entry) {
-    const factory = MESH_FACTORIES[e.draw] || ((c) => makeDefault(c));
-    const group = factory(e.color, e.colorAlt);
-    group.name = `enemy_${id}_${e.draw || 'default'}`;
+    let group = null;
+    let glbData = null;
 
-    entry = { group, drawType: e.draw || 'default' };
+    // Try GLB model first
+    if (e.typeId && isGLBReady(e.typeId)) {
+      glbData = createGLBEnemy(e.typeId);
+    }
+
+    if (glbData) {
+      group = glbData.group;
+      group.name = `enemy_${id}_glb_${e.typeId}`;
+    } else {
+      // Fallback to procedural mesh
+      const factory = MESH_FACTORIES[e.draw] || ((c) => makeDefault(c));
+      group = factory(e.color, e.colorAlt);
+      group.name = `enemy_${id}_${e.draw || 'default'}`;
+    }
+
+    entry = { group, drawType: e.draw || 'default', glbData };
     enemyMeshes.set(id, entry);
 
     const scene = getScene();
     if (scene) scene.add(group);
+  }
+
+  // Late upgrade: GLB finished loading after procedural mesh was created
+  if (!entry.glbData && e.typeId && isGLBReady(e.typeId)) {
+    const glbData = createGLBEnemy(e.typeId);
+    if (glbData) {
+      const scene = getScene();
+      if (scene) scene.remove(entry.group);
+      entry.glbData = glbData;
+      entry.group = glbData.group;
+      entry.group.name = `enemy_${id}_glb_${e.typeId}`;
+      if (scene) scene.add(entry.group);
+    }
   }
 
   return entry;
@@ -1302,6 +1328,171 @@ function animateEnemy(entry, e, time) {
   }
 }
 
+// ─── Status Effect Overlay Pools ─────────────────────────────────────────────
+
+const STATUS_POOL_SIZE = 20;
+
+// --- Ice overlay (Fresnel sphere) ---
+const iceOverlayMat = new THREE.ShaderMaterial({
+  vertexShader: `
+    varying vec3 vNormal;
+    varying vec3 vViewPos;
+    void main() {
+      vNormal = normalize(normalMatrix * normal);
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      vViewPos = mv.xyz;
+      gl_Position = projectionMatrix * mv;
+    }
+  `,
+  fragmentShader: `
+    varying vec3 vNormal;
+    varying vec3 vViewPos;
+    void main() {
+      vec3 viewDir = normalize(-vViewPos);
+      float fresnel = 1.0 - dot(viewDir, vNormal);
+      fresnel = pow(fresnel, 2.0);
+      vec3 color = vec3(0.4, 0.7, 1.0);
+      float alpha = fresnel * 0.6 + 0.1;
+      gl_FragColor = vec4(color, alpha);
+    }
+  `,
+  transparent: true,
+  depthWrite: false,
+  side: THREE.FrontSide,
+});
+
+const icePool = [];
+function getIcePool() {
+  if (icePool.length === 0) {
+    const geo = sphereGeo();
+    for (let i = 0; i < STATUS_POOL_SIZE; i++) {
+      const m = new THREE.Mesh(geo, iceOverlayMat);
+      m.name = 'iceOverlay';
+      m.visible = false;
+      m.renderOrder = 1;
+      icePool.push(m);
+    }
+  }
+  return icePool;
+}
+
+// --- Fire indicator (additive billboard quad) ---
+const fireOverlayMat = new THREE.ShaderMaterial({
+  uniforms: { uTime: { value: 0 } },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform float uTime;
+    varying vec2 vUv;
+    void main() {
+      float d = distance(vUv, vec2(0.5));
+      float flame = smoothstep(0.5, 0.0, d);
+      float flicker = 0.7 + 0.3 * sin(uTime * 12.0 + vUv.y * 6.0);
+      vec3 col = mix(vec3(1.0, 0.3, 0.0), vec3(1.0, 0.9, 0.2), flame * flicker);
+      float alpha = flame * flicker * 0.7;
+      gl_FragColor = vec4(col, alpha);
+    }
+  `,
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  side: THREE.DoubleSide,
+});
+
+const firePool = [];
+function getFirePool() {
+  if (firePool.length === 0) {
+    const geo = planeGeo();
+    for (let i = 0; i < STATUS_POOL_SIZE; i++) {
+      const m = new THREE.Mesh(geo, fireOverlayMat.clone());
+      m.name = 'fireIndicator';
+      m.visible = false;
+      m.renderOrder = 1;
+      firePool.push(m);
+    }
+  }
+  return firePool;
+}
+
+// --- Poison indicator (green pulsing sphere) ---
+const poisonOverlayMat = new THREE.ShaderMaterial({
+  uniforms: { uTime: { value: 0 } },
+  vertexShader: `
+    varying vec3 vNormal;
+    varying vec3 vViewPos;
+    void main() {
+      vNormal = normalize(normalMatrix * normal);
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      vViewPos = mv.xyz;
+      gl_Position = projectionMatrix * mv;
+    }
+  `,
+  fragmentShader: `
+    uniform float uTime;
+    varying vec3 vNormal;
+    varying vec3 vViewPos;
+    void main() {
+      vec3 viewDir = normalize(-vViewPos);
+      float fresnel = 1.0 - dot(viewDir, vNormal);
+      fresnel = pow(fresnel, 1.5);
+      float pulse = 0.7 + 0.3 * sin(uTime * 5.0);
+      vec3 color = vec3(0.2, 0.9, 0.2);
+      float alpha = fresnel * 0.5 * pulse + 0.05;
+      gl_FragColor = vec4(color, alpha);
+    }
+  `,
+  transparent: true,
+  depthWrite: false,
+  side: THREE.FrontSide,
+});
+
+const poisonPool = [];
+function getPoisonPool() {
+  if (poisonPool.length === 0) {
+    const geo = sphereGeo();
+    for (let i = 0; i < STATUS_POOL_SIZE; i++) {
+      const m = new THREE.Mesh(geo, poisonOverlayMat.clone());
+      m.name = 'poisonIndicator';
+      m.visible = false;
+      m.renderOrder = 1;
+      poisonPool.push(m);
+    }
+  }
+  return poisonPool;
+}
+
+let statusPoolsAdded = false;
+
+function ensureStatusPoolsInScene() {
+  if (statusPoolsAdded) return;
+  const scene = getScene();
+  if (!scene) return;
+  for (const m of getIcePool()) scene.add(m);
+  for (const m of getFirePool()) scene.add(m);
+  for (const m of getPoisonPool()) scene.add(m);
+  statusPoolsAdded = true;
+}
+
+function hideAllStatusOverlays() {
+  for (const m of icePool) m.visible = false;
+  for (const m of firePool) m.visible = false;
+  for (const m of poisonPool) m.visible = false;
+}
+
+function removeStatusPoolsFromScene() {
+  const scene = getScene();
+  if (!scene) return;
+  for (const m of icePool) scene.remove(m);
+  for (const m of firePool) scene.remove(m);
+  for (const m of poisonPool) scene.remove(m);
+  statusPoolsAdded = false;
+}
+
 // ─── Shadow Clone Mesh ──────────────────────────────────────────────────────
 
 let cloneGroup = null;
@@ -1344,6 +1535,7 @@ function syncClone() {
 
 let angelGroup = null;
 let angelTargetY = 0;
+let angelGlbData = null;
 
 function syncAngel() {
   const scene = getScene();
@@ -1353,62 +1545,73 @@ function syncAngel() {
   const angel = specials ? specials.find(se => se.type === 'angel') : null;
 
   if (!angel) {
-    if (angelGroup) { scene.remove(angelGroup); angelGroup = null; }
+    if (angelGroup) {
+      scene.remove(angelGroup);
+      angelGroup = null;
+      if (angelGlbData) { disposeGLBEnemy(angelGlbData); angelGlbData = null; }
+    }
     return;
   }
 
   if (!angelGroup) {
-    angelGroup = mkGroup();
-    angelGroup.name = 'angel';
-
-    // Body - white/gold sphere
-    const bodyMat = new MeshStdMat({
-      color: new THREE.Color('#fffde0'),
-      emissive: new THREE.Color('#fff5a0'),
-      emissiveIntensity: 0.7,
-      metalness: 0.1,
-      roughness: 0.5,
-    });
-    const body = mkMesh(sphereGeo(), bodyMat);
-    body.scale.set(0.4, 0.5, 0.4);
-    body.position.y = 0.5;
-    angelGroup.add(body);
-
-    // Halo
-    const haloGeo = cachedGeo('haloRing', () => new THREE.TorusGeometry(0.3, 0.03, 8, 24));
-    const haloMat = new MeshStdMat({
-      color: new THREE.Color('#FFD700'),
-      emissive: new THREE.Color('#FFD700'),
-      emissiveIntensity: 1.5,
-      metalness: 0.3,
-      roughness: 0.4,
-    });
-    const halo = mkMesh(haloGeo, haloMat);
-    halo.position.y = 1.0;
-    halo.rotation.x = Math.PI / 2;
-    angelGroup.add(halo);
-
-    // Wings (white planes)
-    const wingMat = new MeshStdMat({
-      color: new THREE.Color('#ffffff'),
-      emissive: new THREE.Color('#ffffdd'),
-      emissiveIntensity: 0.5,
-      side: THREE.DoubleSide,
-      metalness: 0.0,
-      roughness: 0.6,
-    });
-    for (const side of [-1, 1]) {
-      const wing = mkMesh(planeGeo(), wingMat);
-      wing.scale.set(0.7, 0.8, 1);
-      wing.position.set(side * 0.5, 0.55, -0.1);
-      wing.rotation.y = side * 0.4;
-      angelGroup.add(wing);
+    // Try GLB model
+    if (isGLBReady('angel')) {
+      angelGlbData = createGLBEnemy('angel');
     }
 
-    // Glow light
-    const glow = new THREE.PointLight(0xfff5a0, 0.8, 4);
-    glow.position.y = 0.5;
-    angelGroup.add(glow);
+    if (angelGlbData) {
+      angelGroup = angelGlbData.group;
+      angelGroup.name = 'angel';
+    } else {
+      // Procedural fallback
+      angelGroup = mkGroup();
+      angelGroup.name = 'angel';
+
+      const bodyMat = new MeshStdMat({
+        color: new THREE.Color('#fffde0'),
+        emissive: new THREE.Color('#fff5a0'),
+        emissiveIntensity: 0.7,
+        metalness: 0.1,
+        roughness: 0.5,
+      });
+      const body = mkMesh(sphereGeo(), bodyMat);
+      body.scale.set(0.4, 0.5, 0.4);
+      body.position.y = 0.5;
+      angelGroup.add(body);
+
+      const haloGeo = cachedGeo('haloRing', () => new THREE.TorusGeometry(0.3, 0.03, 8, 24));
+      const haloMat = new MeshStdMat({
+        color: new THREE.Color('#FFD700'),
+        emissive: new THREE.Color('#FFD700'),
+        emissiveIntensity: 1.5,
+        metalness: 0.3,
+        roughness: 0.4,
+      });
+      const halo = mkMesh(haloGeo, haloMat);
+      halo.position.y = 1.0;
+      halo.rotation.x = Math.PI / 2;
+      angelGroup.add(halo);
+
+      const wingMat = new MeshStdMat({
+        color: new THREE.Color('#ffffff'),
+        emissive: new THREE.Color('#ffffdd'),
+        emissiveIntensity: 0.5,
+        side: THREE.DoubleSide,
+        metalness: 0.0,
+        roughness: 0.6,
+      });
+      for (const side of [-1, 1]) {
+        const wing = mkMesh(planeGeo(), wingMat);
+        wing.scale.set(0.7, 0.8, 1);
+        wing.position.set(side * 0.5, 0.55, -0.1);
+        wing.rotation.y = side * 0.4;
+        angelGroup.add(wing);
+      }
+
+      const glow = new THREE.PointLight(0xfff5a0, 0.8, 4);
+      glow.position.y = 0.5;
+      angelGroup.add(glow);
+    }
 
     scene.add(angelGroup);
   }
@@ -1416,19 +1619,43 @@ function syncAngel() {
   // Position
   const pos = gameToWorld(angel.x, angel.y);
   const wsR = worldScale(angel.r);
-  angelGroup.scale.setScalar(wsR / 0.5); // normalize to the body radius
 
-  // Entrance animation: fly in from above over 0.8s
-  const ANIM_DUR = 0.8;
+  if (angelGlbData) {
+    angelGroup.scale.setScalar(wsR);
+  } else {
+    angelGroup.scale.setScalar(wsR / 0.5);
+  }
+
+  // Entrance animation: fade in + descend over 1.2s
+  const ANIM_DUR = 1.2;
   const now = getTime();
   const elapsed = angel._spawnTime ? now - angel._spawnTime : ANIM_DUR;
   const t = Math.min(elapsed / ANIM_DUR, 1.0);
   const easeT = t * t * (3 - 2 * t); // smoothstep
 
-  const flyHeight = 5.0; // start this high above target
-  angelTargetY = wsR;
-  const yOffset = (1 - easeT) * flyHeight;
-  angelGroup.position.set(pos.x, angelTargetY + yOffset, pos.z);
+  const heightOffset = angelGlbData ? (angelGlbData.config.heightOffset || 0) * wsR : wsR;
+  angelTargetY = heightOffset;
+  const descendHeight = 2.0;
+  angelGroup.position.set(pos.x, angelTargetY + (1 - easeT) * descendHeight, pos.z);
+
+  // Update animation mixer
+  if (angelGlbData) {
+    angelGlbData.mixer.update(1 / 60);
+  }
+
+  // Fade in by adjusting material opacity and emissive
+  angelGroup.traverse(child => {
+    if (child.isMesh && child.material) {
+      child.material.transparent = true;
+      child.material.depthWrite = t > 0.99;
+      child.material.opacity = t;
+      if (child.material._baseEmissiveIntensity === undefined) {
+        child.material._baseEmissiveIntensity = child.material.emissiveIntensity;
+      }
+      child.material.emissiveIntensity = child.material._baseEmissiveIntensity * t;
+    }
+    if (child.isLight) child.intensity = 0.8 * t;
+  });
 }
 
 // ─── Targeting Indicators ────────────────────────────────────────────────────
@@ -1626,7 +1853,9 @@ export function syncEntities() {
     // Position
     const pos = gameToWorld(e.x, e.y);
     const ws = worldScale(e.r);
-    g.position.set(pos.x, ws, pos.z);
+    // GLB models have base at y=0, procedural meshes are centered at origin
+    const heightOffset = entry.glbData ? (entry.glbData.config.heightOffset || 0) * ws : 0;
+    g.position.set(pos.x, entry.glbData ? heightOffset : ws, pos.z);
 
     // Scale based on e.r
     g.scale.setScalar(ws);
@@ -1650,16 +1879,99 @@ export function syncEntities() {
       });
     }
 
-    // Type-specific animations
-    animateEnemy(entry, e, time);
+    // Track movement for animation state
+    if (e._prevX === undefined) { e._prevX = e.x; e._prevY = e.y; }
+    const dx = e.x - e._prevX, dy = e.y - e._prevY;
+    e._atRest = (dx * dx + dy * dy) < 0.0001;
+    e._prevX = e.x; e._prevY = e.y;
+
+    // Animations: GLB or procedural
+    if (entry.glbData) {
+      updateGLBAnimation(entry.glbData, e, 1 / 60);
+    } else {
+      animateEnemy(entry, e, time);
+    }
+
+    // Death poof effect — trigger once when death starts, scaled to bounding box
+    if (e._deathTimer && !e._deathPoofDone) {
+      e._deathPoofDone = true;
+      const box = new THREE.Box3().setFromObject(g);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const poofScale = Math.max(size.x, size.y, size.z);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      spawnDeathPoof(center, e.color, poofScale);
+      // Clone materials so fading doesn't affect other instances
+      g.traverse(child => {
+        if (child.isMesh && child.material) {
+          child.material = child.material.clone();
+          child.material.transparent = true;
+        }
+      });
+    }
+
+    // Fade out during last 1/4 of death animation (timer 0.375 → 0)
+    if (e._deathTimer && e._deathTimer < 0.375) {
+      const fadeAlpha = e._deathTimer / 0.375;
+      g.traverse(child => {
+        if (child.isMesh && child.material) {
+          child.material.opacity = fadeAlpha;
+        }
+      });
+    }
+  }
+
+  // --- Sync status effect overlays ---
+  ensureStatusPoolsInScene();
+  hideAllStatusOverlays();
+
+  let iceIdx = 0, fireIdx = 0, poisonIdx = 0;
+  const iceArr = getIcePool();
+  const fireArr = getFirePool();
+  const poisonArr = getPoisonPool();
+
+  for (const e of game.enemies) {
+    if (e._spawnTimer > 0 || e._underground) continue;
+
+    const ePos = gameToWorld(e.x, e.y);
+    const ws = worldScale(e.r);
+
+    // Freeze overlay
+    if (e.freezeTimer > 0 && iceIdx < iceArr.length) {
+      const m = iceArr[iceIdx++];
+      m.visible = true;
+      m.position.set(ePos.x, ws, ePos.z);
+      m.scale.setScalar(ws * 1.25);
+    }
+
+    // Fire overlay
+    if (e.blazeTimer > 0 && fireIdx < fireArr.length) {
+      const m = fireArr[fireIdx++];
+      m.visible = true;
+      // Billboard above enemy — look at camera handled by always facing up
+      m.position.set(ePos.x, ws * 2.2, ePos.z);
+      m.scale.setScalar(ws * 0.8);
+      m.material.uniforms.uTime.value = time;
+      // Make it face the camera
+      if (r3dCamera) m.lookAt(r3dCamera.position);
+    }
+
+    // Poison overlay
+    if (e.poisonTimer > 0 && poisonIdx < poisonArr.length) {
+      const m = poisonArr[poisonIdx++];
+      m.visible = true;
+      m.position.set(ePos.x, ws * 0.5, ePos.z);
+      m.scale.setScalar(ws * 1.15);
+      m.material.uniforms.uTime.value = time;
+    }
   }
 
   // Remove meshes for dead enemies
   for (const [id, entry] of enemyMeshes) {
     if (!activeEnemyIds.has(id)) {
       scene.remove(entry.group);
-      // Dispose geometry instances? No — we use shared cached geometry.
-      // Just remove from map.
+      if (entry.glbData) disposeGLBEnemy(entry.glbData);
       enemyMeshes.delete(id);
     }
   }
@@ -1682,6 +1994,7 @@ export function clearEntities() {
   // Remove all enemy meshes
   for (const [, entry] of enemyMeshes) {
     if (scene) scene.remove(entry.group);
+    if (entry.glbData) disposeGLBEnemy(entry.glbData);
   }
   enemyMeshes.clear();
   enemyIdCounter = 0;
@@ -1709,6 +2022,9 @@ export function clearEntities() {
     if (scene) scene.remove(angelGroup);
     angelGroup = null;
   }
+
+  // Remove status effect overlays
+  removeStatusPoolsFromScene();
 
   // Remove indicators
   if (playerIndicator) {
