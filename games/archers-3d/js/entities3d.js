@@ -194,7 +194,7 @@ function fadeToAction(name, duration = 0.2) {
   playerCurrentAction = action;
 }
 
-function syncPlayer() {
+function syncPlayer(dt) {
   const scene = getScene();
   if (!scene) return;
   const p = game.player;
@@ -291,7 +291,7 @@ function syncPlayer() {
 
   // Update animation mixer
   if (playerMixer) {
-    playerMixer.update(1 / 60);
+    playerMixer.update(dt);
   }
 }
 
@@ -1537,7 +1537,7 @@ let angelGroup = null;
 let angelTargetY = 0;
 let angelGlbData = null;
 
-function syncAngel() {
+function syncAngel(dt) {
   const scene = getScene();
   if (!scene) return;
 
@@ -1640,7 +1640,7 @@ function syncAngel() {
 
   // Update animation mixer
   if (angelGlbData) {
-    angelGlbData.mixer.update(1 / 60);
+    angelGlbData.mixer.update(dt);
   }
 
   // Fade in by adjusting material opacity and emissive
@@ -1831,14 +1831,15 @@ export function getPlayerWorldPos() {
   return (playerGroup && playerGroup !== 'loading') ? playerGroup.position : null;
 }
 
-export function syncEntities() {
+export function syncEntities(dt) {
+  dt = dt || 1 / 60;
   const scene = getScene();
   if (!scene) return;
 
   const time = getTime();
 
   // --- Sync player ---
-  syncPlayer();
+  syncPlayer(dt);
 
   // --- Sync enemies ---
   activeEnemyIds.clear();
@@ -1887,7 +1888,7 @@ export function syncEntities() {
 
     // Animations: GLB or procedural
     if (entry.glbData) {
-      updateGLBAnimation(entry.glbData, e, 1 / 60);
+      updateGLBAnimation(entry.glbData, e, dt);
     } else {
       animateEnemy(entry, e, time);
     }
@@ -1980,7 +1981,7 @@ export function syncEntities() {
   syncClone();
 
   // --- Sync angel ---
-  syncAngel();
+  syncAngel(dt);
 
   // --- Sync targeting indicators ---
   syncIndicators();

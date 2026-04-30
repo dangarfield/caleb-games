@@ -96,8 +96,9 @@ export function updateParticles(dt) {
     const p = game.particles[i];
     p.x += p.vx * dt;
     p.y += p.vy * dt;
-    p.vx *= 0.94;
-    p.vy *= 0.94;
+    const pDrag = Math.pow(0.94, dt * 60);
+    p.vx *= pDrag;
+    p.vy *= pDrag;
     p.life -= dt;
     if (p.life <= 0) { game.particles[i] = game.particles[--len]; }
   }
@@ -107,7 +108,7 @@ export function updateParticles(dt) {
   for (let i = dLen - 1; i >= 0; i--) {
     const d = dmgNumbers[i];
     d.y += d.vy * dt;
-    d.vy *= 0.95;
+    d.vy *= Math.pow(0.95, dt * 60);
     d.life -= dt;
     if (d.life <= 0) { dmgNumbers[i] = dmgNumbers[--dLen]; }
   }

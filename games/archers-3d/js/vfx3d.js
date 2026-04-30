@@ -197,7 +197,7 @@ export class GPUParticleSystem {
         continue;
       }
       const i3 = i * 3;
-      const drag = this._drag[i];
+      const drag = Math.pow(this._drag[i], dt * 60);
       this._vel[i3] *= drag; this._vel[i3+1] *= drag; this._vel[i3+2] *= drag;
       this._vel[i3+1] -= this._gravity[i] * dt;
       this._pos[i3] += this._vel[i3] * dt;

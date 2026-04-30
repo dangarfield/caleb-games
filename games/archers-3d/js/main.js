@@ -578,20 +578,31 @@ function update(dt) {
   if (p.shadowClones > 0) {
     // Maintain position trail (only record when player moves)
     if (!game._cloneTrail) game._cloneTrail = [];
+    if (!game._cloneTrailTime) game._cloneTrailTime = 0;
+    game._cloneTrailTime += dt;
+    // Record position with timestamp
     const lastTrail = game._cloneTrail[game._cloneTrail.length - 1];
     if (!lastTrail || Math.abs(p.x - lastTrail.x) > 0.5 || Math.abs(p.y - lastTrail.y) > 0.5) {
-      game._cloneTrail.push({ x: p.x, y: p.y });
+      game._cloneTrail.push({ x: p.x, y: p.y, t: game._cloneTrailTime });
     }
-    const trailDelay = 12; // frames of delay
-    if (game._cloneTrail.length > trailDelay + 10) {
-      game._cloneTrail.splice(0, game._cloneTrail.length - trailDelay - 10);
+    const trailDelaySec = 0.2; // 200ms delay (was 12 frames @ 60fps)
+    // Prune old entries beyond what we need
+    const cutoffTime = game._cloneTrailTime - trailDelaySec - 0.5;
+    while (game._cloneTrail.length > 2 && game._cloneTrail[0].t < cutoffTime) {
+      game._cloneTrail.shift();
     }
-    // Clone reads from the delayed position, or stays at last known spot
-    if (game._cloneTrail.length > trailDelay) {
-      const trailIdx = game._cloneTrail.length - 1 - trailDelay;
-      game._cloneX = game._cloneTrail[trailIdx].x;
-      game._cloneY = game._cloneTrail[trailIdx].y;
-    } else if (game._cloneX === undefined) {
+    // Clone reads from the delayed position
+    const targetTime = game._cloneTrailTime - trailDelaySec;
+    let found = false;
+    for (let ti = game._cloneTrail.length - 1; ti >= 0; ti--) {
+      if (game._cloneTrail[ti].t <= targetTime) {
+        game._cloneX = game._cloneTrail[ti].x;
+        game._cloneY = game._cloneTrail[ti].y;
+        found = true;
+        break;
+      }
+    }
+    if (!found && game._cloneX === undefined) {
       // Initial position: offset from player
       game._cloneX = p.x - 1.1 * T();
       game._cloneY = p.y + 0.44 * T();
@@ -813,7 +824,8 @@ function draw3DHealthBars(ctx, W, H) {
   ctx.fillText(hpText, pScreen.x, hpBarY - 2);
 }
 
-function draw() {
+function draw(dt) {
+  dt = dt || 1 / 60;
   const isGameplay = game.state === 'playing' || game.state === 'exiting'
     || game.state === 'chapterClear' || game.state === 'levelUp'
     || game.state === 'dying' || game.state === 'dead' || game.state === 'paused';
@@ -822,11 +834,11 @@ function draw() {
     // 3D rendering for gameplay
     set3DVisible(true);
     const p = game.player;
-    if (p) updateCamera(p.x, p.y, 1 / 60);
-    updateArena3D(1 / 60);
-    syncEntities();
+    if (p) updateCamera(p.x, p.y, dt);
+    updateArena3D(dt);
+    syncEntities(dt);
     syncEffects();
-    updateVFX(1 / 60);
+    updateVFX(dt);
     render3D();
     // 2D canvas is transparent overlay for HUD + overlays
     ctx.clearRect(0, 0, W, H);
@@ -1581,7 +1593,7 @@ function loop(ts) {
   prevState = game.state;
 
   if (game.state === 'playing' || game.state === 'exiting' || game.state === 'dying') update(dt);
-  draw();
+  draw(dt);
 }
 
 // Start

@@ -1072,6 +1072,21 @@ function buildDoor(theme) {
   doorRightPivot.position.set(wallCenterX + doorHalfW, platformY, doorSouthFaceZ);
   arenaGroup.add(doorRightPivot);
 
+  // ─── Door threshold / back wall (fills the black void behind doors) ───
+  {
+    // Back wall behind the doorway — same material as steps
+    const backGeo = new THREE.PlaneGeometry(doorFullW, doorHeight);
+    const backMesh = new THREE.Mesh(backGeo, stepMat);
+    backMesh.position.set(wallCenterX, platformY + doorHeight / 2, doorSouthFaceZ - wallThickness - 0.01);
+    arenaGroup.add(backMesh);
+    // Floor inside doorway — same material as steps
+    const floorGeo = new THREE.PlaneGeometry(doorFullW, wallThickness);
+    const floorMesh = new THREE.Mesh(floorGeo, stepMat);
+    floorMesh.rotation.x = -Math.PI / 2;
+    floorMesh.position.set(wallCenterX, platformY, doorSouthFaceZ - wallThickness / 2);
+    arenaGroup.add(floorMesh);
+  }
+
   // ─── Level sign ───
   {
     const signSize = 1.0;
@@ -2146,7 +2161,7 @@ export function updateArena(dt) {
     if (particles) {
       for (const p of particles) {
         p.position.y += p.userData.speed * dt;
-        p.position.x += Math.sin(godRayTime + p.userData.drift) * 0.002;
+        p.position.x += Math.sin(godRayTime + p.userData.drift) * 0.12 * dt;
         // Reset when they float too high
         if (p.position.y > 6) {
           p.position.y = 0;
@@ -2173,7 +2188,7 @@ export function updateArena(dt) {
 
     // Spawn firework bursts periodically (start quickly)
     if (godRayTime > 0.1 && fireworkBursts.length < 15) {
-      if (Math.random() < dt * 3.0) {
+      if (Math.random() < dt * 1.5) {
         spawnFirework();
       }
     }
@@ -2191,7 +2206,7 @@ export function updateArena(dt) {
       continue;
     }
     // Physics
-    c.vy -= 6.0 * dt; // gravity (pulls down fast)
+    c.vy -= 3.0 * dt; // gravity (gentle float down)
     c.mesh.position.x += c.vx * dt;
     c.mesh.position.y += c.vy * dt;
     c.mesh.position.z += c.vz * dt;
@@ -2200,9 +2215,10 @@ export function updateArena(dt) {
     c.mesh.rotation.y += (c.spinY || 0) * dt;
     c.mesh.rotation.z += c.spinZ * dt;
     // Flutter (air resistance — confetti catches air on the way down)
-    c.vx *= 0.99;
-    c.vz *= 0.99;
-    if (c.vy < 0) c.vy *= 0.97; // more drag when falling — flutter effect
+    const cDrag = Math.pow(0.99, dt * 60);
+    c.vx *= cDrag;
+    c.vz *= cDrag;
+    if (c.vy < 0) c.vy *= Math.pow(0.97, dt * 60); // more drag when falling — flutter effect
     // Opacity: quick tween in (first 0.2s), fade out in last 25% of life
     const fadeIn = Math.min(1, c.age / 0.2);
     const fadeOut = Math.min(1, c.life / (c.maxLife * 0.25));
@@ -2232,7 +2248,7 @@ export function updateArena(dt) {
     if (burst.phase === 'rising') {
       // Rocket rising
       burst.y += burst.vy * dt;
-      burst.vy *= 0.97; // decelerate
+      burst.vy *= Math.pow(0.97, dt * 60); // decelerate
 
       // Leave a glowing trail
       if (Math.random() < dt * 35) {
@@ -2255,7 +2271,7 @@ export function updateArena(dt) {
       // Fade trail
       for (let t = burst.trail.length - 1; t >= 0; t--) {
         burst.trail[t].material.opacity -= dt * 2;
-        burst.trail[t].scale.multiplyScalar(0.96);
+        burst.trail[t].scale.multiplyScalar(Math.pow(0.96, dt * 60));
         if (burst.trail[t].material.opacity <= 0) {
           arenaGroup.remove(burst.trail[t]);
           burst.trail[t].material.dispose();
@@ -2271,13 +2287,14 @@ export function updateArena(dt) {
       // Exploded — animate sparks
       const burstFade = Math.min(1, burst.life / (burst.maxLife * 0.4));
       for (const spark of burst.sparks) {
-        spark.vy -= 5.0 * dt;
+        spark.vy -= 2.5 * dt;
         spark.mesh.position.x += spark.vx * dt;
         spark.mesh.position.y += spark.vy * dt;
         spark.mesh.position.z += spark.vz * dt;
-        spark.vx *= 0.96;
-        spark.vy *= 0.97;
-        spark.vz *= 0.96;
+        const sDrag = Math.pow(0.96, dt * 60);
+        spark.vx *= sDrag;
+        spark.vy *= Math.pow(0.97, dt * 60);
+        spark.vz *= sDrag;
         spark.mesh.material.opacity = burstFade * 0.9;
         spark.mesh.material.emissiveIntensity = burstFade * 1.5;
         spark.mesh.scale.setScalar((0.5 + burstFade * 0.5) * (spark.mesh.userData.sparkScale || 1));
@@ -2352,18 +2369,18 @@ function spawnConfetti() {
       arenaTopZ + (Math.random() - 0.5) * 1.5
     );
 
-    // Launch upward fast with some spread
+    // Launch upward with some spread (half speed for gentler effect)
     const angle = Math.random() * Math.PI * 2;
-    const hSpeed = 2.0 + Math.random() * 3.0;
+    const hSpeed = 1.0 + Math.random() * 1.5;
     const piece = {
       mesh,
       vx: Math.cos(angle) * hSpeed * 0.5,
-      vy: 7.0 + Math.random() * 4.0, // fast upward launch, capped height
+      vy: 3.5 + Math.random() * 2.0,
       vz: Math.sin(angle) * hSpeed * 0.4,
-      spinX: (Math.random() - 0.5) * 12,
-      spinY: (Math.random() - 0.5) * 8,
-      spinZ: (Math.random() - 0.5) * 12,
-      life: 3.5 + Math.random() * 2.0,
+      spinX: (Math.random() - 0.5) * 6,
+      spinY: (Math.random() - 0.5) * 4,
+      spinZ: (Math.random() - 0.5) * 6,
+      life: 4.0 + Math.random() * 2.5,
       maxLife: 0,
       age: 0,
       scale: 0.7 + Math.random() * 0.5,
@@ -2396,7 +2413,7 @@ function spawnFirework() {
     y: 0.5,
     z: launchZ,
     targetY,
-    vy: 12 + Math.random() * 5,
+    vy: 6 + Math.random() * 2.5,
     color: burstColor,
     trail: [],
     sparks: [],
@@ -2430,11 +2447,11 @@ function explodeFirework(burst) {
 
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
-    const speed = 3.5 + Math.random() * 3.5;
+    const speed = 1.75 + Math.random() * 1.75;
     burst.sparks.push({
       mesh,
       vx: Math.sin(phi) * Math.cos(theta) * speed,
-      vy: Math.sin(phi) * Math.sin(theta) * speed * 0.7 + 1.5,
+      vy: Math.sin(phi) * Math.sin(theta) * speed * 0.7 + 0.75,
       vz: Math.cos(phi) * speed * 0.5,
     });
     arenaGroup.add(mesh);
