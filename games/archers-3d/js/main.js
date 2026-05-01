@@ -860,7 +860,6 @@ function draw(dt) {
     || game.state === 'chapterClear' || game.state === 'levelUp'
     || game.state === 'dying' || game.state === 'dead' || game.state === 'paused';
   backBtn.classList.toggle('hidden', game.state !== 'menu');
-  canvas.style.touchAction = isGameplay ? 'none' : 'pan-y';
 
   if (isGameplay) {
     // While waiting for models, show solid black — don't render 3D at all
@@ -1652,6 +1651,7 @@ function loop(ts) {
 
 // Start
 startBtn.addEventListener('click', async () => {
+  backBtn.classList.add('hidden');
   ensureAudio();
   await mapReady;
   initRenderer3D();
