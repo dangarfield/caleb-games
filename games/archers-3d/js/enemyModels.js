@@ -46,15 +46,24 @@ function parseGLB(buf) {
   });
 }
 
-/** Preload and fully parse a set of enemy typeIds (non-blocking). */
+/** Preload and fully parse a set of enemy typeIds. Returns a Promise that resolves when all are ready. */
 export function preloadEnemyModels(typeIds) {
-  loadConfig().then(() => {
+  return loadConfig().then(() => {
+    const promises = [];
     for (const id of typeIds) {
-      if (!enemyConfig[id] || templateCache.has(id) || loadingSet.has(id)) continue;
+      if (!enemyConfig[id] || templateCache.has(id)) continue;
+      if (loadingSet.has(id)) {
+        // Already loading — wait for it by polling
+        promises.push(new Promise(resolve => {
+          const check = () => loadingSet.has(id) ? setTimeout(check, 16) : resolve();
+          check();
+        }));
+        continue;
+      }
       loadingSet.add(id);
       const cfg = enemyConfig[id];
       const filePath = 'models/' + cfg.file;
-      fetch(filePath)
+      const p = fetch(filePath)
         .then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
         .then(buf => parseGLB(buf))
         .then(gltf => {
@@ -86,7 +95,9 @@ export function preloadEnemyModels(typeIds) {
         })
         .catch(() => { /* no model, will use procedural fallback */ })
         .finally(() => { loadingSet.delete(id); });
+      promises.push(p);
     }
+    return Promise.all(promises);
   });
 }
 
@@ -107,6 +118,16 @@ export function createGLBEnemy(typeId) {
 
   model.scale.setScalar(normScale);
   model.position.copy(normOffset);
+
+  // Apply config rotation (degrees around Y axis)
+  if (config.rotation) {
+    model.rotation.y = (config.rotation * Math.PI) / 180;
+  }
+
+  // Apply frontOffset — push model back along local Z (in group-local units)
+  if (config.frontOffset) {
+    model.position.z -= config.frontOffset;
+  }
 
   const group = new THREE.Group();
   group.add(model);

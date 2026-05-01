@@ -1,28 +1,15 @@
 {
-  "angel": {
-    "file": "enemies/angel.glb",
-    "bodyType": "flyer",
-    "anims": {
-      "idle": "idle-normal",
-      "move": "move-slither",
-      "attack": "attack-leap",
-      "damage": "damage-back",
-      "death": "death-back"
-    },
-    "scale": 2.8,
-    "heightOffset": 0.3
-  },
-  "optimusPrime": {
-    "file": "enemies/optimusPrime.glb",
+  "treasureChest": {
+    "file": "enemies/treasureChest.glb",
     "bodyType": "humanoid",
     "anims": {
       "idle": "idle-normal",
-      "move": "move-slither",
-      "attack": "attack-throw-right",
-      "damage": "damage-back-left",
-      "death": "death-front"
+      "move": "move-human",
+      "attack": "attack-bite",
+      "damage": "damage-back",
+      "death": "death-side"
     },
-    "scale": 3.1,
+    "scale": 1.6,
     "heightOffset": 0
   },
   "tutorialPlant": {
@@ -36,19 +23,6 @@
       "death": "death-back"
     },
     "scale": 2.2,
-    "heightOffset": 0
-  },
-  "treasureChest": {
-    "file": "enemies/treasureChest.glb",
-    "bodyType": "humanoid",
-    "anims": {
-      "idle": "idle-normal",
-      "move": "move-human",
-      "attack": "attack-bite",
-      "damage": "damage-back",
-      "death": "death-side"
-    },
-    "scale": 1.6,
     "heightOffset": 0
   },
   "greenBat": {
@@ -296,8 +270,7 @@
       "death": "death-back"
     },
     "scale": 3.6,
-    "heightOffset": 0,
-    "frontOffset": 1
+    "heightOffset": 0
   },
   "bossRedSkull": {
     "file": "enemies/bossRedSkull.glb",
@@ -402,20 +375,6 @@
     },
     "scale": 3,
     "heightOffset": 0
-  },
-  "electricTurret": {
-    "file": "enemies/electricTurret.glb",
-    "bodyType": "other",
-    "anims": {
-      "idle": "idle-normal",
-      "move": "move-slither",
-      "attack": "attack-throw-left",
-      "damage": "damage-back",
-      "death": "death-side"
-    },
-    "scale": 2.5,
-    "heightOffset": 0,
-    "rotation": 270
   },
   "desertCactus": {
     "file": "enemies/desertCactus.glb",
@@ -533,19 +492,6 @@
     },
     "scale": 1.8,
     "heightOffset": 1.5
-  },
-  "bossRedSkull2Med": {
-    "file": "enemies/bossRedSkull2Med.glb",
-    "bodyType": "other",
-    "anims": {
-      "idle": "idle-flying",
-      "move": "move-fly",
-      "attack": "attack-bite",
-      "damage": "damage-back",
-      "death": "death-back"
-    },
-    "scale": 1,
-    "heightOffset": 0
   },
   "bossRedSkull2Small": {
     "file": "enemies/bossRedSkull2Small.glb",
@@ -781,34 +727,6 @@
     "scale": 2,
     "heightOffset": 0
   },
-  "crossbowTurret": {
-    "file": "enemies/crossbowTurret.glb",
-    "bodyType": "other",
-    "anims": {
-      "idle": "idle-normal",
-      "move": "move-human",
-      "attack": "attack-throw-right",
-      "damage": "damage-back-left",
-      "death": "death-front"
-    },
-    "scale": 1.8,
-    "heightOffset": 0,
-    "rotation": 270
-  },
-  "fireballTurret": {
-    "file": "enemies/fireballTurret.glb",
-    "bodyType": "other",
-    "anims": {
-      "idle": "idle-normal",
-      "move": "move-human",
-      "attack": "attack-throw-right",
-      "damage": "damage-back",
-      "death": "death-back"
-    },
-    "scale": 1.7,
-    "heightOffset": 0,
-    "rotation": 90
-  },
   "brownGolem": {
     "file": "enemies/brownGolem.glb",
     "bodyType": "humanoid",
@@ -833,32 +751,6 @@
       "death": "death-back"
     },
     "scale": 2.6,
-    "heightOffset": 0
-  },
-  "spearSkeleton": {
-    "file": "enemies/spearSkeleton.glb",
-    "bodyType": "other",
-    "anims": {
-      "idle": "idle-normal",
-      "move": "move-slither",
-      "attack": "attack-throw-left",
-      "damage": "damage-back-left",
-      "death": "death-back"
-    },
-    "scale": 1,
-    "heightOffset": 0
-  },
-  "swordSkeleton": {
-    "file": "enemies/swordSkeleton.glb",
-    "bodyType": "other",
-    "anims": {
-      "idle": "idle-normal",
-      "move": "move-human",
-      "attack": "attack-throw-left",
-      "damage": "damage-back-left",
-      "death": "death-back"
-    },
-    "scale": 1,
     "heightOffset": 0
   },
   "bossGiantArcher": {
@@ -1004,19 +896,6 @@
     "scale": 2.88,
     "heightOffset": 0
   },
-  "bossGiantScarecrow": {
-    "file": "enemies/bossGiantScarecrow.glb",
-    "bodyType": "other",
-    "anims": {
-      "idle": "idle-normal",
-      "move": "move-slither",
-      "attack": "attack-throw-right",
-      "damage": "damage-back-left",
-      "death": "death-side"
-    },
-    "scale": 2.2,
-    "heightOffset": 0
-  },
   "bossRedWormX2": {
     "file": "enemies/bossRedWormX2.glb",
     "bodyType": "other",
@@ -1068,19 +947,6 @@
     },
     "scale": 1.8,
     "heightOffset": 1.1
-  },
-  "bossGiantBrownScarecrow": {
-    "file": "enemies/bossGiantBrownScarecrow.glb",
-    "bodyType": "other",
-    "anims": {
-      "idle": "idle-normal",
-      "move": "move-human",
-      "attack": "attack-throw-left",
-      "damage": "damage-back-right",
-      "death": "death-back"
-    },
-    "scale": 2.7,
-    "heightOffset": 0
   },
   "bossFireDragonX2": {
     "file": "enemies/bossFireDragonX2.glb",
@@ -1303,19 +1169,6 @@
     "scale": 2.16,
     "heightOffset": 0
   },
-  "bossGiantGrayBombX2": {
-    "file": "enemies/bossGiantGrayBombX2.glb",
-    "bodyType": "other",
-    "anims": {
-      "idle": "idle-normal",
-      "move": "move-human",
-      "attack": "attack-bite",
-      "damage": "damage-back-left",
-      "death": "death-back"
-    },
-    "scale": 1.9,
-    "heightOffset": 0
-  },
   "bossDragonflyX2": {
     "file": "enemies/bossDragonflyX2.glb",
     "bodyType": "flyer",
@@ -1341,5 +1194,31 @@
     },
     "scale": 2.16,
     "heightOffset": 1
+  },
+  "angel": {
+    "file": "enemies/angel.glb",
+    "bodyType": "flyer",
+    "anims": {
+      "idle": "idle-normal",
+      "move": "move-slither",
+      "attack": "attack-leap",
+      "damage": "damage-back",
+      "death": "death-back"
+    },
+    "scale": 2.8,
+    "heightOffset": 0.3
+  },
+  "optimusPrime": {
+    "file": "enemies/optimusPrime.glb",
+    "bodyType": "humanoid",
+    "anims": {
+      "idle": "idle-normal",
+      "move": "move-slither",
+      "attack": "attack-throw-right",
+      "damage": "damage-back-left",
+      "death": "death-front"
+    },
+    "scale": 3.1,
+    "heightOffset": 0
   }
 }
