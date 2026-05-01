@@ -367,6 +367,23 @@ function populateChapterSelect(defaultCh) {
 }
 
 // ─── Populate enemy dropdown for selected chapter ───
+let glbEnemyIds = null;
+async function loadGlbIds() {
+  if (glbEnemyIds) return glbEnemyIds;
+  try {
+    const cfg = await fetch('models/enemy-config.json').then(r => r.json());
+    glbEnemyIds = new Set(Object.keys(cfg));
+  } catch { glbEnemyIds = new Set(); }
+  return glbEnemyIds;
+}
+
+function makeOption(id, glbIds) {
+  const opt = document.createElement('option');
+  opt.value = id;
+  opt.textContent = glbIds.has(id) ? id : `${id} [NO GLB]`;
+  return opt;
+}
+
 function populateEnemySelect(defaultEnemyId) {
   const sel = document.getElementById('enemySelect');
   const ch = parseInt(document.getElementById('chapterSelect').value);
@@ -374,63 +391,50 @@ function populateEnemySelect(defaultEnemyId) {
   sel.innerHTML = '';
   if (!chapter) return;
 
-  if (chapter.bossPool?.length > 0) {
-    const group = document.createElement('optgroup');
-    group.label = 'Bosses';
-    for (const entry of chapter.bossPool) {
-      const typeDef = getEnemyType(entry.id);
-      const opt = document.createElement('option');
-      opt.value = entry.id;
-      opt.textContent = typeDef?.name || entry.id;
-      if (entry.stage) opt.textContent += ` (stg ${entry.stage})`;
-      group.appendChild(opt);
-    }
-    sel.appendChild(group);
-  }
+  const glbIds = glbEnemyIds || new Set();
 
+  // Enemy Pool first
   if (chapter.enemyPool?.length > 0) {
     const group = document.createElement('optgroup');
     group.label = 'Enemy Pool';
     for (const entry of chapter.enemyPool) {
-      const typeDef = getEnemyType(entry.id);
-      const opt = document.createElement('option');
-      opt.value = entry.id;
-      opt.textContent = typeDef?.name || entry.id;
-      group.appendChild(opt);
+      group.appendChild(makeOption(entry.id, glbIds));
     }
     sel.appendChild(group);
   }
 
+  // Bosses second
+  if (chapter.bossPool?.length > 0) {
+    const group = document.createElement('optgroup');
+    group.label = 'Bosses';
+    for (const entry of chapter.bossPool) {
+      group.appendChild(makeOption(entry.id, glbIds));
+    }
+    sel.appendChild(group);
+  }
+
+  // All other enemies last
   const chapterIds = new Set([
     ...(chapter.bossPool || []).map(e => e.id),
     ...(chapter.enemyPool || []).map(e => e.id),
   ]);
-  const otherIds = Object.keys(ENEMY_TYPES).filter(id => !chapterIds.has(id)).sort((a, b) => {
-    const ta = ENEMY_TYPES[a], tb = ENEMY_TYPES[b];
-    if (ta.boss && !tb.boss) return 1;
-    if (!ta.boss && tb.boss) return -1;
-    return (ta.name || a).localeCompare(tb.name || b);
-  });
+  const otherIds = Object.keys(ENEMY_TYPES).filter(id => !chapterIds.has(id)).sort();
   if (otherIds.length > 0) {
     const group = document.createElement('optgroup');
-    group.label = 'All Other Enemies';
+    group.label = 'All Enemies';
     for (const id of otherIds) {
-      const typeDef = ENEMY_TYPES[id];
-      const opt = document.createElement('option');
-      opt.value = id;
-      opt.textContent = `${typeDef.name || id}${typeDef.boss ? ' [BOSS]' : ''}`;
-      group.appendChild(opt);
+      group.appendChild(makeOption(id, glbIds));
     }
     sel.appendChild(group);
   }
 
-  // Try to restore requested enemy, else pick first boss/pool entry
+  // Try to restore requested enemy, else pick first pool/boss entry
   if (defaultEnemyId && sel.querySelector(`option[value="${defaultEnemyId}"]`)) {
     sel.value = defaultEnemyId;
-  } else if (chapter.bossPool?.length > 0) {
-    sel.value = chapter.bossPool[0].id;
   } else if (chapter.enemyPool?.length > 0) {
     sel.value = chapter.enemyPool[0].id;
+  } else if (chapter.bossPool?.length > 0) {
+    sel.value = chapter.bossPool[0].id;
   }
   currentEnemyId = sel.value;
 }
@@ -612,6 +616,7 @@ async function init() {
   canvas2d.height = innerHeight;
 
   await loadMapData();
+  await loadGlbIds();
   initRenderer3D();
 
   // Restore saved prefs or use defaults
