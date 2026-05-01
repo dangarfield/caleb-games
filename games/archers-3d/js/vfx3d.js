@@ -44,13 +44,6 @@ export class GPUParticleSystem {
     this._gravity = new Float32Array(maxParticles);
 
     this._geo = new THREE.BufferGeometry();
-    // Pre-allocate buffer attributes with DynamicDrawUsage for reuse each frame
-    const posAttr = new THREE.Float32BufferAttribute(this._pos, 3);
-    posAttr.setUsage(THREE.DynamicDrawUsage);
-    this._geo.setAttribute('position', posAttr);
-    const colAttr = new THREE.Float32BufferAttribute(this._col, 3);
-    colAttr.setUsage(THREE.DynamicDrawUsage);
-    this._geo.setAttribute('color', colAttr);
     this._geo.setDrawRange(0, 0);
 
     // Generate a stylized teardrop/comet trail texture via canvas
@@ -217,11 +210,16 @@ export class GPUParticleSystem {
       this._col[i3+1] = this._colOrig[i3+1] * fade;
       this._col[i3+2] = this._colOrig[i3+2] * fade;
     }
-    // Update existing buffer attributes (pre-allocated with DynamicDrawUsage)
+    // Rebuild buffer attributes each frame (DynamicDrawUsage + needsUpdate
+    // doesn't work reliably in Three.js r170, so we create fresh attributes)
     const n = this.count;
     const geo = this._geo;
-    geo.attributes.position.needsUpdate = true;
-    geo.attributes.color.needsUpdate = true;
+    if (n > 0) {
+      const pos = this._pos.subarray(0, n * 3);
+      const col = this._col.subarray(0, n * 3);
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    }
     geo.setDrawRange(0, n);
   }
 

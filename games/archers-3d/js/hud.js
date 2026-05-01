@@ -11,6 +11,9 @@ import { toggleCamera, isOrthoCamera, toggleShadows, areShadowsEnabled } from '.
 import { RINGS } from './equipment.js';
 import { TOTAL_CHAPTERS } from './constants.js';
 
+let _version = '';
+fetch('./version.json').then(r => r.json()).then(d => { _version = d.version; }).catch(() => {});
+
 const F = '"Segoe UI",system-ui,sans-serif';
 function sc(W) { return Math.max(1, W / 400); }
 function fontB(W, base) { return `bold ${Math.round(base * sc(W))}px ${F}`; }
@@ -159,7 +162,7 @@ export function drawHUD(ctx, W, H) {
     }
   }
 
-  // ── FPS counter (bottom-left) ──
+  // ── FPS counter (bottom-right, debug only) ──
   _fpsFrames++;
   const now = performance.now();
   if (now - _fpsLast >= 500) {
@@ -167,13 +170,15 @@ export function drawHUD(ctx, W, H) {
     _fpsFrames = 0;
     _fpsLast = now;
   }
-  ctx.save();
-  ctx.font = `bold ${Math.round(10 * s)}px ${F}`;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'bottom';
-  ctx.fillStyle = _fpsDisplay >= 50 ? 'rgba(100,255,100,0.7)' : _fpsDisplay >= 30 ? 'rgba(255,255,100,0.7)' : 'rgba(255,80,80,0.8)';
-  ctx.fillText(`${_fpsDisplay} FPS`, pad, H - pad);
-  ctx.restore();
+  if (game.debug.enabled) {
+    ctx.save();
+    ctx.font = `bold ${Math.round(10 * s)}px ${F}`;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    ctx.fillStyle = _fpsDisplay >= 50 ? 'rgba(100,255,100,0.7)' : _fpsDisplay >= 30 ? 'rgba(255,255,100,0.7)' : 'rgba(255,80,80,0.8)';
+    ctx.fillText(`${_fpsDisplay} FPS`, W - pad, H - pad);
+    ctx.restore();
+  }
 }
 
 let _fpsFrames = 0;
@@ -262,7 +267,7 @@ export function drawPauseScreen(ctx, W, H) {
   ctx.fillStyle = dbg.enabled ? '#f39c12' : 'rgba(255,255,255,0.4)';
   ctx.font = fontB(W, 11);
   ctx.textAlign = 'left';
-  ctx.fillText('Debug Mode', pad, rowY + toggleH / 2);
+  ctx.fillText('Debug Mode' + (_version ? ' (v' + _version + ')' : ''), pad, rowY + toggleH / 2);
   const dbgTogX = W - pad - toggleW;
   drawToggle(ctx, dbgTogX, rowY, toggleW, toggleH, dbg.enabled, s);
   pauseClickRegions.push({ x: pad, y: rowY - 2, w: W - pad * 2, h: toggleH + 4, action: () => {
@@ -320,13 +325,13 @@ export function drawPauseScreen(ctx, W, H) {
     }});
     rowY += toggleH + 6 * s;
 
-    // Shadows toggle
-    const shadowsOn = areShadowsEnabled();
-    ctx.fillStyle = shadowsOn ? '#1abc9c' : 'rgba(255,255,255,0.4)';
+    // Shadows toggle (inverted: toggle ON = shadows disabled)
+    const shadowsOff = !areShadowsEnabled();
+    ctx.fillStyle = shadowsOff ? '#e67e22' : 'rgba(255,255,255,0.4)';
     ctx.font = font(W, 10);
     ctx.textAlign = 'left';
-    ctx.fillText('Shadows', pad + 10 * s, rowY + toggleH / 2);
-    drawToggle(ctx, dbgTogX, rowY, toggleW, toggleH, shadowsOn, s);
+    ctx.fillText('Disable Shadows', pad + 10 * s, rowY + toggleH / 2);
+    drawToggle(ctx, dbgTogX, rowY, toggleW, toggleH, shadowsOff, s);
     pauseClickRegions.push({ x: pad, y: rowY - 2, w: W - pad * 2, h: toggleH + 4, action: () => {
       toggleShadows();
     }});

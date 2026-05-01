@@ -264,7 +264,7 @@ function nextStage() {
   addExitDoorWall();
   game.camera.y = game.player.y;
   game.camera.x = a.x + a.w / 2;
-  game.stageIndicatorTimer = 2.5; // show for 2.5 seconds then fade
+  game.stageIndicatorTimer = 5.0; // show for 5 seconds then fade
   // Rebuild 3D scene for this stage
   clearArena3D(); clearEntities(); clearEffects();
   setChapterTheme(CHAPTER_THEMES[game.chapter] || CHAPTER_THEMES[0]);
@@ -894,9 +894,9 @@ function draw(dt) {
       const chDef = CHAPTERS[game.chapter];
       const chName = chDef ? chDef.name : 'Chapter ' + game.chapter;
       const totalStages = getChapterStages(game.chapter);
-      const tx = W - 16;
+      const tx = 16;
       const ty = H - 16;
-      ctx.textAlign = 'right';
+      ctx.textAlign = 'left';
       ctx.lineJoin = 'round';
       ctx.strokeStyle = '#000';
       ctx.lineWidth = 3;
@@ -1562,7 +1562,7 @@ function draw(dt) {
 
   drawHUD(ctx, W, H);
 
-  // Stage indicator (bottom-right, fades out)
+  // Stage indicator (bottom-left, fades out)
   if (game.stageIndicatorTimer > 0) {
     const fadeDur = 0.8;
     const alpha = game.stageIndicatorTimer < fadeDur ? game.stageIndicatorTimer / fadeDur : 1;
@@ -1571,9 +1571,9 @@ function draw(dt) {
     const chDef = CHAPTERS[game.chapter];
     const chName = chDef ? chDef.name : 'Chapter ' + game.chapter;
     const totalStages = getChapterStages(game.chapter);
-    const tx = W - 16;
+    const tx = 16;
     const ty = H - 16;
-    ctx.textAlign = 'right';
+    ctx.textAlign = 'left';
     ctx.lineJoin = 'round';
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 3;

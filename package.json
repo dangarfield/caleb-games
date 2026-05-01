@@ -1,15 +1,15 @@
 {
   "name": "caleb-games",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A collection of browser-based games for Caleb",
   "private": true,
   "scripts": {
-    "start": "node server/index.js"
+    "start": "serve -l 5000",
+    "tunnel": "ngrok http 5000"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1029.0",
-    "@aws-sdk/credential-providers": "^3.1029.0",
-    "express": "^4.21.0"
+    "@aws-sdk/credential-providers": "^3.1029.0"
   },
   "devDependencies": {
     "serve": "^14.2.4"
