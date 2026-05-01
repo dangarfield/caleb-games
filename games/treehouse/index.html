@@ -165,12 +165,24 @@ canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0}
 #questionBox.reading{border-color:rgba(160,196,255,0.6)}
 .answer-btn.reading{border-color:rgba(160,196,255,0.6);background:rgba(160,196,255,0.1)}
 
+
+/* Toast notification */
+#toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:9999;
+  background:rgba(0,0,0,0.85);color:#fff;padding:12px 24px;border-radius:12px;
+  font:bold 14px/1.4 'Segoe UI',system-ui,sans-serif;
+  border:1px solid rgba(122,182,72,0.3);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  opacity:0;pointer-events:none;transition:opacity 0.4s;text-align:center;
+  max-width:90%}
+#toast.show{opacity:1}
+
 @media(max-width:600px){
   #answers{grid-template-columns:1fr}
   #ladder{display:none}
   .lifeline{width:44px;height:44px;font-size:1.2rem}
 }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@hiseb/confetti@2.1.0/dist/confetti.min.js"></script>
 </head>
 <body>
 <a id="backBtn" href="../../index.html">&larr; Games</a>
@@ -216,6 +228,8 @@ canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0}
     </div>
   </div>
 </div>
+
+<div id="toast"></div>
 
 <div id="result">
   <h2 id="resultTitle"></h2>
@@ -389,12 +403,15 @@ animLoop();
 // ─── Audio ───
 let audioCtx = null;
 function ensureAudio() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  if (audioCtx.state === 'suspended') audioCtx.resume();
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  } catch (e) { /* AudioContext blocked (e.g. Kids Mode) */ }
   return audioCtx;
 }
 function playTone(freq, duration, type, vol, endFreq) {
   const c = ensureAudio();
+  if (!c) return;
   const osc = c.createOscillator(), gain = c.createGain();
   osc.type = type || 'sine';
   osc.frequency.setValueAtTime(freq, c.currentTime);
@@ -419,6 +436,32 @@ function sfxVictory() {
 }
 function sfxTick() { playTone(1000, 0.03, 'sine', 0.04); }
 function sfxSelect() { playTone(600, 0.08, 'sine', 0.06); }
+
+// ─── Reaction audio (played after correct/wrong SFX) ───
+const REACT_CORRECT_COUNT = 15;
+const REACT_WRONG_COUNT = 12;
+
+function playReaction(type, onDone) {
+  if (speechMuted) { if (onDone) onDone(); return; }
+  const count = type === 'correct' ? REACT_CORRECT_COUNT : REACT_WRONG_COUNT;
+  const idx = Math.floor(Math.random() * count);
+  const audio = new Audio(`audio/react_${type}_${idx}.mp3`);
+  audio.onended = () => { if (onDone) onDone(); };
+  audio.onerror = () => { if (onDone) onDone(); };
+  audio.play().catch(() => { if (onDone) onDone(); });
+}
+
+// ─── Confetti (explosion burst via @hiseb/confetti) ───
+function spawnConfetti() {
+  const colors = ['#7ab648','#ffd32a','#ff6b6b','#a0c4ff','#ff9f43','#ee5a9f','#48dbfb'];
+  // Burst from center
+  confetti({ particleCount: 80, spread: 100, origin: { y: 0.5 }, colors });
+  // Two side bursts for explosion effect
+  setTimeout(() => {
+    confetti({ particleCount: 40, angle: 60, spread: 70, origin: { x: 0.2, y: 0.6 }, colors });
+    confetti({ particleCount: 40, angle: 120, spread: 70, origin: { x: 0.8, y: 0.6 }, colors });
+  }, 150);
+}
 
 // ─── Shared localStorage ───
 function loadArcadeData() {
@@ -723,12 +766,18 @@ function updateLadder() {
 }
 
 // ─── Pick questions ───
+// Tag each question with its original index (for audio file mapping)
+const INDEXED_QUESTIONS = ALL_QUESTIONS.map((q, i) => ({ ...q, _audioIdx: i }));
+
 function pickQuestions() {
-  const clone = q => ({ q: q.q, a: [...q.a], c: 0, d: q.d });
-  const easy = shuffle(ALL_QUESTIONS.filter(q => q.d === 1)).slice(0, 5).map(clone);
-  const med = shuffle(ALL_QUESTIONS.filter(q => q.d === 2)).slice(0, 5).map(clone);
-  const hard = shuffle(ALL_QUESTIONS.filter(q => q.d === 3)).slice(0, 3).map(clone);
-  return [...easy, ...med, ...hard];
+  const clone = q => ({ q: q.q, a: [...q.a], c: 0, d: q.d, _audioIdx: q._audioIdx });
+  const easy = shuffle(INDEXED_QUESTIONS.filter(q => q.d === 1)).slice(0, 5).map(clone);
+  const med = shuffle(INDEXED_QUESTIONS.filter(q => q.d === 2)).slice(0, 5).map(clone);
+  const hard = shuffle(INDEXED_QUESTIONS.filter(q => q.d === 3)).slice(0, 3).map(clone);
+  const picked = [...easy, ...med, ...hard];
+  // TEMP: force q0 as first question for testing
+  picked[0] = clone(INDEXED_QUESTIONS[0]);
+  return picked;
 }
 
 function shuffle(arr) {
@@ -740,14 +789,23 @@ function shuffle(arr) {
   return a;
 }
 
-// ─── Speech reader (Web Speech API) ───
+// ─── Toast helper ───
+function showToast(msg, duration) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration || 4000);
+}
+
+// ─── Audio reader (pre-recorded files) ───
 let readingDone = false;
 let speechMuted = false;
 let speechGen = 0; // generation counter to invalidate stale callbacks
+let currentAudio = null; // currently playing Audio element
 
 function cancelSpeech() {
-  speechGen++; // invalidate any in-flight callbacks
-  speechSynthesis.cancel();
+  speechGen++;
+  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
   clearReadingHighlights();
 }
 
@@ -763,25 +821,30 @@ function beginReading() {
   }
   readingDone = false;
 
-  const gen = speechGen; // capture current generation
+  const gen = speechGen;
   const q = questions[currentStorey];
-  const letters = ['A', 'B', 'C', 'D'];
   const btns = answersEl.querySelectorAll('.answer-btn');
   const qBox = document.getElementById('questionBox');
 
+  const prefix = `audio/q${q._audioIdx}`;
+  const audioLetters = ['a', 'b', 'c', 'd'];
+  const displayLetters = ['a', 'b', 'c', 'd'];
+  // Map display position to original audio file using _answerOrder
+  const order = q._answerOrder || [0, 1, 2, 3];
   const steps = [
-    { text: q.q, el: qBox },
+    { src: `${prefix}_question.mp3`, el: qBox },
   ];
-  for (let i = 0; i < q.a.length; i++) {
-    steps.push({ text: `${letters[i]}.`, el: btns[i] });
-    steps.push({ text: q.a[i], el: btns[i] });
+  for (let i = 0; i < 4; i++) {
+    // Play the display letter (A/B/C/D) then the answer audio (mapped to original order)
+    steps.push({ src: `audio/letter_${displayLetters[i]}.mp3`, el: btns[i] });
+    steps.push({ src: `${prefix}_${audioLetters[order[i]]}.mp3`, el: btns[i] });
   }
-
   let idx = 0;
-  function speakNext() {
-    // Bail if this session was cancelled
+
+  function playNext() {
     if (gen !== speechGen) return;
     if (idx >= steps.length || !gameActive || answered || speechMuted) {
+      clearReadingHighlights();
       finishReading();
       return;
     }
@@ -790,24 +853,37 @@ function beginReading() {
     idx++;
     if (step.el) step.el.classList.add('reading');
 
-    const utt = new SpeechSynthesisUtterance(step.text);
-    utt.rate = 0.75;
-    const karen = speechSynthesis.getVoices().find(v => v.name.includes('Karen'));
-    if (karen) utt.voice = karen;
-    utt.onend = () => {
+    const audio = new Audio(step.src);
+    currentAudio = audio;
+    audio.onended = () => {
+      currentAudio = null;
       if (gen !== speechGen) return;
       if (step.el) step.el.classList.remove('reading');
-      speakNext();
+      playNext();
     };
-    utt.onerror = () => {
+    audio.onerror = () => {
+      currentAudio = null;
       if (gen !== speechGen) return;
       if (step.el) step.el.classList.remove('reading');
-      speakNext();
+      playNext();
     };
-    speechSynthesis.speak(utt);
+    audio.play().catch(() => {
+      currentAudio = null;
+      if (step.el) step.el.classList.remove('reading');
+      // If audio playback is blocked entirely, mute and proceed
+      if (idx === 1) {
+        showToast("Sorry, I can't speak the questions out loud!", 5000);
+        speechMuted = true;
+        document.getElementById('muteBtn').textContent = '\u{1F507}';
+        document.getElementById('muteBtn').classList.add('muted');
+        finishReading();
+        return;
+      }
+      playNext();
+    });
   }
 
-  speakNext();
+  playNext();
 }
 
 function finishReading() {
@@ -831,11 +907,12 @@ function showQuestion() {
   storeyLabel.textContent = `Level ${s.num}`;
   questionText.textContent = q.q;
 
-  // Shuffle answer order if not yet shuffled for this question
+  // Shuffle answer order (track mapping for audio playback)
   if (!q._shuffled) {
     const order = shuffle([0, 1, 2, 3]);
     q.c = order.indexOf(0); // correct answer was originally at index 0
     q.a = order.map(i => q.a[i]);
+    q._answerOrder = order; // maps display position -> original position (for audio)
     q._shuffled = true;
   }
 
@@ -896,12 +973,13 @@ function selectAnswer(idx) {
       btns[idx].classList.remove('selected');
       btns[idx].classList.add('correct');
       sfxCorrect();
-      setTimeout(() => advanceStorey(), 1200);
+      spawnConfetti();
+      playReaction('correct', () => setTimeout(() => advanceStorey(), 600));
     } else {
       btns[idx].classList.add('wrong');
       btns[q.c].classList.add('correct');
       sfxWrong();
-      setTimeout(() => gameOver(false), 1500);
+      playReaction('wrong', () => setTimeout(() => gameOver(false), 800));
     }
   }, 1000);
 }
