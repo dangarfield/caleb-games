@@ -158,7 +158,27 @@ export function drawHUD(ctx, W, H) {
       ctx.restore();
     }
   }
+
+  // ── FPS counter (bottom-left) ──
+  _fpsFrames++;
+  const now = performance.now();
+  if (now - _fpsLast >= 500) {
+    _fpsDisplay = Math.round(_fpsFrames / ((now - _fpsLast) / 1000));
+    _fpsFrames = 0;
+    _fpsLast = now;
+  }
+  ctx.save();
+  ctx.font = `bold ${Math.round(10 * s)}px ${F}`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'bottom';
+  ctx.fillStyle = _fpsDisplay >= 50 ? 'rgba(100,255,100,0.7)' : _fpsDisplay >= 30 ? 'rgba(255,255,100,0.7)' : 'rgba(255,80,80,0.8)';
+  ctx.fillText(`${_fpsDisplay} FPS`, pad, H - pad);
+  ctx.restore();
 }
+
+let _fpsFrames = 0;
+let _fpsLast = performance.now();
+let _fpsDisplay = 60;
 
 // ── Helper: draw a toggle switch ──
 function drawToggle(ctx, x, y, w, h, on, s) {

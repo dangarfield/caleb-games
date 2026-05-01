@@ -1220,6 +1220,8 @@ function getOrCreateEnemyMesh(e) {
       const factory = MESH_FACTORIES[e.draw] || ((c) => makeDefault(c));
       group = factory(e.color, e.colorAlt);
       group.name = `enemy_${id}_${e.draw || 'default'}`;
+      // Hide placeholder if GLB is expected but still loading
+      if (e.typeId) group.visible = false;
     }
 
     entry = { group, drawType: e.draw || 'default', glbData };
@@ -1240,6 +1242,10 @@ function getOrCreateEnemyMesh(e) {
       entry.group.name = `enemy_${id}_glb_${e.typeId}`;
       if (scene) scene.add(entry.group);
     }
+  } else if (!entry.glbData && e.typeId && !entry.group.visible) {
+    // Show fallback after 1.5s if GLB still hasn't loaded
+    if (!entry._spawnTime) entry._spawnTime = performance.now();
+    if (performance.now() - entry._spawnTime > 1500) entry.group.visible = true;
   }
 
   return entry;

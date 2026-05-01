@@ -1529,6 +1529,9 @@ function buildWaterTiles(theme) {
 }
 
 function buildSpikeTiles(theme) {
+  const tiles = game.spikeTiles || [];
+  if (tiles.length === 0) return;
+
   const spikeColor = new THREE.Color('#8b1a1a');
   const mat = new THREE.MeshStandardMaterial({
     color: spikeColor,
@@ -1536,32 +1539,38 @@ function buildSpikeTiles(theme) {
     metalness: 0.6,
   });
 
-  for (const tile of (game.spikeTiles || [])) {
-    const { center, sx, sz } = obstacleTransform(tile);
-    // Place a grid of small cone spikes within the tile area
-    const spikeRadius = 0.06;
-    const spikeHeight = 0.25;
-    const spacing = 0.18;
-    const coneGeo = new THREE.ConeGeometry(spikeRadius, spikeHeight, 4);
+  const spikeRadius = 0.06;
+  const spikeHeight = 0.25;
+  const spacing = 0.18;
+  const coneGeo = new THREE.ConeGeometry(spikeRadius, spikeHeight, 4);
 
+  // Collect all spike positions, then merge into a single mesh
+  const positions = [];
+  for (const tile of tiles) {
+    const { center, sx, sz } = obstacleTransform(tile);
     const countX = Math.max(1, Math.floor(sx / spacing));
     const countZ = Math.max(1, Math.floor(sz / spacing));
     const startX = center.x - (countX - 1) * spacing / 2;
     const startZ = center.z - (countZ - 1) * spacing / 2;
-
     for (let ix = 0; ix < countX; ix++) {
       for (let iz = 0; iz < countZ; iz++) {
-        const spike = new THREE.Mesh(coneGeo, mat);
-        spike.position.set(
-          startX + ix * spacing,
-          spikeHeight / 2,
-          startZ + iz * spacing
-        );
-        spike.castShadow = true;
-        arenaGroup.add(spike);
+        positions.push(startX + ix * spacing, spikeHeight / 2, startZ + iz * spacing);
       }
     }
   }
+
+  // Use InstancedMesh for single draw call
+  const count = positions.length / 3;
+  const instMesh = new THREE.InstancedMesh(coneGeo, mat, count);
+  const dummy = new THREE.Object3D();
+  for (let i = 0; i < count; i++) {
+    dummy.position.set(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
+    dummy.updateMatrix();
+    instMesh.setMatrixAt(i, dummy.matrix);
+  }
+  instMesh.instanceMatrix.needsUpdate = true;
+  instMesh.castShadow = true;
+  arenaGroup.add(instMesh);
 }
 
 // ─── Artifacts: procedural decoration props per chapter ───
@@ -2187,7 +2196,7 @@ export function updateArena(dt) {
     }
 
     // Spawn firework bursts periodically (start quickly)
-    if (godRayTime > 0.1 && fireworkBursts.length < 15) {
+    if (godRayTime > 0.1 && fireworkBursts.length < 8) {
       if (Math.random() < dt * 1.5) {
         spawnFirework();
       }
@@ -2251,12 +2260,10 @@ export function updateArena(dt) {
       burst.vy *= Math.pow(0.97, dt * 60); // decelerate
 
       // Leave a glowing trail
-      if (Math.random() < dt * 35) {
+      if (Math.random() < dt * 15) {
         const trailGeo = getSparkGeo();
-        const trailMat = new THREE.MeshStandardMaterial({
+        const trailMat = new THREE.MeshBasicMaterial({
           color: burst.color,
-          emissive: burst.color,
-          emissiveIntensity: 1.2,
           transparent: true,
           opacity: 0.7,
           depthWrite: false,
@@ -2296,7 +2303,6 @@ export function updateArena(dt) {
         spark.vy *= Math.pow(0.97, dt * 60);
         spark.vz *= sDrag;
         spark.mesh.material.opacity = burstFade * 0.9;
-        spark.mesh.material.emissiveIntensity = burstFade * 1.5;
         spark.mesh.scale.setScalar((0.5 + burstFade * 0.5) * (spark.mesh.userData.sparkScale || 1));
       }
       // Fade remaining trail
@@ -2344,18 +2350,13 @@ function spawnConfetti() {
   const floorW = worldScale(a.w);
   const arenaTopZ = center.z;
 
-  // 60 pieces — shoot UP from the ground/stair level
-  for (let i = 0; i < 60; i++) {
+  // 35 pieces — shoot UP from the ground/stair level
+  for (let i = 0; i < 35; i++) {
     const color = CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)];
-    const isMetallic = Math.random() > 0.5;
-    const mat = new THREE.MeshStandardMaterial({
+    const mat = new THREE.MeshBasicMaterial({
       color,
-      emissive: color,
-      emissiveIntensity: 0.3,
-      metalness: isMetallic ? 0.8 : 0.1,
-      roughness: isMetallic ? 0.3 : 0.7,
       transparent: true,
-      opacity: 0,  // starts invisible, tweens in
+      opacity: 0,
       side: THREE.DoubleSide,
       depthWrite: false,
     });
@@ -2425,15 +2426,11 @@ function spawnFirework() {
 function explodeFirework(burst) {
   if (!arenaGroup) return;
   const geo = getSparkGeo();
-  const sparkCount = 22 + Math.floor(Math.random() * 12);
+  const sparkCount = 14 + Math.floor(Math.random() * 6);
 
   for (let i = 0; i < sparkCount; i++) {
-    const mat = new THREE.MeshStandardMaterial({
+    const mat = new THREE.MeshBasicMaterial({
       color: burst.color,
-      emissive: burst.color,
-      emissiveIntensity: 1.5,
-      metalness: 0.6,
-      roughness: 0.2,
       transparent: true,
       opacity: 0.95,
       depthWrite: false,
