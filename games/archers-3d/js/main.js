@@ -684,6 +684,8 @@ function update(dt) {
     const globalStage = game.chapter * STAGES_PER_CHAPTER + game.stage;
     saveBest(globalStage);
     saveCoins(getCoins() + game.runCoins);
+    game._deadRunCoins = game.runCoins; // preserve for display on game over screen
+    game.runCoins = 0;
     return;
   }
 
@@ -1616,6 +1618,11 @@ function loop(ts) {
 
   if (game.returnToEquip) {
     game.returnToEquip = false;
+    // Save earned gems when quitting mid-run
+    if (game.runCoins > 0) {
+      saveCoins(getCoins() + game.runCoins);
+      game.runCoins = 0;
+    }
     game.state = 'map';
   }
 

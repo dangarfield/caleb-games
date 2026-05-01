@@ -1301,7 +1301,12 @@ export function drawGameOver(ctx, W, H) {
 
   ctx.fillStyle = '#a29bfe';
   ctx.font = fontB(W, 17);
-  ctx.fillText('\u{1F48E} ' + fmt(game.runCoins) + ' gems earned', W / 2, H * 0.30 + 78 * s);
+  ctx.fillText('\u{1F48E} ' + fmt(game._deadRunCoins || game.runCoins) + ' gems earned', W / 2, H * 0.30 + 78 * s);
+
+  // Damage reduction hint
+  ctx.fillStyle = '#fff';
+  ctx.font = fontB(W, 15);
+  ctx.fillText('Enemies are now easier! Try again!', W / 2, H * 0.30 + 104 * s);
 
   const btnW = W - pad * 2, btnH = 48 * s;
   const bx = pad;
