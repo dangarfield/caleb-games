@@ -569,7 +569,7 @@ export function spawnEnemyAt(typeId, typeDef, scale, x, y, opts = {}) {
   const bossScale = opts.bossScale || 1;
   const bossCount = typeDef.bossCount || 1;
   for (let bc = 0; bc < bossCount; bc++) {
-    const offsetX = bossCount > 1 ? (bc - (bossCount - 1) / 2) * 0.66 * t : 0;
+    const offsetX = bossCount > 1 ? (bc - (bossCount - 1) / 2) * 4 * t : 0;
     game.enemies.push({
       x: x + offsetX, y,
       hp: Math.floor(typeDef.baseHp * scale * bossScale),
