@@ -23,6 +23,17 @@ let godRayTime = 0;        // animation time for god rays
 let confettiPieces = [];   // active confetti particles
 let fireworkBursts = [];   // active firework bursts
 
+// ─── Confetti & spark mesh pools ───
+const CONFETTI_POOL_SIZE = 40;
+const SPARK_POOL_SIZE = 80; // enough for ~4 firework explosions at once
+let _confettiPool = [];
+let _confettiPoolIdx = 0;
+let _sparkPool = [];
+let _sparkPoolIdx = 0;
+let _trailPool = [];
+let _trailPoolIdx = 0;
+const TRAIL_POOL_SIZE = 40;
+
 // ─── Stylized rock/terrain colors (inspired by thaslle/stylized-water) ───
 const ROCK_COLORS = {
   rockBase: '#b2baa0',   // gray-green stone
@@ -2128,6 +2139,44 @@ export function buildArena() {
   getSparkGeo();
   for (const c of CONFETTI_COLORS) { getConfettiMat(c); getSparkMat(c); }
 
+  // Build confetti mesh pool
+  _confettiPool = [];
+  _confettiPoolIdx = 0;
+  for (let i = 0; i < CONFETTI_POOL_SIZE; i++) {
+    const color = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
+    const mat = getConfettiMat(color).clone();
+    mat.opacity = 0;
+    const mesh = new THREE.Mesh(getConfettiGeo(), mat);
+    mesh.visible = false;
+    arenaGroup.add(mesh);
+    _confettiPool.push(mesh);
+  }
+
+  // Build spark mesh pool (for firework explosions)
+  _sparkPool = [];
+  _sparkPoolIdx = 0;
+  for (let i = 0; i < SPARK_POOL_SIZE; i++) {
+    const color = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
+    const mat = getSparkMat(color).clone();
+    mat.opacity = 0;
+    const mesh = new THREE.Mesh(getSparkGeo(), mat);
+    mesh.visible = false;
+    arenaGroup.add(mesh);
+    _sparkPool.push(mesh);
+  }
+
+  // Build trail mesh pool (for firework rising trails)
+  _trailPool = [];
+  _trailPoolIdx = 0;
+  for (let i = 0; i < TRAIL_POOL_SIZE; i++) {
+    const color = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
+    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, depthWrite: false });
+    const mesh = new THREE.Mesh(getSparkGeo(), mat);
+    mesh.visible = false;
+    arenaGroup.add(mesh);
+    _trailPool.push(mesh);
+  }
+
   waterTime = 0;
 
   getScene().add(arenaGroup);
@@ -2240,8 +2289,7 @@ export function updateArena(dt) {
     c.life -= dt;
     c.age += dt;
     if (c.life <= 0) {
-      arenaGroup.remove(c.mesh);
-      c.mesh.material.dispose();
+      c.mesh.visible = false;
       confettiPieces.splice(i, 1);
       continue;
     }
@@ -2271,16 +2319,10 @@ export function updateArena(dt) {
     burst.life -= dt;
 
     if (burst.life <= 0) {
-      // Clean up trail
-      for (const t of burst.trail) {
-        arenaGroup.remove(t);
-        t.material.dispose();
-      }
-      // Clean up sparks
-      for (const spark of burst.sparks) {
-        arenaGroup.remove(spark.mesh);
-        spark.mesh.material.dispose();
-      }
+      // Hide trail meshes
+      for (const t of burst.trail) t.visible = false;
+      // Hide spark meshes
+      for (const spark of burst.sparks) spark.mesh.visible = false;
       fireworkBursts.splice(i, 1);
       continue;
     }
@@ -2292,17 +2334,13 @@ export function updateArena(dt) {
 
       // Leave a glowing trail
       if (Math.random() < dt * 15) {
-        const trailGeo = getSparkGeo();
-        const trailMat = new THREE.MeshBasicMaterial({
-          color: burst.color,
-          transparent: true,
-          opacity: 0.7,
-          depthWrite: false,
-        });
-        const trail = new THREE.Mesh(trailGeo, trailMat);
+        const trail = _trailPool[_trailPoolIdx % TRAIL_POOL_SIZE];
+        _trailPoolIdx++;
+        trail.material.color.set(burst.color);
+        trail.material.opacity = 0.7;
         trail.position.set(burst.x + (Math.random() - 0.5) * 0.12, burst.y, burst.z);
         trail.scale.setScalar(0.5 + Math.random() * 0.2);
-        arenaGroup.add(trail);
+        trail.visible = true;
         burst.trail.push(trail);
       }
 
@@ -2311,8 +2349,7 @@ export function updateArena(dt) {
         burst.trail[t].material.opacity -= dt * 2;
         burst.trail[t].scale.multiplyScalar(Math.pow(0.96, dt * 60));
         if (burst.trail[t].material.opacity <= 0) {
-          arenaGroup.remove(burst.trail[t]);
-          burst.trail[t].material.dispose();
+          burst.trail[t].visible = false;
           burst.trail.splice(t, 1);
         }
       }
@@ -2340,8 +2377,7 @@ export function updateArena(dt) {
       for (let t = burst.trail.length - 1; t >= 0; t--) {
         burst.trail[t].material.opacity -= dt * 3;
         if (burst.trail[t].material.opacity <= 0) {
-          arenaGroup.remove(burst.trail[t]);
-          burst.trail[t].material.dispose();
+          burst.trail[t].visible = false;
           burst.trail.splice(t, 1);
         }
       }
@@ -2403,22 +2439,24 @@ function spawnConfetti() {
   const floorW = worldScale(a.w);
   const arenaTopZ = center.z;
 
-  // 35 pieces — shoot UP from the ground/stair level
-  for (let i = 0; i < 35; i++) {
-    const color = CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)];
-    const mat = getConfettiMat(color).clone();
-    mat.opacity = 0;
-    const geo = getConfettiGeo();
-    const mesh = new THREE.Mesh(geo, mat);
+  const count = Math.min(35, CONFETTI_POOL_SIZE);
+  for (let i = 0; i < count; i++) {
+    const mesh = _confettiPool[_confettiPoolIdx % CONFETTI_POOL_SIZE];
+    _confettiPoolIdx++;
 
-    // Start at ground level near the stair base, spread across the door width
+    // Reassign color and geometry
+    const color = CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)];
+    mesh.material.color.set(color);
+    mesh.material.opacity = 0;
+    mesh.geometry = getConfettiGeo();
+    mesh.visible = true;
+
     mesh.position.set(
       center.x + (Math.random() - 0.5) * floorW * 0.5,
-      0.1 + Math.random() * 0.3, // ground level
+      0.1 + Math.random() * 0.3,
       arenaTopZ + (Math.random() - 0.5) * 1.5
     );
 
-    // Launch upward with some spread (half speed for gentler effect)
     const angle = Math.random() * Math.PI * 2;
     const hSpeed = 1.0 + Math.random() * 1.5;
     const piece = {
@@ -2437,7 +2475,6 @@ function spawnConfetti() {
     piece.maxLife = piece.life;
     mesh.scale.setScalar(piece.scale);
     mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-    arenaGroup.add(mesh);
     confettiPieces.push(piece);
   }
 }
@@ -2473,14 +2510,16 @@ function spawnFirework() {
 
 function explodeFirework(burst) {
   if (!arenaGroup) return;
-  const geo = getSparkGeo();
-  const sparkCount = 14 + Math.floor(Math.random() * 6);
+  const sparkCount = Math.min(14 + Math.floor(Math.random() * 6), SPARK_POOL_SIZE);
 
   for (let i = 0; i < sparkCount; i++) {
-    const mat = getSparkMat(burst.color).clone();
-    const mesh = new THREE.Mesh(geo, mat);
+    const mesh = _sparkPool[_sparkPoolIdx % SPARK_POOL_SIZE];
+    _sparkPoolIdx++;
+
+    mesh.material.color.set(burst.color);
+    mesh.material.opacity = 0.95;
     mesh.position.set(burst.x, burst.y, burst.z);
-    // Random scale variation
+    mesh.visible = true;
     const sparkScale = 0.6 + Math.random() * 0.4;
     mesh.scale.setScalar(sparkScale);
     mesh.userData.sparkScale = sparkScale;
@@ -2494,7 +2533,6 @@ function explodeFirework(burst) {
       vy: Math.sin(phi) * Math.sin(theta) * speed * 0.7 + 0.75,
       vz: Math.cos(phi) * speed * 0.5,
     });
-    arenaGroup.add(mesh);
   }
   burst.phase = 'exploded';
   burst.life = 1.5 + Math.random() * 0.5;
