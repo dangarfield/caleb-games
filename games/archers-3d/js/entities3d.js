@@ -1880,10 +1880,12 @@ export function syncEntities(dt) {
       });
     }
 
-    // Burrow fade: use _burrowScale for opacity (0 = underground, 1 = fully visible)
+    // Burrow fade: use _burrowScale for opacity + vertical sink (0 = underground, 1 = fully visible)
     if (e._burrowScale !== undefined && e._burrowScale < 1) {
       const alpha = e._burrowScale;
       g.visible = alpha > 0;
+      // Sink downward as it burrows (drop by 1 world unit when fully underground)
+      g.position.y -= (1 - alpha) * ws;
       g.traverse(child => {
         if (child.isMesh && child.material) {
           if (!child.material._origOpacity) child.material._origOpacity = child.material.opacity;
