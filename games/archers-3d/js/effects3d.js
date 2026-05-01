@@ -2,6 +2,7 @@
 // Manages Three.js meshes synced to the 2D game state arrays each frame.
 
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { game } from './state.js';
 import { T } from './arena.js';
 import { BULLET_R, ENEMY_BULLET_R, CRYSTAL_R } from './constants.js';
@@ -191,39 +192,38 @@ const ELEM_COLORS = {
 function initPools() {
   ensureGeometries();
 
-  // Player bullets (arrows) — proper arrow shape: shaft + head + fletching
-  pools.playerBullets = createPool('playerBullets', MAX_PLAYER_BULLETS, () => {
-    const g = new THREE.Group();
-
-    // Shaft — thin cylinder along Z
+  // Player bullets (arrows) — merged into single geometry for 1 draw call each
+  const mergedArrowGeo = (() => {
     const shaftLen = 0.22;
-    const shaftGeo = new THREE.CylinderGeometry(0.008, 0.008, shaftLen, 4);
-    shaftGeo.rotateX(PI / 2); // align along Z
-    const shaftMat = getCachedMaterial('#8B6914', { emissiveIntensity: 0.15, roughness: 0.7 });
-    const shaft = new THREE.Mesh(shaftGeo, shaftMat);
-    shaft.position.z = 0; // centered
-    g.add(shaft);
-
-    // Arrowhead — cone at front
     const headLen = 0.08;
+    const geos = [];
+    // Shaft
+    const shaftGeo = new THREE.CylinderGeometry(0.008, 0.008, shaftLen, 4);
+    shaftGeo.rotateX(PI / 2);
+    geos.push(shaftGeo);
+    // Arrowhead
     const headGeo = new THREE.ConeGeometry(0.03, headLen, 4);
-    headGeo.rotateX(PI / 2); // point along +Z
-    const headMat = getCachedMaterial('#cccccc', { emissiveIntensity: 0.3, metalness: 0.5, roughness: 0.3 });
-    const head = new THREE.Mesh(headGeo, headMat);
-    head.position.z = shaftLen / 2 + headLen / 2;
-    g.add(head);
-
-    // Fletching — two small angled planes at the tail
-    const fletchGeo = new THREE.PlaneGeometry(0.07, 0.05);
-    const fletchMat = getCachedMaterial('#111111', { emissiveIntensity: 0, side: THREE.DoubleSide });
+    headGeo.rotateX(PI / 2);
+    headGeo.translate(0, 0, shaftLen / 2 + headLen / 2);
+    geos.push(headGeo);
+    // Fletching planes
     for (const rot of [0, PI / 2]) {
-      const fletch = new THREE.Mesh(fletchGeo, fletchMat);
-      fletch.position.z = -shaftLen / 2 + 0.015;
-      fletch.rotation.z = rot;
-      g.add(fletch);
+      const fletchGeo = new THREE.PlaneGeometry(0.07, 0.05);
+      fletchGeo.translate(0, 0, -shaftLen / 2 + 0.015);
+      if (rot !== 0) {
+        const m = new THREE.Matrix4().makeRotationZ(rot);
+        fletchGeo.applyMatrix4(m);
+      }
+      geos.push(fletchGeo);
     }
+    return mergeGeometries(geos);
+  })();
 
-    return g;
+  pools.playerBullets = createPool('playerBullets', MAX_PLAYER_BULLETS, () => {
+    const mat = getCachedMaterial('#8B6914', { emissiveIntensity: 0.2, roughness: 0.5 });
+    const mesh = new THREE.Mesh(mergedArrowGeo, mat.clone());
+    mesh.castShadow = false;
+    return mesh;
   });
 
   // Holy halos — blue-yellow glowing disc rings
@@ -617,12 +617,9 @@ function syncPlayerBullets() {
     mesh.rotation.set(0, 0, 0);
     mesh.rotation.y = -(b.ang || 0) + PI / 2;
 
-    // Update shaft color to match weapon rarity, head and fletching stay fixed
-    mesh.traverse((child) => {
-      if (child.isMesh && child.geometry.type === 'CylinderGeometry') {
-        child.material = arrowMat;
-      }
-    });
+    // Update arrow color to match weapon rarity
+    mesh.material.color.set(arrowColor);
+    mesh.material.emissive.set(arrowColor);
 
     // Scale based on damage (slightly larger for stronger arrows)
     const dmgScale = Math.min(1 + (b.dmg || 10) / 80, 1.5) * 1.8;

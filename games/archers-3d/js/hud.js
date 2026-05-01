@@ -7,7 +7,7 @@ import { rebuildOrbitals } from './orbitals.js';
 import { getSkillIcon } from './icons.js';
 import { drawSkillCard } from './skillCard.js';
 import { saveDebug, saveChaptersCleared, saveCoins, unlockRing, setChosenWeaponLvl, setChosenArmorLvl, saveLastRun } from './storage.js';
-import { toggleCamera, isOrthoCamera } from './renderer3d.js';
+import { toggleCamera, isOrthoCamera, toggleShadows, areShadowsEnabled } from './renderer3d.js';
 import { RINGS } from './equipment.js';
 import { TOTAL_CHAPTERS } from './constants.js';
 
@@ -317,6 +317,18 @@ export function drawPauseScreen(ctx, W, H) {
     pauseClickRegions.push({ x: pad, y: rowY - 2, w: W - pad * 2, h: toggleH + 4, action: () => {
       dbg.noVFX = !dbg.noVFX;
       saveDebug(dbg);
+    }});
+    rowY += toggleH + 6 * s;
+
+    // Shadows toggle
+    const shadowsOn = areShadowsEnabled();
+    ctx.fillStyle = shadowsOn ? '#1abc9c' : 'rgba(255,255,255,0.4)';
+    ctx.font = font(W, 10);
+    ctx.textAlign = 'left';
+    ctx.fillText('Shadows', pad + 10 * s, rowY + toggleH / 2);
+    drawToggle(ctx, dbgTogX, rowY, toggleW, toggleH, shadowsOn, s);
+    pauseClickRegions.push({ x: pad, y: rowY - 2, w: W - pad * 2, h: toggleH + 4, action: () => {
+      toggleShadows();
     }});
     rowY += toggleH + 12 * s;
 

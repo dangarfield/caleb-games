@@ -231,3 +231,16 @@ export function toggleCamera() {
 export function isOrthoCamera() {
   return _useOrtho;
 }
+
+export function toggleShadows() {
+  if (!renderer) return;
+  renderer.shadowMap.enabled = !renderer.shadowMap.enabled;
+  // Force shadow map update on all materials
+  scene.traverse(obj => {
+    if (obj.isMesh && obj.material) obj.material.needsUpdate = true;
+  });
+}
+
+export function areShadowsEnabled() {
+  return renderer ? renderer.shadowMap.enabled : true;
+}

@@ -2,6 +2,7 @@
 // Builds floor, walls, obstacles, door, water tiles, spike tiles, and boundary.
 
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { gameToWorld, worldScale, getScene } from './renderer3d.js';
 import { game } from './state.js';
 import { arena, T } from './arena.js';
@@ -1994,7 +1995,6 @@ function buildArtifacts() {
   const floorW = worldScale(a.w);
   const floorH = worldScale(a.h);
   const center = gameToWorld(a.x + a.w / 2, a.y + a.h / 2);
-  const cellW = worldScale(a.cellSize || (a.w / (game.mapGrid || { w: 11 }).w));
   const wallHeight = 1.0;
 
   // Arena edges in world space
@@ -2003,11 +2003,11 @@ function buildArtifacts() {
   const topZ = center.z - floorH / 2; // north (toward door)
   const bottomZ = center.z + floorH / 2; // south
 
-  // Random placement — fresh each level load
   function rng() { return Math.random(); }
-
-  // Ch3-10 get 2x size on top of the base 2.0 multiplier
   const chSizeMult = ch >= 3 ? 4.0 : 2.0;
+
+  // Collect all artifact placements as positioned groups, then merge by material
+  const placedObjects = [];
 
   function placeArtifact(x, z, y, scaleMultiplier) {
     const def = artifacts[Math.floor(rng() * artifacts.length)];
@@ -2015,12 +2015,11 @@ function buildArtifacts() {
     obj.scale.setScalar(def.scale * (scaleMultiplier || 1) * chSizeMult);
     obj.position.set(x, y, z);
     obj.rotation.y = rng() * Math.PI * 2;
-    obj.traverse(child => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
-    arenaGroup.add(obj);
+    obj.updateMatrixWorld(true);
+    placedObjects.push(obj);
   }
 
-  // ─── Behind the door wall (on ground plane, Y=wallHeight) ───
-  // 10-16 artifacts spread behind the door wall area
+  // Behind the door wall
   const behindZ = topZ - 2.5;
   const behindCount = 10 + Math.floor(rng() * 7);
   for (let i = 0; i < behindCount; i++) {
@@ -2029,8 +2028,7 @@ function buildArtifacts() {
     placeArtifact(x, z, wallHeight, 0.8 + rng() * 0.7);
   }
 
-  // ─── Flanking the door wall (beside decorative columns) ───
-  // 2-4 artifacts on each side right next to the wall
+  // Flanking the door wall
   for (const side of [-1, 1]) {
     const flankCount = 2 + Math.floor(rng() * 3);
     for (let i = 0; i < flankCount; i++) {
@@ -2041,8 +2039,7 @@ function buildArtifacts() {
     }
   }
 
-  // ─── Side boundaries (on ground plane, spread along the full height) ───
-  // 6-10 per side, placed 0.5-2T out from the boundary edge
+  // Side boundaries
   const leftCount = 6 + Math.floor(rng() * 5);
   for (let i = 0; i < leftCount; i++) {
     const x = leftX - 0.5 - rng() * 1.5;
@@ -2056,8 +2053,7 @@ function buildArtifacts() {
     placeArtifact(x, z, wallHeight, 0.7 + rng() * 0.6);
   }
 
-  // ─── Before the bottom boundary (south, on ground plane) ───
-  // 6-10 artifacts. Tall ones (>2T) placed 2-5 units out, short ones can be at 1+.
+  // South boundary
   const southCount = 6 + Math.floor(rng() * 5);
   for (let i = 0; i < southCount; i++) {
     const x = center.x + (rng() - 0.5) * floorW * 1.0;
@@ -2066,15 +2062,45 @@ function buildArtifacts() {
     const obj = def.create();
     const finalScale = def.scale * scaleMult * chSizeMult;
     obj.scale.setScalar(finalScale);
-    // Measure height to decide placement distance
     const box = new THREE.Box3().setFromObject(obj);
     const height = box.max.y - box.min.y;
     const minDist = height > 2.0 ? 2.0 : 1.0;
     const z = bottomZ + minDist + rng() * 3.0;
     obj.position.set(x, wallHeight, z);
     obj.rotation.y = rng() * Math.PI * 2;
-    obj.traverse(child => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
-    arenaGroup.add(obj);
+    obj.updateMatrixWorld(true);
+    placedObjects.push(obj);
+  }
+
+  // Merge all artifact geometry by material color to minimize draw calls
+  const matBuckets = new Map(); // materialKey -> { geometries: [], material }
+  for (const obj of placedObjects) {
+    obj.traverse(child => {
+      if (!child.isMesh) return;
+      const mat = child.material;
+      const key = (mat.color ? mat.color.getHexString() : '000') + '_' +
+                  (mat.emissive ? mat.emissive.getHexString() : '000') + '_' +
+                  (mat.emissiveIntensity || 0).toFixed(1) + '_' +
+                  (mat.roughness || 0).toFixed(1) + '_' +
+                  (mat.metalness || 0).toFixed(1);
+      if (!matBuckets.has(key)) matBuckets.set(key, { geometries: [], material: mat });
+      const geo = child.geometry.clone();
+      geo.applyMatrix4(child.matrixWorld);
+      matBuckets.get(key).geometries.push(geo);
+    });
+  }
+
+  // Create one merged mesh per material bucket
+  for (const [, bucket] of matBuckets) {
+    if (bucket.geometries.length === 0) continue;
+    const merged = mergeGeometries(bucket.geometries, false);
+    if (!merged) continue;
+    const mesh = new THREE.Mesh(merged, bucket.material);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    arenaGroup.add(mesh);
+    // Dispose cloned geometries
+    for (const g of bucket.geometries) g.dispose();
   }
 }
 
