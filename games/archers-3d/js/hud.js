@@ -214,6 +214,45 @@ export function drawPauseScreen(ctx, W, H) {
   ctx.textBaseline = 'middle';
   ctx.fillText('Paused', W / 2, 36 * s);
 
+  // ── Close button (top right) ──
+  const closeBtnSize = 32 * s;
+  const closeBtnX = W - pad - closeBtnSize;
+  const closeBtnY = 20 * s;
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.beginPath(); ctx.roundRect(closeBtnX, closeBtnY, closeBtnSize, closeBtnSize, 6 * s); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+  ctx.lineWidth = 1.5 * s;
+  ctx.beginPath(); ctx.roundRect(closeBtnX, closeBtnY, closeBtnSize, closeBtnSize, 6 * s); ctx.stroke();
+  const cx = closeBtnX + closeBtnSize / 2, cy = closeBtnY + closeBtnSize / 2;
+  const xOff = 8 * s;
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5 * s; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(cx - xOff, cy - xOff); ctx.lineTo(cx + xOff, cy + xOff); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + xOff, cy - xOff); ctx.lineTo(cx - xOff, cy + xOff); ctx.stroke();
+  pauseClickRegions.push({ x: closeBtnX, y: closeBtnY, w: closeBtnSize, h: closeBtnSize, action: () => {
+    game.state = game._pausedFrom || 'playing';
+    game._pausedFrom = null;
+  }});
+
+  // ── Quit button (top left) ──
+  const quitBtnW = 56 * s;
+  const quitBtnH = 32 * s;
+  const quitBtnX = pad;
+  const quitBtnY = 20 * s;
+  ctx.fillStyle = 'rgba(231,76,60,0.7)';
+  ctx.beginPath(); ctx.roundRect(quitBtnX, quitBtnY, quitBtnW, quitBtnH, 6 * s); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = 1.5 * s;
+  ctx.beginPath(); ctx.roundRect(quitBtnX, quitBtnY, quitBtnW, quitBtnH, 6 * s); ctx.stroke();
+  ctx.fillStyle = '#fff';
+  ctx.font = fontB(W, 11);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Quit', quitBtnX + quitBtnW / 2, quitBtnY + quitBtnH / 2);
+  pauseClickRegions.push({ x: quitBtnX, y: quitBtnY, w: quitBtnW, h: quitBtnH, action: () => {
+    game._pausedFrom = null;
+    game.returnToEquip = true;
+  }});
+
   // ── Debug toggle row ──
   const toggleW = 36 * s;
   const toggleH = 18 * s;
