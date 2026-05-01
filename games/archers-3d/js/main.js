@@ -153,8 +153,9 @@ document.addEventListener('keydown', e => {
   }
 });
 
-// Initialize chapter
-game.chapter = Math.min(getChaptersCleared() + 1, TOTAL_CHAPTERS);
+// Initialize chapter — show active run's chapter if one exists, otherwise highest unlocked
+const _initLastRun = getLastRun();
+game.chapter = _initLastRun ? _initLastRun.chapter : Math.min(getChaptersCleared() + 1, TOTAL_CHAPTERS);
 
 // Restore debug state
 Object.assign(game.debug, loadDebug());
@@ -269,6 +270,11 @@ function nextStage() {
   setChapterTheme(CHAPTER_THEMES[game.chapter] || CHAPTER_THEMES[0]);
   buildArena3D();
   snapCamera(game.player.x, game.player.y);
+  // Stage fade-in: hold black screen until models are loaded
+  game._stageFadeIn = 1.0; // 1 = fully black, fades to 0
+  game._stageFadeOut = 0;
+  game._stageFadeOutPending = false;
+  game._modelsReady = false;
   game.state = 'playing';
 }
 
@@ -414,7 +420,10 @@ function applyMapLayout(parsed, stageType) {
       }
     }
   }
-  preloadEnemyModels([...typeIds]);
+  const modelsPromise = preloadEnemyModels([...typeIds]);
+  // Start fade once models load (or after 3s timeout as safety)
+  const timeout = new Promise(r => setTimeout(r, 3000));
+  Promise.race([modelsPromise, timeout]).then(() => { game._modelsReady = true; });
 }
 
 function spawnExitEntities() {
@@ -428,6 +437,12 @@ function spawnExitEntities() {
 }
 
 function update(dt) {
+  // Freeze gameplay completely while waiting for models to load
+  if (game._stageFadeIn > 0 && !game._modelsReady) return;
+
+  // During fade-in (models ready, scene visible): player can move, no shooting/enemies
+  const isFadingIn = game._stageFadeIn > 0 && game._modelsReady;
+
   // Dying state: only update projectiles/particles, countdown to dead
   if (game.state === 'dying') {
     game.dyingTimer -= dt;
@@ -449,6 +464,17 @@ function update(dt) {
   }
 
   if (game.state !== 'playing' && game.state !== 'exiting') return;
+
+  // Stage fade-out countdown (250ms)
+  if (game._stageFadeOut > 0 && game._stageFadeOutPending) {
+    game._stageFadeOut = Math.max(0, game._stageFadeOut - dt / 0.25);
+    if (game._stageFadeOut <= 0) {
+      game._stageFadeOutPending = false;
+      nextStage();
+    }
+    return; // freeze gameplay during fade-out
+  }
+
   const a = arena();
   const p = game.player;
   const input = getInput();
@@ -525,9 +551,9 @@ function update(dt) {
   }
 
   // Subsystems
-  updateShooting(dt);
-  updateBullets(dt);
-  updateEnemies(dt);
+  if (!isFadingIn) updateShooting(dt);
+  if (!isFadingIn) updateBullets(dt);
+  if (!isFadingIn) updateEnemies(dt);
   updateCrystals(dt);
   updateHearts(dt);
   updateParticles(dt);
@@ -571,8 +597,8 @@ function update(dt) {
   }
 
   // Update orbitals and summons
-  updateOrbitals(dt);
-  updateSummons(dt);
+  if (!isFadingIn) updateOrbitals(dt);
+  if (!isFadingIn) updateSummons(dt);
 
   // Shadow clone - follows player with a delay
   if (p.shadowClones > 0) {
@@ -732,7 +758,9 @@ function update(dt) {
           xp: game.player.xp,
           xpToNext: game.player.xpToNext,
         });
-        nextStage();
+        // Start fade-out, then advance stage
+        game._stageFadeOut = 1.0;
+        game._stageFadeOutPending = true;
       }
     }
   }
@@ -824,13 +852,26 @@ function draw3DHealthBars(ctx, W, H) {
   ctx.fillText(hpText, pScreen.x, hpBarY - 2);
 }
 
+const backBtn = document.getElementById('backBtn');
+
 function draw(dt) {
   dt = dt || 1 / 60;
   const isGameplay = game.state === 'playing' || game.state === 'exiting'
     || game.state === 'chapterClear' || game.state === 'levelUp'
     || game.state === 'dying' || game.state === 'dead' || game.state === 'paused';
+  backBtn.classList.toggle('hidden', game.state !== 'menu');
+  canvas.style.touchAction = isGameplay ? 'none' : 'pan-y';
 
   if (isGameplay) {
+    // While waiting for models, show solid black — don't render 3D at all
+    if (game._stageFadeIn > 0 && !game._modelsReady) {
+      set3DVisible(false);
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, W, H);
+      return;
+    }
+
     // 3D rendering for gameplay
     set3DVisible(true);
     const p = game.player;
@@ -870,6 +911,19 @@ function draw(dt) {
       ctx.strokeText(chName, tx, ty - 20);
       ctx.fillText(chName, tx, ty - 20);
       ctx.restore();
+    }
+    // Stage fade-in (black overlay until models loaded, then fade out over 600ms)
+    if (game._stageFadeIn > 0) {
+      if (game._modelsReady) {
+        game._stageFadeIn = Math.max(0, game._stageFadeIn - dt / 0.6);
+      }
+      ctx.fillStyle = `rgba(0,0,0,${game._stageFadeIn})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+    // Stage fade-out (fade to black over 250ms on completion)
+    if (game._stageFadeOut > 0) {
+      ctx.fillStyle = `rgba(0,0,0,${1 - game._stageFadeOut})`;
+      ctx.fillRect(0, 0, W, H);
     }
     // Overlay states drawn on 2D canvas
     if (game.state === 'chapterClear') drawChapterClear(ctx, W, H);
@@ -1598,7 +1652,6 @@ function loop(ts) {
 
 // Start
 startBtn.addEventListener('click', async () => {
-  document.body.classList.add('playing');
   ensureAudio();
   await mapReady;
   initRenderer3D();
