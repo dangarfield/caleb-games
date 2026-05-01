@@ -57,7 +57,8 @@ export function initRenderer3D() {
   });
   renderer.setSize(w, h);
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.shadowMap.enabled = true;
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && innerWidth < 1024);
+  renderer.shadowMap.enabled = !isMobile;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.LinearToneMapping;
   renderer.toneMappingExposure = 2.0;
@@ -147,8 +148,13 @@ export function updateCamera(playerGameX, playerGameY, dt) {
   const target = gameToWorld(playerGameX, playerGameY);
 
   // Smooth ease toward player (only Z axis, X stays centered on arena)
-  const ease = 1 - Math.exp(-4 * dt);
-  _camTargetZ += (target.z - _camTargetZ) * ease;
+  const diff = target.z - _camTargetZ;
+  if (Math.abs(diff) < 0.001) {
+    _camTargetZ = target.z; // snap when close to avoid micro-jitter
+  } else {
+    const ease = 1 - Math.exp(-4 * dt);
+    _camTargetZ += diff * ease;
+  }
 
   // Clamp camera Z so the screen edge doesn't show more than N tiles beyond arena
   const a = arena();
