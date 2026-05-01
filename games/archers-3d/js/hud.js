@@ -366,6 +366,22 @@ export function drawPauseScreen(ctx, W, H) {
       location.reload();
     }});
 
+    rowY += btnH2 + 8 * s;
+
+    // New Cache URL button (full width)
+    const cacheBtnW = W - pad * 2;
+    ctx.fillStyle = '#3498db';
+    ctx.beginPath(); ctx.roundRect(pad, rowY, cacheBtnW, btnH2, btnR); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = fontB(W, 10);
+    ctx.textAlign = 'center';
+    ctx.fillText('New Cache URL', pad + cacheBtnW / 2, rowY + btnH2 / 2);
+    pauseClickRegions.push({ x: pad, y: rowY, w: cacheBtnW, h: btnH2, action: () => {
+      const url = new URL(location.href);
+      url.searchParams.set('v', Date.now());
+      location.href = url.toString();
+    }});
+
     rowY += btnH2 + 10 * s;
   }
 
