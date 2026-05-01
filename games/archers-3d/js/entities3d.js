@@ -1322,13 +1322,7 @@ function animateEnemy(entry, e, time) {
       break;
     }
     case 'worm': {
-      // Underground hide: scale Y to 0
-      const body = g.getObjectByName('wormBody');
-      if (body && e._underground) {
-        body.scale.y = Math.max(0, body.scale.y - 0.05);
-      } else if (body) {
-        body.scale.y = 0.5;
-      }
+      // Burrow handled by _burrowScale opacity fade in syncEntities
       break;
     }
   }
@@ -1882,6 +1876,26 @@ export function syncEntities(dt) {
       g.traverse(child => {
         if (child.isMesh && child.material && child.material.transparent) {
           child.material.opacity = Math.min(child.material.opacity, spawnProgress);
+        }
+      });
+    }
+
+    // Burrow fade: use _burrowScale for opacity (0 = underground, 1 = fully visible)
+    if (e._burrowScale !== undefined && e._burrowScale < 1) {
+      const alpha = e._burrowScale;
+      g.visible = alpha > 0;
+      g.traverse(child => {
+        if (child.isMesh && child.material) {
+          if (!child.material._origOpacity) child.material._origOpacity = child.material.opacity;
+          child.material.transparent = true;
+          child.material.opacity = alpha * child.material._origOpacity;
+        }
+      });
+    } else if (e._burrowScale !== undefined && e._burrowScale >= 1) {
+      g.visible = true;
+      g.traverse(child => {
+        if (child.isMesh && child.material && child.material._origOpacity) {
+          child.material.opacity = child.material._origOpacity;
         }
       });
     }
