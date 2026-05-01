@@ -27,7 +27,7 @@ import { initRenderer3D, gameToWorld, worldScale, updateCamera, snapCamera, setC
 import * as THREE from 'three';
 import { buildArena as buildArena3D, updateArena as updateArena3D, clearArena as clearArena3D, setDoorOpen as setDoorOpen3D } from './arena3d.js';
 import { syncEntities, clearEntities, getPlayerWorldPos, getKoAnimDuration } from './entities3d.js';
-import { syncEffects, clearEffects, updateVFX } from './effects3d.js';
+import { syncEffects, clearEffects, initEffects, updateVFX } from './effects3d.js';
 import { preloadEnemyModels } from './enemyModels.js';
 
 const canvas = document.getElementById('gameCanvas');
@@ -269,6 +269,7 @@ function nextStage() {
   clearArena3D(); clearEntities(); clearEffects();
   setChapterTheme(CHAPTER_THEMES[game.chapter] || CHAPTER_THEMES[0]);
   buildArena3D();
+  initEffects(); // eagerly create all effect pools during load screen
   snapCamera(game.player.x, game.player.y);
   // Stage fade-in: hold black screen until models are loaded
   game._stageFadeIn = 1.0; // 1 = fully black, fades to 0

@@ -1225,6 +1225,30 @@ export function syncEffects() {
 }
 
 /**
+ * Eagerly initialize all effect pools. Call during stage load to avoid first-frame stutter.
+ */
+export function initEffects() {
+  if (!effectsGroup) {
+    effectsGroup = new THREE.Group();
+    effectsGroup.name = 'effectsGroup';
+    getScene().add(effectsGroup);
+    initPools();
+  }
+  if (!vfxParticles) {
+    const scene = getScene();
+    vfxParticles = new GPUParticleSystem(scene, 4096);
+    groundShadows = new GroundShadowPool(scene, 64);
+    impactRings = new ImpactRingPool(scene, 24);
+  }
+  // Pre-warm death poof color cache
+  const poofColors = [
+    '#ff3366', '#ff9933', '#ffee33', '#33ff66',
+    '#33ccff', '#cc66ff', '#ff66cc', '#ffffff'
+  ];
+  for (const c of poofColors) getPoofColor(c);
+}
+
+/**
  * Remove all effect meshes from the scene. Called on stage transitions.
  */
 export function clearEffects() {
@@ -1281,6 +1305,15 @@ export function updateVFX(dt) {
  * Spawn a kid-friendly firework/fountain burst when an enemy dies.
  * pos: {x, y, z} in world coords, color: hex string of enemy color
  */
+// Cached Color objects for death poof to avoid GC churn
+const _poofColorCache = new Map();
+function getPoofColor(hex) {
+  if (_poofColorCache.has(hex)) return _poofColorCache.get(hex);
+  const c = new THREE.Color(hex);
+  _poofColorCache.set(hex, c);
+  return c;
+}
+
 export function spawnDeathPoof(pos, color, scale = 1) {
   if (!vfxParticles || game.debug.noVFX) return;
 
@@ -1302,7 +1335,7 @@ export function spawnDeathPoof(pos, color, scale = 1) {
     vfxParticles.emit(
       { x: pos.x + Math.cos(angle) * spread * scale, y: pos.y, z: pos.z + Math.sin(angle) * spread * scale },
       { x: Math.cos(angle) * spread * spd * 0.3, y: spd, z: Math.sin(angle) * spread * spd * 0.3 },
-      new THREE.Color(c), (2 + Math.random() * 2) * scale, 0.4 + Math.random() * 0.2, 0.94, 6
+      getPoofColor(c), (2 + Math.random() * 2) * scale, 0.4 + Math.random() * 0.2, 0.94, 6
     );
   }
 
@@ -1316,7 +1349,7 @@ export function spawnDeathPoof(pos, color, scale = 1) {
     vfxParticles.emit(
       { x: pos.x, y: pos.y + 0.1, z: pos.z },
       { x: Math.cos(angle) * spd, y: upBias * spd, z: Math.sin(angle) * spd },
-      new THREE.Color(c), (1.5 + Math.random() * 1.5) * scale, 0.3 + Math.random() * 0.15, 0.91, 5
+      getPoofColor(c), (1.5 + Math.random() * 1.5) * scale, 0.3 + Math.random() * 0.15, 0.91, 5
     );
   }
 
@@ -1327,16 +1360,17 @@ export function spawnDeathPoof(pos, color, scale = 1) {
     vfxParticles.emit(
       { x: pos.x + (Math.random() - 0.5) * scale, y: pos.y + Math.random() * scale * 0.5, z: pos.z + (Math.random() - 0.5) * scale },
       { x: (Math.random() - 0.5) * 2, y: 1 + Math.random() * 2, z: (Math.random() - 0.5) * 2 },
-      new THREE.Color(c), (1 + Math.random()) * scale, 0.4 + Math.random() * 0.2, 0.96, 2
+      getPoofColor(c), (1 + Math.random()) * scale, 0.4 + Math.random() * 0.2, 0.96, 2
     );
   }
 
   // === Central white flash ===
+  const whiteColor = getPoofColor('#ffffff');
   for (let i = 0; i < 4; i++) {
     vfxParticles.emit(
       { x: pos.x, y: pos.y, z: pos.z },
       { x: (Math.random() - 0.5) * 1, y: Math.random() * 1.5, z: (Math.random() - 0.5) * 1 },
-      new THREE.Color('#ffffff'), 4 * scale, 0.1 + Math.random() * 0.05, 0.85, 0
+      whiteColor, 4 * scale, 0.1 + Math.random() * 0.05, 0.85, 0
     );
   }
 

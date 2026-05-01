@@ -2123,6 +2123,11 @@ export function buildArena() {
   buildSpikeTiles(theme);
   buildArtifacts();
 
+  // Pre-warm confetti/firework materials (triggers shader compilation now, not on first use)
+  getConfettiGeo();
+  getSparkGeo();
+  for (const c of CONFETTI_COLORS) { getConfettiMat(c); getSparkMat(c); }
+
   waterTime = 0;
 
   getScene().add(arenaGroup);
@@ -2348,6 +2353,28 @@ export function updateArena(dt) {
 
 const CONFETTI_COLORS = ['#ff4444', '#44ff44', '#4488ff', '#ffdd00', '#ff88dd', '#44ffee', '#ffaa00', '#aa44ff'];
 
+// Pre-cached materials per color to avoid per-piece material creation stutter
+const _confettiMats = new Map();
+const _sparkMats = new Map();
+
+function getConfettiMat(color) {
+  if (_confettiMats.has(color)) return _confettiMats.get(color);
+  const mat = new THREE.MeshBasicMaterial({
+    color, transparent: true, opacity: 1.0, side: THREE.DoubleSide, depthWrite: false,
+  });
+  _confettiMats.set(color, mat);
+  return mat;
+}
+
+function getSparkMat(color) {
+  if (_sparkMats.has(color)) return _sparkMats.get(color);
+  const mat = new THREE.MeshBasicMaterial({
+    color, transparent: true, opacity: 0.95, depthWrite: false,
+  });
+  _sparkMats.set(color, mat);
+  return mat;
+}
+
 // Shared geometry to avoid frame spike from creating 60+ geometries at once
 let _confettiGeos = null;
 let _sparkGeo = null;
@@ -2379,13 +2406,8 @@ function spawnConfetti() {
   // 35 pieces — shoot UP from the ground/stair level
   for (let i = 0; i < 35; i++) {
     const color = CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)];
-    const mat = new THREE.MeshBasicMaterial({
-      color,
-      transparent: true,
-      opacity: 0,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    });
+    const mat = getConfettiMat(color).clone();
+    mat.opacity = 0;
     const geo = getConfettiGeo();
     const mesh = new THREE.Mesh(geo, mat);
 
@@ -2455,12 +2477,7 @@ function explodeFirework(burst) {
   const sparkCount = 14 + Math.floor(Math.random() * 6);
 
   for (let i = 0; i < sparkCount; i++) {
-    const mat = new THREE.MeshBasicMaterial({
-      color: burst.color,
-      transparent: true,
-      opacity: 0.95,
-      depthWrite: false,
-    });
+    const mat = getSparkMat(burst.color).clone();
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(burst.x, burst.y, burst.z);
     // Random scale variation

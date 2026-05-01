@@ -332,8 +332,9 @@ export function drawPauseScreen(ctx, W, H) {
     }});
     rowY += toggleH + 12 * s;
 
-    // Debug action buttons
-    const btnW = (W - pad * 2 - 8 * s) / 2;
+    // Debug action buttons (3 in a row)
+    const btnGap = 6 * s;
+    const btnW = (W - pad * 2 - btnGap * 2) / 3;
     const btnH2 = 28 * s;
     const btnR = 6 * s;
 
@@ -341,7 +342,7 @@ export function drawPauseScreen(ctx, W, H) {
     ctx.fillStyle = '#e74c3c';
     ctx.beginPath(); ctx.roundRect(pad, rowY, btnW, btnH2, btnR); ctx.fill();
     ctx.fillStyle = '#fff';
-    ctx.font = fontB(W, 10);
+    ctx.font = fontB(W, 9);
     ctx.textAlign = 'center';
     ctx.fillText('Reset Data', pad + btnW / 2, rowY + btnH2 / 2);
     pauseClickRegions.push({ x: pad, y: rowY, w: btnW, h: btnH2, action: () => {
@@ -350,13 +351,13 @@ export function drawPauseScreen(ctx, W, H) {
     }});
 
     // Unlock Everything button
-    const unlockX = pad + btnW + 8 * s;
+    const unlockX = pad + btnW + btnGap;
     ctx.fillStyle = '#f39c12';
     ctx.beginPath(); ctx.roundRect(unlockX, rowY, btnW, btnH2, btnR); ctx.fill();
     ctx.fillStyle = '#fff';
-    ctx.font = fontB(W, 10);
+    ctx.font = fontB(W, 9);
     ctx.textAlign = 'center';
-    ctx.fillText('Unlock Everything', unlockX + btnW / 2, rowY + btnH2 / 2);
+    ctx.fillText('Unlock All', unlockX + btnW / 2, rowY + btnH2 / 2);
     pauseClickRegions.push({ x: unlockX, y: rowY, w: btnW, h: btnH2, action: () => {
       saveChaptersCleared(TOTAL_CHAPTERS);
       setChosenWeaponLvl(TOTAL_CHAPTERS);
@@ -366,17 +367,15 @@ export function drawPauseScreen(ctx, W, H) {
       location.reload();
     }});
 
-    rowY += btnH2 + 8 * s;
-
-    // New Cache URL button (full width)
-    const cacheBtnW = W - pad * 2;
+    // New Cache URL button
+    const cacheX = unlockX + btnW + btnGap;
     ctx.fillStyle = '#3498db';
-    ctx.beginPath(); ctx.roundRect(pad, rowY, cacheBtnW, btnH2, btnR); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(cacheX, rowY, btnW, btnH2, btnR); ctx.fill();
     ctx.fillStyle = '#fff';
-    ctx.font = fontB(W, 10);
+    ctx.font = fontB(W, 9);
     ctx.textAlign = 'center';
-    ctx.fillText('New Cache URL', pad + cacheBtnW / 2, rowY + btnH2 / 2);
-    pauseClickRegions.push({ x: pad, y: rowY, w: cacheBtnW, h: btnH2, action: () => {
+    ctx.fillText('Cache Bust', cacheX + btnW / 2, rowY + btnH2 / 2);
+    pauseClickRegions.push({ x: cacheX, y: rowY, w: btnW, h: btnH2, action: () => {
       const url = new URL(location.href);
       url.searchParams.set('v', Date.now());
       location.href = url.toString();
