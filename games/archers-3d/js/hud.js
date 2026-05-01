@@ -267,6 +267,18 @@ export function drawPauseScreen(ctx, W, H) {
     pauseClickRegions.push({ x: pad, y: rowY - 2, w: W - pad * 2, h: toggleH + 4, action: () => {
       toggleCamera();
     }});
+    rowY += toggleH + 6 * s;
+
+    // No VFX / particles toggle
+    ctx.fillStyle = dbg.noVFX ? '#e67e22' : 'rgba(255,255,255,0.4)';
+    ctx.font = font(W, 10);
+    ctx.textAlign = 'left';
+    ctx.fillText('Disable Particle Effects', pad + 10 * s, rowY + toggleH / 2);
+    drawToggle(ctx, dbgTogX, rowY, toggleW, toggleH, dbg.noVFX, s);
+    pauseClickRegions.push({ x: pad, y: rowY - 2, w: W - pad * 2, h: toggleH + 4, action: () => {
+      dbg.noVFX = !dbg.noVFX;
+      saveDebug(dbg);
+    }});
     rowY += toggleH + 12 * s;
 
     // Debug action buttons

@@ -42,5 +42,5 @@ export const game = {
   retryRun: false,
   pendingXP: 0, // XP earned during combat, applied after all enemies die
   stageIndicatorTimer: 0, // countdown for bottom-right stage indicator fade
-  debug: { enabled: false, noDmgToPlayer: false, noDmgToEnemy: false },
+  debug: { enabled: false, noDmgToPlayer: false, noDmgToEnemy: false, noVFX: false },
 };

@@ -2191,12 +2191,12 @@ export function updateArena(dt) {
     }
 
     // Spawn confetti immediately
-    if (confettiPieces.length === 0 && godRayTime > 0.05) {
+    if (!game.debug.noVFX && confettiPieces.length === 0 && godRayTime > 0.05) {
       spawnConfetti();
     }
 
     // Spawn firework bursts periodically (start quickly)
-    if (godRayTime > 0.1 && fireworkBursts.length < 8) {
+    if (!game.debug.noVFX && godRayTime > 0.1 && fireworkBursts.length < 8) {
       if (Math.random() < dt * 1.5) {
         spawnFirework();
       }

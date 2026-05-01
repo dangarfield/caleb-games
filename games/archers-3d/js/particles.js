@@ -3,6 +3,7 @@ import { fmt } from './utils.js';
 import { T } from './arena.js';
 
 export function spawnParticles(x, y, color, count, speed) {
+  if (game.debug.noVFX) return;
   for (let i = 0; i < count; i++) {
     const a = Math.random() * Math.PI * 2;
     const sp = (speed || 100) * (0.5 + Math.random());

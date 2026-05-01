@@ -146,11 +146,11 @@ export function clearLastRun() {
 // Debug state persistence
 export function loadDebug() {
   const a = getArchers();
-  return a.debug || { enabled: false, noDmgToPlayer: false, noDmgToEnemy: false };
+  return a.debug || { enabled: false, noDmgToPlayer: false, noDmgToEnemy: false, noVFX: false };
 }
 
 export function saveDebug(dbg) {
   const a = getArchers();
-  a.debug = { enabled: dbg.enabled, noDmgToPlayer: dbg.noDmgToPlayer, noDmgToEnemy: dbg.noDmgToEnemy };
+  a.debug = { enabled: dbg.enabled, noDmgToPlayer: dbg.noDmgToPlayer, noDmgToEnemy: dbg.noDmgToEnemy, noVFX: !!dbg.noVFX };
   setArchers(a);
 }

@@ -214,11 +214,11 @@ function initPools() {
     g.add(head);
 
     // Fletching — two small angled planes at the tail
-    const fletchGeo = new THREE.PlaneGeometry(0.04, 0.03);
-    const fletchMat = getCachedMaterial('#00e5ff', { emissiveIntensity: 0.6, side: THREE.DoubleSide });
+    const fletchGeo = new THREE.PlaneGeometry(0.07, 0.05);
+    const fletchMat = getCachedMaterial('#111111', { emissiveIntensity: 0, side: THREE.DoubleSide });
     for (const rot of [0, PI / 2]) {
       const fletch = new THREE.Mesh(fletchGeo, fletchMat);
-      fletch.position.z = -shaftLen / 2 + 0.01;
+      fletch.position.z = -shaftLen / 2 + 0.015;
       fletch.rotation.z = rot;
       g.add(fletch);
     }
@@ -727,7 +727,7 @@ function syncEnemyBullets() {
 
     // Element trail particles for elemental bullets
     // Trail particles — spawn behind the projectile
-    if (vfxParticles) {
+    if (vfxParticles && !game.debug.noVFX) {
       // Offset trail behind the bullet's velocity direction
       const spd = Math.sqrt((eb.vx||0)*(eb.vx||0) + (eb.vy||0)*(eb.vy||0)) || 1;
       const behindX = pos.x - ((eb.vx||0) / spd) * 0.3;
@@ -754,7 +754,7 @@ function syncEnemyBullets() {
     }
 
     // Bounce impact effects for bouncy bullets
-    if (vfxParticles && eb.bouncy) {
+    if (vfxParticles && !game.debug.noVFX && eb.bouncy) {
       if (eb._lastBouncesLeft === undefined) {
         eb._lastBouncesLeft = eb.bouncesLeft ?? 99;
       }
@@ -942,7 +942,7 @@ function syncStrikeEffects() {
     });
 
     // Emit impact burst on first appearance
-    if (vfxParticles && impactRings && !_strikeEffectBurstDone.has(se)) {
+    if (vfxParticles && !game.debug.noVFX && impactRings && !_strikeEffectBurstDone.has(se)) {
       _strikeEffectBurstDone.add(se);
       const burstElement = se.element || 'fire';
       emitImpactBurst(vfxParticles, impactRings, { x: pos.x, y: 0.3, z: pos.z }, burstElement, maxRadius);
@@ -990,7 +990,7 @@ function syncStrikeProjectiles() {
     });
 
     // VFX particles: charge swirl while hovering, element trail while flying
-    if (vfxParticles) {
+    if (vfxParticles && !game.debug.noVFX) {
       const sPos = { x: pos.x, y: h, z: pos.z };
       if (hovering) {
         // Swirling charge particles converging inward
@@ -1052,7 +1052,7 @@ function syncStarProjectiles() {
     }
 
     // Bright flash burst when star is near ground
-    if (vfxParticles && starHeight < 0.5) {
+    if (vfxParticles && !game.debug.noVFX && starHeight < 0.5) {
       const sColor = sp.color || '#ffd32a';
       vfxParticles.burst(
         { x: pos.x, y: Math.max(0.1, starHeight), z: pos.z },
@@ -1112,7 +1112,7 @@ function syncMeteorProjectiles() {
     }
 
     // Fire + smoke trail particles
-    if (vfxParticles) {
+    if (vfxParticles && !game.debug.noVFX) {
       const mPos = { x: pos.x, y: Math.max(0.15, meteorY), z: pos.z };
       // Fire trail
       vfxParticles.trail(mPos, mColor, 3.0, 0.5, { velY: 1.0, drag: 0.93, spread: 0.15 });
@@ -1155,7 +1155,7 @@ function syncBoltArcs() {
     line.material = getLineMaterial('#ffd32a', Math.min(1, alpha));
 
     // Emit spark particles at endpoints
-    if (vfxParticles && count >= 2) {
+    if (vfxParticles && !game.debug.noVFX && count >= 2) {
       const startPt = gameToWorld(pts[0].x, pts[0].y);
       const endPt = gameToWorld(pts[count - 1].x, pts[count - 1].y);
       vfxParticles.trail({ x: startPt.x, y: 0.4, z: startPt.z }, '#ffd32a', 1.0, 0.08, { velY: 0.5, spread: 0.1, drag: 0.8 });
@@ -1275,6 +1275,7 @@ export function clearEffects() {
  * Update VFX particle systems. Called from main.js each frame with delta time.
  */
 export function updateVFX(dt) {
+  if (game.debug.noVFX) return;
   if (vfxParticles) vfxParticles.update(dt);
   if (impactRings) impactRings.update(dt);
 }
@@ -1284,7 +1285,7 @@ export function updateVFX(dt) {
  * pos: {x, y, z} in world coords, color: hex string of enemy color
  */
 export function spawnDeathPoof(pos, color, scale = 1) {
-  if (!vfxParticles) return;
+  if (!vfxParticles || game.debug.noVFX) return;
 
   const baseColor = color || '#ffdd44';
   // Firework palette — bright rainbow colors mixed with the enemy's color

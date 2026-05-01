@@ -1598,6 +1598,7 @@ function loop(ts) {
 
 // Start
 startBtn.addEventListener('click', async () => {
+  document.body.classList.add('playing');
   ensureAudio();
   await mapReady;
   initRenderer3D();
