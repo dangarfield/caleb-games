@@ -546,7 +546,106 @@
       font-size: 0.85rem;
       position: relative;
       z-index: 1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
+    .settings-icon {
+      cursor: pointer;
+      opacity: 0.4;
+      transition: opacity 0.2s;
+      font-size: 1rem;
+    }
+    .settings-icon:hover { opacity: 0.8; }
+    #settingsPanel {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(0,0,0,0.85);
+      padding: 1.5rem;
+      overflow-y: auto;
+      flex-direction: column;
+      align-items: center;
+    }
+    #settingsPanel.active { display: flex; }
+    .settings-box {
+      background: #1e2a3a;
+      border-radius: 12px;
+      padding: 1.5rem;
+      max-width: 700px;
+      width: 100%;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .settings-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    .settings-header h2 { color: #fff; font-size: 1.2rem; }
+    .settings-close {
+      background: none;
+      border: none;
+      color: #fff;
+      font-size: 1.5rem;
+      cursor: pointer;
+      opacity: 0.6;
+    }
+    .settings-close:hover { opacity: 1; }
+    .data-section {
+      margin-bottom: 1rem;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .data-section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.05);
+      cursor: pointer;
+    }
+    .data-section-header:hover { background: rgba(255,255,255,0.08); }
+    .data-section-title {
+      color: #a0c4ff;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .data-section-actions { display: flex; gap: 8px; align-items: center; }
+    .data-clear-btn {
+      background: #e74c3c;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .data-clear-btn:hover { background: #c0392b; }
+    .data-clear-btn.confirm { background: #c0392b; animation: pulse 0.5s ease-in-out infinite alternate; }
+    @keyframes pulse { to { transform: scale(1.05); } }
+    .data-section-body {
+      display: none;
+      padding: 10px 14px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .data-section.expanded .data-section-body { display: block; }
+    .json-tree { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.75rem; color: #ddd; }
+    .json-key { color: #a0c4ff; }
+    .json-string { color: #a6e3a1; }
+    .json-number { color: #f9e2af; }
+    .json-bool { color: #f38ba8; }
+    .json-null { color: #6c7086; }
+    .json-toggle { cursor: pointer; user-select: none; color: #888; margin-right: 4px; }
+    .json-toggle:hover { color: #fff; }
+    .json-nested { margin-left: 1.2rem; }
+    .json-nested.collapsed { display: none; }
+    .json-line { line-height: 1.6; white-space: nowrap; }
+    .no-data { color: rgba(255,255,255,0.4); font-style: italic; padding: 1rem; text-align: center; }
 
     @media (max-width: 600px) {
       .game-grid {
@@ -826,7 +925,17 @@
     </a>
   </div>
 
-  <div class="footer">Made with love for Caleb and Ezra</div>
+  <div class="footer">Made with love for Caleb and Ezra <span class="settings-icon" onclick="openSettings()">&#9881;</span></div>
+
+  <div id="settingsPanel">
+    <div class="settings-box">
+      <div class="settings-header">
+        <h2>Game Data (calebArcadeData)</h2>
+        <button class="settings-close" onclick="closeSettings()">&times;</button>
+      </div>
+      <div id="settingsContent"></div>
+    </div>
+  </div>
 
   <script>
     // Generate twinkling stars background
@@ -843,6 +952,85 @@
         container.appendChild(star);
       }
     })();
+
+    // Settings panel
+    function openSettings() {
+      document.getElementById('settingsPanel').classList.add('active');
+      renderSettings();
+    }
+    function closeSettings() {
+      document.getElementById('settingsPanel').classList.remove('active');
+    }
+    function renderSettings() {
+      var content = document.getElementById('settingsContent');
+      var raw = localStorage.getItem('calebArcadeData');
+      if (!raw) { content.innerHTML = '<div class="no-data">No saved data found.</div>'; return; }
+      var data;
+      try { data = JSON.parse(raw); } catch(e) { content.innerHTML = '<div class="no-data">Error parsing data.</div>'; return; }
+      var keys = Object.keys(data);
+      if (keys.length === 0) { content.innerHTML = '<div class="no-data">No data keys found.</div>'; return; }
+      var html = '';
+      keys.forEach(function(key) {
+        html += '<div class="data-section" id="section-' + key + '">';
+        html += '<div class="data-section-header" onclick="toggleSection(\'' + key + '\')">';
+        html += '<span class="data-section-title">' + key + '</span>';
+        html += '<div class="data-section-actions">';
+        html += '<button class="data-clear-btn" onclick="event.stopPropagation();confirmClear(\'' + key + '\', this)">Clear</button>';
+        html += '</div></div>';
+        html += '<div class="data-section-body"><div class="json-tree">' + renderJson(data[key]) + '</div></div>';
+        html += '</div>';
+      });
+      content.innerHTML = html;
+    }
+    function toggleSection(key) {
+      document.getElementById('section-' + key).classList.toggle('expanded');
+    }
+    function confirmClear(key, btn) {
+      if (btn.classList.contains('confirm')) {
+        var data = JSON.parse(localStorage.getItem('calebArcadeData') || '{}');
+        delete data[key];
+        localStorage.setItem('calebArcadeData', JSON.stringify(data));
+        renderSettings();
+      } else {
+        btn.classList.add('confirm');
+        btn.textContent = 'Confirm?';
+        setTimeout(function() { btn.classList.remove('confirm'); btn.textContent = 'Clear'; }, 3000);
+      }
+    }
+    function renderJson(val, depth) {
+      depth = depth || 0;
+      if (val === null) return '<span class="json-null">null</span>';
+      if (typeof val === 'boolean') return '<span class="json-bool">' + val + '</span>';
+      if (typeof val === 'number') return '<span class="json-number">' + val + '</span>';
+      if (typeof val === 'string') return '<span class="json-string">"' + escHtml(val) + '"</span>';
+      if (Array.isArray(val)) {
+        if (val.length === 0) return '<span>[]</span>';
+        var id = 'jt' + Math.random().toString(36).substr(2,8);
+        var out = '<span class="json-toggle" onclick="this.textContent=this.textContent===\'▸\'?\'▾\':\'▸\';document.getElementById(\'' + id + '\').classList.toggle(\'collapsed\')">▾</span>[';
+        out += '<div class="json-nested" id="' + id + '">';
+        val.forEach(function(item, i) {
+          out += '<div class="json-line">' + renderJson(item, depth+1) + (i < val.length-1 ? ',' : '') + '</div>';
+        });
+        out += '</div>]';
+        return out;
+      }
+      if (typeof val === 'object') {
+        var ks = Object.keys(val);
+        if (ks.length === 0) return '<span>{}</span>';
+        var id = 'jt' + Math.random().toString(36).substr(2,8);
+        var collapsed = depth > 1 ? ' collapsed' : '';
+        var arrow = depth > 1 ? '▸' : '▾';
+        var out = '<span class="json-toggle" onclick="this.textContent=this.textContent===\'▸\'?\'▾\':\'▸\';document.getElementById(\'' + id + '\').classList.toggle(\'collapsed\')">' + arrow + '</span>{';
+        out += '<div class="json-nested' + collapsed + '" id="' + id + '">';
+        ks.forEach(function(k, i) {
+          out += '<div class="json-line"><span class="json-key">"' + escHtml(k) + '"</span>: ' + renderJson(val[k], depth+1) + (i < ks.length-1 ? ',' : '') + '</div>';
+        });
+        out += '</div>}';
+        return out;
+      }
+      return String(val);
+    }
+    function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   </script>
 </body>
 </html>
