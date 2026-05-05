@@ -288,7 +288,7 @@ body { background:#4a90d9; overflow:hidden; touch-action:none;
   padding:10px 40px; font-size:0.9rem; margin-top:0.5rem; animation-delay:0.9s; }
 .reveal-btn-secondary:active { transform:translateY(2px); box-shadow:none; }
 
-#collection, #combineLab { overflow-y:auto; padding:6px; padding-top:6px;
+#collection { overflow-y:auto; padding:6px; padding-top:6px;
   background:url('assets/bg/bg-main.png') center/cover no-repeat;
   align-items:stretch; justify-content:flex-start; }
 .collection-header { background:#fff; border-radius:16px; padding:0.8rem 1.2rem; text-align:center;
@@ -316,41 +316,32 @@ body { background:#4a90d9; overflow:hidden; touch-action:none;
 .animal-card.owned { border-color:#27ae60; background:#eafaf1; }
 .animal-card.undiscovered { opacity:1; pointer-events:none; }
 .animal-card .animal-img { width:100%; height:100%; object-fit:cover; }
-.animal-card .animal-unknown { font-size:1.2rem; color:#aaa; }
-.animal-card .undiscovered-hint { font-size:0.7rem; color:#4a2080; text-align:center;
-  font-weight:800; line-height:1.3; }
+.animal-card .animal-unknown { font-size:4rem; font-weight:200; color:#aaa; padding-bottom:10px; }
+.animal-card .undiscovered-hint { font-size:1rem; color:#4a2080; text-align:center;
+  line-height:1.3; }
 .animal-card .loc-badge { position:absolute; top:2px; left:2px; font-size:1.1rem;
   opacity:0.6; line-height:1; }
+.recipe-mini { display:flex; align-items:center; justify-content:center; gap:2px;
+  width:100%; padding:4px 3px 0; flex:1; }
+.recipe-mini-col { display:flex; flex-direction:column; align-items:center; gap:4px; flex:1; }
+.recipe-mini-img { width:80%; aspect-ratio:1; object-fit:contain; border-radius:4px; }
+.recipe-mini-plus { font-size:2rem; font-weight:900; color:#9b59b6; flex-shrink:0; }
+.recipe-mini-q { width:80%; aspect-ratio:1; display:flex; align-items:center; justify-content:center;
+  background:#e8dff5; border-radius:4px; font-size:2rem; color:#bbb; }
+.recipe-mini-label { font-size:1rem; color:#4a2080; text-align:center;
+  line-height:1.1; }
+.recipe-mini-cta { font-size:1rem; font-weight:800; color:#27ae60;
+  animation:giftBounce 0.8s ease-in-out infinite; margin-top:1px; }
+.animal-card.combine-ready-card { border-color:#27ae60; background:#eafaf1;
+  animation:recipePulse 1.5s ease-in-out infinite; pointer-events:auto !important; cursor:pointer; }
 
-.lab-info { color:#9b59b6; font-size:0.9rem; margin-bottom:1rem; text-align:center; }
-.recipe-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; width:100%; }
-.recipe-card { background:#f8f4ff; border-radius:14px; border:2px solid #e8dff5;
-  padding:14px 10px; display:flex; flex-direction:column; align-items:center;
-  text-align:center; gap:8px; transition:all 0.1s; width:100%; }
-.recipe-row { display:flex; align-items:center; gap:4px; justify-content:center; }
-.recipe-card.combine-ready { border-color:#27ae60; background:#eafaf1; cursor:pointer;
-  animation:recipePulse 1.5s ease-in-out infinite; }
-.recipe-card.combine-ready:active { transform:scale(0.95); animation:none; }
 @keyframes recipePulse { 0%,100%{transform:scale(1);box-shadow:0 0 0 transparent}
   50%{transform:scale(1.03);box-shadow:0 4px 20px rgba(39,174,96,0.4), 0 0 0 3px rgba(39,174,96,0.2)} }
-.recipe-card.combine-done { border-color:#d4a0ff; }
-.recipe-result-sm { width:12vw; height:12vw; min-width:50px; min-height:50px; object-fit:contain; }
-.recipe-card .recipe-name { font-size:0.9rem; font-weight:800; color:#4a2080; }
-.recipe-card .recipe-name-unknown { font-size:0.9rem; font-weight:700; color:#bbb; }
-.recipe-ing { width:12vw; height:12vw; min-width:50px; min-height:50px; border-radius:10px; object-fit:contain; }
-.recipe-ing-unknown { width:12vw; height:12vw; min-width:50px; min-height:50px; border-radius:10px; background:#e8dff5;
-  display:flex; align-items:center; justify-content:center; font-size:2rem; color:#bbb; }
-.recipe-plus { color:#9b59b6; font-weight:900; font-size:1.2rem; }
-.recipe-ing-wrap { display:flex; flex-direction:column; align-items:center; gap:3px; }
-.recipe-label { font-size:0.55rem; color:#4a2080; font-weight:700; text-align:center; line-height:1.2; }
-.recipe-go-btn { font-size:1.3rem; font-weight:800; color:#27ae60;
-  animation:giftBounce 0.8s ease-in-out infinite; }
-.recipe-status { color:#27ae60; font-weight:900; font-size:1rem; }
 
 </style>
 </head>
 <body>
-<a id="backBtn" href="../../index.html">&larr; Games</a>
+<a id="backBtn" class="visible" href="../../index.html">&larr; Games</a>
 <button id="screenBackBtn" onclick="showScreen('mainMenu')">&larr; Back</button>
 
 <div id="playerSelect" class="screen active">
@@ -373,8 +364,7 @@ body { background:#4a90d9; overflow:hidden; touch-action:none;
       <div class="location-grid" id="locationGrid"></div>
     </div>
     <div class="menu-col-right">
-      <button class="menu-btn" onclick="showScreen('collection')"><span class="btn-icon">📦</span>Collection<span class="btn-count" id="menuCollectionCount"></span></button>
-      <button class="menu-btn" id="combineLabBtn" onclick="showScreen('combineLab')"><span class="btn-icon">🧪</span>Combine Lab<span class="btn-count" id="menuCombineCount"></span><span class="notify-badge" id="combineNotify"></span></button>
+      <button class="menu-btn" id="collectionBtn" onclick="showScreen('collection')"><span class="btn-icon">📦</span>Collection<span class="btn-count" id="menuCollectionCount"></span><span class="notify-badge" id="combineNotify"></span></button>
       <button class="menu-btn" onclick="switchPlayer()"><span class="btn-icon">🔄</span>Switch Player</button>
     </div>
   </div>
@@ -437,10 +427,6 @@ body { background:#4a90d9; overflow:hidden; touch-action:none;
   <div id="collectionContent"></div>
 </div>
 
-<div id="combineLab" class="screen">
-  <div class="collection-header" id="labHeader"></div>
-  <div id="labContent"></div>
-</div>
 
 <script>
 // ===== SEEDED PRNG =====
@@ -625,14 +611,13 @@ function showScreen(id) {
   // Show <- Games only on initial and main menu
   const backBtn = document.getElementById('backBtn');
   backBtn.classList.toggle('visible', id === 'playerSelect' || id === 'mainMenu');
-  // Show <- Back on collection and combine lab
+  // Show <- Back on collection
   const screenBack = document.getElementById('screenBackBtn');
-  screenBack.classList.toggle('active', id === 'collection' || id === 'combineLab');
+  screenBack.classList.toggle('active', id === 'collection');
   gameActive = false;
   if (id === 'playerSelect') updatePlayerSelect();
   if (id === 'mainMenu') updateMainMenu();
   if (id === 'collection') updateCollection();
-  if (id === 'combineLab') updateCombineLab();
 }
 function updatePlayerSelect() {
   const d = loadData();
@@ -663,22 +648,22 @@ function updateMainMenu() {
   const rareOwned = ANIMALS.rare.filter(a => profile.rares[a.id]).length;
   const epicOwned = ANIMALS.epic.filter(a => profile.epics[a.id]).length;
   document.getElementById('menuCollectionCount').textContent = totalOwned + '/70';
-  document.getElementById('menuCombineCount').textContent = (rareOwned + epicOwned) + '/30';
 
   // Check how many combines are ready
   const d = loadData();
   const calebP = d.resinAnimals.profiles.caleb;
   const ezraP = d.resinAnimals.profiles.ezra;
+  const myP = d.resinAnimals.profiles[currentPlayer];
   let readyCount = 0;
   ANIMALS.rare.forEach(r => {
-    if (!calebP.rares[r.id] && calebP.animals[r.recipe[0]] && ezraP.animals[r.recipe[1]]) readyCount++;
+    if (!myP.rares[r.id] && calebP.animals[r.recipe[0]] && ezraP.animals[r.recipe[1]]) readyCount++;
   });
   ANIMALS.epic.forEach(r => {
-    if (!calebP.epics[r.id] && calebP.rares[r.recipe[0]] && ezraP.rares[r.recipe[1]]) readyCount++;
+    if (!myP.epics[r.id] && calebP.rares[r.recipe[0]] && ezraP.rares[r.recipe[1]]) readyCount++;
   });
 
   const badge = document.getElementById('combineNotify');
-  const btn = document.getElementById('combineLabBtn');
+  const btn = document.getElementById('collectionBtn');
   if (readyCount > 0) {
     badge.textContent = readyCount;
     badge.classList.add('active');
@@ -851,7 +836,7 @@ function handleTap(e) {
       const angle = (i / 6) * Math.PI * 2 + Math.random() * 0.5;
       const speed = 4 + Math.random() * 8;
       particles.push({x:dx,y:dy,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed - 4,
-        life:1, type, size:8+Math.random()*8});
+        life:1, type, size:24+Math.random()*24});
     }
   });
 
@@ -899,7 +884,7 @@ function clearCell(r, c, pts) {
     const angle = Math.random() * Math.PI * 2;
     const speed = 3 + Math.random() * 6;
     particles.push({x:px,y:py,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed-3,
-      life:0.8, type: grid[r][c], size:5+Math.random()*6});
+      life:0.8, type: grid[r][c], size:15+Math.random()*18});
   }
   grid[r][c] = -1;
 }
@@ -909,7 +894,7 @@ function spawnSparkles(px, py, count) {
     const angle = Math.random() * Math.PI * 2;
     const speed = 3 + Math.random() * 10;
     particles.push({x:px, y:py, vx:Math.cos(angle)*speed, vy:Math.sin(angle)*speed - 5,
-      life:1.2, type:0, size:12+Math.random()*14, sparkle:true});
+      life:1.2, type:0, size:36+Math.random()*42, sparkle:true});
   }
 }
 
@@ -950,7 +935,7 @@ function activateSpecial(special) {
       const angle = (i/20)*Math.PI*2;
       const speed = 8+Math.random()*12;
       particles.push({x:px,y:py,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed-3,
-        life:1.3, type:Math.floor(Math.random()*4), size:8+Math.random()*10});
+        life:1.3, type:Math.floor(Math.random()*4), size:24+Math.random()*30});
     }
     shakeAmount = 14;
     score += 300;
@@ -973,7 +958,7 @@ function activateSpecial(special) {
           setTimeout(() => {
             for (let i = 0; i < 3; i++) {
               particles.push({x:cx,y:cy,vx:(Math.random()-0.5)*8,vy:-4-Math.random()*6,
-                life:1, type:targetColor, size:10+Math.random()*8, sparkle:true});
+                life:1, type:targetColor, size:30+Math.random()*24, sparkle:true});
             }
           }, delay * 1000);
           clearCell(r, c);
@@ -1153,11 +1138,11 @@ function openGift() {
   }, 250);
 }
 
-function showRewardReveal(animal, tier) {
+function showRewardReveal(animal, tier, subtitle) {
   document.getElementById('revealImage').innerHTML = `<img src="${animalImgPath(animal.id)}">`;
   document.getElementById('revealName').textContent = animal.name;
   document.getElementById('revealTier').textContent = tier;
-  document.getElementById('revealCount').textContent = '';
+  document.getElementById('revealCount').textContent = subtitle || '';
   detailMode = false;
   document.getElementById('revealMainBtn').textContent = 'Awesome!';
   document.getElementById('revealSecondBtn').style.display = '';
@@ -1189,6 +1174,7 @@ function closeReveal() {
   setTimeout(() => {
     el.classList.remove('active', 'closing');
     if (detailMode) { detailMode = false; return; }
+    if (combineMode) { combineMode = false; showScreen('collection'); return; }
     pendingReward = null;
     showScreen('mainMenu');
   }, 300);
@@ -1211,7 +1197,16 @@ function afterLevelComplete() {
 function showAnimalDetail(animal, tier, location) {
   document.getElementById('revealImage').innerHTML = `<img src="${animalImgPath(animal.id)}">`;
   document.getElementById('revealName').textContent = animal.name;
-  document.getElementById('revealTier').textContent = tier + (location ? ' • ' + location.emoji + ' ' + location.name : '');
+  let tierText = tier;
+  if (location) {
+    tierText += ' • ' + location.emoji + ' ' + location.name;
+  } else if (animal.recipe) {
+    const srcAnimals = tier === 'Rare' ? ANIMALS.common : ANIMALS.rare;
+    const a1 = srcAnimals.find(x => x.id === animal.recipe[0]);
+    const a2 = srcAnimals.find(x => x.id === animal.recipe[1]);
+    tierText += ' • ' + (a1 ? a1.name : '') + ' + ' + (a2 ? a2.name : '');
+  }
+  document.getElementById('revealTier').textContent = tierText;
   document.getElementById('revealCount').textContent = '';
   // Generate sparkles
   const sparklesEl = document.getElementById('revealSparkles');
@@ -1274,13 +1269,43 @@ function updateCollection() {
       if (has) {
         card.innerHTML = `<img class="animal-img" src="${animalImgPath(a.id)}" alt="${a.name}">${locBadge}`;
         card.onclick = () => showAnimalDetail(a, tierName, loc);
+      } else if (a.recipe) {
+        // Show mini recipe for undiscovered rare/epic
+        const d = loadData();
+        const calebP = d.resinAnimals.profiles.caleb;
+        const ezraP = d.resinAnimals.profiles.ezra;
+        const srcKey = tierName === 'Rare' ? 'animals' : 'rares';
+        const destKey = tierName === 'Rare' ? 'rares' : 'epics';
+        const has1 = calebP[srcKey][a.recipe[0]];
+        const has2 = ezraP[srcKey][a.recipe[1]];
+        const canCombine = has1 && has2;
+        const srcAnimals = tierName === 'Rare' ? ANIMALS.common : ANIMALS.rare;
+        const a1 = srcAnimals.find(x => x.id === a.recipe[0]);
+        const a2 = srcAnimals.find(x => x.id === a.recipe[1]);
+        const name1 = a1 ? a1.name : a.recipe[0];
+        const name2 = a2 ? a2.name : a.recipe[1];
+        const img1 = has1 ? `<img class="recipe-mini-img" src="${animalImgPath(a.recipe[0])}">` : `<span class="recipe-mini-q">?</span>`;
+        const img2 = has2 ? `<img class="recipe-mini-img" src="${animalImgPath(a.recipe[1])}">` : `<span class="recipe-mini-q">?</span>`;
+        const label1Top = has1 ? `Caleb's` : `Caleb`;
+        const label1Bot = has1 ? name1 : `to find`;
+        const label2Top = has2 ? `Ezra's` : `Ezra`;
+        const label2Bot = has2 ? name2 : `to find`;
+        let cta = '';
+        if (canCombine) {
+          card.classList.add('combine-ready-card');
+          cta = `<div class="recipe-mini-cta">🎁 Combine!</div>`;
+          card.onclick = function() { doCombine(tierName === 'Rare' ? 'rare' : 'epic', a.id); };
+        } else {
+          card.style.pointerEvents = 'none';
+        }
+        card.innerHTML = `<div class="recipe-mini"><div class="recipe-mini-col"><span class="recipe-mini-label">${label1Top}</span>${img1}<span class="recipe-mini-label">${label1Bot}</span></div><span class="recipe-mini-plus">+</span><div class="recipe-mini-col"><span class="recipe-mini-label">${label2Top}</span>${img2}<span class="recipe-mini-label">${label2Bot}</span></div></div>${cta}`;
+        card.classList.remove('undiscovered');
       } else {
         let hint = '';
         if (loc) {
           hint = `<span class="undiscovered-hint">${loc.emoji} ${loc.name}</span>`;
         } else {
-          const other = getOtherPlayer().charAt(0).toUpperCase() + getOtherPlayer().slice(1);
-          hint = `<span class="undiscovered-hint">🧪 Combine with ${other}'s</span>`;
+          hint = `<span class="undiscovered-hint">?</span>`;
         }
         card.innerHTML = `<span class="animal-unknown">?</span>${hint}`;
       }
@@ -1293,85 +1318,8 @@ function updateCollection() {
   renderTier('Epic', 'epic', ANIMALS.epic, profile.epics, 'Epic');
 }
 
-// ===== COMBINE LAB =====
-function updateCombineLab() {
-  const d = loadData();
-  const myP = d.resinAnimals.profiles[currentPlayer];
-  const calebP = d.resinAnimals.profiles.caleb;
-  const ezraP = d.resinAnimals.profiles.ezra;
 
-  const rareOwned = ANIMALS.rare.filter(a => myP.rares[a.id]).length;
-  const epicOwned = ANIMALS.epic.filter(a => myP.epics[a.id]).length;
-  const combinedTotal = rareOwned + epicOwned;
-  const header = document.getElementById('labHeader');
-  header.innerHTML = `<h2>Combine Lab</h2><div class="count">${combinedTotal}/30 combined</div>`;
-  const content = document.getElementById('labContent');
-  let html = '';
-
-  function renderRecipes(title, cls, recipes, srcKey, destKey, srcAnimals) {
-    html += `<div class="tier-section" style="animation-delay:0.1s">
-      <div class="tier-title ${cls}">${title}</div>
-      <div class="recipe-grid">`;
-    recipes.forEach(r => {
-      const [id1, id2] = r.recipe;
-      const a1 = srcAnimals.find(a => a.id === id1);
-      const a2 = srcAnimals.find(a => a.id === id2);
-
-      const alreadyOwned = myP[destKey][r.id];
-      const calebHas1 = calebP[srcKey][id1];
-      const ezraHas2 = ezraP[srcKey][id2];
-
-      // Can combine if Caleb has first and Ezra has second
-      const canCombine = !alreadyOwned && calebHas1 && ezraHas2;
-
-      const cardClass = alreadyOwned ? 'recipe-card combine-done' :
-        canCombine ? 'recipe-card combine-ready' : 'recipe-card';
-      const onclick = canCombine ? `onclick="doCombine('${destKey === 'rares' ? 'rare' : 'epic'}','${r.id}')"` : '';
-
-      html += `<div class="${cardClass}" ${onclick}>`;
-
-      // Inline row: Caleb's + Ezra's = result
-      html += `<div class="recipe-row">`;
-      if (a1 && calebHas1) {
-        html += `<div class="recipe-ing-wrap"><img class="recipe-ing" src="${animalImgPath(a1.id)}"><span class="recipe-label">Caleb's ${a1.name}</span></div>`;
-      } else {
-        html += `<div class="recipe-ing-wrap"><div class="recipe-ing-unknown">?</div><span class="recipe-label">Caleb to find</span></div>`;
-      }
-      html += `<span class="recipe-plus">+</span>`;
-      if (a2 && ezraHas2) {
-        html += `<div class="recipe-ing-wrap"><img class="recipe-ing" src="${animalImgPath(a2.id)}"><span class="recipe-label">Ezra's ${a2.name}</span></div>`;
-      } else {
-        html += `<div class="recipe-ing-wrap"><div class="recipe-ing-unknown">?</div><span class="recipe-label">Ezra to find</span></div>`;
-      }
-      html += `<span class="recipe-plus">=</span>`;
-      if (alreadyOwned) {
-        html += `<div class="recipe-ing-wrap"><img class="recipe-result-sm" src="${animalImgPath(r.id)}"></div>`;
-      } else {
-        html += `<div class="recipe-ing-wrap"><div class="recipe-ing-unknown">?</div></div>`;
-      }
-      html += `</div>`;
-
-      // Only show name if already owned
-      if (alreadyOwned) {
-        html += `<div class="recipe-name">${r.name} <span class="recipe-status">✓</span></div>`;
-      }
-
-      // Combine button
-      if (canCombine) {
-        html += `<div class="recipe-go-btn">🎁 Combine!</div>`;
-      }
-
-      html += `</div>`;
-    });
-    html += '</div></div>';
-  }
-
-  renderRecipes('Rare', 'rare', ANIMALS.rare, 'animals', 'rares', ANIMALS.common);
-  renderRecipes('Epic', 'epic', ANIMALS.epic, 'rares', 'epics', ANIMALS.rare);
-
-  content.innerHTML = html;
-}
-
+let combineMode = false;
 function doCombine(tier, id) {
   const d = loadData();
   const list = tier === 'rare' ? ANIMALS.rare : ANIMALS.epic;
@@ -1379,13 +1327,17 @@ function doCombine(tier, id) {
   if (!recipe) return;
   const dest = tier === 'rare' ? 'rares' : 'epics';
 
-  // Give to both players (no ingredients consumed)
-  d.resinAnimals.profiles.caleb[dest][id] = 1;
-  d.resinAnimals.profiles.ezra[dest][id] = 1;
+  // Give only to current player (each must combine independently)
+  d.resinAnimals.profiles[currentPlayer][dest][id] = 1;
   saveData(d);
 
+  combineMode = true;
   const tierLabel = tier === 'rare' ? 'Rare' : 'Epic';
-  showRewardReveal(recipe, tierLabel + ' • Both players received!');
+  const srcAnimals = tier === 'rare' ? ANIMALS.common : ANIMALS.rare;
+  const a1 = srcAnimals.find(a => a.id === recipe.recipe[0]);
+  const a2 = srcAnimals.find(a => a.id === recipe.recipe[1]);
+  const recipeText = (a1 ? a1.name : '') + ' + ' + (a2 ? a2.name : '');
+  showRewardReveal(recipe, tierLabel + ' • ' + recipeText);
 }
 
 
@@ -1649,26 +1601,26 @@ function gameLoop(time) {
     t.y += t.dy * 60 * dt;
     t.life -= dt * 1.8;
     if (t.life <= 0) return false;
-    // Draw rocket head
+    // Draw rocket head (3x size)
     ctx.save();
     ctx.translate(t.x, t.y);
     ctx.rotate(Math.atan2(t.dy, t.dx));
     ctx.fillStyle = t.color;
     ctx.beginPath();
-    ctx.moveTo(12, 0); ctx.lineTo(-8, -7); ctx.lineTo(-8, 7); ctx.closePath();
+    ctx.moveTo(36, 0); ctx.lineTo(-24, -21); ctx.lineTo(-24, 21); ctx.closePath();
     ctx.fill();
     // Flame
     ctx.fillStyle = '#ffd32a';
     ctx.beginPath();
-    ctx.moveTo(-8, -4); ctx.lineTo(-16 - Math.random()*6, 0); ctx.lineTo(-8, 4); ctx.closePath();
+    ctx.moveTo(-24, -12); ctx.lineTo(-48 - Math.random()*18, 0); ctx.lineTo(-24, 12); ctx.closePath();
     ctx.fill();
     ctx.restore();
-    // Trail particles (colored stars)
+    // Trail particles (colored stars, 3x size)
     if (Math.random() < 0.7) {
       const colors = ['#e74c3c','#ffd32a','#3498db','#27ae60','#fd79a8'];
-      particles.push({x:t.x + (Math.random()-0.5)*8, y:t.y + (Math.random()-0.5)*8,
+      particles.push({x:t.x + (Math.random()-0.5)*24, y:t.y + (Math.random()-0.5)*24,
         vx:(Math.random()-0.5)*3, vy:(Math.random()-0.5)*3,
-        life:0.6, type:Math.floor(Math.random()*4), size:6+Math.random()*8, sparkle:true});
+        life:0.6, type:Math.floor(Math.random()*4), size:18+Math.random()*24, sparkle:true});
     }
     return true;
   });
