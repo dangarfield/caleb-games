@@ -302,8 +302,8 @@ function normalizeLevel(l){
   if(l.glass&&!l.glasses) l.glasses=[l.glass];
   if(!l.taps) l.taps=[{x:0.5,y:0.08}];
   if(!l.glasses) l.glasses=[{x:0.5,y:0.75}];
-  // Strip legacy per-glass w/h (now uses global GLASS_W/GLASS_H)
-  if(l.glasses) l.glasses=l.glasses.map(g=>({x:g.x,y:g.y}));
+  // Strip legacy per-glass w/h (now uses global GLASS_W/GLASS_H), preserve rotation
+  if(l.glasses) l.glasses=l.glasses.map(g=>{const o={x:g.x,y:g.y};if(g.rotation)o.rotation=g.rotation;return o;});
   if('glassGravity' in l){l.gravity=l.glassGravity;delete l.glassGravity;}
   delete l.faucet; delete l.glass;
   return l;
@@ -808,7 +808,7 @@ function handleClick(e){
   else if(btn==='retry'){startLevel(currentLevel);playClick();}
   else if(btn==='next'){startLevel(currentLevel<levels.length-1?currentLevel+1:0);playClick();}
   else if(btn==='levels'){state='levelSelect';playClick();}
-  else if(typeof btn==='string'&&btn.startsWith('lvl_')){const li=parseInt(btn.split('_')[1]);const ts=levelStars.reduce((a,b)=>a+b,0);if(li>0&&li>ts)return;startLevel(li);playLevelSelect();}
+  else if(typeof btn==='string'&&btn.startsWith('lvl_')){const li=parseInt(btn.split('_')[1]);const ts=levelStars.reduce((a,b)=>a+b,0);if(li>0&&li>=ts)return;startLevel(li);playLevelSelect();}
   // Editor test buttons
   else if(btn==='ed_test_go'&&state==='editorTest'){startSim();playTone(500,0.1,'sine',0.08);}
   else if(btn==='ed_test_quit'){
@@ -1973,7 +1973,7 @@ function drawLevelSelect(){
     if(!b.text)continue; // skip invisible editor button
     const i=parseInt(b.text)-1;
     const hasStars=levelStars[i]>0;
-    const locked=i>0&&i>totalStars;
+    const locked=i>0&&i>=totalStars;
     // Button gradient
     const grad=ctx.createLinearGradient(b.x,b.y,b.x,b.y+b.h);
     if(locked){grad.addColorStop(0,'#bdbdbd');grad.addColorStop(1,'#9e9e9e');}
@@ -1992,7 +1992,7 @@ function drawLevelSelect(){
   }
   // Draw subtle cog icon for editor button
   const cogX=W-27,cogY=25,cogR=10,teeth=6;
-  ctx.strokeStyle='rgba(0,0,0,0.1)';ctx.lineWidth=2;ctx.beginPath();
+  ctx.strokeStyle='rgba(0,0,0,0.05)';ctx.lineWidth=2;ctx.beginPath();
   for(let i=0;i<teeth*2;i++){const a=i*Math.PI/teeth-Math.PI/2;const r=i%2===0?cogR:cogR*0.65;ctx.lineTo(cogX+Math.cos(a)*r,cogY+Math.sin(a)*r);}
   ctx.closePath();ctx.stroke();
   ctx.beginPath();ctx.arc(cogX,cogY,cogR*0.3,0,Math.PI*2);ctx.stroke();
