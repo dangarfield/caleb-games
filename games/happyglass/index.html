@@ -1940,24 +1940,27 @@ function drawLevelSelect(){
   ctx.fillText('Happy Glass',W/2,10);
   ctx.shadowBlur=0;ctx.shadowOffsetY=0;
   buttons=[];
-  const visibleLevels=50;
-  const cols=10,rows=Math.ceil(visibleLevels/cols);
+  const totalLevels=levels.length;
   const headerH=10+ts+10;
-  const availW=W-20,availH=H-headerH-40;
-  const cellW=availW/cols,cellH=availH/rows;
-  const size=Math.floor(Math.min(cellW,cellH)*0.7);
+  const availW=W-20,availH=H-headerH-20;
+  // Find best grid layout to maximize cell size
+  let bestCols=10,bestSize=0;
+  for(let c=5;c<=20;c++){
+    const r=Math.ceil(totalLevels/c);
+    const cellW=availW/c,cellH=availH/r;
+    const s=Math.floor(Math.min(cellW,cellH)*0.7);
+    if(s>bestSize){bestSize=s;bestCols=c;}
+  }
+  const cols=bestCols,rows=Math.ceil(totalLevels/cols);
+  const size=bestSize;
   const gapX=(availW-size*cols)/(cols+1),gapY=(availH-size*rows)/(rows+1);
   const gridStartX=10+gapX,gridStartY=headerH;
-  for(let i=0;i<visibleLevels;i++){
+  for(let i=0;i<totalLevels;i++){
     const col=i%cols,row=Math.floor(i/cols);
     const bx=gridStartX+col*(size+gapX),by=gridStartY+gapY+row*(size+gapY);
     addButton('lvl_'+i,bx,by,size,size,''+(i+1),'#fff','#29b6f6');
     if(levelStars[i]>0){const starSize=Math.max(4,size*0.12);drawStars(bx+size/2,by+size+starSize+1,levelStars[i],starSize);}
   }
-  // "More levels coming soon" message
-  const msgY=gridStartY+gapY+rows*(size+gapY)+10;
-  ctx.fillStyle='rgba(0,0,0,0.35)';ctx.font=`bold ${Math.max(12,size*0.3)}px Segoe UI,system-ui,sans-serif`;ctx.textAlign='center';ctx.textBaseline='top';
-  ctx.fillText('More levels coming soon!',W/2,msgY);
   addButton('editor',W-44,8,34,34,'','rgba(0,0,0,0.0)','rgba(0,0,0,0.0)');
   const fontSize=Math.max(10,size*0.35);
   const r=Math.max(4,size*0.18);
