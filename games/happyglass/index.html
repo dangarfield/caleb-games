@@ -808,7 +808,7 @@ function handleClick(e){
   else if(btn==='retry'){startLevel(currentLevel);playClick();}
   else if(btn==='next'){startLevel(currentLevel<levels.length-1?currentLevel+1:0);playClick();}
   else if(btn==='levels'){state='levelSelect';playClick();}
-  else if(typeof btn==='string'&&btn.startsWith('lvl_')){startLevel(parseInt(btn.split('_')[1]));playLevelSelect();}
+  else if(typeof btn==='string'&&btn.startsWith('lvl_')){const li=parseInt(btn.split('_')[1]);const ts=levelStars.reduce((a,b)=>a+b,0);if(li>0&&li>ts)return;startLevel(li);playLevelSelect();}
   // Editor test buttons
   else if(btn==='ed_test_go'&&state==='editorTest'){startSim();playTone(500,0.1,'sine',0.08);}
   else if(btn==='ed_test_quit'){
@@ -1935,10 +1935,15 @@ function drawLevelSelect(){
   for(let x=startX;x<=W;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
   for(let y=startY;y<=H;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
   const ts=Math.max(18,Math.min(30,Math.min(W,H)*0.045));
+  const totalStars=levelStars.reduce((a,b)=>a+b,0);
   ctx.fillStyle='#29b6f6';ctx.font=`bold ${ts}px Segoe UI,system-ui,sans-serif`;ctx.textAlign='center';ctx.textBaseline='top';
   ctx.shadowColor='rgba(0,0,0,0.08)';ctx.shadowBlur=3;ctx.shadowOffsetY=1;
   ctx.fillText('Happy Glass',W/2,10);
   ctx.shadowBlur=0;ctx.shadowOffsetY=0;
+  // Star count
+  const starTs=Math.max(12,ts*0.6);
+  ctx.fillStyle='#ffa726';ctx.font=`bold ${starTs}px Segoe UI,system-ui,sans-serif`;ctx.textAlign='right';ctx.textBaseline='top';
+  ctx.fillText('\u2B50 '+totalStars,W-50,12);
   buttons=[];
   const totalLevels=levels.length;
   const headerH=10+ts+10;
@@ -1968,22 +1973,26 @@ function drawLevelSelect(){
     if(!b.text)continue; // skip invisible editor button
     const i=parseInt(b.text)-1;
     const hasStars=levelStars[i]>0;
+    const locked=i>0&&i>totalStars;
     // Button gradient
     const grad=ctx.createLinearGradient(b.x,b.y,b.x,b.y+b.h);
-    grad.addColorStop(0,hasStars?'#66bb6a':'#4fc3f7');grad.addColorStop(1,hasStars?'#43a047':'#29b6f6');
+    if(locked){grad.addColorStop(0,'#bdbdbd');grad.addColorStop(1,'#9e9e9e');}
+    else{grad.addColorStop(0,hasStars?'#66bb6a':'#4fc3f7');grad.addColorStop(1,hasStars?'#43a047':'#29b6f6');}
     ctx.fillStyle=grad;ctx.shadowColor='rgba(0,0,0,0.15)';ctx.shadowBlur=5;ctx.shadowOffsetY=2;
     ctx.beginPath();ctx.roundRect(b.x,b.y,b.w,b.h,r);ctx.fill();
     ctx.shadowBlur=0;ctx.shadowOffsetY=0;
     // Shine highlight
     ctx.fillStyle='rgba(255,255,255,0.2)';
     ctx.beginPath();ctx.roundRect(b.x+2,b.y+1,b.w-4,b.h*0.4,r);ctx.fill();
-    // Text
+    // Text or lock icon
     ctx.fillStyle='#fff';ctx.font=`bold ${fontSize}px Segoe UI,system-ui,sans-serif`;
-    ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(b.text,b.x+b.w/2,b.y+b.h/2);
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    if(locked){ctx.fillText('🔒',b.x+b.w/2,b.y+b.h/2);}
+    else{ctx.fillText(b.text,b.x+b.w/2,b.y+b.h/2);}
   }
   // Draw subtle cog icon for editor button
   const cogX=W-27,cogY=25,cogR=10,teeth=6;
-  ctx.strokeStyle='rgba(0,0,0,0.15)';ctx.lineWidth=2;ctx.beginPath();
+  ctx.strokeStyle='rgba(0,0,0,0.1)';ctx.lineWidth=2;ctx.beginPath();
   for(let i=0;i<teeth*2;i++){const a=i*Math.PI/teeth-Math.PI/2;const r=i%2===0?cogR:cogR*0.65;ctx.lineTo(cogX+Math.cos(a)*r,cogY+Math.sin(a)*r);}
   ctx.closePath();ctx.stroke();
   ctx.beginPath();ctx.arc(cogX,cogY,cogR*0.3,0,Math.PI*2);ctx.stroke();
