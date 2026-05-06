@@ -29,10 +29,12 @@ A collection of browser-based games for Caleb to play on his tablet. All games a
 - **Happy Glass** - Physics-based drawing puzzle
 - **InfiniJump** - Vertical platformer
 - **Minesweeper** - Classic mine sweeper
+- **Monster Jump** - Physics vehicle platformer (Fancade/WASM)
 - **Pac-Man** - Chomp dots and dodge the ghosts
 - **Paperboy** - Deliver newspapers while dodging obstacles
 - **Petri** - Cell growth game
 - **Racer 13** - Psychedelic lane racer
+- **Resin Animals** - Match, collect & combine resin animals
 - **Rock Paper Scissors** - RPS with custom sets
 - **Sensible Soccer** - Top-down 11v11 football
 - **Shed** - Custom rules card game
