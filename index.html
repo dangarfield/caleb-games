@@ -1007,33 +1007,30 @@
     }
     function renderSettings() {
       var content = document.getElementById('settingsContent');
-      var raw = localStorage.getItem('calebArcadeData');
-      if (!raw) { content.innerHTML = '<div class="no-data">No saved data found.</div>'; return; }
-      var data;
-      try { data = JSON.parse(raw); } catch(e) { content.innerHTML = '<div class="no-data">Error parsing data.</div>'; return; }
-      var keys = Object.keys(data);
-      if (keys.length === 0) { content.innerHTML = '<div class="no-data">No data keys found.</div>'; return; }
+      if (localStorage.length === 0) { content.innerHTML = '<div class="no-data">No saved data found.</div>'; return; }
       var html = '';
-      keys.forEach(function(key) {
-        html += '<div class="data-section" id="section-' + key + '">';
-        html += '<div class="data-section-header" onclick="toggleSection(\'' + key + '\')">';
-        html += '<span class="data-section-title">' + key + '</span>';
+      for (var i = 0; i < localStorage.length; i++) {
+        var key = localStorage.key(i);
+        var raw = localStorage.getItem(key);
+        var val;
+        try { val = JSON.parse(raw); } catch(e) { val = raw; }
+        html += '<div class="data-section" id="section-' + key.replace(/[^a-zA-Z0-9]/g,'_') + '">';
+        html += '<div class="data-section-header" onclick="toggleSection(\'' + key.replace(/[^a-zA-Z0-9]/g,'_') + '\')">';
+        html += '<span class="data-section-title">' + escHtml(key) + '</span>';
         html += '<div class="data-section-actions">';
-        html += '<button class="data-clear-btn" onclick="event.stopPropagation();confirmClear(\'' + key + '\', this)">Clear</button>';
+        html += '<button class="data-clear-btn" onclick="event.stopPropagation();confirmClearKey(\'' + escHtml(key).replace(/'/g,"\\'") + '\', this)">Clear</button>';
         html += '</div></div>';
-        html += '<div class="data-section-body"><div class="json-tree">' + renderJson(data[key]) + '</div></div>';
+        html += '<div class="data-section-body"><div class="json-tree">' + renderJson(val) + '</div></div>';
         html += '</div>';
-      });
+      }
       content.innerHTML = html;
     }
-    function toggleSection(key) {
-      document.getElementById('section-' + key).classList.toggle('expanded');
+    function toggleSection(sectionId) {
+      document.getElementById('section-' + sectionId).classList.toggle('expanded');
     }
-    function confirmClear(key, btn) {
+    function confirmClearKey(key, btn) {
       if (btn.classList.contains('confirm')) {
-        var data = JSON.parse(localStorage.getItem('calebArcadeData') || '{}');
-        delete data[key];
-        localStorage.setItem('calebArcadeData', JSON.stringify(data));
+        localStorage.removeItem(key);
         renderSettings();
       } else {
         btn.classList.add('confirm');
