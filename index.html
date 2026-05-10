@@ -974,7 +974,7 @@
   <div id="settingsPanel">
     <div class="settings-box">
       <div class="settings-header">
-        <h2>Game Data (calebArcadeData)</h2>
+        <h2>Game Data (localStorage)</h2>
         <button class="settings-close" onclick="closeSettings()">&times;</button>
       </div>
       <div id="settingsContent"></div>
@@ -1005,23 +1005,65 @@
     function closeSettings() {
       document.getElementById('settingsPanel').classList.remove('active');
     }
+    var keyLabels = {
+      'calebArcadeData': 'Arcade Shared Data',
+      'raceMaker_savedTracks': 'Race Maker — Saved Tracks',
+      '2048_best': '2048 — Best Score',
+      'archers-map-last': 'Archers — Last Map',
+      'bubbleshooter_played': 'Bubble Shooter — Play Count',
+      'driftRacerData': 'Drift Racer — Save Data',
+      'happyglass-levels': 'Happy Glass — Custom Levels',
+      'happyglass-lastEditLevel': 'Happy Glass — Last Edited',
+      'maze-completed': 'Maze — Completed Levels',
+      'racer13_diff': 'Racer 13 — Difficulty',
+      'rps-custom-sets': 'RPS — Custom Icon Sets',
+      'cameraIndex': 'Camera Index',
+    };
     function renderSettings() {
       var content = document.getElementById('settingsContent');
       if (localStorage.length === 0) { content.innerHTML = '<div class="no-data">No saved data found.</div>'; return; }
       var html = '';
-      for (var i = 0; i < localStorage.length; i++) {
-        var key = localStorage.key(i);
+      // Collect all keys sorted, with calebArcadeData first
+      var allKeys = [];
+      for (var i = 0; i < localStorage.length; i++) allKeys.push(localStorage.key(i));
+      allKeys.sort(function(a,b) { return a === 'calebArcadeData' ? -1 : b === 'calebArcadeData' ? 1 : a.localeCompare(b); });
+
+      for (var k = 0; k < allKeys.length; k++) {
+        var key = allKeys[k];
         var raw = localStorage.getItem(key);
         var val;
         try { val = JSON.parse(raw); } catch(e) { val = raw; }
-        html += '<div class="data-section" id="section-' + key.replace(/[^a-zA-Z0-9]/g,'_') + '">';
-        html += '<div class="data-section-header" onclick="toggleSection(\'' + key.replace(/[^a-zA-Z0-9]/g,'_') + '\')">';
-        html += '<span class="data-section-title">' + escHtml(key) + '</span>';
-        html += '<div class="data-section-actions">';
-        html += '<button class="data-clear-btn" onclick="event.stopPropagation();confirmClearKey(\'' + escHtml(key).replace(/'/g,"\\'") + '\', this)">Clear</button>';
-        html += '</div></div>';
-        html += '<div class="data-section-body"><div class="json-tree">' + renderJson(val) + '</div></div>';
-        html += '</div>';
+        var label = keyLabels[key] || key;
+        var safeId = key.replace(/[^a-zA-Z0-9]/g,'_');
+        var safeKey = escHtml(key).replace(/'/g,"\\'");
+
+        // For calebArcadeData, show each sub-key as its own section
+        if (key === 'calebArcadeData' && val && typeof val === 'object' && !Array.isArray(val)) {
+          var subKeys = Object.keys(val);
+          if (subKeys.length === 0) continue;
+          html += '<div style="margin-bottom:4px;padding:6px 8px;color:rgba(255,255,255,0.5);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;">Arcade Shared Data</div>';
+          subKeys.forEach(function(sk) {
+            var subId = 'section-arcade_' + sk.replace(/[^a-zA-Z0-9]/g,'_');
+            html += '<div class="data-section" id="' + subId + '">';
+            html += '<div class="data-section-header" onclick="document.getElementById(\'' + subId + '\').classList.toggle(\'expanded\')">';
+            html += '<span class="data-section-title">' + escHtml(sk) + '</span>';
+            html += '<div class="data-section-actions">';
+            html += '<button class="data-clear-btn" onclick="event.stopPropagation();confirmClearSubKey(\'' + escHtml(sk).replace(/'/g,"\\'") + '\', this)">Clear</button>';
+            html += '</div></div>';
+            html += '<div class="data-section-body"><div class="json-tree">' + renderJson(val[sk]) + '</div></div>';
+            html += '</div>';
+          });
+        } else {
+          html += '<div class="data-section" id="section-' + safeId + '">';
+          html += '<div class="data-section-header" onclick="toggleSection(\'' + safeId + '\')">';
+          html += '<span class="data-section-title">' + escHtml(label) + '</span>';
+          html += '<span style="margin-left:8px;font-size:0.7rem;color:rgba(255,255,255,0.3);">' + escHtml(key) + '</span>';
+          html += '<div class="data-section-actions">';
+          html += '<button class="data-clear-btn" onclick="event.stopPropagation();confirmClearKey(\'' + safeKey + '\', this)">Clear</button>';
+          html += '</div></div>';
+          html += '<div class="data-section-body"><div class="json-tree">' + renderJson(val) + '</div></div>';
+          html += '</div>';
+        }
       }
       content.innerHTML = html;
     }
@@ -1031,6 +1073,18 @@
     function confirmClearKey(key, btn) {
       if (btn.classList.contains('confirm')) {
         localStorage.removeItem(key);
+        renderSettings();
+      } else {
+        btn.classList.add('confirm');
+        btn.textContent = 'Confirm?';
+        setTimeout(function() { btn.classList.remove('confirm'); btn.textContent = 'Clear'; }, 3000);
+      }
+    }
+    function confirmClearSubKey(subKey, btn) {
+      if (btn.classList.contains('confirm')) {
+        var data = JSON.parse(localStorage.getItem('calebArcadeData') || '{}');
+        delete data[subKey];
+        localStorage.setItem('calebArcadeData', JSON.stringify(data));
         renderSettings();
       } else {
         btn.classList.add('confirm');
