@@ -1,0 +1,1 @@
+.claude/skills/garfield-arcade/SKILL.md

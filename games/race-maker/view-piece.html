@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Piece Viewer - Race Maker</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#1a1a1a; overflow:hidden; font-family:'Segoe UI',system-ui,sans-serif; color:#fff; }
+canvas { display:block; width:100%; height:100%; }
+#info { position:fixed; top:12px; left:12px; z-index:100; background:rgba(0,0,0,0.8);
+  padding:10px 16px; border-radius:10px; font-size:13px; border:1px solid rgba(255,255,255,0.1); }
+#info span { color:#a29bfe; font-weight:700; }
+</style>
+</head>
+<body>
+<div id="info">Hover a model to see its name. <span id="hoverName">-</span></div>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const ASSET_PATH = 'research/kenney_racing-kit/Models/GLTF format/';
+
+const ALL_MODELS = [
+  // Track pieces
+  'roadStraight','roadStraightLong','roadStraightArrow','roadStraightSkew','roadStraightLongBump',
+  'roadCornerSmall','roadCornerLarge','roadCornerLarger',
+  'roadCornerSmallBorder','roadCornerSmallSand','roadCornerSmallWall',
+  'roadCornerLargeBorder','roadCornerLargeSand','roadCornerLargeWall',
+  'roadCornerLargerBorder','roadCornerLargerSand','roadCornerLargerWall',
+  'roadCornerSmallBorderInner','roadCornerSmallSandInner','roadCornerSmallWallInner',
+  'roadCornerLargeBorderInner','roadCornerLargeSandInner','roadCornerLargeWallInner',
+  'roadCornerLargerBorderInner','roadCornerLargerSandInner','roadCornerLargerWallInner',
+  'roadStraightBridge','roadStraightBridgeStart','roadStraightBridgeMid',
+  'roadCornerBridge','roadCornerBridgeStart',
+  'roadRamp','roadRampLong','roadRampLongCurved','roadRampWall',
+  'roadSplit','roadSplitLarge','roadSplitLarger','roadSplitSmall',
+  'roadSplitRound','roadSplitRoundLarge',
+  'roadStart','roadStartPositions','roadCrossing','roadEnd','roadBump','roadCurved',
+  'roadPit','roadPitLarge',
+  // Vehicles
+  'raceCarRed','raceCarGreen','raceCarOrange','raceCarWhite',
+  // Decorations
+  'barrierRed','barrierWhite','barrierWall','pylon',
+  'fenceStraight','fenceCurved','rail','railDouble',
+  'flagCheckers','flagCheckersSmall','flagRed','flagGreen','flagTankco',
+  'grandStand','grandStandCovered','grandStandRound','grandStandAwning','grandStandCoveredRound',
+  'pitsGarage','pitsGarageClosed','pitsGarageCorner','pitsOffice','pitsOfficeCorner','pitsOfficeRoof',
+  'lightPostLarge','lightPostModern','lightColored','lightRed','lightRedDouble',
+  'overhead','overheadLights','overheadRound','overheadRoundColored',
+  'treeLarge','treeSmall','grass',
+  'billboardLarge','billboardSmall',
+  'tent','tentLarge',
+  'bannerTower','bannerTowerLarge',
+  'camera','radarEquipment','ramp',
+];
+
+// Setup
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x1a1a1a);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.add(new THREE.AmbientLight(0xffffff, 2.0));
+const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+sun.position.set(5, 10, 5);
+scene.add(sun);
+
+const aspect = window.innerWidth / window.innerHeight;
+const frustumSize = 20;
+const camera = new THREE.OrthographicCamera(
+  -frustumSize * aspect / 2, frustumSize * aspect / 2,
+  frustumSize / 2, -frustumSize / 2, 0.1, 500
+);
+camera.position.set(20, 20, 20);
+camera.lookAt(0, 0, 0);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+
+// Ground grid
+const grid = new THREE.GridHelper(60, 60, 0x333333, 0x262626);
+scene.add(grid);
+
+// Load all models in a grid layout
+const loader = new GLTFLoader();
+const COLS = 10;
+const SPACING = 3;
+const modelObjects = [];
+
+let loaded = 0;
+ALL_MODELS.forEach((id, i) => {
+  const col = i % COLS;
+  const row = Math.floor(i / COLS);
+  const x = (col - COLS/2) * SPACING;
+  const z = (row - Math.floor(ALL_MODELS.length / COLS)/2) * SPACING;
+
+  loader.load(ASSET_PATH + id + '.glb', gltf => {
+    const model = gltf.scene;
+    model.children.forEach(child => { child.position.set(0, 0, 0); });
+    model.position.set(x, 0, z);
+    model.userData.modelName = id;
+    scene.add(model);
+    modelObjects.push(model);
+    loaded++;
+
+    // Add label (sprite)
+    const canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 20px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(id, 128, 40);
+    const tex = new THREE.CanvasTexture(canvas);
+    const spriteMat = new THREE.SpriteMaterial({ map:tex, transparent:true, opacity:0.8 });
+    const sprite = new THREE.Sprite(spriteMat);
+    sprite.position.set(x, 1.5, z);
+    sprite.scale.set(2.5, 0.6, 1);
+    scene.add(sprite);
+  }, undefined, () => { loaded++; });
+});
+
+// Hover detection
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+const hoverEl = document.getElementById('hoverName');
+
+renderer.domElement.addEventListener('pointermove', e => {
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+});
+
+function checkHover() {
+  raycaster.setFromCamera(mouse, camera);
+  const intersects = raycaster.intersectObjects(modelObjects, true);
+  if (intersects.length > 0) {
+    let obj = intersects[0].object;
+    while (obj.parent && !obj.userData.modelName) obj = obj.parent;
+    hoverEl.textContent = obj.userData.modelName || '-';
+  } else {
+    hoverEl.textContent = '-';
+  }
+}
+
+// Resize
+window.addEventListener('resize', () => {
+  const a = window.innerWidth / window.innerHeight;
+  camera.left = -frustumSize * a / 2;
+  camera.right = frustumSize * a / 2;
+  camera.top = frustumSize / 2;
+  camera.bottom = -frustumSize / 2;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// Loop
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  checkHover();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>

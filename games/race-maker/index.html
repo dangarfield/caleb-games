@@ -1,0 +1,4005 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Race Maker - Caleb's Arcade</title>
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#1a1a1a; overflow:hidden; touch-action:none;
+  font-family:'Segoe UI',system-ui,sans-serif; }
+canvas { display:block; width:100%; height:100%; }
+.hidden { display:none !important; }
+
+#backBtn { position:fixed; top:12px; left:12px; z-index:9999;
+  background:rgba(0,0,0,0.55); color:#fff; text-decoration:none;
+  padding:6px 18px; border-radius:20px;
+  font:bold 15px/1.4 'Segoe UI',system-ui,sans-serif;
+  border:1px solid rgba(255,255,255,0.18);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  transition:background 0.2s; }
+#backBtn:hover { background:rgba(0,0,0,0.75); }
+
+#overlay { position:fixed; inset:0; z-index:20; display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  background:rgba(0,0,0,0.7); color:#fff; text-align:center; }
+#overlay h1 { font-size:clamp(2rem,8vw,4rem); margin-bottom:0.5rem; }
+#overlay .sub { font-size:clamp(1rem,3vw,1.4rem); color:#a0c4ff; margin-bottom:1.5rem; }
+#overlay .info { font-size:clamp(0.85rem,2.5vw,1.1rem); color:rgba(255,255,255,0.7);
+  margin-bottom:2rem; max-width:500px; padding:0 1rem; line-height:1.5; }
+#overlay button { padding:14px 40px; font-size:1.3rem; border:none; border-radius:12px;
+  background:linear-gradient(135deg,#6c5ce7,#a29bfe); color:#fff;
+  cursor:pointer; font-weight:700;
+  box-shadow:0 4px 20px rgba(108,92,231,0.4); transition:transform 0.15s; }
+#overlay button:hover { transform:scale(1.05); }
+#overlay button:active { transform:scale(0.95); }
+
+/* Piece palette — compact overlay grid, bottom-left */
+#piecePalette { position:fixed; bottom:12px; left:12px;
+  z-index:100; background:rgba(0,0,0,0.88); border:1px solid rgba(255,255,255,0.15);
+  border-radius:10px; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  padding:8px 10px; width:auto; }
+#piecePalette .grid-section { display:grid; grid-template-columns:1fr 1fr 1fr;
+  gap:4px; margin-bottom:6px; }
+#piecePalette .grid-section:last-child { margin-bottom:0; }
+#piecePalette .section-label { grid-column:1/-1; color:#a0c4ff; font-size:9px;
+  font-weight:700; text-transform:uppercase; letter-spacing:0.5px;
+  padding:1px 0; text-align:center; border-bottom:1px solid rgba(255,255,255,0.08);
+  margin-bottom:2px; }
+#piecePalette .specials-grid { display:grid; grid-template-columns:repeat(4, 1fr);
+  gap:4px; grid-column:1/-1; }
+.piece-card { padding:4px 6px; border-radius:6px; cursor:pointer;
+  background:rgba(255,255,255,0.07); border:1.5px solid transparent;
+  color:#fff; font-size:9px; font-weight:500; text-align:center;
+  transition:all 0.12s; user-select:none; white-space:nowrap; line-height:1.2; }
+.piece-card:hover { background:rgba(108,92,231,0.35); border-color:rgba(162,155,254,0.5); }
+.piece-card.selected { background:rgba(108,92,231,0.5); border-color:#a29bfe;
+  box-shadow:0 1px 8px rgba(108,92,231,0.4); }
+.piece-card .piece-icon { display:block; font-size:14px; margin-bottom:1px; }
+
+/* Editor actions row — inside palette */
+#piecePalette .actions-row { display:flex; gap:4px; margin-top:6px;
+  padding-top:6px; border-top:1px solid rgba(255,255,255,0.08); }
+#piecePalette .actions-row button { padding:6px 8px; border-radius:6px; border:none;
+  background:rgba(255,255,255,0.1); color:#fff; font-size:9px; cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+  transition:all 0.12s; font-weight:600; white-space:nowrap; flex:1; }
+#piecePalette .actions-row button .btn-icon { font-size:16px; line-height:1; }
+#piecePalette .actions-row button:hover { background:rgba(255,255,255,0.22); }
+#piecePalette .actions-row button:active { transform:scale(0.92); }
+#piecePalette .actions-row button.danger { background:rgba(231,76,60,0.5); }
+#piecePalette .actions-row button.success { background:rgba(46,204,113,0.5); }
+#piecePalette .actions-row button[disabled] { opacity:0.3; pointer-events:none; }
+
+/* Top bar */
+#topBar { position:fixed; bottom:12px; right:12px; z-index:100;
+  display:flex; gap:8px; }
+#topBar button { padding:8px 16px; border-radius:10px; border:none;
+  background:rgba(0,0,0,0.6); color:#fff; font-size:13px; font-weight:600;
+  cursor:pointer; border:1px solid rgba(255,255,255,0.15);
+  backdrop-filter:blur(6px); transition:all 0.15s; }
+#topBar button:hover { background:rgba(0,0,0,0.8); }
+#topBar button.active { background:linear-gradient(135deg,#6c5ce7,#a29bfe);
+  border-color:rgba(162,155,254,0.5); }
+
+#editorCloseBtn { position:fixed; top:12px; right:12px; z-index:100;
+  width:36px; height:36px; border-radius:50%; border:1px solid rgba(255,255,255,0.15);
+  background:rgba(0,0,0,0.6); color:#fff; font-size:18px; cursor:pointer;
+  backdrop-filter:blur(6px); transition:all 0.15s; display:flex; align-items:center; justify-content:center; }
+#editorCloseBtn:hover { background:rgba(220,50,50,0.7); }
+#editorCloseBtn.hidden { display:none; }
+
+/* Piece count indicator */
+#pieceCount { position:fixed; top:12px; left:50%; transform:translateX(-50%);
+  z-index:100; background:rgba(0,0,0,0.6); color:#fff; padding:6px 14px;
+  border-radius:10px; font-size:13px; border:1px solid rgba(255,255,255,0.12);
+  backdrop-filter:blur(6px); }
+#pieceCount span { color:#a29bfe; font-weight:700; }
+
+#trackStatus { position:fixed; top:46px; left:50%; transform:translateX(-50%);
+  z-index:100; background:rgba(0,0,0,0.6); color:#fff; padding:6px 14px;
+  border-radius:10px; font-size:13px; border:1px solid rgba(255,255,255,0.12);
+  backdrop-filter:blur(6px); font-weight:600; transition: color 0.3s; }
+#trackStatus.complete { color:#2ecc71; }
+#trackStatus.incomplete { color:#e74c3c; }
+
+/* Decoration palette */
+#decorPalette { display:none; position:fixed; left:12px; top:60px; bottom:12px;
+  width:200px; z-index:100; background:rgba(0,0,0,0.85); border-radius:12px;
+  border:1px solid rgba(255,255,255,0.12); backdrop-filter:blur(8px);
+  overflow-y:auto; padding:8px; }
+#decorPalette.show { display:block; }
+#decorPalette h3 { color:#a0c4ff; font-size:11px; text-transform:uppercase;
+  padding:8px 4px 4px; letter-spacing:0.5px; font-weight:700; }
+.decor-item { display:block; padding:6px 10px; border-radius:8px; cursor:pointer;
+  color:#fff; font-size:12px; transition:background 0.15s; margin:1px 0; }
+.decor-item:hover { background:rgba(255,255,255,0.1); }
+.decor-item.selected { background:rgba(108,92,231,0.4); }
+#autoDecorBtn { width:100%; padding:10px; border:none; border-radius:10px;
+  background:linear-gradient(135deg,#6c5ce7,#a29bfe); color:#fff; font-size:13px;
+  font-weight:700; cursor:pointer; margin-bottom:10px; transition:all 0.15s;
+  box-shadow:0 3px 12px rgba(108,92,231,0.3); }
+#autoDecorBtn:hover { transform:translateY(-1px); box-shadow:0 5px 16px rgba(108,92,231,0.5); }
+#autoDecorBtn:active { transform:scale(0.95); }
+
+/* Race HUD */
+#raceHUD { display:none; position:fixed; top:12px; left:50%; transform:translateX(-50%);
+  z-index:100; background:rgba(0,0,0,0.75); padding:10px 24px; border-radius:14px;
+  border:1px solid rgba(255,255,255,0.1); color:#fff; font-size:14px;
+  gap:20px; align-items:center; backdrop-filter:blur(6px); }
+#raceHUD.show { display:flex; }
+#raceHUD .lap { font-weight:700; }
+#raceHUD .time { font-family:monospace; font-size:16px; color:#ffd32a; }
+#raceHUD .speed { color:#a29bfe; }
+
+/* Race position indicator */
+#racePosition { display:none; position:fixed; top:60px; left:50%; transform:translateX(-50%);
+  z-index:100; text-align:center; pointer-events:none;
+  background:rgba(0,0,0,0.75); padding:8px 20px; border-radius:14px;
+  border:1px solid rgba(255,255,255,0.1); backdrop-filter:blur(6px);
+  min-width:80px; }
+#racePosition.show { display:block; }
+#racePosition .pos-num { font-size:3rem; font-weight:900; line-height:1;
+  transition:transform 0.3s cubic-bezier(0.175,0.885,0.32,1.275), color 0.3s; }
+#racePosition .pos-suffix { font-size:1.3rem; font-weight:700; vertical-align:super; }
+#racePosition.animate .pos-num { transform:scale(1.5); }
+#racePosition.first { border-color:rgba(255,211,42,0.5);
+  box-shadow:0 0 20px rgba(255,211,42,0.3), 0 0 40px rgba(255,211,42,0.1);
+  animation:firstPulse 1.5s ease-in-out infinite; }
+@keyframes firstPulse {
+  0%, 100% { box-shadow:0 0 20px rgba(255,211,42,0.3), 0 0 40px rgba(255,211,42,0.1); }
+  50% { box-shadow:0 0 30px rgba(255,211,42,0.5), 0 0 60px rgba(255,211,42,0.2); }
+}
+
+/* Too Fast warning */
+#tooFastWarning { display:none; position:fixed; right:80px; top:22%; transform:translate(0,-50%) scale(0.8);
+  z-index:150; color:#ff4757; font-size:1.4rem; font-weight:900; pointer-events:none;
+  background:rgba(0,0,0,0.75); padding:6px 14px; border-radius:10px;
+  border:1px solid rgba(255,255,255,0.1);
+  opacity:0; transition:opacity 0.25s ease, transform 0.25s ease; letter-spacing:0.5px; }
+#tooFastWarning.show { display:block; opacity:1;
+  transform:translate(0,-50%) scale(1); animation:tooFastShake 2s ease-in-out infinite; }
+@keyframes tooFastShake {
+  0% { transform:translate(0,-50%) scale(1) rotate(0deg); }
+  8% { transform:translate(-1px,-50%) scale(1.05) rotate(-1.5deg); }
+  16% { transform:translate(2px,-50%) scale(0.97) rotate(1deg); }
+  24% { transform:translate(-1px,-50%) scale(1.03) rotate(-0.5deg); }
+  32% { transform:translate(1px,-50%) scale(1) rotate(0.8deg); }
+  40% { transform:translate(0,-50%) scale(1.02) rotate(-0.3deg); }
+  50% { transform:translate(0,-50%) scale(1) rotate(0deg); }
+  100% { transform:translate(0,-50%) scale(1) rotate(0deg); }
+}
+
+/* Countdown */
+#countdown { display:none; position:fixed; inset:0; z-index:200;
+  align-items:center; justify-content:center;
+  font-size:clamp(4rem,15vw,10rem); font-weight:900; color:#fff;
+  text-shadow:0 0 40px rgba(108,92,231,0.8); pointer-events:none; }
+#countdown.show { display:flex; }
+
+/* Speed bar */
+#speedBar { display:none; }
+#speedBar.show { display:none; }
+#speedFill { display:none; }
+#speedNum { position:fixed; top:calc(22% - 60px); right:80px;
+  z-index:100; font-size:28px; font-weight:700; color:#fff; font-family:monospace;
+  text-shadow:0 2px 6px rgba(0,0,0,0.8); display:none; transition:color 0.15s; }
+#speedNum.show { display:block; }
+#speedNum.braking { color:#e74c3c; }
+#cornerWarning { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+  z-index:100; pointer-events:none; }
+#cornerWarning.show { display:block; }
+#cornerWarning .vignette { position:fixed; inset:0;
+  box-shadow:inset 0 0 80px 30px rgba(231,76,60,0.4); pointer-events:none;
+  animation:pulse-vignette 0.3s ease-in-out infinite alternate; }
+@keyframes pulse-vignette { from { opacity:0.6; } to { opacity:1; } }
+#throttleHint { display:none; }
+#switchLaneBtn { position:fixed; left:16px; top:50%; transform:translateY(-50%);
+  z-index:150; width:64px; height:100px; border-radius:25px;
+  background:rgba(0,0,0,0.6); color:#fff; font-size:32px;
+  cursor:pointer; transition:transform 0.12s, background 0.15s;
+  display:none; touch-action:none;
+  border:2px solid rgba(255,255,255,0.2); }
+#switchLaneBtn:hover { background:rgba(0,0,0,0.75); }
+#switchLaneBtn:active { transform:translateY(-50%) scale(0.88); background:rgba(108,92,231,0.5); }
+#switchLaneBtn.show { display:flex; align-items:center; justify-content:center; }
+
+/* Throttle bar */
+#throttleBar { display:none; position:fixed; right:20px; top:50%; transform:translateY(-50%);
+  width:50px; height:60vh; z-index:150; touch-action:none; }
+#throttleBar.show { display:block; }
+#throttleBar .bar-bg { position:absolute; inset:0; background:rgba(0,0,0,0.6);
+  border-radius:25px; border:2px solid rgba(255,255,255,0.2); overflow:hidden; }
+#throttleBar .bar-fill { position:absolute; bottom:0; left:0; right:0;
+  background:linear-gradient(to top, #2ecc71, #f1c40f, #e74c3c);
+  border-radius:0 0 23px 23px; transition:height 0.05s; }
+#throttleBar .bar-marker { position:absolute; left:-30px; right:0; height:2px;
+  background:rgba(255,255,255,0.5); pointer-events:none; }
+#throttleBar .bar-marker-label { position:absolute; right:calc(100% + 6px); top:50%;
+  font-size:11px; color:rgba(255,255,255,0.8); font-family:monospace; font-weight:700;
+  transform:translateY(-50%); white-space:nowrap; }
+#throttleBar .bar-thumb { position:absolute; left:50%; transform:translate(-50%,-50%);
+  width:60px; height:14px; background:rgba(255,255,255,0.9); border-radius:7px;
+  pointer-events:none; box-shadow:0 2px 8px rgba(0,0,0,0.4); display:none; }
+#throttleBar.active .bar-thumb { display:block; }
+#throttleBar .bar-speed { position:absolute; left:50%; transform:translate(-50%,-50%);
+  font-size:13px; font-weight:700; color:#fff; font-family:monospace;
+  pointer-events:none; text-shadow:0 1px 3px rgba(0,0,0,0.8); display:none;
+  white-space:nowrap; }
+#throttleBar.active .bar-speed { display:block; }
+
+/* Save/Load Modal */
+.modal-overlay { position:fixed; inset:0; z-index:9000; display:flex; align-items:center;
+  justify-content:center; background:rgba(0,0,0,0.7); backdrop-filter:blur(4px);
+  animation:modalFadeIn 0.25s ease; }
+.modal-overlay.hidden { display:none !important; }
+@keyframes modalFadeIn { from { opacity:0; } to { opacity:1; } }
+@keyframes modalSlideUp { from { transform:translateY(30px) scale(0.95); opacity:0; }
+  to { transform:translateY(0) scale(1); opacity:1; } }
+@keyframes modalPop { 0% { transform:scale(0.8); opacity:0; }
+  60% { transform:scale(1.03); } 100% { transform:scale(1); opacity:1; } }
+.modal-box { background:linear-gradient(145deg,#2d2b55,#1a1a2e); border-radius:20px;
+  border:2px solid rgba(162,155,254,0.3); padding:0; width:min(400px, 90vw);
+  max-height:85vh; display:flex; flex-direction:column;
+  box-shadow:0 20px 60px rgba(108,92,231,0.3), 0 0 40px rgba(108,92,231,0.1);
+  animation:modalPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); overflow:hidden; }
+.modal-box.wide { width:min(1200px, 95vw); }
+@media (orientation:landscape) { .modal-box.wide { width:min(1200px, 98vw); } }
+.modal-header { display:flex; align-items:center; justify-content:space-between;
+  padding:18px 24px; background:rgba(108,92,231,0.15);
+  border-bottom:1px solid rgba(162,155,254,0.2); }
+.modal-header h2 { font-size:1.3rem; color:#fff; margin:0; }
+.modal-close { background:none; border:none; color:rgba(255,255,255,0.6); font-size:24px;
+  cursor:pointer; padding:4px 8px; border-radius:8px; transition:all 0.15s; }
+.modal-close:hover { background:rgba(255,255,255,0.1); color:#fff; }
+.modal-body { padding:20px 24px; overflow-y:auto; flex:1; }
+.modal-input { width:100%; padding:12px 16px; border-radius:12px; border:2px solid rgba(162,155,254,0.3);
+  background:rgba(0,0,0,0.3); color:#fff; font-size:16px; font-weight:500;
+  outline:none; transition:border-color 0.2s; margin-bottom:16px; }
+.modal-input:focus { border-color:#a29bfe; }
+.modal-input::placeholder { color:rgba(255,255,255,0.35); }
+.modal-btn { padding:12px 24px; border-radius:12px; border:none; font-size:15px;
+  font-weight:700; cursor:pointer; transition:all 0.15s; }
+.modal-btn:active { transform:scale(0.93); }
+.modal-btn-primary { background:linear-gradient(135deg,#6c5ce7,#a29bfe); color:#fff;
+  box-shadow:0 4px 15px rgba(108,92,231,0.4); width:100%; }
+.modal-btn-primary:hover { box-shadow:0 6px 20px rgba(108,92,231,0.6); transform:translateY(-1px); }
+.modal-btn-primary:disabled { opacity:0.4; pointer-events:none; }
+.track-list { list-style:none; padding:0; margin:0; max-height:300px; overflow-y:auto; }
+.track-item { display:flex; align-items:center; justify-content:space-between;
+  padding:12px 16px; border-radius:12px; margin-bottom:8px; cursor:pointer;
+  background:rgba(255,255,255,0.05); border:2px solid transparent;
+  transition:all 0.25s; animation:modalSlideUp 0.3s ease backwards; }
+.track-item:hover { background:rgba(108,92,231,0.2); border-color:rgba(162,155,254,0.4); }
+.track-item .track-name { font-size:15px; font-weight:600; color:#fff; }
+.track-item .track-pieces { font-size:12px; color:rgba(255,255,255,0.5); }
+.track-item .track-download { background:none; border:none; color:rgba(162,155,254,0.7);
+  font-size:16px; cursor:pointer; padding:4px 8px; border-radius:6px; transition:all 0.15s; }
+.track-item .track-download:hover { color:#a29bfe; background:rgba(162,155,254,0.15); }
+.track-item .track-delete { background:none; border:none; color:rgba(231,76,60,0.7);
+  font-size:18px; cursor:pointer; padding:4px 8px; border-radius:6px; transition:all 0.15s; }
+.track-item .track-delete:hover { color:#e74c3c; background:rgba(231,76,60,0.15); }
+.track-empty { text-align:center; padding:30px; color:rgba(255,255,255,0.4); font-size:14px; }
+.track-empty .empty-icon { font-size:40px; margin-bottom:10px; display:block; }
+.modal-success { text-align:center; padding:20px; animation:modalPop 0.4s ease; }
+.modal-success .success-icon { font-size:48px; display:block; margin-bottom:12px; }
+.modal-success .success-text { font-size:16px; color:#2ecc71; font-weight:600; }
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+
+<div id="overlay">
+  <h1>Race Maker</h1>
+  <div class="sub">Build a track. Race it.</div>
+  <div class="info">Build your circuit piece by piece, then race Scalextric-style — hold to go fast, but watch those corners!</div>
+  <button id="startBtn">Build a Track</button>
+  <button id="quickRaceBtn" style="margin-top:10px; background:linear-gradient(135deg,#e74c3c,#f39c12);">Race!</button>
+</div>
+
+<div id="piecePalette" class="hidden"></div>
+
+<div id="topBar" class="hidden">
+  <button id="modeEditBtn" class="active">Edit Track</button>
+  <button id="modeDecorBtn">Decorate</button>
+  <button id="modeRaceBtn">Race!</button>
+</div>
+<button id="editorCloseBtn" class="hidden">✕</button>
+
+<div id="pieceCount" class="hidden"><span>0</span> pieces</div>
+<div id="trackStatus" class="hidden incomplete">Incomplete</div>
+<div id="decorPalette"></div>
+<div id="raceHUD"><span class="lap">Lap 1/3</span><span class="time">0:00.00</span><span class="speed">0 mph</span></div>
+<div id="racePosition"><span class="pos-num" style="color:#999">1</span><span class="pos-suffix" style="color:#999">st</span></div>
+<div id="tooFastWarning">TOO FAST!</div>
+<div id="countdown"></div>
+<div id="speedNum">0 mph</div>
+<div id="cornerWarning"><div class="vignette"></div></div>
+<div id="throttleBar">
+  <div class="bar-bg">
+    <div class="bar-fill"></div>
+  </div>
+  <div class="bar-thumb"></div>
+  <div class="bar-speed"></div>
+</div>
+<div id="speedBar"><div id="speedFill"></div></div>
+<div id="throttleHint">Hold SPACE or tap to accelerate &middot; S to switch lane</div>
+<button id="switchLaneBtn" class="hidden"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 2l-4 4 4 4"/><path d="M3 6h11a4 4 0 0 1 0 8h-1"/><path d="M17 22l4-4-4-4"/><path d="M21 18H10a4 4 0 0 1 0-8h1"/></svg></button>
+
+<!-- Save/Load Modal -->
+<div id="trackModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2 id="modalTitle">Save Track</h2>
+      <button class="modal-close" id="modalCloseBtn">&times;</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/",
+    "lil-gui": "https://cdn.jsdelivr.net/npm/lil-gui@0.19.2/dist/lil-gui.esm.min.js"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import GUI from 'lil-gui';
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+const ASSET_PATH = 'assets/';
+const DEG = Math.PI / 180;
+
+// Piece definitions
+// entry/exit: local coords (post-scale for mirrored). turn: heading change in degrees.
+// Grid layout: [left, center, right] per row
+const PIECES = [
+  // Row 1: Gentle
+  /* 0 */ { id:'roadCornerLarger', name:'Gentle Left', cat:'turns', icon:'⟲', mirror:true,
+            entry:{x:-0.5, z:0}, exit:{x:-3, z:-2.5}, turn:-90, row:0, col:0 },
+  /* 1 */ { id:'roadStraightArrow', name:'Arrow', cat:'straights', icon:'→',
+            entry:{x:0.5, z:0}, exit:{x:0.5, z:-1}, turn:0, row:0, col:1 },
+  /* 2 */ { id:'roadCornerLarger', name:'Gentle Right', cat:'turns', icon:'⟳',
+            entry:{x:0.5, z:0}, exit:{x:3, z:-2.5}, turn:90, row:0, col:2 },
+  // Row 2: Mid
+  /* 3 */ { id:'roadCornerLarge', name:'Wide Left', cat:'turns', icon:'⤶', mirror:true,
+            entry:{x:-0.5, z:0}, exit:{x:-2, z:-1.5}, turn:-90, row:1, col:0 },
+  /* 4 */ { id:'roadBump', name:'Speed Bump', cat:'straights', icon:'⌇',
+            entry:{x:0.5, z:0}, exit:{x:0.5, z:-2}, turn:0, row:1, col:1, bumpHeight:0.06 },
+  /* 5 */ { id:'roadCornerLarge', name:'Wide Right', cat:'turns', icon:'⤵',
+            entry:{x:0.5, z:0}, exit:{x:2, z:-1.5}, turn:90, row:1, col:2 },
+  // Row 3: Tight
+  /* 6 */ { id:'roadCornerSmall', name:'Tight Left', cat:'turns', icon:'↰', mirror:true,
+            entry:{x:-0.5, z:0}, exit:{x:-1, z:-0.5}, turn:-90, row:2, col:0 },
+  /* 7 */ { id:'roadStraight', name:'Straight', cat:'straights', icon:'━',
+            entry:{x:0.5, z:0}, exit:{x:0.5, z:-1}, turn:0, row:2, col:1 },
+  /* 8 */ { id:'roadCornerSmall', name:'Tight Right', cat:'turns', icon:'↱',
+            entry:{x:0.5, z:0}, exit:{x:1, z:-0.5}, turn:90, row:2, col:2 },
+  // Specials row (dy = elevation change at exit)
+  /* 9 */ { id:'roadRampLongCurved', name:'Ramp Up', cat:'specials', icon:'⬈',
+            entry:{x:0.5, z:0}, exit:{x:0.5, z:-2}, turn:0, row:3, col:0, dy:0.52 },
+  /*10 */ { id:'roadStraightBridgeMid', name:'Bridge', cat:'specials', icon:'⏫',
+            entry:{x:0.5, z:0}, exit:{x:0.5, z:-1}, turn:0, row:3, col:1, dy:0 },
+  /*11 */ { id:'roadStraightBridge', name:'Bridge High', cat:'specials', icon:'🌉',
+            entry:{x:0.5, z:0}, exit:{x:0.5, z:-1}, turn:0, row:3, col:2, dy:0 },
+  /*12 */ { id:'roadRampLongCurved', name:'Ramp Down', cat:'specials', icon:'⬊',
+            entry:{x:0.5, z:0}, exit:{x:0.5, z:-2}, turn:0, row:3, col:3, flipZ:true, dyAbsolute:0 },
+];
+
+// Decoration definitions
+const DECOR_DEFS = [
+  { cat:'Track Edges', items:[
+    'roadCornerSmallBorder','roadCornerSmallSand','roadCornerSmallWall',
+    'roadCornerLargeBorder','roadCornerLargeSand','roadCornerLargeWall',
+    'roadCornerLargerBorder','roadCornerLargerSand','roadCornerLargerWall',
+    'roadCornerLargeBorderInner','roadCornerLargeSandInner','roadCornerLargeWallInner',
+    'roadCornerLargerBorderInner','roadCornerLargerSandInner','roadCornerLargerWallInner',
+  ]},
+  { cat:'Barriers', items:['barrierRed','barrierWhite','barrierWall','pylon'] },
+  { cat:'Fences', items:['fenceStraight','fenceCurved','rail','railDouble'] },
+  { cat:'Flags', items:['flagCheckers','flagCheckersSmall','flagRed','flagGreen','flagTankco'] },
+  { cat:'Stands', items:['grandStand','grandStandCovered','grandStandRound','grandStandAwning','grandStandCoveredRound'] },
+  { cat:'Buildings', items:['pitsGarage','pitsGarageClosed','pitsGarageCorner','pitsOffice','pitsOfficeCorner','pitsOfficeRoof'] },
+  { cat:'Lights', items:['lightPostLarge','lightPostModern','lightColored','lightRed','lightRedDouble'] },
+  { cat:'Overhead', items:['overhead','overheadLights','overheadRound','overheadRoundColored'] },
+  { cat:'Trees & Nature', items:['treeLarge','treeSmall'] },
+  { cat:'Billboards', items:['billboard','billboardLow'] },
+  { cat:'Tents', items:['tent','tentLong'] },
+  { cat:'Towers', items:['bannerTowerRed','bannerTowerGreen'] },
+  { cat:'Props', items:['camera_exclusive','radarEquipment','ramp'] },
+];
+
+// ============================================================
+// STATE
+// ============================================================
+let mode = 'title'; // title | editor | decor | race
+let selectedPieceIdx = 7; // Start with "Straight" selected
+let extraRotation = 0; // 0, 90, 180, 270
+
+// Track is an array of placed pieces
+// Each: { pieceIdx, worldPos:Vec3, worldHeading:number(deg), mesh:Group }
+let track = [];
+
+// The "cursor" — where the next piece will attach
+// heading: 0 = facing -Z, 90 = facing +X, 180 = facing +Z, 270 = facing -X
+let cursor = { x:0, y:0, z:0, heading:0 };
+let loopTarget = { x:0, z:0, heading:0 }; // Where the loop should close to
+let startCursorConfig = { x:0, z:0, heading:0 }; // Where player track begins
+
+let ghostGroup = null;
+let canClose = false;
+let trackClosed = false;
+
+// Decorations
+let decorations = [];
+let selectedDecor = null;
+
+// Race
+let car = null;
+let carMesh = null;
+let carScale = 0.2;
+let carSpeed = 0;
+let carT = 0;
+let throttle = false;
+let throttleTargetSpeed = 0; // 0 = not pressing, otherwise the user's desired max speed
+let raceSpline = null;
+let lapCount = 0;
+let totalLaps = 3;
+let raceTime = 0;
+let raceActive = false;
+let countdownActive = false;
+let driftAngle = 0; // current visual drift angle in radians
+let carPenaltyActive = false; // true while corner penalty braking is in effect
+let carBoosted = false; // true while boost speed is active (above normal topSpeed)
+let carOnBoostLastFrame = false; // track entering boost pad
+let crashWarningTimer = 0; // seconds remaining for crash warning display
+let currentLane = 'left'; // 'left' or 'right'
+let laneBlend = 0; // 0 = left lane, 1 = right lane (smooth transition)
+
+// Race config (lil-gui controlled)
+const raceConfig = {
+  playerStart: 3,       // starting position (0=1st, 1=2nd, 2=3rd, 3=4th)
+  playerLane: 'left',   // starting lane
+  aiCount: 3,           // number of AI drivers
+  aiSkill: 0.7,         // 0-1 how fast AI drives (fraction of max speed)
+  startSpacing: 0.5,    // distance between grid positions in world units
+  startOffset: 4.3,     // distance behind start line for front car (world units)
+  finishOffset: -3.2,   // finish line position in world units from t=0 on the spline (negative = before t=0)
+  topSpeed: 8,          // max speed in world units/s (~180 mph)
+  acceleration: 6,      // throttle acceleration
+  braking: 10,          // braking deceleration
+  coastDecel: 4,        // deceleration when coasting (no input)
+  aiTopSpeed: 7.5,      // AI max speed in world units/s
+  aiAcceleration: 6,    // AI acceleration
+  // Corner speed limits in world units/s (multiply by 22.37 for mph)
+  cornerSmallLimit: 2.68,   // ~60 mph
+  cornerLargeLimit: 4.47,   // ~100 mph
+  cornerLargerLimit: 6.26,  // ~140 mph
+  cornerBrakeRate: 30,      // how fast auto-brake applies (units/s²)
+  cornerPenalty: 0.89,      // brake to limit minus this (~20 mph in world units)
+};
+
+// AI drivers
+const aiCars = []; // { mesh, t, speed, lane, laneBlend, driftAngle, color }
+
+// Championship state
+let championship = null; // { series, tracks: [{name, builtin}...], currentIdx, points: [playerPts, ...aiPts], times: [] }
+
+// ============================================================
+// THREE.JS SETUP
+// ============================================================
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = false;
+renderer.setClearColor(0x1a1a1a);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NoToneMapping;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x1a1a1a, 40, 100);
+
+const aspect = window.innerWidth / window.innerHeight;
+const frustumSize = 12;
+const camera = new THREE.OrthographicCamera(
+  -frustumSize * aspect / 2, frustumSize * aspect / 2,
+  frustumSize / 2, -frustumSize / 2, 0.1, 200
+);
+camera.position.set(10, 10, 10);
+camera.lookAt(0, 0, 0);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.screenSpacePanning = true;
+controls.enablePan = true;
+controls.enableZoom = true;
+controls.enableRotate = true;
+controls.panSpeed = 1.5;
+controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+controls.minZoom = 0.3;
+controls.maxZoom = 5;
+controls.target.set(0, 0, 0);
+
+// Bright lighting for vivid colours
+scene.add(new THREE.AmbientLight(0xffffff, 2.5));
+const sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
+sunLight.position.set(5, 10, 5);
+scene.add(sunLight);
+
+// Ground
+const groundGeo = new THREE.PlaneGeometry(120, 120);
+const groundMat = new THREE.MeshStandardMaterial({ color:0x2a2a2a, roughness:1, metalness:0 });
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI/2;
+ground.position.y = -0.01;
+scene.add(ground);
+
+// Grid — offset by half a tile so pieces sit inside cells
+const gridHelper = new THREE.GridHelper(40, 40, 0x444444, 0x333333);
+gridHelper.position.set(0.5, 0.005, 0);
+scene.add(gridHelper);
+
+// Axis labels (debug)
+function makeLabel(text, pos, color) {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 64;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = color;
+  ctx.font = 'bold 32px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, 64, 42);
+  const tex = new THREE.CanvasTexture(c);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+  const sprite = new THREE.Sprite(mat);
+  sprite.position.copy(pos);
+  sprite.scale.set(2, 1, 1);
+  return sprite;
+}
+const axisLabelsGroup = new THREE.Group();
+axisLabelsGroup.add(makeLabel('+X', new THREE.Vector3(6, 0.5, 0), '#ff4444'));
+axisLabelsGroup.add(makeLabel('-X', new THREE.Vector3(-6, 0.5, 0), '#ff8888'));
+axisLabelsGroup.add(makeLabel('+Z', new THREE.Vector3(0, 0.5, 6), '#4444ff'));
+axisLabelsGroup.add(makeLabel('-Z', new THREE.Vector3(0, 0.5, -6), '#8888ff'));
+axisLabelsGroup.visible = false;
+scene.add(axisLabelsGroup);
+
+// Connector marker (shows where next piece attaches + direction arrow)
+const connectorMarker = new THREE.Group();
+// Vertical diamond
+const markerGeo = new THREE.OctahedronGeometry(0.15);
+const markerMat = new THREE.MeshBasicMaterial({ color:0xa29bfe });
+const markerMesh = new THREE.Mesh(markerGeo, markerMat);
+markerMesh.position.y = 0.25;
+connectorMarker.add(markerMesh);
+// Direction arrow (points forward along -Z in local space, rotated with the group)
+const arrowShape = new THREE.Shape();
+arrowShape.moveTo(0, 0); arrowShape.lineTo(-0.12, -0.3); arrowShape.lineTo(0.12, -0.3); arrowShape.closePath();
+const arrowGeo = new THREE.ShapeGeometry(arrowShape);
+const arrowMat = new THREE.MeshBasicMaterial({ color:0x6c5ce7, side: THREE.DoubleSide });
+const arrowMesh = new THREE.Mesh(arrowGeo, arrowMat);
+arrowMesh.rotation.x = -Math.PI/2;
+arrowMesh.position.y = 0.02;
+arrowMesh.position.z = 0.25;
+connectorMarker.add(arrowMesh);
+scene.add(connectorMarker);
+
+// Finish line marker (green sphere)
+const finishMarker = new THREE.Mesh(
+  new THREE.SphereGeometry(0.2, 16, 12),
+  new THREE.MeshBasicMaterial({ color: 0x2ecc71 })
+);
+finishMarker.position.y = 0.4;
+finishMarker.visible = false;
+scene.add(finishMarker);
+
+function getFinishT() {
+  if (!raceSpline) return 0;
+  const splineLen = raceSpline.getLength();
+  return ((raceConfig.finishOffset / splineLen) % 1 + 1) % 1;
+}
+
+function updateFinishMarker() {
+  if (!raceSpline) { finishMarker.visible = false; return; }
+  const t = getFinishT();
+  const pos = raceSpline.getPointAt(Math.max(0.0001, Math.min(t, 0.9999)));
+  finishMarker.position.set(pos.x, pos.y + 0.4, pos.z);
+  finishMarker.visible = false;
+}
+
+// ============================================================
+// ASSET LOADING
+// ============================================================
+const loader = new GLTFLoader();
+const modelCache = {};
+
+function loadModel(id) {
+  if (modelCache[id]) return Promise.resolve(modelCache[id].clone());
+  return new Promise((resolve, reject) => {
+    loader.load(ASSET_PATH + id + '.glb', gltf => {
+      const model = gltf.scene;
+      // Strip baked scene translation so geometry sits at true local origin.
+      // All Kenney racing kit GLBs have a consistent offset on the first child.
+      // Shift the whole model by negative of first child's position to preserve
+      // relative positions between sub-parts (e.g. overhead poles).
+      if (model.children.length > 0) {
+        const offset = model.children[0].position.clone();
+        model.children.forEach(child => {
+          child.position.sub(offset);
+        });
+      }
+      modelCache[id] = model;
+      resolve(model.clone());
+    }, undefined, reject);
+  });
+}
+
+// ============================================================
+// PIECE PLACEMENT MATH
+// ============================================================
+
+// Transform a local point by heading (matches Three.js rotation.y = -heading * DEG)
+// Three.js Y-rotation matrix: x' = x*cos(a) + z*sin(a), z' = -x*sin(a) + z*cos(a)
+function transformPoint(localX, localZ, heading) {
+  const a = -heading * DEG;
+  const cos = Math.cos(a), sin = Math.sin(a);
+  return { x: localX * cos + localZ * sin, z: -localX * sin + localZ * cos };
+}
+
+// Compute world position to place a piece so its entry aligns with cursor
+function getPiecePlacement(pieceIdx, cursorState, rotation) {
+  const def = PIECES[pieceIdx];
+  const totalHeading = cursorState.heading + rotation;
+
+  // Transform entry point to world-relative offset
+  const entryWorld = transformPoint(def.entry.x, def.entry.z, totalHeading);
+
+  // Piece origin in world = cursor - rotated entry
+  const worldX = cursorState.x - entryWorld.x;
+  const worldZ = cursorState.z - entryWorld.z;
+
+  return { x: worldX, z: worldZ, heading: totalHeading };
+}
+
+// Get the new cursor position after placing a piece
+function getNextCursor(pieceIdx, cursorState, rotation) {
+  const def = PIECES[pieceIdx];
+  const totalHeading = cursorState.heading + rotation;
+
+  // Transform entry and exit to world
+  const entryWorld = transformPoint(def.entry.x, def.entry.z, totalHeading);
+  const exitWorld = transformPoint(def.exit.x, def.exit.z, totalHeading);
+
+  // New cursor = current cursor + (rotated exit - rotated entry)
+  const newX = cursorState.x + (exitWorld.x - entryWorld.x);
+  const newZ = cursorState.z + (exitWorld.z - entryWorld.z);
+  const newY = def.dyAbsolute !== undefined ? def.dyAbsolute : cursorState.y + (def.dy || 0);
+  const newHeading = totalHeading + def.turn;
+
+  return { x: newX, y: newY, z: newZ, heading: newHeading };
+}
+
+// Check if cursor is close enough to the start to close the loop
+function checkCanClose() {
+  if (track.length < 4) return false;
+  // Start connector: the entry of the first piece
+  const firstPlacement = track[0];
+  const firstDef = PIECES[firstPlacement.pieceIdx];
+  // The entry of the first piece in world = first piece's cursor at time of placement
+  // which is the initial cursor (0, 0, 0 heading)
+  const startX = 0, startZ = 0, startHeading = 0;
+
+  const dx = cursor.x - startX;
+  const dz = cursor.z - startZ;
+  const dist = Math.sqrt(dx*dx + dz*dz);
+
+  // Normalize heading difference
+  let headingDiff = ((cursor.heading - startHeading) % 360 + 360) % 360;
+  if (headingDiff > 180) headingDiff -= 360;
+
+  // Must also be at same elevation
+  const dy = Math.abs(cursor.y - 0);
+  return dist < 0.3 && Math.abs(headingDiff) < 10 && dy < 0.1;
+}
+
+// ============================================================
+// GHOST PREVIEW
+// ============================================================
+let ghostGeneration = 0;
+
+async function updateGhost() {
+  if (ghostGroup) { scene.remove(ghostGroup); ghostGroup = null; }
+  if (mode !== 'editor' || trackClosed) return;
+
+  const gen = ++ghostGeneration;
+  const def = PIECES[selectedPieceIdx];
+  const placement = getPiecePlacement(selectedPieceIdx, cursor, extraRotation);
+
+  // Update connector marker immediately (no async)
+  connectorMarker.position.set(cursor.x, 0, cursor.z);
+  connectorMarker.rotation.y = -cursor.heading * DEG;
+  connectorMarker.visible = true;
+
+  // Enable loop button if we have enough pieces
+  document.getElementById('closeBtn').disabled = track.length < 3;
+
+  try {
+    const model = await loadModel(def.id);
+    // Abort if a newer ghost was requested while we were loading
+    if (gen !== ghostGeneration) { return; }
+
+    ghostGroup = model;
+    ghostGroup.position.set(placement.x, 0, placement.z);
+    ghostGroup.rotation.y = -placement.heading * DEG;
+    if (def.mirror) ghostGroup.scale.x = -1;
+    if (def.flipZ) {
+      ghostGroup.scale.z = -1;
+      const offsetLocal = transformPoint(0, def.exit.z, placement.heading);
+      ghostGroup.position.x += offsetLocal.x;
+      ghostGroup.position.z += offsetLocal.z;
+    }
+
+    // Ghost material — tint red if collision
+    const collision = checkCollision(selectedPieceIdx, cursor, extraRotation);
+    const ghostColor = collision === 'warning' ? 0xe74c3c : 0x6c5ce7;
+    ghostGroup.traverse(child => {
+      if (child.isMesh) {
+        child.material = child.material.clone();
+        child.material.transparent = true;
+        child.material.opacity = 0.5;
+        child.material.emissive = new THREE.Color(ghostColor);
+        child.material.emissiveIntensity = 0.4;
+      }
+    });
+    scene.add(ghostGroup);
+  } catch(e) {
+    console.warn('Ghost load failed:', e);
+  }
+}
+
+// ============================================================
+// COLLISION DETECTION
+// ============================================================
+
+// Get the cell key for a world position (half-unit grid for finer collision)
+function cellKey(x, z) {
+  return `${Math.round(x*2)},${Math.round(z*2)}`;
+}
+
+// Get grid cells occupied by a piece, EXCLUDING the entry point (shared connector)
+function getPieceCells(pieceIdx, cursorState, rotation) {
+  const def = PIECES[pieceIdx];
+  const totalHeading = cursorState.heading + rotation;
+  const entryW = transformPoint(def.entry.x, def.entry.z, totalHeading);
+  const exitW = transformPoint(def.exit.x, def.exit.z, totalHeading);
+
+  const cells = new Set();
+  const dx = exitW.x - entryW.x;
+  const dz = exitW.z - entryW.z;
+  const length = Math.sqrt(dx*dx + dz*dz);
+  const steps = Math.max(Math.ceil(length * 2), 2);
+
+  // Sample from 20% to 80% of the piece (avoid connector zones at both ends)
+  for (let i = 0; i < steps; i++) {
+    const t = 0.2 + (i / (steps - 1)) * 0.6;
+    const wx = cursorState.x + dx * t;
+    const wz = cursorState.z + dz * t;
+    cells.add(cellKey(wx, wz));
+  }
+
+  return cells;
+}
+
+// Check for collisions with existing track pieces
+// Returns: 'clear' | 'warning' | 'bridge-ok'
+function checkCollision(pieceIdx, cursorState, rotation) {
+  const def = PIECES[pieceIdx];
+  const newCells = getPieceCells(pieceIdx, cursorState, rotation);
+  const newY = cursorState.y;
+  const isBridge = def.id.includes('Bridge');
+
+  // Skip the last 3 placed pieces (predecessors share connector space)
+  const checkPieces = track.slice(0, Math.max(0, track.length - 3));
+
+  for (const placed of checkPieces) {
+    const placedDef = PIECES[placed.pieceIdx];
+    const placedCells = getPieceCells(placed.pieceIdx, placed.prevCursor, placed.rotation);
+    const placedY = placed.prevCursor.y;
+    const placedIsRamp = placedDef.id.includes('Ramp');
+
+    // Check cell overlap
+    for (const cell of newCells) {
+      if (placedCells.has(cell)) {
+        // Bridge can pass over non-ramp pieces at different elevation
+        if (isBridge && !placedIsRamp && Math.abs(newY - placedY) > 0.3) {
+          return 'bridge-ok';
+        }
+        return 'warning';
+      }
+    }
+  }
+  return 'clear';
+}
+
+// Warning overlay
+let warningTimeout = null;
+function showCollisionWarning() {
+  let el = document.getElementById('collisionWarn');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'collisionWarn';
+    el.style.cssText = 'position:fixed;top:50px;left:50%;transform:translateX(-50%);z-index:200;background:rgba(231,76,60,0.9);color:#fff;padding:8px 18px;border-radius:10px;font-size:13px;font-weight:600;pointer-events:none;transition:opacity 0.3s;';
+    document.body.appendChild(el);
+  }
+  el.textContent = '⚠ Track overlaps existing piece!';
+  el.style.opacity = '1';
+  clearTimeout(warningTimeout);
+  warningTimeout = setTimeout(() => { el.style.opacity = '0'; }, 2500);
+}
+
+// ============================================================
+// PLACE / UNDO
+// ============================================================
+
+async function placePiece(pieceIdx) {
+  if (trackClosed) return;
+  const def = PIECES[pieceIdx];
+  const placement = getPiecePlacement(pieceIdx, cursor, extraRotation);
+
+  // Check collision — block placement if overlapping
+  const collision = checkCollision(pieceIdx, cursor, extraRotation);
+  if (collision === 'warning') {
+    showCollisionWarning();
+    return;
+  }
+
+  try {
+    const model = await loadModel(def.id);
+    model.position.set(placement.x, 0, placement.z);
+    model.rotation.y = -placement.heading * DEG;
+    if (def.mirror) model.scale.x = -1;
+    if (def.flipZ) {
+      model.scale.z = -1;
+      // Offset model forward by piece depth so flipped geometry stays ahead of entry
+      const offsetLocal = transformPoint(0, def.exit.z, placement.heading);
+      model.position.x += offsetLocal.x;
+      model.position.z += offsetLocal.z;
+    }
+    scene.add(model);
+
+    // Save to track
+    track.push({
+      pieceIdx,
+      worldX: placement.x,
+      worldZ: placement.z,
+      heading: placement.heading,
+      prevCursor: { ...cursor },
+      rotation: extraRotation,
+      mesh: model,
+    });
+
+    // Advance cursor
+    cursor = getNextCursor(pieceIdx, cursor, extraRotation);
+    extraRotation = 0;
+
+    // Auto-select next piece based on what was just placed
+    if (pieceIdx === 9) { selectedPieceIdx = 10; } // Ramp Up -> Bridge
+    else if (pieceIdx === 12) { selectedPieceIdx = 7; } // Ramp Down -> Straight
+
+    updatePieceCount();
+    updatePieceAvailability();
+    updatePaletteSelection();
+    updateGhost();
+    updateCameraTarget();
+  } catch(e) {
+    console.warn('Place failed:', e);
+  }
+}
+
+function undoPiece() {
+  if (track.length === 0) return;
+  if (trackClosed) {
+    // Undo the entire auto-close batch
+    while (track.length > 0 && track[track.length-1].autoClose) {
+      const p = track.pop();
+      scene.remove(p.mesh);
+    }
+    trackClosed = false;
+    if (track.length > 0) {
+      cursor = getNextCursor(track[track.length-1].pieceIdx, track[track.length-1].prevCursor, track[track.length-1].rotation);
+    } else {
+      cursor = { x:0, y:0, z:0, heading:0 };
+    }
+  } else {
+    const last = track.pop();
+    scene.remove(last.mesh);
+    cursor = last.prevCursor;
+  }
+  extraRotation = 0;
+  trackClosed = false;
+  updatePieceCount();
+  updatePieceAvailability();
+  updateGhost();
+  updateCameraTarget();
+}
+
+// BFS pathfinder to close the loop automatically
+function findClosePath() {
+  const targetX = loopTarget.x, targetZ = loopTarget.z, targetHeading = loopTarget.heading;
+  // Only use ground-level, non-special pieces for closing (indices 0-8)
+  const usablePieces = [0,1,2,3,4,5,6,7,8];
+  const maxDepth = 12;
+  const tolerance = 0.5;
+  const headingTol = 15;
+
+  // State: {x, z, heading, path:[pieceIdx,...]}
+  const queue = [{ x:cursor.x, z:cursor.z, heading:cursor.heading, path:[] }];
+  // Visited set to avoid loops (round to 0.25 grid)
+  const visited = new Set();
+  function stateKey(x, z, h) {
+    return `${Math.round(x*4)/4},${Math.round(z*4)/4},${((h%360)+360)%360}`;
+  }
+  visited.add(stateKey(cursor.x, cursor.z, cursor.heading));
+
+  while (queue.length > 0) {
+    const state = queue.shift();
+    if (state.path.length >= maxDepth) continue;
+
+    for (const idx of usablePieces) {
+      const cur = { x:state.x, y:0, z:state.z, heading:state.heading };
+      const next = getNextCursor(idx, cur, 0);
+      const newPath = [...state.path, idx];
+
+      // Check if we've reached the loop target
+      const dx = next.x - targetX;
+      const dz = next.z - targetZ;
+      const dist = Math.sqrt(dx*dx + dz*dz);
+      let hDiff = ((next.heading - targetHeading) % 360 + 360) % 360;
+      if (hDiff > 180) hDiff -= 360;
+
+      if (dist < tolerance && Math.abs(hDiff) < headingTol) {
+        return newPath;
+      }
+
+      // Prune: don't go too far from midpoint between cursor and target
+      const midX = (cursor.x + targetX) / 2;
+      const midZ = (cursor.z + targetZ) / 2;
+      const distFromMid = Math.sqrt((next.x-midX)**2 + (next.z-midZ)**2);
+      const maxRange = Math.sqrt((cursor.x-targetX)**2 + (cursor.z-targetZ)**2) + 10;
+      if (distFromMid > maxRange) continue;
+
+      const key = stateKey(next.x, next.z, next.heading);
+      if (visited.has(key)) continue;
+      visited.add(key);
+
+      queue.push({ x:next.x, z:next.z, heading:next.heading, path:newPath });
+    }
+  }
+  return null; // No path found
+}
+
+async function closeLoop() {
+  if (track.length < 3) return;
+
+  // If already close enough, just close
+  if (cursor.x === 0 && cursor.z === 0 && cursor.heading % 360 === 0) {
+    trackClosed = true;
+    if (ghostGroup) { scene.remove(ghostGroup); ghostGroup = null; }
+    connectorMarker.visible = false;
+    document.getElementById('topBar').classList.remove('hidden');
+    await spawnGridCars();
+    return;
+  }
+
+  const path = findClosePath();
+  if (!path || path.length === 0) {
+    // Show a warning
+    let el = document.getElementById('collisionWarn');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'collisionWarn';
+      el.style.cssText = 'position:fixed;top:50px;left:50%;transform:translateX(-50%);z-index:200;background:rgba(231,76,60,0.9);color:#fff;padding:8px 18px;border-radius:10px;font-size:13px;font-weight:600;pointer-events:none;transition:opacity 0.3s;';
+      document.body.appendChild(el);
+    }
+    el.textContent = 'Cannot find a way to close this loop!';
+    el.style.opacity = '1';
+    setTimeout(() => { el.style.opacity = '0'; }, 3000);
+    return;
+  }
+
+  // Place each piece in the path
+  for (const pieceIdx of path) {
+    const def = PIECES[pieceIdx];
+    const placement = getPiecePlacement(pieceIdx, cursor, 0);
+    try {
+      const model = await loadModel(def.id);
+      model.position.set(placement.x, 0, placement.z);
+      model.rotation.y = -placement.heading * DEG;
+      if (def.mirror) model.scale.x = -1;
+      scene.add(model);
+
+      track.push({
+        pieceIdx,
+        worldX: placement.x,
+        worldZ: placement.z,
+        heading: placement.heading,
+        prevCursor: { ...cursor },
+        rotation: 0,
+        mesh: model,
+        autoClose: true,
+      });
+
+      cursor = getNextCursor(pieceIdx, cursor, 0);
+    } catch(e) {
+      console.warn('Auto-close place failed:', e);
+      return;
+    }
+  }
+
+  trackClosed = true;
+  if (ghostGroup) { scene.remove(ghostGroup); ghostGroup = null; }
+  connectorMarker.visible = false;
+  document.getElementById('topBar').classList.remove('hidden');
+  updatePieceCount();
+  updateCameraTarget();
+  await spawnGridCars();
+}
+
+function updatePieceCount() {
+  document.querySelector('#pieceCount span').textContent = track.length;
+  updateTrackStatus();
+}
+
+function updateTrackStatus() {
+  const el = document.getElementById('trackStatus');
+  if (track.length < 3 || mode === 'title') {
+    el.classList.add('hidden');
+    return;
+  }
+  el.classList.remove('hidden');
+  // Check if cursor matches loopTarget (track forms a complete loop)
+  const tolerance = 0.05;
+  const headingMatch = ((cursor.heading % 360) + 360) % 360;
+  const targetHeading = ((loopTarget.heading % 360) + 360) % 360;
+  const complete = Math.abs(cursor.x - loopTarget.x) < tolerance &&
+                   Math.abs(cursor.z - loopTarget.z) < tolerance &&
+                   Math.abs(headingMatch - targetHeading) < 1;
+  el.textContent = complete ? 'Complete' : 'Incomplete';
+  el.classList.toggle('complete', complete);
+  el.classList.toggle('incomplete', !complete);
+}
+
+let editorCameraGoal = null;
+function updateCameraTarget() {
+  if (track.length === 0) return;
+  const last = track[track.length - 1];
+  editorCameraGoal = new THREE.Vector3(last.worldX, 0, last.worldZ);
+  updateDebugVis();
+}
+
+// ============================================================
+// PIECE PALETTE UI
+// ============================================================
+
+function buildPalette() {
+  const pal = document.getElementById('piecePalette');
+  pal.innerHTML = '';
+
+  function makeCard(idx) {
+    const card = document.createElement('div');
+    card.className = 'piece-card' + (idx === selectedPieceIdx ? ' selected' : '');
+    card.dataset.idx = idx;
+    card.innerHTML = `<span class="piece-icon">${PIECES[idx].icon}</span>${PIECES[idx].name}`;
+    card.onmouseenter = () => {
+      selectedPieceIdx = idx;
+      extraRotation = 0;
+      updatePaletteSelection();
+      updateGhost();
+    };
+    card.onclick = (e) => {
+      e.stopPropagation();
+      selectedPieceIdx = idx;
+      placePiece(idx);
+      updatePaletteSelection();
+    };
+    card.ontouchend = (e) => {
+      e.preventDefault();
+      if (selectedPieceIdx === idx) {
+        placePiece(idx);
+      } else {
+        selectedPieceIdx = idx;
+        extraRotation = 0;
+        updatePaletteSelection();
+        updateGhost();
+      }
+    };
+    return card;
+  }
+
+  // Main 3x3 grid (turns + straights)
+  const mainSection = document.createElement('div');
+  mainSection.className = 'grid-section';
+  const mainLabel = document.createElement('div');
+  mainLabel.className = 'section-label';
+  mainLabel.textContent = 'Track Pieces';
+  mainSection.appendChild(mainLabel);
+  // Rows 0-2 (indices 0-8)
+  for (let i = 0; i < 9; i++) {
+    mainSection.appendChild(makeCard(i));
+  }
+  pal.appendChild(mainSection);
+
+  // Specials 4-column row
+  const specSection = document.createElement('div');
+  specSection.className = 'grid-section';
+  const specLabel = document.createElement('div');
+  specLabel.className = 'section-label';
+  specLabel.textContent = 'Specials';
+  specSection.appendChild(specLabel);
+  const specRow = document.createElement('div');
+  specRow.className = 'specials-grid';
+  for (let i = 9; i < PIECES.length; i++) {
+    specRow.appendChild(makeCard(i));
+  }
+  specSection.appendChild(specRow);
+  pal.appendChild(specSection);
+
+}
+
+function buildActionsRow() {
+  const pal = document.getElementById('piecePalette');
+  const row = document.createElement('div');
+  row.className = 'actions-row';
+  row.innerHTML = `
+    <button id="undoBtn" class="danger" title="Undo (Z)"><span class="btn-icon">&#8630;</span>Undo</button>
+    <button id="closeBtn" class="success" disabled title="Close loop"><span class="btn-icon">&#10004;</span>Loop</button>
+    <button id="resetBtn" class="danger" title="Clear all"><span class="btn-icon">&#10005;</span>Reset</button>
+    <button id="saveBtn" title="Save track"><span class="btn-icon">&#128190;</span>Save</button>
+    <button id="loadBtn" title="Load track"><span class="btn-icon">&#128194;</span>Load</button>
+  `;
+  pal.appendChild(row);
+}
+
+function updatePaletteSelection() {
+  document.querySelectorAll('.piece-card').forEach(c => {
+    c.classList.toggle('selected', parseInt(c.dataset.idx) === selectedPieceIdx);
+  });
+}
+
+// Disable pieces that can't be placed at current elevation
+function updatePieceAvailability() {
+  const elevated = cursor.y > 0.1;
+  document.querySelectorAll('.piece-card').forEach(c => {
+    const idx = parseInt(c.dataset.idx);
+    const def = PIECES[idx];
+    let disabled = false;
+    const isRampDown = def.dyAbsolute !== undefined || def.dy < 0;
+    const isBridge = def.id.includes('Bridge');
+    const isRampUp = def.dy > 0 && !isBridge;
+    if (elevated) {
+      // When elevated: only allow Bridge High, Bridge, and Ramp Down
+      disabled = !(isBridge || isRampDown);
+    } else {
+      // When on ground: don't allow Bridge, Bridge High, or Ramp Down
+      disabled = isBridge || isRampDown;
+    }
+    c.classList.toggle('disabled', disabled);
+    c.style.opacity = disabled ? '0.3' : '';
+    c.style.pointerEvents = disabled ? 'none' : '';
+  });
+}
+
+// ============================================================
+// DECORATION MODE
+// ============================================================
+
+function buildDecorPalette() {
+  const pal = document.getElementById('decorPalette');
+  pal.innerHTML = '';
+
+  // Auto-decorate button
+  const autoBtn = document.createElement('button');
+  autoBtn.id = 'autoDecorBtn';
+  autoBtn.textContent = '✨ Auto Decorate';
+  autoBtn.onclick = autoDecorate;
+  pal.appendChild(autoBtn);
+
+  DECOR_DEFS.forEach(cat => {
+    const h = document.createElement('h3');
+    h.textContent = cat.cat;
+    pal.appendChild(h);
+    cat.items.forEach(id => {
+      const div = document.createElement('div');
+      div.className = 'decor-item';
+      div.textContent = id.replace(/([A-Z])/g, ' $1').trim();
+      div.dataset.id = id;
+      div.onclick = () => {
+        pal.querySelectorAll('.decor-item').forEach(d => d.classList.remove('selected'));
+        div.classList.add('selected');
+        selectedDecor = id;
+      };
+      pal.appendChild(div);
+    });
+  });
+}
+
+// Auto-decorate params (exposed in lil-gui)
+const autoDecorParams = {
+  seed: 42,
+  cornerEdgeChance: 0.7,    // chance a corner run gets edge decoration
+  style: 'mixed',           // 'border', 'wall+sand', or 'mixed'
+  tracksPerStand: 5,         // 1 stand per N track pieces (min 1 corner stand)
+  standRotation: 90,        // degrees rotation for grandstands (face +X)
+};
+
+// Seeded PRNG (mulberry32)
+function mulberry32(seed) {
+  let s = seed | 0;
+  return function() {
+    s = (s + 0x6D2B79F5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+async function autoDecorate() {
+  if (track.length < 4) return;
+
+  // Remove only auto-placed decorations, keep default-track ones
+  const kept = [];
+  for (const d of decorations) {
+    if (d.isDefault) {
+      kept.push(d);
+    } else {
+      scene.remove(d.mesh);
+    }
+  }
+  decorations = kept;
+
+  const rng = mulberry32(autoDecorParams.seed);
+
+  // --- Identify corner runs (consecutive corner pieces turning the same direction) ---
+  const cornerRuns = [];
+  let i = 0;
+  while (i < track.length) {
+    const def = PIECES[track[i].pieceIdx];
+    if (def.turn !== 0) {
+      const run = { pieces: [], direction: def.turn > 0 ? 'right' : 'left' };
+      while (i < track.length && PIECES[track[i].pieceIdx].turn !== 0 &&
+             (PIECES[track[i].pieceIdx].turn > 0 ? 'right' : 'left') === run.direction) {
+        run.pieces.push(track[i]);
+        i++;
+      }
+      cornerRuns.push(run);
+    } else {
+      i++;
+    }
+  }
+
+  function getCornerSize(pieceId) {
+    if (pieceId === 'roadCornerSmall') return 'Small';
+    if (pieceId === 'roadCornerLarge') return 'Large';
+    if (pieceId === 'roadCornerLarger') return 'Larger';
+    return null;
+  }
+
+  function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+  // Cell footprints: local offsets that outer/inner edges need FREE
+  // Defined for a RIGHT turn at heading 0. Left turns mirror x. Heading rotates.
+  const EDGE_CELLS = {
+    Small: {
+      outer: [[-1, 0], [-1, -1], [0, -1]],
+      inner: [],
+    },
+    Large: {
+      outer: [[-1, 0], [-1, -1], [0, -2], [1, -2]],
+      inner: [[2, 0], [2, -1]],
+    },
+    Larger: {
+      outer: [[-1, 0], [-1, -1], [-1, -2], [0, -3], [1, -3], [2, -3]],
+      inner: [[3, 0], [3, -1], [3, -2]],
+    },
+  };
+
+  // Rotate a local cell offset by heading (90-degree steps)
+  function rotateCell(dx, dz, heading) {
+    const steps = (((Math.round(heading) % 360) + 360) % 360) / 90;
+    let rx = dx, rz = dz;
+    for (let s = 0; s < steps; s++) {
+      const tmp = rx;
+      rx = -rz;
+      rz = tmp;
+    }
+    return [rx, rz];
+  }
+
+  // Get world cells an edge needs free
+  function getEdgeCheckCells(piece, size, isInner, isLeftTurn) {
+    const localCells = isInner ? EDGE_CELLS[size].inner : EDGE_CELLS[size].outer;
+    const px = Math.round(piece.worldX);
+    const pz = Math.round(piece.worldZ);
+    const result = [];
+    for (const [dx, dz] of localCells) {
+      const mx = isLeftTurn ? -dx : dx;
+      const [rx, rz] = rotateCell(mx, dz, piece.heading);
+      result.push(`${px + rx},${pz + rz}`);
+    }
+    return result;
+  }
+
+  // Build a lightweight occupied grid for edge placement:
+  // Only track centerline + default decorations (NOT bounding boxes, so edges can be adjacent)
+  const occupiedCells = new Set();
+  for (const tp of track) {
+    // Mark the cursor entry position (where the car drives)
+    const def2 = PIECES[tp.pieceIdx];
+    const entryW = transformPoint(def2.entry.x, def2.entry.z, tp.heading);
+    occupiedCells.add(`${Math.round(tp.worldX + entryW.x)},${Math.round(tp.worldZ + entryW.z)}`);
+    const exitW = transformPoint(def2.exit.x, def2.exit.z, tp.heading);
+    occupiedCells.add(`${Math.round(tp.worldX + exitW.x)},${Math.round(tp.worldZ + exitW.z)}`);
+  }
+  for (const d of decorations) {
+    if (d.mesh) {
+      occupiedCells.add(`${Math.round(d.mesh.position.x)},${Math.round(d.mesh.position.z)}`);
+    }
+  }
+
+  // --- Place corner edges ---
+  // For 'mixed', pick style per-run randomly
+  const baseStyle = autoDecorParams.style;
+
+  for (const run of cornerRuns) {
+    if (rng() > autoDecorParams.cornerEdgeChance) continue;
+
+    // Pick style for this run
+    const runStyle = baseStyle === 'mixed'
+      ? (rng() > 0.5 ? 'wall+sand' : 'border')
+      : baseStyle;
+
+    for (const piece of run.pieces) {
+      const def = PIECES[piece.pieceIdx];
+      const size = getCornerSize(def.id);
+      if (!size) continue;
+
+      const hasInner = (size === 'Large' || size === 'Larger');
+      const isLeftTurn = def.turn < 0;
+
+      // Check outer: if the outer cells are free, place edge
+      const outerCells = getEdgeCheckCells(piece, size, false, isLeftTurn);
+      const outerFree = outerCells.every(c => !occupiedCells.has(c));
+
+      if (outerFree) {
+        for (const c of outerCells) occupiedCells.add(c);
+
+        const outerModels = runStyle === 'wall+sand'
+          ? [`roadCorner${size}Wall`, `roadCorner${size}Sand`]
+          : [`roadCorner${size}Border`];
+
+        for (const modelId of outerModels) {
+          try {
+            const model = await loadModel(modelId);
+            model.position.set(piece.worldX, 0, piece.worldZ);
+            model.rotation.y = -piece.heading * DEG;
+            if (def.mirror) model.scale.x = -1;
+            scene.add(model);
+            decorations.push({ id: modelId, x: piece.worldX, z: piece.worldZ, mesh: model });
+          } catch(e) {}
+        }
+      }
+
+      // Check inner (if available for this size)
+      if (hasInner) {
+        const innerCells = getEdgeCheckCells(piece, size, true, isLeftTurn);
+        const innerFree = innerCells.every(c => !occupiedCells.has(c));
+
+        if (innerFree) {
+          for (const c of innerCells) occupiedCells.add(c);
+
+          const innerModels = runStyle === 'wall+sand'
+            ? [`roadCorner${size}WallInner`, `roadCorner${size}SandInner`]
+            : [`roadCorner${size}BorderInner`];
+
+          for (const modelId of innerModels) {
+            try {
+              const model = await loadModel(modelId);
+              model.position.set(piece.worldX, 0, piece.worldZ);
+              model.rotation.y = -piece.heading * DEG;
+              if (def.mirror) model.scale.x = -1;
+              scene.add(model);
+              decorations.push({ id: modelId, x: piece.worldX, z: piece.worldZ, mesh: model });
+            } catch(e) {}
+          }
+        }
+      }
+    }
+  }
+
+  // --- Place grandstands ---
+  // Rebuild occupied cells using full bounding boxes (includes edges just placed)
+  const standOccupied = buildOccupiedCells();
+  // Merge any cells added during edge placement
+  for (const c of occupiedCells) standOccupied.add(c);
+
+  const standTypes = ['grandStand', 'grandStandCovered', 'grandStandAwning'];
+  const cornerStandTypes = ['grandStandRound', 'grandStandCoveredRound'];
+  const maxStands = Math.max(1, Math.floor(track.length / autoDecorParams.tracksPerStand));
+  let standsPlaced = 0;
+  const standRotRad = autoDecorParams.standRotation * Math.PI / 180;
+
+  const straightPieces = track.filter(p => PIECES[p.pieceIdx].turn === 0);
+  const cornerPieces = track.filter(p => PIECES[p.pieceIdx].turn !== 0);
+
+  // --- First: place at least 1 corner stand cluster (round stand + flanking straights) ---
+  // Find the best corner in the -X/-Z area
+  const trackCenterX = track.reduce((s, p) => s + p.worldX, 0) / track.length;
+  const trackCenterZ = track.reduce((s, p) => s + p.worldZ, 0) / track.length;
+
+  // Sort corners by distance into -X/-Z quadrant (prefer furthest into that quadrant)
+  const sortedCorners = [...cornerPieces].sort((a, b) => {
+    const scoreA = (trackCenterX - a.worldX) + (trackCenterZ - a.worldZ);
+    const scoreB = (trackCenterX - b.worldX) + (trackCenterZ - b.worldZ);
+    return scoreB - scoreA;
+  });
+
+  for (const p of sortedCorners) {
+    if (standsPlaced >= 3) break; // 1 corner + 2 flanking max for this phase
+    const def = PIECES[p.pieceIdx];
+    const isLeft = def.turn < 0;
+
+    // Outer direction from the curve
+    const localOuterX = isLeft ? 1 : -1;
+    const a = -p.heading * DEG;
+    const cos = Math.cos(a), sin = Math.sin(a);
+    const outerDirX = localOuterX * cos;
+    const outerDirZ = -localOuterX * sin;
+
+    // Place corner stand 2 cells out in outer direction
+    const cx = Math.round(p.worldX + outerDirX * 2);
+    const cz = Math.round(p.worldZ + outerDirZ * 2);
+    const cKey = `${cx},${cz}`;
+    if (standOccupied.has(cKey)) continue;
+
+    // Place the corner stand
+    const cornerStandId = cornerStandTypes[Math.floor(rng() * cornerStandTypes.length)];
+    try {
+      const model = await loadModel(cornerStandId);
+      model.position.set(cx + 0.5, 0, cz);
+      model.rotation.y = standRotRad;
+      scene.add(model);
+      decorations.push({ id: cornerStandId, x: cx, z: cz, mesh: model });
+      standOccupied.add(cKey);
+      standsPlaced++;
+    } catch(e) { continue; }
+
+    // Place flanking stands in an L-shape:
+    // Stand 1: same row, adjacent to corner (along track dir)
+    // Stand 2: next row, offset (diagonal from stand 1)
+    const trackDirX = -outerDirZ; // perpendicular to outer = along track
+    const trackDirZ = outerDirX;
+
+    // Stand 1: next to corner along track
+    const f1x = Math.round(cx + trackDirX);
+    const f1z = Math.round(cz + trackDirZ);
+    const f1Key = `${f1x},${f1z}`;
+    if (!standOccupied.has(f1Key)) {
+      const flankId = standTypes[Math.floor(rng() * standTypes.length)];
+      try {
+        const flankModel = await loadModel(flankId);
+        flankModel.position.set(f1x + 0.5, 0, f1z);
+        flankModel.rotation.y = standRotRad;
+        scene.add(flankModel);
+        decorations.push({ id: flankId, x: f1x + 0.5, z: f1z, mesh: flankModel });
+        standOccupied.add(f1Key);
+        standsPlaced++;
+      } catch(e) {}
+    }
+
+    // Stand 2: below corner, offset in outer direction
+    const f2x = Math.round(cx - trackDirX);
+    const f2z = Math.round(cz - trackDirZ);
+    const f2Key = `${f2x},${f2z}`;
+    if (!standOccupied.has(f2Key) && standsPlaced < maxStands) {
+      const flankId = standTypes[Math.floor(rng() * standTypes.length)];
+      try {
+        const flankModel = await loadModel(flankId);
+        flankModel.position.set(f2x + 0.5, 0, f2z);
+        flankModel.rotation.y = standRotRad;
+        scene.add(flankModel);
+        decorations.push({ id: flankId, x: f2x, z: f2z, mesh: flankModel });
+        standOccupied.add(f2Key);
+        standsPlaced++;
+      } catch(e) {}
+    }
+    break; // Only place one corner cluster
+  }
+
+  // --- Then fill remaining stands on straights ---
+  for (const p of straightPieces) {
+    if (standsPlaced >= maxStands) break;
+    const sx = Math.round(p.worldX) - 2;
+    const sz = Math.round(p.worldZ);
+    const key = `${sx},${sz}`;
+    if (standOccupied.has(key)) continue;
+
+    const standId = standTypes[Math.floor(rng() * standTypes.length)];
+    try {
+      const model = await loadModel(standId);
+      model.position.set(sx + 0.5, 0, p.worldZ);
+      model.rotation.y = standRotRad;
+      scene.add(model);
+      decorations.push({ id: standId, x: sx, z: p.worldZ, mesh: model });
+      standOccupied.add(key);
+      standsPlaced++;
+    } catch(e) {}
+  }
+
+  // --- Scatter props around and inside track area ---
+  const propsPool = [
+    { id: 'lightPostLarge', weight: 2 },
+    { id: 'lightPostModern', weight: 2 },
+    { id: 'flagCheckers', weight: 1 },
+    { id: 'flagRed', weight: 1 },
+    { id: 'flagGreen', weight: 1 },
+    { id: 'barrierRed', weight: 3 },
+    { id: 'barrierWhite', weight: 3 },
+    { id: 'fenceStraight', weight: 2 },
+    { id: 'rail', weight: 2 },
+    { id: 'treeLarge', weight: 4 },
+    { id: 'treeSmall', weight: 5 },
+    { id: 'tent', weight: 1 },
+    { id: 'tent', weight: 1 },
+    { id: 'pylon', weight: 3 },
+    { id: 'billboardLow', weight: 1 },
+  ];
+  // Build weighted pool
+  const weightedProps = [];
+  for (const p of propsPool) {
+    for (let w = 0; w < p.weight; w++) weightedProps.push(p.id);
+  }
+
+  // Build a set of cells that are 1-2 cells away from the track (adjacent/nearby)
+  const trackCells = new Set();
+  for (const tp of track) {
+    trackCells.add(`${Math.round(tp.worldX)},${Math.round(tp.worldZ)}`);
+  }
+  const nearbyCells = [];
+  const nearbyChecked = new Set();
+  for (const tp of track) {
+    const cx = Math.round(tp.worldX);
+    const cz = Math.round(tp.worldZ);
+    // Check cells 1-2 units away in all directions
+    for (let dx = -2; dx <= 2; dx++) {
+      for (let dz = -2; dz <= 2; dz++) {
+        if (dx === 0 && dz === 0) continue;
+        const nx = cx + dx;
+        const nz = cz + dz;
+        const key = `${nx},${nz}`;
+        if (nearbyChecked.has(key)) continue;
+        nearbyChecked.add(key);
+        if (standOccupied.has(key)) continue;
+        if (trackCells.has(key)) continue;
+        nearbyCells.push({ x: nx, z: nz });
+      }
+    }
+  }
+
+  // Shuffle nearby cells using rng
+  for (let i = nearbyCells.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [nearbyCells[i], nearbyCells[j]] = [nearbyCells[j], nearbyCells[i]];
+  }
+
+  // Place props in nearby cells (prioritizes spots close to track)
+  const propCount = Math.min(nearbyCells.length, Math.floor(track.length * 2.4));
+  for (let i = 0; i < propCount; i++) {
+    const cell = nearbyCells[i];
+    const key = `${cell.x},${cell.z}`;
+    if (standOccupied.has(key)) continue;
+
+    const propId = weightedProps[Math.floor(rng() * weightedProps.length)];
+    try {
+      const model = await loadModel(propId);
+      const ox = (rng() - 0.5) * 0.3;
+      const oz = (rng() - 0.5) * 0.3;
+      model.position.set(cell.x + ox, 0, cell.z + oz);
+      if (!propId.startsWith('tent')) model.rotation.y = rng() * Math.PI * 2;
+      scene.add(model);
+      decorations.push({ id: propId, x: cell.x + ox, z: cell.z + oz, mesh: model });
+      standOccupied.add(key);
+    } catch(e) {}
+  }
+
+  // Update cell debug if visible
+  updateCellDebug();
+}
+
+// Occupied cell debug visualization
+let cellDebugGroup = null;
+const cellDebugConfig = { show: false };
+
+// Build the full set of occupied cells (mirrors autoDecorate logic)
+// Uses world-space bounding boxes of each piece mesh to mark all covered grid cells
+function buildOccupiedCells() {
+  const cells = new Set();
+
+  // Track pieces — compute world bounding box and mark all grid cells within
+  // Cells are centered at integers: cell N covers (N-0.5) to (N+0.5)
+  for (const tp of track) {
+    if (!tp.mesh) continue;
+    const box = new THREE.Box3().setFromObject(tp.mesh);
+    const minX = Math.round(box.min.x + 0.01);
+    const maxX = Math.round(box.max.x - 0.01);
+    const minZ = Math.round(box.min.z + 0.01);
+    const maxZ = Math.round(box.max.z - 0.01);
+    for (let x = minX; x <= maxX; x++) {
+      for (let z = minZ; z <= maxZ; z++) {
+        cells.add(`${x},${z}`);
+      }
+    }
+  }
+
+  // All decorations (default + auto-placed)
+  for (const d of decorations) {
+    if (d.mesh) {
+      const box = new THREE.Box3().setFromObject(d.mesh);
+      const minX = Math.round(box.min.x + 0.01);
+      const maxX = Math.round(box.max.x - 0.01);
+      const minZ = Math.round(box.min.z + 0.01);
+      const maxZ = Math.round(box.max.z - 0.01);
+      for (let x = minX; x <= maxX; x++) {
+        for (let z = minZ; z <= maxZ; z++) {
+          cells.add(`${x},${z}`);
+        }
+      }
+    }
+  }
+
+  return cells;
+}
+
+function updateCellDebug() {
+  if (cellDebugGroup) { scene.remove(cellDebugGroup); cellDebugGroup = null; }
+  if (!cellDebugConfig.show) return;
+
+  cellDebugGroup = new THREE.Group();
+  const geo = new THREE.PlaneGeometry(0.95, 0.95);
+  const mat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
+
+  const cells = buildOccupiedCells();
+
+  for (const cell of cells) {
+    const [cx, cz] = cell.split(',').map(Number);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.x = -Math.PI / 2;
+    // Cell centered at integer position, covering (cx-0.5) to (cx+0.5)
+    mesh.position.set(cx, 0.02, cz);
+    cellDebugGroup.add(mesh);
+  }
+  scene.add(cellDebugGroup);
+}
+
+// Check if a grid position is already occupied by a decoration
+function isPositionOccupied(x, z) {
+  const key = `${x.toFixed(1)},${z.toFixed(1)}`;
+  for (const d of decorations) {
+    const pos = d.mesh.position;
+    if (`${pos.x.toFixed(1)},${pos.z.toFixed(1)}` === key) return true;
+  }
+  return false;
+}
+
+async function placeDecoration(worldPos) {
+  if (!selectedDecor) return;
+  // Snap to grid
+  const snappedX = Math.round(worldPos.x);
+  const snappedZ = Math.round(worldPos.z);
+  if (isPositionOccupied(snappedX, snappedZ)) return;
+  try {
+    const model = await loadModel(selectedDecor);
+    model.position.set(snappedX, 0, snappedZ);
+    scene.add(model);
+    decorations.push({ id:selectedDecor, x:snappedX, z:snappedZ, mesh:model });
+  } catch(e) {}
+}
+
+// ============================================================
+// RACING
+// ============================================================
+
+// Lane offsets from center spline
+const laneConfig = { centerOffset: 0, leftOffset: -0.2, rightOffset: 0.2, showDebug: false };
+
+// Debug visualization objects
+let debugGroup = null;
+
+// Stored during buildRaceSpline: point index where each piece starts
+let splinePieceBoundaries = []; // [{ pointIndex, pieceIdx }]
+
+function buildRaceSpline() {
+  if (track.length < 4) return null;
+  const points = [];
+  splinePieceBoundaries = [];
+  track.forEach((p, trackIdx) => {
+    splinePieceBoundaries.push({ pointIndex: points.length, pieceIdx: p.pieceIdx });
+    const def = PIECES[p.pieceIdx];
+    const curX = p.prevCursor.x;
+    const curZ = p.prevCursor.z;
+    const startY = p.prevCursor.y || 0;
+    const heading = p.heading;
+
+    // Compute exit Y for this piece
+    const nextCursor = getNextCursor(p.pieceIdx, p.prevCursor, p.rotation || 0);
+    const endY = nextCursor.y || 0;
+
+    if (def.turn === 0) {
+      // Straight piece: linear interpolation
+      const entryW = transformPoint(def.entry.x, def.entry.z, heading);
+      const exitW = transformPoint(def.exit.x, def.exit.z, heading);
+      const dx = exitW.x - entryW.x;
+      const dz = exitW.z - entryW.z;
+      const hasHeight = Math.abs(endY - startY) > 0.01;
+      const hasBump = def.bumpHeight > 0;
+      const steps = (hasHeight || hasBump) ? 8 : Math.max(2, Math.ceil(Math.sqrt(dx*dx + dz*dz) * 2));
+      for (let i = 0; i < steps; i++) {
+        const t = i / steps;
+        let y;
+        if (hasBump) {
+          // Sine hump: rises to bumpHeight at midpoint, returns to startY
+          y = startY + def.bumpHeight * Math.sin(t * Math.PI) + 0.005;
+        } else if (hasHeight) {
+          // Smoothstep for ramps (curved height transition)
+          const yT = t * t * (3 - 2 * t);
+          y = startY + (endY - startY) * yT + 0.005;
+        } else {
+          y = startY + (endY - startY) * t + 0.005;
+        }
+        points.push(new THREE.Vector3(curX + dx * t, y, curZ + dz * t));
+      }
+    } else {
+      // Corner piece: arc interpolation
+      const turnRad = def.turn * DEG;
+      const entryW = transformPoint(def.entry.x, def.entry.z, heading);
+      const exitW = transformPoint(def.exit.x, def.exit.z, heading);
+      const dx = exitW.x - entryW.x;
+      const dz = exitW.z - entryW.z;
+      const chord = Math.sqrt(dx*dx + dz*dz);
+      const R = chord / (2 * Math.sin(Math.abs(turnRad) / 2));
+
+      // Entry direction in world (heading 0 = -Z)
+      const dirX = Math.sin(heading * DEG);
+      const dirZ = -Math.cos(heading * DEG);
+
+      // Perpendicular toward arc center
+      const sign = def.turn > 0 ? 1 : -1;
+      const perpX = sign * (-dirZ);
+      const perpZ = sign * dirX;
+
+      // Arc center in world
+      const centerX = curX + perpX * R;
+      const centerZ = curZ + perpZ * R;
+
+      // Start angle
+      const startAngle = Math.atan2(curZ - centerZ, curX - centerX);
+      const sweep = turnRad;
+
+      // Sample arc
+      const steps = Math.max(4, Math.ceil(Math.abs(def.turn) / 10));
+      for (let i = 0; i < steps; i++) {
+        const t = i / steps;
+        const angle = startAngle + t * sweep;
+        const px = centerX + R * Math.cos(angle);
+        const pz = centerZ + R * Math.sin(angle);
+        const y = startY + (endY - startY) * t + 0.005;
+        points.push(new THREE.Vector3(px, y, pz));
+      }
+    }
+  });
+  // Add straight section from track end to loopTarget (the start grid)
+  // Mark boundary so bridge section is treated as a straight (no corner limit)
+  splinePieceBoundaries.push({ pointIndex: points.length, pieceIdx: -1 });
+  const lastTrack = track[track.length - 1];
+  const lastCursor = getNextCursor(lastTrack.pieceIdx, lastTrack.prevCursor, lastTrack.rotation);
+  const ltX = loopTarget.x, ltZ = loopTarget.z;
+
+  // Bridge from track end to loopTarget
+  const bridge1Dx = ltX - lastCursor.x;
+  const bridge1Dz = ltZ - lastCursor.z;
+  const bridge1Len = Math.sqrt(bridge1Dx*bridge1Dx + bridge1Dz*bridge1Dz);
+  const lastY = lastCursor.y || 0;
+  const firstY = track[0].prevCursor.y || 0;
+  if (bridge1Len > 0.1) {
+    const steps = Math.max(2, Math.ceil(bridge1Len * 2));
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      const y = lastY + (firstY - lastY) * t + 0.005;
+      points.push(new THREE.Vector3(lastCursor.x + bridge1Dx * t, y, lastCursor.z + bridge1Dz * t));
+    }
+  }
+
+  // Bridge from loopTarget back to startCursor (the start grid straight)
+  const scX = track[0].prevCursor.x, scZ = track[0].prevCursor.z;
+  const bridge2Dx = scX - ltX;
+  const bridge2Dz = scZ - ltZ;
+  const bridge2Len = Math.sqrt(bridge2Dx*bridge2Dx + bridge2Dz*bridge2Dz);
+  if (bridge2Len > 0.1) {
+    const steps = Math.max(2, Math.ceil(bridge2Len * 2));
+    for (let i = 1; i < steps; i++) { // Don't include last point (it's the first track point)
+      const t = i / steps;
+      points.push(new THREE.Vector3(ltX + bridge2Dx * t, firstY + 0.005, ltZ + bridge2Dz * t));
+    }
+  }
+
+  // Record total points for piece map building
+  splinePieceBoundaries.totalPoints = points.length;
+  return new THREE.CatmullRomCurve3(points, true, 'catmullrom', 0.3);
+}
+
+// Get a point offset laterally from the spline (positive = left, negative = right)
+// Uses arc-length parameterization for uniform speed
+function getOffsetPoint(spline, t, lateralOffset) {
+  const pos = spline.getPointAt(t);
+  if (lateralOffset === 0) return pos;
+  const tangent = spline.getTangentAt(t).normalize();
+  // Perpendicular in XZ plane (rotate tangent 90 degrees)
+  const normal = new THREE.Vector3(-tangent.z, 0, tangent.x);
+  return pos.clone().add(normal.multiplyScalar(lateralOffset));
+}
+
+function updateDebugVis() {
+  if (debugGroup) { scene.remove(debugGroup); debugGroup = null; }
+  if (!laneConfig.showDebug || track.length < 4) return;
+
+  const spline = buildRaceSpline();
+  if (!spline) return;
+
+  debugGroup = new THREE.Group();
+  const numSamples = 100;
+
+  // Center line
+  const centerPts = [];
+  const leftPts = [];
+  const rightPts = [];
+  for (let i = 0; i <= numSamples; i++) {
+    const t = i / numSamples;
+    centerPts.push(getOffsetPoint(spline, t, laneConfig.centerOffset));
+    leftPts.push(getOffsetPoint(spline, t, laneConfig.leftOffset));
+    rightPts.push(getOffsetPoint(spline, t, laneConfig.rightOffset));
+
+  }
+
+  // Draw center line (white)
+  const centerGeo = new THREE.BufferGeometry().setFromPoints(centerPts);
+  const centerLine = new THREE.Line(centerGeo, new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.6, transparent: true }));
+  debugGroup.add(centerLine);
+
+  // Draw left line (blue)
+  const leftGeo = new THREE.BufferGeometry().setFromPoints(leftPts);
+  const leftLine = new THREE.Line(leftGeo, new THREE.LineBasicMaterial({ color: 0x4488ff, opacity: 0.8, transparent: true }));
+  debugGroup.add(leftLine);
+
+  // Draw right line (red)
+  const rightGeo = new THREE.BufferGeometry().setFromPoints(rightPts);
+  const rightLine = new THREE.Line(rightGeo, new THREE.LineBasicMaterial({ color: 0xff4444, opacity: 0.8, transparent: true }));
+  debugGroup.add(rightLine);
+
+  // Draw sample points (yellow dots at spline control points)
+  const dotGeo = new THREE.SphereGeometry(0.04);
+  const dotMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+  // Rebuild points to show raw control points
+  const tempSpline = buildRaceSpline();
+  if (tempSpline) {
+    // Show evenly spaced points along the final spline
+    for (let i = 0; i < 60; i++) {
+      const t = i / 60;
+      const pt = tempSpline.getPoint(t);
+      pt.y = 0.08;
+      const dot = new THREE.Mesh(dotGeo, dotMat);
+      dot.position.copy(pt);
+      debugGroup.add(dot);
+    }
+  }
+
+  scene.add(debugGroup);
+}
+
+// Maps spline t ranges to corner types — rebuilt when spline is built
+let splinePieceMap = []; // [{ tStart, tEnd, cornerType: 'small'|'large'|'larger'|null }]
+
+function buildSplinePieceMap() {
+  if (!raceSpline || track.length === 0 || splinePieceBoundaries.length === 0) return;
+  splinePieceMap = [];
+
+  const totalPts = splinePieceBoundaries.totalPoints;
+  // Use the spline's arc-length lookup to convert raw u (point-index fraction) to arc-length t
+  // CatmullRomCurve3.getPointAt(t) uses arc-length, getPoint(u) uses uniform u
+  // We need to find arc-length t for each raw u boundary
+  // Sample the spline's length distribution to build u->t mapping
+  const divisions = 200;
+  const lengths = raceSpline.getLengths(divisions);
+  const totalLength = lengths[divisions];
+
+  function uToArcT(u) {
+    // u is raw parameter (0-1), returns arc-length t (0-1)
+    // Find which segment u falls in and interpolate the arc-length fraction
+    const targetIdx = u * divisions;
+    const idx = Math.floor(targetIdx);
+    if (idx >= divisions) return 1;
+    const frac = targetIdx - idx;
+    const len = lengths[idx] + (lengths[idx + 1] - lengths[idx]) * frac;
+    return len / totalLength;
+  }
+
+  for (let i = 0; i < splinePieceBoundaries.length; i++) {
+    const rawU = splinePieceBoundaries[i].pointIndex / totalPts;
+    const nextRawU = i < splinePieceBoundaries.length - 1
+      ? splinePieceBoundaries[i + 1].pointIndex / totalPts
+      : 1.0;
+
+    const tStart = uToArcT(rawU);
+    const tEnd = uToArcT(nextRawU);
+
+    const pieceIdx = splinePieceBoundaries[i].pieceIdx;
+    const def = pieceIdx >= 0 ? PIECES[pieceIdx] : null;
+    let cornerType = null;
+    if (def && def.turn !== 0) {
+      const id = def.id;
+      if (id.includes('CornerSmall') || (Math.abs(def.turn) >= 80 && !id.includes('Large'))) cornerType = 'small';
+      else if (id.includes('CornerLarger')) cornerType = 'larger';
+      else if (id.includes('CornerLarge')) cornerType = 'large';
+      else cornerType = 'small';
+    }
+    const isBoost = def && def.id === 'roadStraightArrow';
+    splinePieceMap.push({ tStart, tEnd, cornerType, isBoost });
+  }
+}
+
+// Debug: visualize braking zones on the track
+let brakeZoneGroup = null;
+function showBrakeZones() {
+  if (brakeZoneGroup) { scene.remove(brakeZoneGroup); brakeZoneGroup = null; }
+  if (!raceSpline || splinePieceMap.length === 0) return;
+  brakeZoneGroup = new THREE.Group();
+  const colors = { small: 0xe74c3c, large: 0xf39c12, larger: 0x2ecc71 };
+  const samples = 200;
+  for (let i = 0; i < samples; i++) {
+    const t = i / samples;
+    const limit = getCornerSpeedLimit(t);
+    if (limit === Infinity) continue;
+    const type = limit <= raceConfig.cornerSmallLimit ? 'small' :
+                 limit <= raceConfig.cornerLargeLimit ? 'large' : 'larger';
+    const pos = raceSpline.getPointAt(t);
+    const geo = new THREE.SphereGeometry(0.06, 6, 6);
+    const mat = new THREE.MeshBasicMaterial({ color: colors[type] });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(pos.x, pos.y + 0.1, pos.z);
+    brakeZoneGroup.add(mesh);
+  }
+  scene.add(brakeZoneGroup);
+  console.log('Brake zones:', splinePieceMap.filter(s => s.cornerType).map(s =>
+    `${s.cornerType}: t=${s.tStart.toFixed(3)}-${s.tEnd.toFixed(3)}`));
+}
+
+// Get the corner speed limit at a given spline t (in world units/s), or Infinity if straight
+function isOnBoost(t) {
+  const tNorm = ((t % 1) + 1) % 1;
+  for (const seg of splinePieceMap) {
+    if (tNorm >= seg.tStart && tNorm < seg.tEnd) {
+      return seg.isBoost || false;
+    }
+  }
+  return false;
+}
+
+function getCornerSpeedLimit(t) {
+  const tNorm = ((t % 1) + 1) % 1;
+  for (const seg of splinePieceMap) {
+    if (tNorm >= seg.tStart && tNorm < seg.tEnd) {
+      if (!seg.cornerType) return Infinity;
+      if (seg.cornerType === 'small') return raceConfig.cornerSmallLimit;
+      if (seg.cornerType === 'large') return raceConfig.cornerLargeLimit;
+      if (seg.cornerType === 'larger') return raceConfig.cornerLargerLimit;
+    }
+  }
+  return Infinity;
+}
+
+async function startRace() {
+  // Close the track if it forms a valid loop (e.g. just loaded for editing)
+  if (!trackClosed && track.length >= 4) {
+    trackClosed = true;
+    if (ghostGroup) { scene.remove(ghostGroup); ghostGroup = null; }
+    connectorMarker.visible = false;
+  }
+  if (!trackClosed) { alert('Track must be closed to race!'); return; }
+
+  if (!raceSpline) {
+    raceSpline = buildRaceSpline();
+    if (!raceSpline) { alert('Track too short or not closed!'); return; }
+    buildSplinePieceMap();
+    updateFinishMarker();
+  }
+
+  // Ensure cars are spawned
+  await spawnGridCars();
+
+  mode = 'race';
+  raceActive = false;
+  raceFinished = false;
+  carSpeed = 0;
+  lapCount = -1; // starts at -1; first crossing from grid to finish doesn't count
+  raceTime = 0;
+  throttle = false;
+  throttleTargetSpeed = 0;
+  driftAngle = 0;
+  carPenaltyActive = false;
+  carBoosted = false;
+  carOnBoostLastFrame = false;
+  crashWarningTimer = 0;
+  currentLane = raceConfig.playerLane;
+  laneBlend = currentLane === 'right' ? 1 : 0;
+  for (const ai of aiCars) { ai.speed = 0; ai.laneTimer = Math.random() * 5; ai.laps = -1; ai.prevT = ai.t; ai.boosted = false; ai.onBoostLastFrame = false; }
+
+  // Hide editor UI
+  document.getElementById('piecePalette').classList.add('hidden');
+  document.getElementById('topBar').classList.add('hidden');
+  document.getElementById('pieceCount').classList.add('hidden');
+  document.getElementById('trackStatus').classList.add('hidden');
+  document.getElementById('decorPalette').classList.remove('show');
+  gridHelper.visible = false;
+  connectorMarker.visible = false;
+
+  // Switch to grass ground for race mode
+  groundMat.color.set(0x4d8f6e);
+  renderer.setClearColor(0x4d8f6e);
+  scene.fog.color.set(0x4d8f6e);
+
+  // Zoom in for race
+  const a = window.innerWidth / window.innerHeight;
+  const raceFrustum = 6;
+  camera.left = -raceFrustum * a / 2;
+  camera.right = raceFrustum * a / 2;
+  camera.top = raceFrustum / 2;
+  camera.bottom = -raceFrustum / 2;
+  camera.updateProjectionMatrix();
+
+  // Show race UI
+  document.getElementById('raceHUD').classList.add('show');
+  document.getElementById('racePosition').classList.add('show');
+  document.getElementById('speedBar').classList.add('show');
+  document.getElementById('speedNum').classList.add('show');
+  lastPosition = 1;
+  document.getElementById('throttleHint').classList.add('show');
+  document.getElementById('throttleBar').classList.add('show');
+  document.getElementById('switchLaneBtn').classList.remove('hidden');
+  document.getElementById('switchLaneBtn').classList.add('show');
+
+  // Keep controls enabled for position tweaking
+  // controls.enabled = false;
+
+  // Move camera to player car during countdown
+  controls.enabled = false;
+  countdownActive = true;
+  await doCountdown();
+  countdownActive = false;
+  raceActive = true;
+}
+
+function doCountdown() {
+  return new Promise(resolve => {
+    const el = document.getElementById('countdown');
+    el.classList.add('show');
+    let count = 3;
+    el.textContent = count;
+    sfx.countdownBeep();
+    const interval = setInterval(() => {
+      count--;
+      if (count > 0) { el.textContent = count; sfx.countdownBeep(); }
+      else if (count === 0) { el.textContent = 'GO!'; sfx.countdownGo(); }
+      else { el.classList.remove('show'); clearInterval(interval); resolve(); }
+    }, 750);
+  });
+}
+
+// Spawn cars on the track (called when track closes or config changes)
+async function spawnGridCars() {
+  const spline = buildRaceSpline();
+  if (!spline) return;
+  raceSpline = spline;
+  buildSplinePieceMap();
+  updateFinishMarker();
+
+  const aiColors = ['raceCarGreen', 'raceCarOrange', 'raceCarWhite'];
+
+  if (!carMesh) {
+    carMesh = await loadModel('raceCarRed');
+    carMesh.scale.setScalar(carScale);
+    scene.add(carMesh);
+  }
+  carMesh.visible = true;
+  carMesh.scale.setScalar(carScale);
+
+  // Remove old AI cars if count changed
+  while (aiCars.length > raceConfig.aiCount) {
+    const removed = aiCars.pop();
+    if (removed.mesh) scene.remove(removed.mesh);
+  }
+  // Add new AI cars if needed
+  while (aiCars.length < raceConfig.aiCount) {
+    const i = aiCars.length;
+    const colorId = aiColors[i % aiColors.length];
+    const mesh = await loadModel(colorId);
+    mesh.scale.setScalar(carScale);
+    mesh.visible = true;
+    scene.add(mesh);
+    aiCars.push({
+      mesh,
+      t: 0,
+      speed: 0,
+      lane: i % 2 === 0 ? 'right' : 'left',
+      laneBlend: i % 2 === 0 ? 1 : 0,
+      driftAngle: 0,
+      skill: raceConfig.aiSkill + (Math.random() - 0.5) * 0.15,
+      laneTimer: Math.random() * 5,
+      laps: -1,
+      prevT: 0,
+      onBoostLastFrame: false,
+      boosted: false,
+    });
+  }
+
+  updateGridPositions();
+}
+
+function getStartLineT() {
+  // The start line is at t=0 in the spline (first track piece entry)
+  // But cars grid up just behind it, so we use a small offset behind t=0
+  // Convert startOffset from a distance-behind-start (in world units) to t
+  // startOffset is in world units distance before the start line
+  const splineLen = raceSpline.getLength();
+  // t=0 is the start line; cars line up just behind it (t slightly less than 1 wrapping)
+  return (1.0 - raceConfig.startOffset / splineLen + 1) % 1;
+}
+
+function updateGridPositions() {
+  if (!raceSpline) return;
+  const totalCars = 1 + aiCars.length;
+  const splineLen = raceSpline.getLength();
+  // startSpacing in world units distance between cars
+  const spacingT = raceConfig.startSpacing / splineLen;
+
+  // Cars grid up behind the start line (t=0)
+  // startOffset = distance in world units behind start line for the front car
+  const frontT = (1.0 - raceConfig.startOffset / splineLen + 1) % 1;
+
+  // Assign grid slots: position 0 = front, position N = back
+  // Each slot gets a t value and alternating lanes
+  for (let slot = 0; slot < totalCars; slot++) {
+    const slotT = (frontT - slot * spacingT + 1) % 1; // stagger back from front
+    const slotLane = slot % 2 === 0 ? 'left' : 'right';
+    const laneOff = slotLane === 'right' ? laneConfig.rightOffset : laneConfig.leftOffset;
+
+    if (slot === raceConfig.playerStart) {
+      // Player in this slot
+      carT = slotT;
+      currentLane = raceConfig.playerLane;
+      laneBlend = currentLane === 'right' ? 1 : 0;
+      const playerOff = currentLane === 'right' ? laneConfig.rightOffset : laneConfig.leftOffset;
+      const pPos = getOffsetPoint(raceSpline, slotT, playerOff);
+      const pAhead = getOffsetPoint(raceSpline, (slotT + 0.005) % 1, playerOff);
+      if (carMesh) { carMesh.position.copy(pPos); carMesh.lookAt(pAhead); }
+    } else {
+      // AI car in this slot
+      const aiIdx = slot < raceConfig.playerStart ? slot : slot - 1;
+      if (aiIdx >= 0 && aiIdx < aiCars.length) {
+        const ai = aiCars[aiIdx];
+        ai.t = slotT;
+        ai.lane = slotLane === 'right' ? 'left' : 'right';
+        ai.laneBlend = ai.lane === 'right' ? 1 : 0;
+        const aiLaneOff = slotLane === 'right' ? laneConfig.leftOffset : laneConfig.rightOffset;
+        const aiPos = getOffsetPoint(raceSpline, slotT, aiLaneOff);
+        const aiAhead = getOffsetPoint(raceSpline, (slotT + 0.005) % 1, aiLaneOff);
+        ai.mesh.position.copy(aiPos);
+        ai.mesh.lookAt(aiAhead);
+      }
+    }
+  }
+}
+
+function updateRace(dt) {
+  if (!raceSpline) return;
+
+  // Always position cars (even when paused for grid tweaking)
+  if (!raceActive && !raceFinished) {
+    updateGridPositions();
+    return;
+  }
+  // After race finished and raceActive=false, just keep camera tracking
+  if (!raceActive && raceFinished) {
+    return;
+  }
+
+  const maxSpeed = raceConfig.topSpeed;
+  const accel = raceConfig.acceleration;
+  const decel = raceConfig.braking;
+  const coast = raceConfig.coastDecel;
+
+  // Corner auto-braking — check BEFORE throttle so penalty isn't skipped
+  const cornerLimit = getCornerSpeedLimit(carT);
+  let cornerBraking = false;
+  const brakeTarget = cornerLimit < Infinity ? cornerLimit - raceConfig.cornerPenalty : 0;
+
+  // Trigger penalty when entering a corner over the limit
+  if (cornerLimit < Infinity && carSpeed > cornerLimit && !carPenaltyActive) {
+    carPenaltyActive = true;
+    sfx.speedLimited();
+  }
+  // Only clear penalty when leaving the corner (back on a straight)
+  if (cornerLimit === Infinity) {
+    carPenaltyActive = false;
+  }
+
+  if (carPenaltyActive) {
+    carSpeed = Math.max(carSpeed - raceConfig.cornerBrakeRate * dt, brakeTarget);
+    cornerBraking = true;
+  }
+
+  // Boost pad: add speed burst when entering an arrow piece
+  const boostAmount = 0.9; // ~20mph in world units
+  const onBoost = isOnBoost(carT);
+  if (onBoost && !carOnBoostLastFrame && !raceFinished) {
+    carSpeed += boostAmount;
+    carBoosted = true;
+  }
+  carOnBoostLastFrame = onBoost;
+  // Corner braking clears boost
+  if (cornerLimit < Infinity) carBoosted = false;
+
+  // User's throttle bar limits their target speed
+  const boostMax = carBoosted ? maxSpeed + boostAmount : maxSpeed;
+  const userMax = throttleTargetSpeed > 0 ? Math.min(boostMax, throttleTargetSpeed) : boostMax;
+  // While penalty active, cap at brakeTarget; otherwise cap at corner limit
+  const speedCap = carPenaltyActive ? brakeTarget :
+    (cornerLimit < Infinity ? cornerLimit : boostMax);
+  const effectiveMax = Math.min(userMax, speedCap);
+
+  if (!cornerBraking) {
+    if (raceFinished) {
+      carSpeed = Math.max(carSpeed - coast * dt, 0);
+    } else if (throttle) {
+      carSpeed = Math.min(carSpeed + accel * dt, effectiveMax);
+    } else {
+      carSpeed = Math.max(carSpeed - coast * dt, 0);
+    }
+  }
+
+
+  // Advance by actual distance along spline (arc-length parameterization)
+  const splineLen = raceSpline.getLength();
+  const distThisFrame = carSpeed * dt;
+  const prevT = carT;
+  carT += distThisFrame / splineLen;
+
+  const wrapped = carT >= 1;
+  if (wrapped) carT -= 1;
+
+  // Detect crossing finish line
+  const finishT = getFinishT();
+  // Check if car crossed finishT this frame
+  let crossed = false;
+  if (wrapped) {
+    // Car went from prevT past 1.0 and wrapped to carT near 0
+    // Crossed finishT if it's between prevT→1.0 or 0→carT
+    crossed = (finishT > prevT) || (finishT <= carT);
+  } else {
+    crossed = (prevT < finishT && carT >= finishT);
+  }
+  if (crossed) {
+    lapCount++;
+    console.log('Finish line crossed! lapCount:', lapCount, 'finishT:', finishT.toFixed(4), 'prevT:', prevT.toFixed(4), 'carT:', carT.toFixed(4));
+    if (lapCount >= totalLaps) { finishRace(); return; }
+  }
+
+  raceTime += dt;
+
+  // Smooth lane transition
+  const targetBlend = currentLane === 'right' ? 1 : 0;
+  const laneSpeed = 6; // how fast lane switch happens
+  if (laneBlend < targetBlend) laneBlend = Math.min(laneBlend + laneSpeed * dt, 1);
+  else if (laneBlend > targetBlend) laneBlend = Math.max(laneBlend - laneSpeed * dt, 0);
+  const activeLaneOffset = laneConfig.leftOffset * (1 - laneBlend) + laneConfig.rightOffset * laneBlend;
+
+  // Car position & orientation
+  const t = carT % 1;
+  const pos = getOffsetPoint(raceSpline, t, activeLaneOffset);
+  const ahead = getOffsetPoint(raceSpline, (t + 0.005) % 1, activeLaneOffset);
+  carMesh.position.copy(pos);
+  carMesh.lookAt(ahead);
+
+  // Drift: measure curvature from tangent change
+  const tangent1 = raceSpline.getTangentAt(t).normalize();
+  const tangent2 = raceSpline.getTangentAt((t + 0.01) % 1).normalize();
+  const cross = tangent1.x * tangent2.z - tangent1.z * tangent2.x; // signed curvature
+  const curvature = cross / 0.01; // approximate curvature
+
+  // Drift angle proportional to speed^2 * curvature (like real oversteer)
+  const driftStrength = 0.8;
+  const targetDrift = -curvature * carSpeed * carSpeed * driftStrength * 0.01;
+  const maxDrift = 0.5; // max ~28 degrees
+  const clampedDrift = Math.max(-maxDrift, Math.min(maxDrift, targetDrift));
+
+  // Lane-change steering: angle the car toward the target lane during transition
+  const laneChangeRate = targetBlend - laneBlend; // positive = moving right, negative = moving left
+  const laneSteerAngle = laneChangeRate * 0.4; // visual steer into the lane change
+
+  // Smooth drift transition
+  const driftLerp = throttle ? 8 : 12; // snappier recovery when off throttle
+  driftAngle += (clampedDrift - driftAngle) * Math.min(driftLerp * dt, 1);
+
+  // Apply drift + lane-change steering rotation
+  carMesh.rotateY(driftAngle + laneSteerAngle);
+
+  // Chase camera — fixed offset, direct tracking (freeze on finish)
+  if (!raceFinished) {
+    const isoOffset = new THREE.Vector3(8, 8, 8);
+    camera.position.copy(pos).add(isoOffset);
+    controls.target.copy(pos);
+    camera.lookAt(pos);
+  }
+
+  // --- Update AI cars ---
+  for (const ai of aiCars) {
+    // AI boost pad
+    const aiOnBoost = isOnBoost(ai.t);
+    if (aiOnBoost && !ai.onBoostLastFrame && !raceFinished) {
+      ai.speed += boostAmount;
+      ai.boosted = true;
+    }
+    ai.onBoostLastFrame = aiOnBoost;
+    const aiCornerLimit = getCornerSpeedLimit(ai.t);
+    if (aiCornerLimit < Infinity) ai.boosted = false;
+
+    // AI throttle: drive at skill fraction of AI max, capped by corner limit
+    if (raceFinished) {
+      ai.speed = Math.max(ai.speed - coast * dt, 0);
+    } else {
+      const aiBoostMax = ai.boosted ? raceConfig.aiTopSpeed * ai.skill + boostAmount : raceConfig.aiTopSpeed * ai.skill;
+      const aiMaxSpeed = aiCornerLimit < Infinity
+        ? Math.min(aiBoostMax, aiCornerLimit)
+        : aiBoostMax;
+      if (ai.speed < aiMaxSpeed) ai.speed = Math.min(ai.speed + raceConfig.aiAcceleration * dt, aiMaxSpeed);
+      else ai.speed = Math.max(ai.speed - coast * dt, 0);
+    }
+
+    // AI corner auto-braking — if entered too fast, brake hard with penalty
+    if (aiCornerLimit < Infinity && ai.speed > aiCornerLimit) {
+      const aiBrakeTarget = aiCornerLimit - raceConfig.cornerPenalty;
+      ai.speed = Math.max(ai.speed - raceConfig.cornerBrakeRate * dt, aiBrakeTarget);
+    }
+
+    // Advance AI
+    ai.prevT = ai.t;
+    ai.t += (ai.speed * dt) / splineLen;
+    const aiWrapped = ai.t >= 1;
+    if (aiWrapped) ai.t -= 1;
+
+    // AI finish line crossing
+    const finishT = getFinishT();
+    let aiCrossed = false;
+    if (aiWrapped) {
+      aiCrossed = (finishT > ai.prevT) || (finishT <= ai.t);
+    } else {
+      aiCrossed = (ai.prevT < finishT && ai.t >= finishT);
+    }
+    if (aiCrossed) ai.laps++;
+
+    // AI lane switching: randomly switch every few seconds
+    ai.laneTimer -= dt;
+    if (ai.laneTimer <= 0) {
+      ai.lane = ai.lane === 'left' ? 'right' : 'left';
+      ai.laneTimer = 3 + Math.random() * 4;
+    }
+
+    // Smooth lane blend
+    const aiTargetBlend = ai.lane === 'right' ? 1 : 0;
+    const aiLaneSpeed = 5;
+    if (ai.laneBlend < aiTargetBlend) ai.laneBlend = Math.min(ai.laneBlend + aiLaneSpeed * dt, 1);
+    else if (ai.laneBlend > aiTargetBlend) ai.laneBlend = Math.max(ai.laneBlend - aiLaneSpeed * dt, 0);
+    const aiLaneOffset = laneConfig.leftOffset * (1 - ai.laneBlend) + laneConfig.rightOffset * ai.laneBlend;
+
+    // Position AI car
+    const aiPos = getOffsetPoint(raceSpline, ai.t % 1, aiLaneOffset);
+    const aiAhead = getOffsetPoint(raceSpline, (ai.t + 0.005) % 1, aiLaneOffset);
+    ai.mesh.position.copy(aiPos);
+    ai.mesh.lookAt(aiAhead);
+
+    // AI drift
+    const aiT1 = raceSpline.getTangentAt(ai.t % 1).normalize();
+    const aiT2 = raceSpline.getTangentAt((ai.t + 0.01) % 1).normalize();
+    const aiCross = aiT1.x * aiT2.z - aiT1.z * aiT2.x;
+    const aiCurvature = aiCross / 0.01;
+    const aiTargetDrift = -aiCurvature * ai.speed * ai.speed * 0.8 * 0.01;
+    const aiClampedDrift = Math.max(-0.5, Math.min(0.5, aiTargetDrift));
+    ai.driftAngle += (aiClampedDrift - ai.driftAngle) * Math.min(10 * dt, 1);
+    ai.mesh.rotateY(ai.driftAngle);
+  }
+
+  // --- Collision detection ---
+  // Build array of all cars: { t, laneBlend, speed, isPlayer, idx }
+  const collisionPenalty = 0.89; // 20 mph in world units
+  const collisionDist = 0.4 / splineLen; // ~0.4 world units proximity in t
+  const laneTolerance = 0.4; // lane blend overlap threshold
+
+  // Check player against all AI
+  for (const ai of aiCars) {
+    const tDiff = Math.abs(((carT - ai.t) % 1 + 1.5) % 1 - 0.5); // wrapped distance
+    if (tDiff < collisionDist) {
+      const laneDiff = Math.abs(laneBlend - ai.laneBlend);
+      if (laneDiff < laneTolerance) {
+        // Collision! The car behind (or switching into) gets penalised
+        const playerBehind = ((carT - ai.t + 1.5) % 1 - 0.5) < 0;
+        if (playerBehind && carSpeed > ai.speed) {
+          // Player rear-ended AI
+          carSpeed = Math.max(ai.speed - collisionPenalty, 0);
+          cornerBraking = true;
+          crashWarningTimer = 1.0;
+          sfx.bump();
+        } else if (!playerBehind && ai.speed > carSpeed) {
+          // AI rear-ended player
+          ai.speed = Math.max(carSpeed - collisionPenalty, 0);
+        }
+        // Lane-switch bump: if lane blends are close, the one changing lane is penalised
+        if (!playerBehind && !((carT - ai.t + 1.5) % 1 - 0.5 < 0)) {
+          // Side-by-side: penalise the one currently switching lanes
+          const playerSwitching = Math.abs(laneBlend - (currentLane === 'right' ? 1 : 0)) > 0.1;
+          const aiSwitching = Math.abs(ai.laneBlend - (ai.lane === 'right' ? 1 : 0)) > 0.1;
+          if (playerSwitching && !aiSwitching) {
+            carSpeed = Math.max(ai.speed - collisionPenalty, 0);
+            cornerBraking = true;
+            crashWarningTimer = 1.0;
+            sfx.bump();
+          } else if (aiSwitching && !playerSwitching) {
+            ai.speed = Math.max(carSpeed - collisionPenalty, 0);
+          }
+        }
+      }
+    }
+  }
+
+  // Check AI-vs-AI collisions
+  for (let a = 0; a < aiCars.length; a++) {
+    for (let b = a + 1; b < aiCars.length; b++) {
+      const ai1 = aiCars[a], ai2 = aiCars[b];
+      const tDiff = Math.abs(((ai1.t - ai2.t) % 1 + 1.5) % 1 - 0.5);
+      if (tDiff < collisionDist) {
+        const laneDiff = Math.abs(ai1.laneBlend - ai2.laneBlend);
+        if (laneDiff < laneTolerance) {
+          // The one behind gets penalised
+          const ai1Behind = ((ai1.t - ai2.t + 1.5) % 1 - 0.5) < 0;
+          if (ai1Behind && ai1.speed > ai2.speed) {
+            ai1.speed = Math.max(ai2.speed - collisionPenalty, 0);
+          } else if (!ai1Behind && ai2.speed > ai1.speed) {
+            ai2.speed = Math.max(ai1.speed - collisionPenalty, 0);
+          }
+        }
+      }
+    }
+  }
+
+  // HUD - speed in mph (1 world unit = 10m, so speed * 22.37 ≈ mph)
+  const mph = Math.round(carSpeed * 22.37);
+  document.querySelector('#raceHUD .lap').textContent = `Lap ${Math.min(totalLaps, Math.max(1, lapCount+1))}/${totalLaps}`;
+  document.querySelector('#raceHUD .time').textContent = formatTime(raceTime);
+  document.querySelector('#raceHUD .speed').textContent = `${mph} mph`;
+  document.getElementById('speedFill').style.width = `${(carSpeed/maxSpeed)*100}%`;
+  document.getElementById('speedNum').textContent = `${mph} mph`;
+  document.getElementById('speedNum').classList.toggle('braking', cornerBraking);
+  document.getElementById('cornerWarning').classList.toggle('show', cornerBraking);
+
+  // Warning label: "CRASH" (yellow) for collisions, "TOO FAST!" (red) for corners
+  if (crashWarningTimer > 0) crashWarningTimer -= dt;
+  const warningEl = document.getElementById('tooFastWarning');
+  const showWarning = cornerBraking || crashWarningTimer > 0;
+  warningEl.classList.toggle('show', showWarning);
+  if (crashWarningTimer > 0) {
+    warningEl.textContent = 'CRASH';
+    warningEl.style.color = '#ffd32a';
+  } else if (cornerBraking) {
+    warningEl.textContent = 'TOO FAST!';
+    warningEl.style.color = '#ff4757';
+  }
+
+  // Update position indicator
+  const currentPos = getRacePosition();
+  if (currentPos !== lastPosition) {
+    if (currentPos < lastPosition) sfx.gainPlace();
+    else sfx.losePlace();
+    lastPosition = currentPos;
+    const posEl = document.getElementById('racePosition');
+    const suffixes = ['st','nd','rd','th'];
+    const colors = ['#ffd32a','#c0c0c0','#cd7f32','#999'];
+    posEl.querySelector('.pos-num').textContent = currentPos;
+    posEl.querySelector('.pos-suffix').textContent = suffixes[currentPos-1] || 'th';
+    posEl.querySelector('.pos-num').style.color = colors[currentPos-1] || '#999';
+    posEl.querySelector('.pos-suffix').style.color = colors[currentPos-1] || '#999';
+    posEl.classList.toggle('first', currentPos === 1);
+    posEl.classList.add('animate');
+    setTimeout(() => posEl.classList.remove('animate'), 300);
+  }
+}
+
+function formatTime(t) {
+  const m = Math.floor(t/60);
+  const s = t % 60;
+  return `${m}:${s.toFixed(2).padStart(5,'0')}`;
+}
+
+let raceFinished = false;
+let lastPosition = 1;
+
+function getRacePosition() {
+  const finishT = getFinishT();
+  // Compare lap-aware progress: laps * 1 + distance past finish
+  const playerProgress = lapCount + ((carT - finishT) % 1 + 1) % 1;
+  let position = 1;
+  for (const ai of aiCars) {
+    const aiProgress = ai.laps + ((ai.t - finishT) % 1 + 1) % 1;
+    if (aiProgress > playerProgress) position++;
+  }
+  return position;
+}
+
+function getAIPositions() {
+  // Return array of finishing positions for each AI car (1-based)
+  const finishT = getFinishT();
+  const playerProgress = lapCount + ((carT - finishT) % 1 + 1) % 1;
+  const allProgress = [{ idx: -1, progress: playerProgress }];
+  for (let i = 0; i < aiCars.length; i++) {
+    const ai = aiCars[i];
+    const aiProgress = ai.laps + ((ai.t - finishT) % 1 + 1) % 1;
+    allProgress.push({ idx: i, progress: aiProgress });
+  }
+  allProgress.sort((a, b) => b.progress - a.progress);
+  const aiPositions = [];
+  for (let i = 0; i < aiCars.length; i++) {
+    const rank = allProgress.findIndex(p => p.idx === i);
+    aiPositions.push(rank + 1);
+  }
+  return aiPositions;
+}
+
+// Track name for current race (set when loading)
+let currentRaceTrackName = null;
+
+function finishRace() {
+  raceFinished = true;
+  throttle = false;
+  // Cars coast to a stop (raceActive stays true so physics keep running)
+
+  const time = raceTime;
+  const position = getRacePosition();
+  const isWinner = position === 1;
+
+  // Save per-track best time
+  const trackName = championship ? championship.tracks[championship.currentIdx].name : (currentRaceTrackName || 'unknown');
+  let bestTime = null;
+  try {
+    const data = loadArcadeData();
+    if (!data.raceMaker) data.raceMaker = {};
+    if (!data.raceMaker.bestTimes) data.raceMaker.bestTimes = {};
+    bestTime = data.raceMaker.bestTimes[trackName] || null;
+    if (!bestTime || time < bestTime) data.raceMaker.bestTimes[trackName] = time;
+    saveArcadeData(data);
+    bestTime = data.raceMaker.bestTimes[trackName];
+  } catch(e) {}
+
+  const isNewBest = !bestTime || time <= bestTime;
+  const bestStr = bestTime ? formatTime(bestTime) : '--';
+
+  // Sound + fireworks
+  if (isWinner) { sfx.victory(); spawnFireworks(); }
+  else sfx.loss();
+
+  // Championship: award points
+  if (championship) {
+    championship.points[0] += getPointsForPosition(position);
+    championship.times.push(time);
+    const aiPositions = getAIPositions();
+    for (let i = 0; i < aiPositions.length; i++) {
+      championship.points[i + 1] += getPointsForPosition(aiPositions[i]);
+    }
+  }
+
+  // Show modal after delay with fade-in
+  setTimeout(() => {
+    raceActive = false;
+    const modal = document.getElementById('trackModal');
+    modal.style.opacity = '0';
+    modal.style.transition = 'opacity 0.5s ease';
+
+    if (championship) {
+      showChampionshipStandings(position, time);
+    } else {
+      const posLabels = ['1st', '2nd', '3rd', '4th'];
+      const posColors = ['#ffd32a', '#c0c0c0', '#cd7f32', '#999'];
+
+      showModal('Race Complete!', `
+        <div style="text-align:center; padding:10px 0;">
+          <div style="font-size:3rem; margin-bottom:12px;">${isWinner ? '&#127942;' : '&#127937;'}</div>
+          <div style="font-size:1.8rem; font-weight:800; color:${posColors[position-1]}; margin-bottom:8px;">${posLabels[position-1]} Place</div>
+          <div style="font-size:1.4rem; font-weight:700; color:#ffd32a; margin-bottom:8px;">${formatTime(time)}</div>
+          ${isNewBest ? '<div style="color:#2ecc71; font-weight:600; margin-bottom:8px;">New Best Time!</div>' : ''}
+          <div style="color:rgba(255,255,255,0.6); font-size:0.9rem;">Best: ${bestStr}</div>
+          <div style="margin-top:20px; display:flex; gap:10px; justify-content:center;">
+            <button class="modal-btn modal-btn-primary" id="raceAgainBtn">Race Again</button>
+            <button class="modal-btn" style="background:rgba(255,255,255,0.1); color:#fff;" id="raceExitBtn">Back to Menu</button>
+          </div>
+        </div>
+      `, false, true);
+      document.getElementById('raceAgainBtn').onclick = () => { hideModal(); startRace(); };
+      document.getElementById('raceExitBtn').onclick = () => { hideModal(); exitRace(); raceMenuFromOverlay = true; showRaceMenu(); };
+    }
+
+    // Fade in
+    requestAnimationFrame(() => { modal.style.opacity = '1'; });
+  }, 1500);
+}
+
+function spawnFireworks() {
+  const duration = 3000;
+  const end = Date.now() + duration;
+  const colors = ['#ffd32a','#ff6b6b','#2ecc71','#a29bfe','#fd79a8','#00cec9'];
+  (function frame() {
+    confetti({ particleCount: 3, angle: 60, spread: 55, origin: { x: 0 }, colors });
+    confetti({ particleCount: 3, angle: 120, spread: 55, origin: { x: 1 }, colors });
+    if (Date.now() < end) requestAnimationFrame(frame);
+  })();
+}
+
+function exitRace() {
+  mode = 'editor';
+  raceActive = false;
+  raceFinished = false;
+  throttle = false;
+  championship = null;
+  // Keep cars visible on closed track (they show the grid)
+  document.getElementById('raceHUD').classList.remove('show');
+  document.getElementById('racePosition').classList.remove('show');
+  document.getElementById('speedBar').classList.remove('show');
+  document.getElementById('speedNum').classList.remove('show');
+  document.getElementById('cornerWarning').classList.remove('show');
+  document.getElementById('tooFastWarning').classList.remove('show');
+  document.getElementById('throttleHint').classList.remove('show');
+  document.getElementById('throttleBar').classList.remove('show');
+  document.getElementById('switchLaneBtn').classList.remove('show');
+  document.getElementById('switchLaneBtn').classList.add('hidden');
+  document.getElementById('topBar').classList.remove('hidden');
+  document.getElementById('pieceCount').classList.remove('hidden');
+  document.getElementById('editorCloseBtn').classList.remove('hidden');
+  updateTrackStatus();
+  if (!trackClosed) {
+    document.getElementById('piecePalette').classList.remove('hidden');
+  }
+  gridHelper.visible = true;
+  controls.enabled = true;
+
+  // Restore editor ground colours
+  groundMat.color.set(0x2a2a2a);
+  renderer.setClearColor(0x1a1a1a);
+  scene.fog.color.set(0x1a1a1a);
+
+  // Restore editor zoom
+  const a = window.innerWidth / window.innerHeight;
+  camera.left = -frustumSize * a / 2;
+  camera.right = frustumSize * a / 2;
+  camera.top = frustumSize / 2;
+  camera.bottom = -frustumSize / 2;
+  camera.updateProjectionMatrix();
+  controls.target.set(
+    track.reduce((s,p)=>s+p.worldX,0)/track.length, 0,
+    track.reduce((s,p)=>s+p.worldZ,0)/track.length
+  );
+}
+
+// ============================================================
+// WEB AUDIO
+// ============================================================
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function playTone(freq, duration, type = 'sine', volume = 0.3, ramp = 0.01) {
+  const ctx = getAudioCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, ctx.currentTime);
+  gain.gain.setValueAtTime(volume, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start();
+  osc.stop(ctx.currentTime + duration);
+}
+
+function playNoise(duration, volume = 0.15) {
+  const ctx = getAudioCtx();
+  const bufSize = ctx.sampleRate * duration;
+  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1);
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const gain = ctx.createGain();
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = 800;
+  filter.Q.value = 1;
+  gain.gain.setValueAtTime(volume, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+  src.connect(filter);
+  filter.connect(gain);
+  gain.connect(ctx.destination);
+  src.start();
+  src.stop(ctx.currentTime + duration);
+}
+
+const sfx = {
+  menuClick() { playTone(800, 0.08, 'square', 0.12); },
+  countdownBeep() { playTone(440, 0.2, 'sine', 0.35); },
+  countdownGo() { playTone(880, 0.4, 'sine', 0.4); },
+  bump() { playNoise(0.25, 0.25); playTone(120, 0.15, 'sawtooth', 0.2); },
+  speedLimited() { playTone(200, 0.12, 'triangle', 0.08); },
+  switchLane() { playTone(600, 0.06, 'sine', 0.15); playTone(750, 0.06, 'sine', 0.12); },
+  gainPlace() { playTone(523, 0.1, 'square', 0.2); setTimeout(() => playTone(659, 0.1, 'square', 0.2), 80); setTimeout(() => playTone(784, 0.15, 'square', 0.2), 160); },
+  losePlace() { playTone(400, 0.1, 'sawtooth', 0.15); setTimeout(() => playTone(300, 0.15, 'sawtooth', 0.15), 100); },
+  victory() { [523,659,784,1047].forEach((f,i) => setTimeout(() => playTone(f, 0.3, 'square', 0.25), i*120)); },
+  loss() { [400,350,300,200].forEach((f,i) => setTimeout(() => playTone(f, 0.25, 'sawtooth', 0.15), i*150)); },
+};
+
+// Menu click sound on any button press
+document.addEventListener('pointerdown', e => {
+  if (e.target.closest('button, .modal-btn, .piece-card, .decor-item')) sfx.menuClick();
+}, true);
+
+// ============================================================
+// MODE SWITCHING
+// ============================================================
+
+function enterEditorMode() {
+  mode = 'editor';
+  document.getElementById('piecePalette').classList.remove('hidden');
+  document.getElementById('pieceCount').classList.remove('hidden');
+  document.getElementById('decorPalette').classList.remove('show');
+  document.getElementById('modeEditBtn').classList.add('active');
+  document.getElementById('modeDecorBtn').classList.remove('active');
+  connectorMarker.visible = !trackClosed;
+  if (!trackClosed) updateGhost();
+}
+
+function enterDecorMode() {
+  // Just trigger auto-decorate directly instead of showing the panel
+  autoDecorate();
+}
+
+// ============================================================
+// INPUT HANDLERS
+// ============================================================
+
+document.getElementById('startBtn').onclick = async () => {
+  stopMenuDemo();
+  document.getElementById('overlay').classList.add('hidden');
+  // Reset to fresh editor state
+  track.forEach(p => scene.remove(p.mesh));
+  decorations.forEach(d => { if (!d.isDefault) scene.remove(d.mesh); });
+  decorations = decorations.filter(d => d.isDefault);
+  track = [];
+  cursor = { x: startCursorConfig.x, y:0, z: startCursorConfig.z, heading: startCursorConfig.heading };
+  trackClosed = false;
+  raceSpline = null;
+  aiCars.forEach(ai => scene.remove(ai.mesh));
+  aiCars.length = 0;
+  await loadDefaultTrack();
+  mode = 'editor';
+  document.getElementById('pieceCount').classList.remove('hidden');
+  document.getElementById('topBar').classList.remove('hidden');
+  document.getElementById('piecePalette').classList.remove('hidden');
+  document.getElementById('editorCloseBtn').classList.remove('hidden');
+  controls.target.set(0, 0, 0);
+  camera.position.set(10, 10, 10);
+  updatePieceCount();
+  updatePieceAvailability();
+  updateGhost();
+};
+
+document.getElementById('quickRaceBtn').onclick = async () => {
+  await defaultTrackReady;
+  raceMenuFromOverlay = true;
+  document.getElementById('overlay').classList.add('hidden');
+  showRaceMenu();
+};
+
+document.getElementById('modeEditBtn').onclick = enterEditorMode;
+document.getElementById('modeDecorBtn').onclick = enterDecorMode;
+
+async function returnToMenu() {
+  stopMenuDemo();
+  mode = 'title';
+  raceActive = false;
+  raceFinished = false;
+  throttle = false;
+  championship = null;
+  // Hide editor/race UI
+  document.getElementById('topBar').classList.add('hidden');
+  document.getElementById('pieceCount').classList.add('hidden');
+  document.getElementById('trackStatus').classList.add('hidden');
+  document.getElementById('piecePalette').classList.add('hidden');
+  document.getElementById('decorPalette').classList.remove('show');
+  document.getElementById('raceHUD').classList.remove('show');
+  document.getElementById('racePosition').classList.remove('show');
+  document.getElementById('speedBar').classList.remove('show');
+  document.getElementById('speedNum').classList.remove('show');
+  document.getElementById('throttleBar').classList.remove('show');
+  document.getElementById('throttleHint').classList.remove('show');
+  document.getElementById('switchLaneBtn').classList.add('hidden');
+  document.getElementById('editorCloseBtn').classList.add('hidden');
+  // Clear track
+  track.forEach(p => scene.remove(p.mesh));
+  decorations.forEach(d => scene.remove(d.mesh));
+  track = [];
+  decorations = [];
+  aiCars.forEach(ai => scene.remove(ai.mesh));
+  aiCars.length = 0;
+  if (carMesh) { scene.remove(carMesh); carMesh = null; }
+  if (ghostGroup) { scene.remove(ghostGroup); ghostGroup = null; }
+  trackClosed = false;
+  raceSpline = null;
+  controls.enabled = true;
+  // Reload default track (starting straight, grid markers)
+  cursor = { x: startCursorConfig.x, y: 0, z: startCursorConfig.z, heading: startCursorConfig.heading };
+  await loadDefaultTrack();
+  // Show overlay and restart demo
+  document.getElementById('overlay').classList.remove('hidden');
+  startMenuDemo();
+}
+document.getElementById('editorCloseBtn').onclick = returnToMenu;
+document.getElementById('modeRaceBtn').onclick = startRace;
+document.getElementById('switchLaneBtn').onclick = () => {
+  currentLane = currentLane === 'left' ? 'right' : 'left';
+  sfx.switchLane();
+};
+
+// Key tracking for continuous pan
+const keysDown = new Set();
+document.addEventListener('keydown', e => {
+  keysDown.add(e.key);
+});
+document.addEventListener('keyup', e => {
+  keysDown.delete(e.key);
+});
+
+// Keyboard
+document.addEventListener('keydown', e => {
+  const modalOpen = !document.getElementById('trackModal').classList.contains('hidden');
+  if (mode === 'editor' && !trackClosed && !modalOpen) {
+    if (e.key === 'r' || e.key === 'R') { extraRotation = (extraRotation+90)%360; updateGhost(); }
+    if (e.key === 'z' || e.key === 'Z') undoPiece();
+    if (e.key === 'Enter') placePiece(selectedPieceIdx);
+  }
+  if (mode === 'race' && e.key === ' ') { e.preventDefault(); throttle = true; throttleTargetSpeed = raceConfig.topSpeed; }
+  if (mode === 'race' && (e.key === 's' || e.key === 'S')) {
+    currentLane = currentLane === 'left' ? 'right' : 'left';
+    sfx.switchLane();
+  }
+  if (e.key === 'Escape') {
+    if (!document.getElementById('trackModal').classList.contains('hidden')) hideModal();
+    else if (mode === 'race') exitRace();
+    else if (decorGUI) {
+      const d = decorGUI.domElement.style;
+      d.display = d.display === 'none' ? '' : 'none';
+    }
+  }
+});
+
+document.addEventListener('keyup', e => {
+  if (mode === 'race' && e.key === ' ') { throttle = false; throttleTargetSpeed = 0; }
+});
+
+// Touch/mouse for race & editor
+document.addEventListener('contextmenu', e => e.preventDefault());
+renderer.domElement.addEventListener('pointerdown', e => {
+  if (mode === 'decor' && selectedDecor && e.button === 0) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    const mx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    const my = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(mx, my), camera);
+    const hits = raycaster.intersectObject(ground);
+    if (hits.length > 0) placeDecoration(hits[0].point);
+  }
+});
+
+// Throttle bar controls
+const throttleBarEl = document.getElementById('throttleBar');
+const throttleMinSpeed = 0; // 0 mph at bottom of bar
+const throttleMaxSpeed = 8;    // ~180 mph in world units
+
+function initThrottleBar() {
+  // Add corner speed markers — appended to throttleBar (not bar-bg which clips)
+  const markers = [
+    { speed: raceConfig.cornerSmallLimit, label: '60' },
+    { speed: raceConfig.cornerLargeLimit, label: '100' },
+    { speed: raceConfig.cornerLargerLimit, label: '140' },
+  ];
+  markers.forEach(m => {
+    const pct = (m.speed - throttleMinSpeed) / (throttleMaxSpeed - throttleMinSpeed) * 100;
+    const marker = document.createElement('div');
+    marker.className = 'bar-marker';
+    marker.style.bottom = pct + '%';
+    const label = document.createElement('span');
+    label.className = 'bar-marker-label';
+    label.textContent = m.label;
+    marker.appendChild(label);
+    throttleBarEl.appendChild(marker);
+  });
+}
+
+function updateThrottleFromPointer(clientY) {
+  const rect = throttleBarEl.getBoundingClientRect();
+  // Map Y position: top = max speed, bottom = min speed
+  const relY = (clientY - rect.top) / rect.height;
+  const clamped = Math.max(0, Math.min(1, relY));
+  const fraction = 1 - clamped; // invert: bottom=0, top=1
+  // 4 zones from bottom to top: 60, 100, 140, 180 mph
+  const snapSpeeds = [
+    raceConfig.cornerSmallLimit,   // 60 mph
+    raceConfig.cornerLargeLimit,   // 100 mph
+    raceConfig.cornerLargerLimit,  // 140 mph
+    throttleMaxSpeed,              // 180 mph
+  ];
+  // Divide bar into 4 equal zones
+  const zone = Math.min(3, Math.floor(fraction * 4));
+  throttleTargetSpeed = snapSpeeds[zone];
+  throttle = true;
+
+  // Update visual — snap fill to zone position
+  const snapPct = (throttleTargetSpeed / throttleMaxSpeed) * 100;
+  throttleBarEl.querySelector('.bar-fill').style.height = snapPct + '%';
+  throttleBarEl.querySelector('.bar-thumb').style.bottom = snapPct + '%';
+  // Show speed number at snapped position
+  const speedLabel = throttleBarEl.querySelector('.bar-speed');
+  const mph = Math.round(throttleTargetSpeed * 22.37);
+  speedLabel.textContent = mph + ' mph';
+  speedLabel.style.bottom = snapPct + '%';
+  throttleBarEl.classList.add('active');
+}
+
+function releaseThrottle() {
+  throttle = false;
+  throttleTargetSpeed = 0;
+  throttleBarEl.querySelector('.bar-fill').style.height = '0%';
+  throttleBarEl.querySelector('.bar-thumb').style.bottom = '0%';
+  throttleBarEl.classList.remove('active');
+}
+
+throttleBarEl.addEventListener('pointerdown', e => {
+  if (mode !== 'race') return;
+  e.preventDefault();
+  throttleBarEl.setPointerCapture(e.pointerId);
+  updateThrottleFromPointer(e.clientY);
+});
+throttleBarEl.addEventListener('pointermove', e => {
+  if (mode !== 'race' || !throttle) return;
+  updateThrottleFromPointer(e.clientY);
+});
+throttleBarEl.addEventListener('pointerup', e => {
+  if (mode !== 'race') return;
+  releaseThrottle();
+});
+throttleBarEl.addEventListener('pointercancel', e => {
+  releaseThrottle();
+});
+
+// ============================================================
+// GAME LOOP
+// ============================================================
+let lastTime = performance.now();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const now = performance.now();
+  const dt = Math.min((now - lastTime) / 1000, 0.1);
+  lastTime = now;
+
+  if (mode !== 'race' && !menuDemoActive) {
+    // Arrow key panning
+    const panSpeed = 0.3;
+    if (keysDown.has('ArrowLeft')) controls.target.x -= panSpeed;
+    if (keysDown.has('ArrowRight')) controls.target.x += panSpeed;
+    if (keysDown.has('ArrowUp')) controls.target.z -= panSpeed;
+    if (keysDown.has('ArrowDown')) controls.target.z += panSpeed;
+    // Smoothly track last piece position (only move the orbit target, let controls handle camera)
+    if (editorCameraGoal) {
+      controls.target.lerp(editorCameraGoal, 0.05);
+    }
+    controls.update();
+    // Keep grid cars positioned while editing
+    if (trackClosed && raceSpline && carMesh) updateGridPositions();
+  }
+  if (mode === 'race') { updateRace(dt); }
+
+  // During countdown, ease camera toward player car
+  if (countdownActive && carMesh && raceSpline) {
+    const carPos = carMesh.position.clone();
+    const isoOffset = new THREE.Vector3(8, 8, 8);
+    const targetPos = carPos.clone().add(isoOffset);
+    camera.position.lerp(targetPos, 0.03);
+    controls.target.lerp(carPos, 0.05);
+    camera.lookAt(controls.target);
+  }
+
+  if (!menuDemoActive) renderer.render(scene, camera);
+}
+
+window.addEventListener('resize', () => {
+  const a = window.innerWidth / window.innerHeight;
+  camera.left = -frustumSize * a / 2;
+  camera.right = frustumSize * a / 2;
+  camera.top = frustumSize / 2;
+  camera.bottom = -frustumSize / 2;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ============================================================
+// DEFAULT TRACK
+// ============================================================
+
+// Place a piece silently (no UI updates, no collision check)
+async function placeDefaultPiece(pieceIdx) {
+  const def = PIECES[pieceIdx];
+  const placement = getPiecePlacement(pieceIdx, cursor, 0);
+  const model = await loadModel(def.id);
+  model.position.set(placement.x, 0, placement.z);
+  model.rotation.y = -placement.heading * DEG;
+  if (def.mirror) model.scale.x = -1;
+  if (def.flipZ) {
+    model.scale.z = -1;
+    const offsetLocal = transformPoint(0, def.exit.z, placement.heading);
+    model.position.x += offsetLocal.x;
+    model.position.z += offsetLocal.z;
+  }
+  scene.add(model);
+  track.push({
+    pieceIdx,
+    worldX: placement.x,
+    worldZ: placement.z,
+    heading: placement.heading,
+    prevCursor: { ...cursor },
+    rotation: 0,
+    mesh: model,
+  });
+  cursor = getNextCursor(pieceIdx, cursor, 0);
+}
+
+// Map piece names from config to PIECES indices
+const PIECE_NAME_MAP = {};
+PIECES.forEach((p, i) => { PIECE_NAME_MAP[p.name] = i; });
+
+async function loadDefaultTrack() {
+  try {
+    const resp = await fetch('default-track.json');
+    const config = await resp.json();
+
+    // Set starting cursor and loop target from config
+    if (config.startCursor) {
+      startCursorConfig = { x: config.startCursor.x || 0, z: config.startCursor.z || 0, heading: config.startCursor.heading || 0 };
+      cursor = { x: startCursorConfig.x, y: 0, z: startCursorConfig.z, heading: startCursorConfig.heading };
+    }
+    if (config.loopTarget) {
+      loopTarget = { x: config.loopTarget.x || 0, z: config.loopTarget.z || 0, heading: config.loopTarget.heading || 0 };
+    }
+
+    // Place track pieces (if any)
+    if (config.track && config.track.length > 0) {
+      for (const entry of config.track) {
+        const idx = PIECE_NAME_MAP[entry.piece];
+        if (idx === undefined) { console.warn('Unknown piece:', entry.piece); continue; }
+        await placeDefaultPiece(idx);
+      }
+      trackClosed = true;
+      await spawnGridCars();
+    }
+
+    // Place decorations
+    for (const d of (config.decorations || [])) {
+      try {
+        const model = await loadModel(d.id);
+        const mo = getModelOffset(d.id);
+        model.position.set(d.x + globalOffset.x + mo.x, (d.y || 0) + globalOffset.y + mo.y, -(d.z || 0) + globalOffset.z + mo.z);
+        if (d.flip) model.scale.z = -1;
+        if (d.r) model.rotation.y = -d.r * DEG;
+        scene.add(model);
+        decorations.push({
+          id: d.id, mesh: model, isDefault: true,
+          params: { x: d.x, y: d.y || 0, z: d.z || 0, r: d.r || 0, flip: !!d.flip }
+        });
+      } catch(e) {}
+    }
+
+    connectorMarker.visible = false;
+    updatePieceCount();
+    updateCameraTarget();
+    buildDecorGUI();
+  } catch(e) {
+    console.warn('No default track loaded:', e);
+  }
+}
+
+// lil-gui for decoration editing
+let decorGUI = null;
+const globalOffset = { x: 0.5, y: 0, z: 0 };
+const modelOffsets = {
+  roadStartPositions: { x: 0, y: 0, z: 0 },
+  roadStart: { x: -0.13, y: 0, z: 0 },
+};
+
+function getModelOffset(id) {
+  // Check exact match first, then prefix (longest first)
+  if (modelOffsets[id]) return modelOffsets[id];
+  const keys = Object.keys(modelOffsets).sort((a,b) => b.length - a.length);
+  for (const key of keys) {
+    if (id.startsWith(key)) return modelOffsets[key];
+  }
+  return { x:0, y:0, z:0 };
+}
+
+function applyGlobalOffset() {
+  decorations.forEach(d => {
+    const mo = getModelOffset(d.id);
+    d.mesh.position.set(
+      d.params.x + globalOffset.x + mo.x,
+      d.params.y + globalOffset.y + mo.y,
+      -(d.params.z) + globalOffset.z + mo.z
+    );
+  });
+}
+
+function buildDecorGUI() {
+  if (decorGUI) { decorGUI.destroy(); }
+  const gui = new GUI({ title: 'Decorations', width: 300 });
+  gui.domElement.style.zIndex = '9999';
+  gui.domElement.style.display = 'none';
+  gui.close();
+  decorGUI = gui;
+
+  const raceFolder = gui.addFolder('Race');
+  const carParams = { scale: carScale };
+  raceFolder.add(carParams, 'scale', 0.1, 1.5, 0.01).name('Car Scale').onChange(v => {
+    carScale = v;
+    if (carMesh) carMesh.scale.setScalar(v);
+  });
+  raceFolder.add(raceConfig, 'playerStart', { '1st': 0, '2nd': 1, '3rd': 2, '4th': 3 }).name('Grid Position').onChange(updateGridPositions);
+  raceFolder.add(raceConfig, 'playerLane', ['left', 'right']).name('Start Lane').onChange(updateGridPositions);
+  raceFolder.add(raceConfig, 'aiCount', 0, 3, 1).name('AI Drivers');
+  raceFolder.add(raceConfig, 'aiSkill', 0.3, 1.0, 0.05).name('AI Skill');
+  raceFolder.add(raceConfig, 'topSpeed', 2, 15, 0.5).name('Top Speed');
+  raceFolder.add(raceConfig, 'acceleration', 1, 15, 0.5).name('Acceleration');
+  raceFolder.add(raceConfig, 'coastDecel', 0.5, 10, 0.5).name('Coast Decel');
+  raceFolder.add(raceConfig, 'aiTopSpeed', 2, 15, 0.5).name('AI Top Speed');
+  raceFolder.add(raceConfig, 'aiAcceleration', 1, 15, 0.5).name('AI Accel');
+  raceFolder.add(raceConfig, 'startOffset', 0, 5, 0.1).name('Start Offset (m)').onChange(updateGridPositions);
+  raceFolder.add(raceConfig, 'startSpacing', 0.2, 2.0, 0.05).name('Grid Spacing (m)').onChange(updateGridPositions);
+  raceFolder.add(raceConfig, 'finishOffset', -10, 10, 0.1).name('Finish Offset (m)').onChange(updateFinishMarker);
+  raceFolder.add({ go() { raceActive = true; controls.enabled = false; } }, 'go').name('▶ GO!');
+  raceFolder.add(laneConfig, 'showDebug').name('Show Lanes').onChange(updateDebugVis);
+  raceFolder.add(laneConfig, 'centerOffset', -1, 1, 0.01).name('Center Offset').onChange(updateDebugVis);
+  raceFolder.add(laneConfig, 'leftOffset', -1, 1, 0.01).name('Left Lane').onChange(updateDebugVis);
+  raceFolder.add(laneConfig, 'rightOffset', -1, 1, 0.01).name('Right Lane').onChange(updateDebugVis);
+
+  // Auto-decorate params
+  const adFolder = gui.addFolder('Auto Decorate');
+  adFolder.add(autoDecorParams, 'seed', 1, 999, 1).name('Seed');
+  adFolder.add(autoDecorParams, 'cornerEdgeChance', 0, 1, 0.05).name('Corner Edge %');
+  adFolder.add(autoDecorParams, 'style', ['border', 'wall+sand', 'mixed']).name('Style');
+  adFolder.add(autoDecorParams, 'tracksPerStand', 3, 20, 1).name('Tracks/Stand');
+  adFolder.add(autoDecorParams, 'standRotation', -180, 180, 15).name('Stand Rot°');
+  adFolder.add({ run: autoDecorate }, 'run').name('▶ Run Auto Decorate');
+
+  const debugFolder = gui.addFolder('Debug');
+  debugFolder.add(gridHelper, 'visible').name('Show Grid');
+  debugFolder.add(cellDebugConfig, 'show').name('Show Cells').onChange(() => updateCellDebug());
+  debugFolder.add(axisLabelsGroup, 'visible').name('Axis Labels');
+  debugFolder.add({ showZones() { showBrakeZones(); } }, 'showZones').name('Show Brake Zones');
+  debugFolder.add({ hideZones() { if (brakeZoneGroup) { scene.remove(brakeZoneGroup); brakeZoneGroup = null; } } }, 'hideZones').name('Hide Brake Zones');
+  debugFolder.close();
+
+  const gFolder = gui.addFolder('Global Offset');
+  gFolder.add(globalOffset, 'x', -5, 5, 0.05).onChange(applyGlobalOffset);
+  gFolder.add(globalOffset, 'y', -2, 2, 0.05).onChange(applyGlobalOffset);
+  gFolder.add(globalOffset, 'z', -5, 5, 0.05).onChange(applyGlobalOffset);
+
+  const moFolder = gui.addFolder('Model Offsets');
+  for (const key in modelOffsets) {
+    const mf = moFolder.addFolder(key);
+    mf.close();
+    mf.add(modelOffsets[key], 'x', -2, 2, 0.01).onChange(applyGlobalOffset);
+    mf.add(modelOffsets[key], 'y', -2, 2, 0.01).onChange(applyGlobalOffset);
+    mf.add(modelOffsets[key], 'z', -2, 2, 0.01).onChange(applyGlobalOffset);
+  }
+
+  decorations.forEach((d, i) => {
+    const folder = gui.addFolder(`${i}: ${d.id}`);
+    folder.close();
+    const p = d.params;
+
+    function update() {
+      const mo = getModelOffset(d.id);
+      d.mesh.position.set(p.x + globalOffset.x + mo.x, p.y + globalOffset.y + mo.y, -p.z + globalOffset.z + mo.z);
+      d.mesh.rotation.y = -p.r * DEG;
+      d.mesh.scale.z = p.flip ? -1 : 1;
+    }
+
+    folder.add(p, 'x', -20, 20, 0.1).onChange(update);
+    folder.add(p, 'y', 0, 5, 0.01).onChange(update);
+    folder.add(p, 'z', -20, 20, 0.1).onChange(update);
+    folder.add(p, 'r', -180, 180, 1).name('rotation').onChange(update);
+    folder.add(p, 'flip').onChange(update);
+  });
+
+  // Export button
+  gui.add({ export() {
+    const out = decorations.map(d => {
+      const entry = { id: d.id, x: +d.params.x.toFixed(2), z: +d.params.z.toFixed(2) };
+      if (d.params.y) entry.y = +d.params.y.toFixed(2);
+      if (d.params.r) entry.r = +d.params.r.toFixed(1);
+      if (d.params.flip) entry.flip = true;
+      return entry;
+    });
+    const json = JSON.stringify({ track: [], decorations: out }, null, 2);
+    console.log(json);
+    navigator.clipboard.writeText(json).then(() => alert('Copied to clipboard!'));
+  }}, 'export').name('Export JSON to clipboard');
+}
+
+// Init
+buildPalette();
+buildDecorPalette();
+buildActionsRow();
+
+// Bind action buttons
+document.getElementById('undoBtn').onclick = undoPiece;
+document.getElementById('closeBtn').onclick = closeLoop;
+document.getElementById('resetBtn').onclick = () => {
+  if (track.length === 0) return;
+  track.forEach(p => scene.remove(p.mesh));
+  decorations.forEach(d => scene.remove(d.mesh));
+  track = [];
+  decorations = [];
+  cursor = { x: startCursorConfig.x, y:0, z: startCursorConfig.z, heading: startCursorConfig.heading };
+  extraRotation = 0;
+  trackClosed = false;
+  canClose = false;
+  updatePieceCount();
+  updatePieceAvailability();
+  updateGhost();
+  controls.target.set(0, 0, 0);
+  loadDefaultTrack();
+};
+
+// ============================================================
+// SAVE / LOAD TRACKS
+// ============================================================
+const TRACKS_KEY = 'raceMaker_savedTracks';
+
+function getSavedTracks() {
+  try { return JSON.parse(localStorage.getItem(TRACKS_KEY)) || {}; } catch(e) { return {}; }
+}
+
+function showModal(title, bodyHTML, wide, noClose) {
+  const modal = document.getElementById('trackModal');
+  const box = modal.querySelector('.modal-box');
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML = bodyHTML;
+  box.classList.toggle('wide', !!wide);
+  document.getElementById('modalCloseBtn').style.display = noClose ? 'none' : '';
+  modal.classList.remove('hidden');
+  modal._noClose = !!noClose;
+}
+
+let raceMenuFromOverlay = false;
+function hideModal() {
+  const modal = document.getElementById('trackModal');
+  modal.classList.add('hidden');
+  modal.querySelector('.modal-box').classList.remove('wide');
+  modal.style.opacity = '';
+  modal.style.transition = '';
+  if (raceMenuFromOverlay) {
+    raceMenuFromOverlay = false;
+    returnToMenu();
+  }
+}
+
+// ============================================================
+// RACE MENU & CHAMPIONSHIP
+// ============================================================
+
+function loadArcadeData() {
+  try { return JSON.parse(localStorage.getItem('calebArcadeData')) || {}; } catch(e) { return {}; }
+}
+function saveArcadeData(data) {
+  localStorage.setItem('calebArcadeData', JSON.stringify(data));
+}
+
+async function fetchAllRaceTracks() {
+  // Fetch built-in tracks
+  let builtinTracks = [];
+  try {
+    const indexResp = await fetch('tracks/index.json');
+    const trackFiles = await indexResp.json();
+    for (const file of trackFiles) {
+      try {
+        const resp = await fetch('tracks/' + file);
+        const data = await resp.json();
+        builtinTracks.push(data);
+      } catch(e) {}
+    }
+  } catch(e) {}
+
+  // Get user-saved tracks (Custom Classic)
+  const saved = getSavedTracks();
+  const customTracks = Object.keys(saved).map(name => {
+    const entry = saved[name];
+    return {
+      name,
+      series: entry.series || 'Custom Classic',
+      raceNo: entry.raceNo || 1,
+      track: Array.isArray(entry) ? entry : entry.track,
+      builtin: false,
+    };
+  });
+
+  // Mark built-in tracks
+  builtinTracks = builtinTracks.map(t => ({ ...t, builtin: true }));
+
+  return [...builtinTracks, ...customTracks];
+}
+
+function getSeriesFromTracks(allTracks) {
+  const seriesMap = {};
+  for (const t of allTracks) {
+    const s = t.series || 'Custom Classic';
+    if (!seriesMap[s]) seriesMap[s] = [];
+    seriesMap[s].push(t);
+  }
+  // Sort tracks within each series by raceNo
+  for (const s of Object.keys(seriesMap)) {
+    seriesMap[s].sort((a, b) => (a.raceNo || 0) - (b.raceNo || 0));
+  }
+  return seriesMap;
+}
+
+async function showRaceMenu() {
+  const allTracks = await fetchAllRaceTracks();
+  const seriesMap = getSeriesFromTracks(allTracks);
+  const seriesOrder = ['Ezra Grand Prix', 'Caleb Cup', 'Daddy Rally', 'Mummy Masters', 'Custom Classic'];
+  const seriesNames = seriesOrder.filter(s => seriesMap[s]).concat(Object.keys(seriesMap).filter(s => !seriesOrder.includes(s)));
+  const arcadeData = loadArcadeData();
+  const bestTimes = (arcadeData.raceMaker && arcadeData.raceMaker.bestTimes) || {};
+
+  if (seriesNames.length === 0) {
+    showModal('Race', '<div style="text-align:center;color:rgba(255,255,255,0.6);padding:20px;">No tracks available. Build and save a track first!</div>');
+    return;
+  }
+
+  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:12px;">';
+
+  for (const series of seriesNames) {
+    const tracks = seriesMap[series];
+    const trackCount = tracks.length;
+    const seriesColor = series === 'Caleb Cup' ? '#ffd32a' :
+                        series === 'Ezra Grand Prix' ? '#2ecc71' :
+                        series === 'Mummy Masters' ? '#e74c3c' :
+                        series === 'Daddy Rally' ? '#3498db' :
+                        '#a29bfe';
+
+    html += `<div style="background:rgba(255,255,255,0.05);border-radius:12px;padding:14px;border:1px solid rgba(255,255,255,0.1);">`;
+    html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">`;
+    html += `<div style="font-weight:700;font-size:1rem;color:${seriesColor};">${series}</div>`;
+    html += `<div style="font-size:0.75rem;color:rgba(255,255,255,0.5);">${trackCount} race${trackCount !== 1 ? 's' : ''}</div>`;
+    html += `</div>`;
+
+    // Championship button (only if > 1 track)
+    if (trackCount > 1) {
+      html += `<button class="modal-btn modal-btn-primary race-series-btn" data-series="${series}" style="width:100%;margin-bottom:8px;padding:8px;font-size:0.85rem;">
+        &#127942; Championship
+      </button>`;
+    }
+
+    // Individual tracks
+    html += `<div style="display:flex;flex-direction:column;gap:3px;">`;
+    for (const t of tracks) {
+      const best = bestTimes[t.name];
+      const bestStr = best ? formatTime(best) : '--';
+      html += `<button class="modal-btn race-single-btn" data-track="${t.name}" data-builtin="${t.builtin}" style="background:rgba(255,255,255,0.08);color:#fff;width:100%;padding:6px 10px;font-size:0.8rem;display:flex;justify-content:space-between;align-items:center;">
+        <span>&#127937; ${t.name}</span>
+        <span style="font-size:0.7rem;color:rgba(255,255,255,0.4);">${bestStr}</span>
+      </button>`;
+    }
+    html += `</div></div>`;
+  }
+  html += '</div>';
+
+  showModal('Race', html, true);
+
+  // Bind championship buttons
+  document.querySelectorAll('.race-series-btn').forEach(btn => {
+    btn.onclick = async () => {
+      const series = btn.dataset.series;
+      const tracks = seriesMap[series];
+      championship = {
+        series,
+        tracks: tracks.map(t => ({ name: t.name, builtin: t.builtin, track: t.track })),
+        currentIdx: 0,
+        points: new Array(raceConfig.aiCount + 1).fill(0), // [player, ai0, ai1, ai2]
+        times: [],
+      };
+      raceMenuFromOverlay = false;
+      stopMenuDemo();
+      hideModal();
+      await loadChampionshipRace(0);
+    };
+  });
+
+  // Bind individual race buttons
+  document.querySelectorAll('.race-single-btn').forEach(btn => {
+    btn.onclick = async () => {
+      const name = btn.dataset.track;
+      const builtin = btn.dataset.builtin === 'true';
+      championship = null; // Single race, no championship
+      raceMenuFromOverlay = false;
+      stopMenuDemo();
+      hideModal();
+      if (builtin) {
+        const t = allTracks.find(x => x.name === name && x.builtin);
+        if (t) await doLoadTrackFromData(name, t.track);
+      } else {
+        await doLoadTrack(name);
+      }
+      await autoDecorate();
+      await startRace();
+    };
+  });
+}
+
+async function loadChampionshipRace(idx) {
+  const raceInfo = championship.tracks[idx];
+  championship.currentIdx = idx;
+
+  if (raceInfo.builtin) {
+    await doLoadTrackFromData(raceInfo.name, raceInfo.track);
+  } else {
+    await doLoadTrack(raceInfo.name);
+  }
+  await autoDecorate();
+  await startRace();
+}
+
+// ============================================================
+// MENU DEMO (AI cars racing in background on title screen)
+// ============================================================
+let menuDemoActive = false;
+let menuDemoRAF = null;
+
+async function startMenuDemo() {
+  if (menuDemoActive) return;
+  menuDemoActive = true;
+
+  // Load first available track for demo
+  let demoTrackData = null;
+  try {
+    const indexResp = await fetch('tracks/index.json');
+    const trackFiles = await indexResp.json();
+    if (trackFiles.length > 0) {
+      const resp = await fetch('tracks/' + trackFiles[0]);
+      const data = await resp.json();
+      demoTrackData = data.track;
+    }
+  } catch(e) {}
+  if (!demoTrackData) { menuDemoActive = false; return; }
+  await doLoadTrackFromData('demo', demoTrackData);
+  editorCameraGoal = null;
+
+  await autoDecorate();
+
+  // Build spline for demo
+  trackClosed = true;
+  raceSpline = buildRaceSpline();
+  if (!raceSpline) { menuDemoActive = false; return; }
+  buildSplinePieceMap();
+
+  // Spawn AI cars
+  await spawnGridCars();
+
+  // Hide player car
+  if (carMesh) carMesh.visible = false;
+
+  // Position AI at spread around the track
+  const splineLen = raceSpline.getLength();
+  for (let i = 0; i < aiCars.length; i++) {
+    aiCars[i].t = i / aiCars.length;
+    aiCars[i].speed = raceConfig.aiTopSpeed * aiCars[i].skill * 0.8;
+    aiCars[i].laps = 0;
+    aiCars[i].prevT = aiCars[i].t;
+  }
+
+  // Set camera to overview
+  const cx = track.reduce((s,p) => s + p.worldX, 0) / track.length;
+  const cz = track.reduce((s,p) => s + p.worldZ, 0) / track.length;
+  controls.target.set(cx, 0, cz);
+  camera.position.set(cx + 12, 14, cz + 12);
+  camera.lookAt(cx, 0, cz);
+
+  // Switch to race ground
+  groundMat.color.set(0x4d8f6e);
+  renderer.setClearColor(0x87ceeb);
+  scene.fog.color.set(0x87ceeb);
+
+  // Animate AI cars
+  let lastTime = performance.now();
+  function demoLoop() {
+    if (!menuDemoActive) return;
+    menuDemoRAF = requestAnimationFrame(demoLoop);
+    const now = performance.now();
+    const dt = Math.min((now - lastTime) / 1000, 0.1);
+    lastTime = now;
+
+    for (const ai of aiCars) {
+      // AI boost
+      const aiOnBoost = isOnBoost(ai.t);
+      if (aiOnBoost && !ai.onBoostLastFrame) ai.speed += 0.9;
+      ai.onBoostLastFrame = aiOnBoost;
+      const aiCornerLimit = getCornerSpeedLimit(ai.t);
+      if (aiCornerLimit < Infinity && ai.speed > aiCornerLimit) {
+        ai.speed = Math.max(ai.speed - raceConfig.cornerBrakeRate * dt, aiCornerLimit - raceConfig.cornerPenalty);
+      } else {
+        const target = raceConfig.aiTopSpeed * ai.skill;
+        if (ai.speed < target) ai.speed = Math.min(ai.speed + raceConfig.aiAcceleration * dt, target);
+        else ai.speed = Math.max(ai.speed - raceConfig.coastDecel * dt, target * 0.7);
+      }
+
+      ai.t += (ai.speed * dt) / splineLen;
+      if (ai.t >= 1) ai.t -= 1;
+
+      const aiLaneOff = laneConfig.leftOffset * (1 - ai.laneBlend) + laneConfig.rightOffset * ai.laneBlend;
+      const pos = getOffsetPoint(raceSpline, ai.t, aiLaneOff);
+      const ahead = getOffsetPoint(raceSpline, (ai.t + 0.005) % 1, aiLaneOff);
+      ai.mesh.position.copy(pos);
+      ai.mesh.lookAt(ahead);
+
+      // Random lane switching
+      ai.laneTimer -= dt;
+      if (ai.laneTimer <= 0) {
+        ai.lane = ai.lane === 'left' ? 'right' : 'left';
+        ai.laneTimer = 3 + Math.random() * 4;
+      }
+      const aiTargetBlend = ai.lane === 'right' ? 1 : 0;
+      if (ai.laneBlend < aiTargetBlend) ai.laneBlend = Math.min(ai.laneBlend + 5 * dt, 1);
+      else if (ai.laneBlend > aiTargetBlend) ai.laneBlend = Math.max(ai.laneBlend - 5 * dt, 0);
+    }
+
+    renderer.render(scene, camera);
+  }
+  demoLoop();
+}
+
+function stopMenuDemo() {
+  menuDemoActive = false;
+  if (menuDemoRAF) { cancelAnimationFrame(menuDemoRAF); menuDemoRAF = null; }
+  // Restore editor ground
+  groundMat.color.set(0x2a2a2a);
+  renderer.setClearColor(0x1a1a1a);
+  scene.fog.color.set(0x1a1a1a);
+  editorCameraGoal = null;
+  if (carMesh) carMesh.visible = true;
+}
+
+function getPointsForPosition(pos) {
+  // Points: 1st=25, 2nd=18, 3rd=15, 4th=12
+  return [25, 18, 15, 12][pos - 1] || 0;
+}
+
+function showChampionshipStandings(racePosition, raceTime) {
+  const posLabels = ['1st', '2nd', '3rd', '4th'];
+  const posColors = ['#ffd32a', '#c0c0c0', '#cd7f32', '#999'];
+  const raceIdx = championship.currentIdx;
+  const totalRaces = championship.tracks.length;
+  const isLastRace = raceIdx >= totalRaces - 1;
+
+  // Build standings table
+  const names = ['You', 'AI 1', 'AI 2', 'AI 3'].slice(0, raceConfig.aiCount + 1);
+  const standings = championship.points.map((pts, i) => ({ name: names[i], points: pts, idx: i }));
+  standings.sort((a, b) => b.points - a.points);
+
+  let standingsHTML = standings.map((s, rank) => {
+    const color = s.idx === 0 ? '#fff' : 'rgba(255,255,255,0.6)';
+    const bold = s.idx === 0 ? 'font-weight:700;' : '';
+    return `<div style="display:flex;justify-content:space-between;padding:4px 8px;${bold}color:${color};border-bottom:1px solid rgba(255,255,255,0.05);">
+      <span>${rank + 1}. ${s.name}</span><span>${s.points} pts</span>
+    </div>`;
+  }).join('');
+
+  const title = isLastRace ? `${championship.series} - Final Results!` : `${championship.series} - Race ${raceIdx + 1}/${totalRaces}`;
+  const champWinner = isLastRace ? standings[0] : null;
+
+  let html = `<div style="text-align:center; padding:10px 0;">
+    <div style="font-size:1.4rem; font-weight:800; color:${posColors[racePosition-1]}; margin-bottom:8px;">${posLabels[racePosition-1]} Place</div>
+    <div style="font-size:1.1rem; color:#ffd32a; margin-bottom:4px;">${formatTime(raceTime)}</div>
+    <div style="color:rgba(255,255,255,0.5);font-size:0.8rem;margin-bottom:12px;">${championship.tracks[raceIdx].name}</div>
+    <div style="font-weight:700;margin-bottom:6px;color:rgba(255,255,255,0.8);">Championship Standings</div>
+    <div style="background:rgba(0,0,0,0.3);border-radius:8px;padding:8px;margin-bottom:14px;">${standingsHTML}</div>`;
+
+  if (isLastRace && champWinner) {
+    const winnerColor = champWinner.idx === 0 ? '#ffd32a' : '#e74c3c';
+    const winnerText = champWinner.idx === 0 ? 'You win the championship!' : `${champWinner.name} wins!`;
+    html += `<div style="font-size:1.3rem;font-weight:800;color:${winnerColor};margin-bottom:14px;">&#127942; ${winnerText}</div>`;
+  }
+
+  html += `<div style="display:flex;gap:10px;justify-content:center;">`;
+  if (!isLastRace) {
+    html += `<button class="modal-btn modal-btn-primary" id="nextRaceBtn">Next Race</button>`;
+  }
+  html += `<button class="modal-btn" style="background:rgba(255,255,255,0.1);color:#fff;" id="champExitBtn">${isLastRace ? 'Done' : 'Quit'}</button>`;
+  html += `</div></div>`;
+
+  showModal(title, html, false, true);
+
+  if (!isLastRace) {
+    document.getElementById('nextRaceBtn').onclick = async () => {
+      hideModal();
+      await loadChampionshipRace(raceIdx + 1);
+    };
+  }
+  document.getElementById('champExitBtn').onclick = () => {
+    championship = null;
+    hideModal();
+    exitRace();
+    showRaceMenu();
+  };
+}
+
+document.getElementById('modalCloseBtn').onclick = hideModal;
+document.getElementById('trackModal').onclick = (e) => {
+  if (e.target === document.getElementById('trackModal') && !document.getElementById('trackModal')._noClose) hideModal();
+};
+
+function saveTrack() {
+  if (track.length === 0) return;
+  showModal('Save Track', `
+    <input class="modal-input" id="saveNameInput" type="text" placeholder="Name your track..." autofocus maxlength="30">
+    <button class="modal-btn modal-btn-primary" id="saveConfirmBtn" disabled style="margin-top:12px;">Save Track</button>
+  `);
+  const input = document.getElementById('saveNameInput');
+  const btn = document.getElementById('saveConfirmBtn');
+  input.addEventListener('input', () => {
+    btn.disabled = !input.value.trim();
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && input.value.trim()) doSave();
+  });
+  btn.onclick = doSave;
+  setTimeout(() => input.focus(), 50);
+
+  function doSave() {
+    const name = input.value.trim();
+    if (!name) return;
+    const trackData = track.map(p => ({ piece: PIECES[p.pieceIdx].name, rotation: p.rotation }));
+    const saved = getSavedTracks();
+    // Count existing Custom Classic tracks to assign race number
+    const customCount = Object.values(saved).filter(e => e.series === 'Custom Classic').length;
+    saved[name] = { track: trackData, series: 'Custom Classic', raceNo: customCount + 1 };
+    localStorage.setItem(TRACKS_KEY, JSON.stringify(saved));
+    document.getElementById('modalBody').innerHTML = `
+      <div class="modal-success">
+        <span class="success-icon">&#127937;</span>
+        <span class="success-text">"${name}" saved!</span>
+      </div>
+    `;
+    setTimeout(hideModal, 1200);
+  }
+}
+
+async function loadTrack() {
+  const saved = getSavedTracks();
+
+  // Fetch built-in tracks from tracks/ folder
+  let builtinTracks = [];
+  try {
+    const indexResp = await fetch('tracks/index.json');
+    const trackFiles = await indexResp.json();
+    for (const file of trackFiles) {
+      try {
+        const resp = await fetch('tracks/' + file);
+        const data = await resp.json();
+        builtinTracks.push(data);
+      } catch(e) {}
+    }
+  } catch(e) {}
+
+  // Build combined list: built-in first, then user saves
+  const allTracks = [];
+
+  for (const bt of builtinTracks) {
+    const pieces = bt.track ? bt.track.length : 0;
+    const label = bt.series ? `${bt.series} #${bt.raceNo}` : '';
+    allTracks.push({ name: bt.name, pieces, series: bt.series, raceNo: bt.raceNo, builtin: true, label });
+  }
+
+  const userNames = Object.keys(saved);
+  for (const name of userNames) {
+    const entry = saved[name];
+    const trackData = Array.isArray(entry) ? entry : entry.track;
+    const pieces = trackData ? trackData.length : 0;
+    const series = entry.series || '';
+    const raceNo = entry.raceNo || '';
+    const label = series ? `${series} #${raceNo}` : '';
+    allTracks.push({ name, pieces, series, raceNo, builtin: false, label });
+  }
+
+  if (allTracks.length === 0) {
+    showModal('Load Track', `
+      <div class="track-empty">
+        <span class="empty-icon">&#128301;</span>
+        No saved tracks yet!<br>Build a track and save it first.
+      </div>
+    `);
+    return;
+  }
+
+  const itemsHTML = allTracks.map((t, i) => {
+    const badge = t.builtin ? '<span style="font-size:9px;background:rgba(162,155,254,0.3);padding:2px 6px;border-radius:4px;margin-left:6px;">built-in</span>' : '';
+    const seriesLabel = t.label ? `<span style="color:rgba(255,255,255,0.4);font-size:11px;margin-left:6px;">${t.label}</span>` : '';
+    return `<li class="track-item" style="animation-delay:${i * 0.05}s" data-name="${t.name}" data-builtin="${t.builtin}">
+      <div>
+        <div class="track-name">&#127937; ${t.name}${badge}${seriesLabel}</div>
+        <div class="track-pieces">${t.pieces} piece${t.pieces !== 1 ? 's' : ''}</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <button class="track-download" data-download="${t.name}" data-builtin="${t.builtin}" title="Download">&#11015;</button>
+        ${!t.builtin ? `<button class="track-delete" data-delete="${t.name}" title="Delete">&times;</button>` : ''}
+      </div>
+    </li>`;
+  }).join('');
+
+  showModal('Load Track', `
+    <button class="modal-btn" id="importTrackBtn" style="margin-bottom:12px;background:rgba(255,255,255,0.1);color:#fff;width:100%;padding:10px;">&#128229; Import from file</button>
+    <ul class="track-list">${itemsHTML}</ul>
+  `);
+
+  // Store built-in track data for loading
+  const builtinMap = {};
+  for (const bt of builtinTracks) { builtinMap[bt.name] = bt; }
+
+  // Bind click handlers
+  document.querySelectorAll('.track-item').forEach(item => {
+    item.addEventListener('click', async (e) => {
+      if (e.target.classList.contains('track-delete') || e.target.classList.contains('track-download')) return;
+      const name = item.dataset.name;
+      const isBuiltin = item.dataset.builtin === 'true';
+      hideModal();
+      if (isBuiltin) {
+        await doLoadTrackFromData(name, builtinMap[name].track);
+      } else {
+        await doLoadTrack(name);
+      }
+    });
+  });
+
+  document.querySelectorAll('.track-delete').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const name = btn.dataset.delete;
+      const saved = getSavedTracks();
+      delete saved[name];
+      localStorage.setItem(TRACKS_KEY, JSON.stringify(saved));
+      btn.closest('.track-item').style.transform = 'translateX(100px)';
+      btn.closest('.track-item').style.opacity = '0';
+      setTimeout(() => {
+        btn.closest('.track-item').remove();
+        if (document.querySelectorAll('.track-item').length === 0) {
+          document.getElementById('modalBody').innerHTML = `
+            <div class="track-empty">
+              <span class="empty-icon">&#128301;</span>
+              No saved tracks yet!
+            </div>`;
+        }
+      }, 250);
+    });
+  });
+
+  // Download track as JSON file
+  document.querySelectorAll('.track-download').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const name = btn.dataset.download;
+      const isBuiltin = btn.dataset.builtin === 'true';
+      let exportData;
+      if (isBuiltin) {
+        exportData = builtinMap[name];
+      } else {
+        const saved = getSavedTracks();
+        const entry = saved[name];
+        const trackData = Array.isArray(entry) ? entry : entry.track;
+        exportData = { name, track: trackData, series: entry.series || undefined, raceNo: entry.raceNo || undefined };
+      }
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${name}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  });
+
+  // Import track from file
+  document.getElementById('importTrackBtn').addEventListener('click', () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.addEventListener('change', async () => {
+      if (!input.files.length) return;
+      try {
+        const text = await input.files[0].text();
+        const data = JSON.parse(text);
+        const name = data.name || input.files[0].name.replace('.json', '');
+        const trackData = data.track;
+        if (!trackData || !Array.isArray(trackData)) {
+          alert('Invalid track file');
+          return;
+        }
+        const saved = getSavedTracks();
+        saved[name] = { track: trackData, series: data.series || undefined, raceNo: data.raceNo || undefined };
+        localStorage.setItem(TRACKS_KEY, JSON.stringify(saved));
+        hideModal();
+        await doLoadTrack(name);
+      } catch(e) {
+        alert('Failed to import track: ' + e.message);
+      }
+    });
+    input.click();
+  });
+}
+
+async function doLoadTrackFromData(name, trackData) {
+  currentRaceTrackName = name;
+  // Clear current track
+  track.forEach(p => scene.remove(p.mesh));
+  track = [];
+  cursor = { x: startCursorConfig.x, y:0, z: startCursorConfig.z, heading: startCursorConfig.heading };
+  trackClosed = false;
+  raceSpline = null;
+
+  for (const entry of trackData) {
+    const idx = PIECE_NAME_MAP[entry.piece];
+    if (idx === undefined) continue;
+    extraRotation = entry.rotation || 0;
+    const def = PIECES[idx];
+    const placement = getPiecePlacement(idx, cursor, extraRotation);
+    const model = await loadModel(def.id);
+    model.position.set(placement.x, 0, placement.z);
+    model.rotation.y = -placement.heading * DEG;
+    if (def.mirror) model.scale.x = -1;
+    if (def.flipZ) {
+      model.scale.z = -1;
+      const offsetLocal = transformPoint(0, def.exit.z, placement.heading);
+      model.position.x += offsetLocal.x;
+      model.position.z += offsetLocal.z;
+    }
+    scene.add(model);
+    track.push({
+      pieceIdx: idx, worldX: placement.x, worldZ: placement.z,
+      heading: placement.heading, prevCursor: { ...cursor },
+      rotation: extraRotation, mesh: model,
+    });
+    cursor = getNextCursor(idx, cursor, extraRotation);
+  }
+  extraRotation = 0;
+  trackClosed = false;
+  if (mode !== 'title') document.getElementById('topBar').classList.remove('hidden');
+  updatePieceCount();
+  updatePieceAvailability();
+  updateGhost();
+  if (track.length > 0) {
+    const last = track[track.length - 1];
+    editorCameraGoal = new THREE.Vector3(last.worldX, 0, last.worldZ);
+    controls.target.set(last.worldX, 0, last.worldZ);
+  }
+}
+
+async function doLoadTrack(name) {
+  currentRaceTrackName = name;
+  const saved = getSavedTracks();
+  if (!saved[name]) return;
+
+  // Handle both old format (array) and new format (object with .track)
+  const savedEntry = saved[name];
+  const data = Array.isArray(savedEntry) ? savedEntry : savedEntry.track;
+
+  // Clear current track
+  track.forEach(p => scene.remove(p.mesh));
+  track = [];
+  cursor = { x: startCursorConfig.x, y:0, z: startCursorConfig.z, heading: startCursorConfig.heading };
+  trackClosed = false;
+  raceSpline = null;
+
+  // Rebuild from saved data
+  for (const entry of data) {
+    const idx = PIECE_NAME_MAP[entry.piece];
+    if (idx === undefined) continue;
+    extraRotation = entry.rotation || 0;
+    const def = PIECES[idx];
+    const placement = getPiecePlacement(idx, cursor, extraRotation);
+    const model = await loadModel(def.id);
+    model.position.set(placement.x, 0, placement.z);
+    model.rotation.y = -placement.heading * DEG;
+    if (def.mirror) model.scale.x = -1;
+    if (def.flipZ) {
+      model.scale.z = -1;
+      const offsetLocal = transformPoint(0, def.exit.z, placement.heading);
+      model.position.x += offsetLocal.x;
+      model.position.z += offsetLocal.z;
+    }
+    scene.add(model);
+    track.push({
+      pieceIdx: idx, worldX: placement.x, worldZ: placement.z,
+      heading: placement.heading, prevCursor: { ...cursor },
+      rotation: extraRotation, mesh: model,
+    });
+    cursor = getNextCursor(idx, cursor, extraRotation);
+  }
+  extraRotation = 0;
+  trackClosed = false;
+  if (mode !== 'title') document.getElementById('topBar').classList.remove('hidden');
+  updatePieceCount();
+  updatePieceAvailability();
+  updateGhost();
+
+  // Focus camera on last placed piece
+  if (track.length > 0) {
+    const last = track[track.length - 1];
+    editorCameraGoal = new THREE.Vector3(last.worldX, 0, last.worldZ);
+    controls.target.set(last.worldX, 0, last.worldZ);
+  }
+}
+
+document.getElementById('saveBtn').onclick = saveTrack;
+document.getElementById('loadBtn').onclick = loadTrack;
+
+initThrottleBar();
+const defaultTrackReady = loadDefaultTrack();
+animate();
+
+// Start menu demo on title screen
+defaultTrackReady.then(() => startMenuDemo());
+
+</script>
+</body>
+</html>
