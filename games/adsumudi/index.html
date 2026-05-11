@@ -1,0 +1,1468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<title>Adsumudi - Garfield Boys' Arcade</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html, body {
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  position: fixed;
+  inset: 0;
+}
+body {
+  background: #0ba9b2;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  color: #fff;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ===== App grid ===== */
+.app {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto 1fr auto;
+  padding: 6px;
+  gap: 0.55rem;
+}
+
+/* ===== Top bar ===== */
+.top-bar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+.top-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3rem;
+}
+#backBtn {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 9999;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  text-decoration: none;
+  padding: 6px 18px;
+  border-radius: 20px;
+  font: bold 15px/1.4 'Segoe UI', system-ui, sans-serif;
+  border: 1px solid rgba(255,255,255,0.18);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: background 0.2s;
+}
+#backBtn:hover { background: rgba(0,0,0,0.75); }
+
+.stats-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  align-items: flex-end;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: rgba(255,255,255,0.85);
+}
+.stats-col span {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+.stats-col b { font-size: 0.85rem; color: #ffd32a; font-weight: 900; }
+
+
+/* ===== Center: hex card ===== */
+.center {
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 10;
+  overflow: visible;
+}
+
+.hex-ops-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  min-height: 0;
+}
+
+.hex-wrap {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hex-card {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 10px 24px rgba(0,0,0,0.32));
+  transition: transform 0.3s cubic-bezier(0.2,0.9,0.3,1.4);
+  display: block;
+}
+.hex-card.win-pop { animation: winpop 0.7s ease; }
+@keyframes winpop {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.05); }
+  60% { transform: scale(0.99); }
+  100% { transform: scale(1); }
+}
+.hex-card.new-deal { animation: deal 0.4s cubic-bezier(0.2,0.9,0.3,1.4); }
+@keyframes deal {
+  0% { transform: translateY(-20px) scale(0.92); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.slice {
+  cursor: pointer;
+  transition: filter 0.2s, opacity 0.2s, stroke 0.2s, stroke-width 0.2s;
+  stroke: none;
+  stroke-width: 0;
+}
+.slice.is-number:hover { filter: brightness(1.15); }
+.slice.is-number:active { filter: brightness(0.9); }
+.slice.is-number.is-consumed {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
+.slice.is-number.is-active {
+  filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.9)) brightness(1.12);
+  animation: activepulse 1.5s ease-in-out infinite;
+}
+@keyframes activepulse {
+  0%, 100% { filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.7)) brightness(1.08); }
+  50% { filter: drop-shadow(0 0 16px rgba(255, 255, 255, 1)) brightness(1.18); }
+}
+.slice.is-logo { cursor: default; pointer-events: none; }
+.slice.is-number.hint-glow {
+  filter: drop-shadow(0 0 14px #ffd32a) brightness(1.2);
+  animation: hintpulse 1.2s ease-in-out infinite;
+}
+@keyframes hintpulse {
+  0%, 100% { filter: drop-shadow(0 0 6px #ffd32a) brightness(1.05); }
+  50% { filter: drop-shadow(0 0 18px #ffd32a) brightness(1.25); }
+}
+
+.num-text {
+  font-size: 48px;
+  font-weight: 600;
+  fill: #fff;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+  font-family: 'Barlow Condensed', 'Segoe UI', system-ui, sans-serif;
+  transition: opacity 0.2s;
+}
+.num-text.bumped { animation: numbump 0.3s; transform-box: fill-box; transform-origin: center; }
+@keyframes numbump {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.25); }
+}
+.num-text.is-active { transform-box: fill-box; transform-origin: center; transform: scale(1.2); }
+
+.num-underline {
+  stroke: #fff;
+  stroke-width: 5;
+  stroke-linecap: round;
+  pointer-events: none;
+  filter: drop-shadow(0 0 2px rgba(0,0,0,0.65));
+}
+
+.target-text {
+  font-size: 60px;
+  font-weight: 600;
+  fill: #0d0d1a;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+  font-family: 'Barlow Condensed', 'Segoe UI', system-ui, sans-serif;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.target-text.flash-win { animation: targetwin 0.9s cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes targetwin {
+  0%   { transform: scale(1);   fill: #0d0d1a; }
+  25%  { transform: scale(1.6); fill: #2ecc71; }
+  55%  { transform: scale(1);   fill: #2ecc71; }
+  100% { transform: scale(1);   fill: #0d0d1a; }
+}
+
+/* ===== Logo (inside top slice) ===== */
+.logo-wordmark {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-weight: 900;
+  font-style: italic;
+  font-size: 19px;
+  letter-spacing: 0.5px;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+.logo-sub {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-anchor: middle;
+  dominant-baseline: central;
+  fill: #fff;
+  pointer-events: none;
+}
+.logo-divider { stroke: #fff; stroke-width: 1.5; pointer-events: none; }
+
+/* ===== Operator bar ===== */
+.ops-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+}
+.op-row {
+  display: flex;
+  gap: 0.55rem;
+  align-items: center;
+  justify-content: center;
+}
+.op-btn {
+  width: clamp(44px, 7vmin, 56px);
+  height: clamp(44px, 7vmin, 56px);
+  border-radius: 50%;
+  border: none;
+  background: #1a6b8c;
+  color: #fff;
+  font-size: clamp(1.2rem, 4vmin, 1.6rem);
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 3px 0 rgba(0,0,0,0.25), 0 4px 10px rgba(0,0,0,0.18);
+  transition: transform 0.1s, box-shadow 0.1s, background 0.2s, opacity 0.2s;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.op-btn:hover { background: #145a78; transform: translateY(-2px); }
+.op-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,0.25), 0 2px 6px rgba(0,0,0,0.18); }
+.op-btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
+.op-btn.pending {
+  background: #ffd32a;
+  color: #0d0d1a;
+  box-shadow: 0 3px 0 rgba(0,0,0,0.25), 0 0 14px rgba(255,211,42,0.6);
+}
+.op-btn.bumped { animation: opbump 0.3s; }
+@keyframes opbump {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+}
+
+.reset-btn {
+  padding: clamp(0.4rem, 1.2vmin, 0.55rem) clamp(0.9rem, 3vmin, 1.4rem);
+  background: #1a6b8c;
+  color: #fff;
+  border: none;
+  border-radius: 24px;
+  font-size: clamp(0.78rem, 2.4vmin, 0.95rem);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  box-shadow: 0 3px 0 rgba(0,0,0,0.25), 0 4px 10px rgba(0,0,0,0.18);
+  transition: transform 0.1s, background 0.2s;
+}
+.reset-btn:hover { background: #145a78; transform: translateY(-1px); }
+.reset-btn:active { transform: translateY(1px); }
+.nums-left {
+  font-size: 0.7rem;
+  color: rgba(255,255,255,0.5);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  min-height: 1em;
+}
+.reset-btn .icon { font-size: 1.05em; }
+
+/* ===== Bottom bar ===== */
+.bottom-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 0.6rem;
+  padding-top: 0.2rem;
+}
+.bot-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  align-items: flex-start;
+  flex: 1 1 0;
+  min-width: 0;
+}
+.bot-right {
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  align-items: flex-end;
+  flex: 0 0 auto;
+}
+.diff-stars {
+  display: flex;
+  gap: 0.15rem;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.diff-stars .dstar {
+  color: rgba(255,255,255,0.25);
+}
+.diff-stars .dstar.lit {
+  color: #ffd32a;
+  text-shadow: 0 0 5px rgba(255,211,42,0.5);
+}
+.set-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  align-items: flex-start;
+  min-width: 0;
+  max-width: 100%;
+}
+.set-label {
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.85);
+  flex: 0 0 auto;
+}
+.pill-group {
+  display: flex;
+  gap: 0.18rem;
+  background: rgba(0,0,0,0.2);
+  padding: 0.15rem;
+  border-radius: 20px;
+  flex-wrap: nowrap;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+.pill-group::-webkit-scrollbar { display: none; }
+.pill-group { scrollbar-width: none; }
+.pill {
+  padding: 0.28rem 0.5rem;
+  border: none;
+  background: transparent;
+  color: #fff;
+  border-radius: 16px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.2s, color 0.2s;
+  white-space: nowrap;
+}
+.pill:hover { background: rgba(255,255,255,0.1); }
+.pill.active { background: #fff; color: #0d0d1a; }
+
+
+/* ===== Modal (How to play) ===== */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.modal.hidden { display: none; }
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.modal-box {
+  position: relative;
+  background: linear-gradient(160deg, #1a6b8c 0%, #0d4f6a 100%);
+  border: 2px solid rgba(255,255,255,0.15);
+  border-radius: 18px;
+  padding: 1.6rem 1.8rem 1.4rem;
+  max-width: 640px;
+  width: 100%;
+  max-height: 90dvh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  color: #fff;
+}
+.modal-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.6rem;
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.7);
+  font-size: 1.4rem;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0.2rem 0.5rem;
+  line-height: 1;
+}
+.modal-close:hover { color: #fff; }
+.modal-box h2 {
+  font-size: 1.4rem;
+  margin-bottom: 1rem;
+  color: #fff;
+  font-weight: 800;
+}
+.modal-box h3 {
+  font-size: 0.85rem;
+  margin: 0.8rem 0 0.35rem;
+  color: #f2ca37;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.modal-box p, .modal-box li {
+  font-size: 0.88rem;
+  line-height: 1.5;
+  margin-bottom: 0.45rem;
+  color: rgba(255,255,255,0.9);
+}
+.modal-box ul {
+  margin-left: 1rem;
+  margin-bottom: 0.5rem;
+}
+.modal-box b, .modal-box strong { color: #fff; font-weight: 800; }
+.modal-box code {
+  background: rgba(0,0,0,0.25);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+.help-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+.help-col h3:first-child { margin-top: 0; }
+@media (max-width: 520px) {
+  .help-cols { grid-template-columns: 1fr; gap: 0.5rem; }
+}
+
+/* ===== Toast ===== */
+.toast {
+  position: fixed;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.88);
+  color: #fff;
+  padding: 0.7rem 1.2rem;
+  border-radius: 14px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  z-index: 150;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s, transform 0.3s;
+  border: 1px solid rgba(255, 211, 42, 0.45);
+  max-width: 90vw;
+  text-align: center;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.4);
+}
+.toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast b { color: #ffd32a; }
+
+/* ===== Win burst — hex slice colors extend across the whole screen,
+   BEHIND the hex (so the hex stays visible in front and the colors
+   appear to radiate out of it) but ABOVE all other UI. ===== */
+.win-burst {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background: conic-gradient(from -30deg at var(--bx, 50%) var(--by, 50%),
+    #0d0d1a 0deg 60deg,
+    #f0504e 60deg 120deg,
+    #f2ca37 120deg 180deg,
+    #f16b9d 180deg 240deg,
+    #0ba9b2 240deg 300deg,
+    #0a4a7a 300deg 360deg);
+  clip-path: circle(0% at var(--bx, 50%) var(--by, 50%));
+  opacity: 0;
+  will-change: clip-path, opacity;
+  filter: saturate(1.1);
+}
+.win-burst.active {
+  animation: winBurst 1.6s cubic-bezier(0.55, 0, 0.25, 1) forwards;
+}
+@keyframes winBurst {
+  0%   { clip-path: circle(0%   at var(--bx, 50%) var(--by, 50%)); opacity: 1; }
+  22%  { clip-path: circle(160% at var(--bx, 50%) var(--by, 50%)); opacity: 1; }
+  72%  { clip-path: circle(160% at var(--bx, 50%) var(--by, 50%)); opacity: 1; }
+  100% { clip-path: circle(160% at var(--bx, 50%) var(--by, 50%)); opacity: 0; }
+}
+
+/* ===== Confetti ===== */
+.confetti-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 80;
+  overflow: hidden;
+}
+.confetti {
+  position: absolute;
+  width: 8px; height: 12px;
+  top: -20px;
+  border-radius: 2px;
+  animation: fall var(--dur) linear forwards;
+}
+@keyframes fall {
+  to { transform: translateY(calc(100vh + 40px)) rotate(720deg); opacity: 0; }
+}
+
+/* Tiny screens */
+@media (max-height: 600px) {
+  .pill { padding: 0.22rem 0.55rem; font-size: 0.66rem; }
+  .stats-inline span { padding: 0.15rem 0.4rem; }
+  .stats-inline { font-size: 0.65rem; }
+  .icon-btn { padding: 4px 9px; font-size: 12px; }
+  .set-label { font-size: 0.55rem; }
+}
+</style>
+</head>
+<body>
+
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+<div class="app">
+  <header class="top-bar">
+    <div class="top-right">
+      <div class="pill-group">
+        <button class="pill active" id="newCardBtn">NEW</button>
+        <button class="pill active" id="hintBtn">HINT</button>
+        <button class="pill active" id="helpBtn">HELP</button>
+      </div>
+      <div class="stats-col">
+        <span>✓ Solved <b id="statSolved">0</b></span>
+        <span>🔥 Streak <b id="statStreak">0</b></span>
+        <span>★ Best <b id="statBest">0</b></span>
+      </div>
+    </div>
+  </header>
+
+  <main class="center">
+    <div class="hex-ops-col">
+      <div class="hex-wrap" id="hexWrap">
+        <svg class="hex-card" id="hexCard" viewBox="0 0 378 327.603" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+          <polygon id="hex_bg" points="94.5 0 283.5 0 378 163.679 283.5 327.358 94.5 327.358 0 163.679 94.5 0" fill="#0d0d1a"></polygon>
+
+          <polygon id="red_section" class="slice is-number" data-slice="1" points="283.5 0 378 163.679 263.873 163.679 226.437 98.837 283.5 0" fill="#f0504e"></polygon>
+          <polygon id="yellow_section" class="slice is-number" data-slice="2" points="378 163.679 263.873 163.679 226.437 228.52 283.5 327.358 378 163.679" fill="#f2ca37"></polygon>
+          <polygon id="pink_section" class="slice is-number" data-slice="3" points="94.501 327.358 151.564 228.52 226.438 228.52 283.501 327.358 94.501 327.358" fill="#f16b9d"></polygon>
+          <polygon id="teal_section" class="slice is-number" data-slice="4" points="0 163.679 114.128 163.68 151.563 228.521 94.5 327.358 0 163.679" fill="#0ba9b2"></polygon>
+          <polygon id="blue_section" class="slice is-number" data-slice="5" points="94.5 0 151.563 98.837 114.128 163.68 0 163.679 94.5 0" fill="#0a4a7a"></polygon>
+
+          <g id="starsGroup"></g>
+          <g id="logoGroup"></g>
+          <g id="levelLabel"></g>
+
+          <path id="circle" d="M235.781,163.8a46.781,46.781,0,1,1-46.781-46.782A46.782,46.782,0,0,1,235.781,163.8" fill="#fff"></path>
+          <text class="target-text" id="targetText" x="189" y="166">5</text>
+
+          <g id="numsGroup"></g>
+        </svg>
+      </div>
+      <div class="ops-bar" id="opsBar">
+        <div class="op-row">
+          <button class="op-btn" data-op="+" aria-label="plus">+</button>
+          <button class="op-btn" data-op="-" aria-label="minus">−</button>
+          <button class="op-btn" data-op="*" aria-label="times">×</button>
+          <button class="op-btn" data-op="/" aria-label="divide">÷</button>
+        </div>
+        <button class="reset-btn" id="resetBtn"><span class="icon">↺</span> RESET</button>
+        <span class="nums-left" id="numsLeft"></span>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bottom-bar">
+    <div class="bot-left">
+      <div class="set-block">
+        <span class="set-label">Play Level</span>
+        <div class="pill-group" id="levelPills">
+          <button class="pill" data-level="easy">EASY</button>
+          <button class="pill" data-level="medium">MEDIUM</button>
+          <button class="pill" data-level="hard">HARD</button>
+          <button class="pill" data-level="monstrous">MONSTROUS</button>
+        </div>
+      </div>
+      <div class="set-block">
+        <span class="set-label">Card Type</span>
+        <div class="pill-group" id="typePills">
+          <button class="pill" data-type="classic">CLASSIC</button>
+          <button class="pill" data-type="funones">FUN ONES</button>
+        </div>
+      </div>
+    </div>
+    <div class="bot-right">
+      <span class="set-label">Difficulty</span>
+      <div class="diff-stars" id="diffStars">
+        <span class="dstar">★</span>
+        <span class="dstar">★</span>
+        <span class="dstar">★</span>
+      </div>
+    </div>
+  </footer>
+
+  <div class="win-burst" id="winBurst"></div>
+</div>
+
+<div id="helpModal" class="modal hidden">
+  <div class="modal-backdrop" id="helpBackdrop"></div>
+  <div class="modal-box">
+    <button class="modal-close" id="helpClose" aria-label="Close">✕</button>
+    <h2>How to Play</h2>
+    <div class="help-cols">
+      <div class="help-col">
+        <h3>Goal</h3>
+        <p>The big number in the white circle is your <b>target</b>. Combine the <b>5 small numbers</b> around the hex using <b>+ − × ÷</b> to reach it.</p>
+        <h3>How</h3>
+        <p><b>Tap a number</b> → <b>tap an operator</b> → <b>tap another number</b>. The result replaces the second number. Keep going until your total matches the target.</p>
+        <p>Math goes <b>left to right</b> — no PEMDAS.<br><code>3 + 4 × 2 = 14</code>, not 11.</p>
+      </div>
+      <div class="help-col">
+        <h3>Play Level</h3>
+        <ul>
+          <li><b>EASY</b> — 2+ numbers</li>
+          <li><b>MEDIUM</b> — 3+</li>
+          <li><b>HARD</b> — 4+</li>
+          <li><b>MONSTROUS</b> — all 5</li>
+        </ul>
+        <h3>Card Type</h3>
+        <p><b>Classic</b> — all four operations, bigger numbers.<br><b>Fun Ones</b> — only + and −, numbers up to 12.</p>
+        <h3>Difficulty ★</h3>
+        <p>Randomly assigned per card. More stars = bigger numbers &amp; trickier targets.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+<div class="confetti-layer" id="confetti"></div>
+
+<script>
+/* ====================== Audio ====================== */
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function tone(freq, dur, type='sine', vol=0.12, endFreq=null) {
+  const ctx = ensureAudio();
+  const osc = ctx.createOscillator(), gain = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, ctx.currentTime);
+  if (endFreq) osc.frequency.exponentialRampToValueAtTime(Math.max(endFreq, 20), ctx.currentTime + dur);
+  gain.gain.setValueAtTime(vol, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(); osc.stop(ctx.currentTime + dur);
+}
+function sfxTap()  { tone(440, 0.07, 'triangle', 0.10); }
+function sfxOp()   { tone(620, 0.08, 'square',   0.07); }
+function sfxBad()  { tone(180, 0.18, 'sawtooth', 0.10, 90); }
+function sfxReset(){ tone(280, 0.12, 'sine',     0.08, 140); }
+function sfxHint() { tone(740, 0.10, 'triangle', 0.10); setTimeout(() => tone(880, 0.10, 'triangle', 0.10), 80); }
+function sfxCalc() { tone(540, 0.08, 'triangle', 0.11); setTimeout(() => tone(700, 0.10, 'triangle', 0.11), 60); }
+function sfxWin() {
+  tone(523, 0.10, 'triangle', 0.14);
+  setTimeout(() => tone(659, 0.10, 'triangle', 0.14), 80);
+  setTimeout(() => tone(784, 0.14, 'triangle', 0.14), 160);
+  setTimeout(() => tone(1047, 0.20, 'triangle', 0.14), 240);
+}
+
+/* ====================== Storage ====================== */
+function loadArcadeData() {
+  try { return JSON.parse(localStorage.getItem('calebArcadeData')) || {}; }
+  catch(e) { return {}; }
+}
+function saveArcadeData(data) {
+  localStorage.setItem('calebArcadeData', JSON.stringify(data));
+}
+function getAd() {
+  const d = loadArcadeData();
+  if (!d.adsumudi) d.adsumudi = {};
+  return { d, ad: d.adsumudi };
+}
+function saveAd(ad) {
+  const d = loadArcadeData();
+  d.adsumudi = ad;
+  saveArcadeData(d);
+}
+
+/* ====================== Geometry ====================== */
+const CX = 189, CY = 163.8;
+const SLICE_COLORS = ['#0d0d1a','#f0504e','#f2ca37','#f16b9d','#0ba9b2','#0a4a7a'];
+
+/* ====================== Build SVG card ====================== */
+function buildCardSvg() {
+  // Attach click handlers to the 5 colored section polygons
+  document.querySelectorAll('.slice.is-number').forEach(el => {
+    const i = parseInt(el.dataset.slice, 10) - 1;
+    el.addEventListener('click', () => onNumberTap(i));
+  });
+  buildLogo();
+}
+
+function buildStars() {
+  const g = document.getElementById('starsGroup');
+  g.innerHTML = '';
+  const diff = state.cardDifficulty;
+  // Star polygon points (relative to center 0,0), scaled small
+  const starPath = (cx, cy) => {
+    const pts = [];
+    for (let i = 0; i < 10; i++) {
+      const a = (i * 36 - 90) * Math.PI / 180;
+      const r = i % 2 === 0 ? 5.2 : 2.3;
+      pts.push(`${cx + r * Math.cos(a)},${cy + r * Math.sin(a)}`);
+    }
+    return pts.join(' ');
+  };
+  const y = 14;
+  if (diff === 1) {
+    const s = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    s.setAttribute('points', starPath(189, y));
+    s.setAttribute('fill', '#fff');
+    g.appendChild(s);
+  } else if (diff === 2) {
+    const s1 = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    s1.setAttribute('points', starPath(178, y));
+    s1.setAttribute('fill', '#fff');
+    g.appendChild(s1);
+    const s2 = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    s2.setAttribute('points', starPath(200, y));
+    s2.setAttribute('fill', '#fff');
+    g.appendChild(s2);
+  } else {
+    const s1 = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    s1.setAttribute('points', starPath(167, y));
+    s1.setAttribute('fill', '#fff');
+    g.appendChild(s1);
+    const s2 = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    s2.setAttribute('points', starPath(189, y));
+    s2.setAttribute('fill', '#fff');
+    g.appendChild(s2);
+    const s3 = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    s3.setAttribute('points', starPath(211, y));
+    s3.setAttribute('fill', '#fff');
+    g.appendChild(s3);
+  }
+}
+
+function buildLogo() {
+  const g = document.getElementById('logoGroup');
+  g.innerHTML = '';
+
+  // ADSUMUDI wordmark — colored letters matching official: AD teal, SU pink, MU yellow, DI red
+  const wordmarkY = 34;
+  const wordmark = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  wordmark.setAttribute('class', 'logo-wordmark');
+  wordmark.setAttribute('x', CX);
+  wordmark.setAttribute('y', wordmarkY);
+  const pairs = [
+    { text: 'AD', color: '#0ba9b2' },
+    { text: 'SU', color: '#f16b9d' },
+    { text: 'MU', color: '#f2ca37' },
+    { text: 'DI', color: '#f0504e' },
+  ];
+  pairs.forEach(p => {
+    const span = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+    span.setAttribute('fill', p.color);
+    span.textContent = p.text;
+    wordmark.appendChild(span);
+  });
+  g.appendChild(wordmark);
+
+  // Card type label (CLASSIC / FUN ONES) with flanking lines
+  const typeY = 49;
+  const typeText = state.cardType === 'funones' ? 'FUN ONES' : 'CLASSIC';
+  const approxCharW = 6.2;
+  const textHalfW = (typeText.length * approxCharW) / 2;
+  const dashStart = textHalfW + 6;
+  const dashEnd = dashStart + 18;
+  const l1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  l1.setAttribute('x1', CX - dashEnd); l1.setAttribute('y1', typeY);
+  l1.setAttribute('x2', CX - dashStart); l1.setAttribute('y2', typeY);
+  l1.setAttribute('class', 'logo-divider');
+  g.appendChild(l1);
+  const l2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  l2.setAttribute('x1', CX + dashStart); l2.setAttribute('y1', typeY);
+  l2.setAttribute('x2', CX + dashEnd); l2.setAttribute('y2', typeY);
+  l2.setAttribute('class', 'logo-divider');
+  g.appendChild(l2);
+  const sub = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  sub.setAttribute('class', 'logo-sub');
+  sub.setAttribute('x', CX);
+  sub.setAttribute('y', typeY);
+  sub.textContent = typeText;
+  g.appendChild(sub);
+
+  // Play level label
+  const lvlG = document.getElementById('levelLabel');
+  lvlG.innerHTML = '';
+  const lvlY = 62;
+  const lvlMap = { easy: 'EASY', medium: 'MEDIUM', hard: 'HARD', monstrous: 'MONSTROUS' };
+  const lvl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  lvl.setAttribute('class', 'logo-sub');
+  lvl.setAttribute('x', CX);
+  lvl.setAttribute('y', lvlY);
+  lvl.setAttribute('style', 'font-size:10px;letter-spacing:0.18em;');
+  lvl.textContent = lvlMap[state.playLevel] || state.playLevel.toUpperCase();
+  lvlG.appendChild(lvl);
+}
+
+/* ====================== Numbers rendering ====================== */
+// Visual centers of each colored section (approximate centroids)
+const SECTION_CENTERS = [
+  { x: 288, y: 107, rot: 60 },   // red (top-right)
+  { x: 288, y: 221, rot: 120 },  // yellow (right)
+  { x: 189, y: 278, rot: 180 },  // pink (bottom)
+  { x: 90, y: 221, rot: 240 },   // teal (bottom-left)
+  { x: 90, y: 107, rot: 300 },   // blue (top-left)
+];
+
+function renderNumbers() {
+  const g = document.getElementById('numsGroup');
+  g.innerHTML = '';
+  if (!state.card) return;
+
+  for (let i = 0; i < 5; i++) {
+    const ss = state.sliceState[i];
+    if (ss === 'consumed') continue;
+
+    const { x, y, rot } = SECTION_CENTERS[i];
+    const displayValue = state.sliceValue[i];
+    const isModified = (ss === 'modified');
+
+    const wrap = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    wrap.setAttribute('transform', `rotate(${rot}, ${x}, ${y})`);
+
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    t.setAttribute('class', 'num-text' + (i === state.activeIdx ? ' is-active' : ''));
+    t.setAttribute('x', x);
+    t.setAttribute('y', y);
+    t.setAttribute('data-numidx', i);
+    t.textContent = displayValue;
+    wrap.appendChild(t);
+
+    // Underline if modified or contains 6/9 (disambiguation)
+    const valStr = String(displayValue);
+    const ambiguous = /[69]/.test(valStr);
+    if (isModified || ambiguous) {
+      const charW = 16;
+      const halfW = valStr.length * charW / 2;
+      const u = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      u.setAttribute('class', 'num-underline');
+      u.setAttribute('x1', x - halfW);
+      u.setAttribute('x2', x + halfW);
+      u.setAttribute('y1', y + 28);
+      u.setAttribute('y2', y + 28);
+      wrap.appendChild(u);
+    }
+
+    g.appendChild(wrap);
+  }
+}
+
+function refreshSliceStates() {
+  document.querySelectorAll('.slice.is-number').forEach(el => {
+    const i = parseInt(el.dataset.slice, 10) - 1;
+    el.classList.toggle('is-active', i === state.activeIdx);
+    el.classList.toggle('is-consumed', state.sliceState[i] === 'consumed');
+  });
+  buildStars();
+}
+
+function clearHintGlow() {
+  document.querySelectorAll('.slice.is-number.hint-glow').forEach(el => el.classList.remove('hint-glow'));
+}
+
+/* ====================== Game logic ====================== */
+const MIN_NUMS = { easy: 2, medium: 3, hard: 4, monstrous: 5 };
+
+let state = {
+  playLevel: 'easy',
+  cardType: 'classic',
+  cardDifficulty: 1,
+  card: null,
+  sliceValue: [0,0,0,0,0],          // current displayed value per slice
+  sliceState: ['original','original','original','original','original'],
+  incorporatedCount: [1,1,1,1,1],   // # original numbers contributing to a slice's value
+  activeIdx: null,
+  pendingOp: null,
+  solved: 0,
+  streak: 0,
+  best: 0,
+  hintLevel: 0,
+};
+
+function loadSettings() {
+  const { ad } = getAd();
+  if (ad.playLevel) state.playLevel = ad.playLevel;
+  if (ad.cardType) state.cardType = ad.cardType;
+  state.best = ad.bestStreak || 0;
+  state.solved = ad.totalSolved || 0;
+}
+function saveSettings() {
+  const { ad } = getAd();
+  ad.playLevel = state.playLevel;
+  ad.cardType = state.cardType;
+  ad.bestStreak = state.best;
+  ad.totalSolved = state.solved;
+  saveAd(ad);
+}
+
+function applyOp(a, op, b) {
+  if (op === '+') return a + b;
+  if (op === '-') { const r = a - b; return r >= 0 ? r : null; }
+  if (op === '*') return a * b;
+  if (op === '/') {
+    if (b === 0) return null;
+    if (a % b !== 0) return null;
+    return a / b;
+  }
+  return null;
+}
+
+function pickNumbers(pool, count) {
+  const result = [];
+  const counts = {};
+  while (result.length < count) {
+    const n = pool[Math.floor(Math.random() * pool.length)];
+    counts[n] = (counts[n] || 0);
+    if (counts[n] >= 2 && result.length < pool.length) continue;
+    counts[n]++;
+    result.push(n);
+  }
+  return result;
+}
+
+function configFor(cardType, cardDifficulty) {
+  if (cardType === 'funones') {
+    const pools = { 1: [1,2,3,4,5,6,7,8,9], 2: [1,2,3,4,5,6,7,8,9,10,11,12], 3: [2,3,4,5,6,7,8,9,10,11,12] };
+    const targets = { 1: [4,25], 2: [6,40], 3: [10,60] };
+    return { numberPool: pools[cardDifficulty], targetMin: targets[cardDifficulty][0], targetMax: targets[cardDifficulty][1], allowedOps: ['+','-'] };
+  }
+  const pools = { 1: [1,2,3,4,5,6,7,8,9,10], 2: [1,2,3,4,5,6,7,8,9,10,11,12,15], 3: [2,3,4,5,6,7,8,9,10,11,12,15,20,25,30] };
+  const targets = { 1: [6,50], 2: [12,100], 3: [25,250] };
+  return { numberPool: pools[cardDifficulty], targetMin: targets[cardDifficulty][0], targetMax: targets[cardDifficulty][1], allowedOps: ['+','-','*','/'] };
+}
+
+function generateCard() {
+  const config = configFor(state.cardType, state.cardDifficulty);
+  const minUse = MIN_NUMS[state.playLevel];
+  const isMonstrous = state.playLevel === 'monstrous';
+
+  for (let attempt = 0; attempt < 600; attempt++) {
+    const nums = pickNumbers(config.numberPool, 5);
+    const useCount = isMonstrous ? 5 : (minUse + Math.floor(Math.random() * (6 - minUse)));
+    const order = [0,1,2,3,4].sort(() => Math.random() - 0.5).slice(0, useCount);
+
+    let value = nums[order[0]];
+    let ok = true;
+    const opsUsed = [];
+    for (let i = 1; i < order.length; i++) {
+      const next = nums[order[i]];
+      const opsShuffled = [...config.allowedOps].sort(() => Math.random() - 0.5);
+      let found = null;
+      for (const op of opsShuffled) {
+        const r = applyOp(value, op, next);
+        if (r !== null && r <= 9999) { found = { op, r }; break; }
+      }
+      if (!found) { ok = false; break; }
+      value = found.r;
+      opsUsed.push(found.op);
+    }
+    if (!ok) continue;
+    if (value < config.targetMin || value > config.targetMax) continue;
+    if (nums.includes(value) && minUse > 1) continue;
+    return { nums, target: value, solution: { order, ops: opsUsed } };
+  }
+  const nums = pickNumbers(config.numberPool, 5);
+  return { nums, target: nums[0] + nums[1], solution: { order: [0, 1], ops: ['+'] } };
+}
+
+/* ====================== Tap handling ====================== */
+function onNumberTap(i) {
+  if (state.sliceState[i] === 'consumed') return;
+  if (i === state.activeIdx) return; // can't re-use the currently active slice
+
+  if (state.activeIdx === null) {
+    // First focus
+    state.activeIdx = i;
+    sfxTap();
+  } else if (state.pendingOp === null) {
+    // No operator queued — switch focus to this slice
+    state.activeIdx = i;
+    sfxTap();
+  } else {
+    // Apply pending operator: oldActive (op) i → result lands in slice i
+    const oldActive = state.activeIdx;
+    const newVal = applyOp(state.sliceValue[oldActive], state.pendingOp, state.sliceValue[i]);
+    if (newVal === null) {
+      sfxBad();
+      const opBtn = document.querySelector(`.op-btn[data-op="${state.pendingOp}"]`);
+      if (opBtn) {
+        opBtn.style.transition = 'transform 0.1s';
+        let s = 0;
+        const itv = setInterval(() => {
+          opBtn.style.transform = `translateX(${s % 2 ? -4 : 4}px)`;
+          if (++s > 4) { clearInterval(itv); opBtn.style.transform = ''; }
+        }, 50);
+      }
+      return;
+    }
+    state.sliceState[oldActive] = 'consumed';
+    state.sliceValue[i] = newVal;
+    state.sliceState[i] = 'modified';
+    state.incorporatedCount[i] = state.incorporatedCount[oldActive] + state.incorporatedCount[i];
+    state.activeIdx = i;
+    state.pendingOp = null;
+    sfxCalc();
+  }
+  refreshSliceStates();
+  refreshOpStates();
+  renderNumbers();
+  updateNumsLeft();
+  checkWin();
+}
+
+function onOpTap(op) {
+  const cfg = configFor(state.cardType, state.cardDifficulty);
+  if (!cfg.allowedOps.includes(op)) { sfxBad(); return; }
+  if (state.activeIdx === null) { sfxBad(); return; }
+  if (state.pendingOp === op) {
+    state.pendingOp = null;
+    sfxTap();
+  } else {
+    state.pendingOp = op;
+    sfxOp();
+  }
+  refreshOpStates();
+}
+
+function refreshOpStates() {
+  document.querySelectorAll('.op-btn').forEach(b => {
+    b.classList.toggle('pending', b.dataset.op === state.pendingOp);
+  });
+}
+
+function resetExpr() {
+  if (state.activeIdx === null && state.pendingOp === null
+      && state.sliceState.every(s => s === 'original')) return;
+  state.sliceValue = [...state.card.nums];
+  state.sliceState = ['original','original','original','original','original'];
+  state.incorporatedCount = [1,1,1,1,1];
+  state.activeIdx = null;
+  state.pendingOp = null;
+  refreshSliceStates();
+  refreshOpStates();
+  renderNumbers();
+  updateNumsLeft();
+  sfxReset();
+}
+
+function checkWin() {
+  if (state.activeIdx === null) return;
+  if (state.sliceValue[state.activeIdx] !== state.card.target) return;
+  const used = state.incorporatedCount[state.activeIdx];
+  if (used < MIN_NUMS[state.playLevel]) {
+    const slice = document.querySelector(`.slice[data-slice="${state.activeIdx + 1}"]`);
+    if (slice) {
+      let s = 0;
+      const itv = setInterval(() => {
+        slice.setAttribute('transform', `translate(${s % 2 ? -3 : 3}, 0)`);
+        if (++s > 5) { clearInterval(itv); slice.removeAttribute('transform'); }
+      }, 50);
+    }
+    return;
+  }
+  onCardWin();
+}
+
+function onCardWin() {
+  state.solved++;
+  state.streak++;
+  if (state.streak > state.best) state.best = state.streak;
+  updateStats();
+  saveSettings();
+  sfxWin();
+  burstConfetti(50);
+  triggerWinBurst();
+  const tgt = document.getElementById('targetText');
+  tgt.classList.remove('flash-win');
+  void tgt.getBoundingClientRect();
+  tgt.classList.add('flash-win');
+  const card = document.getElementById('hexCard');
+  card.classList.remove('win-pop');
+  void card.getBoundingClientRect();
+  card.classList.add('win-pop');
+  document.querySelectorAll('.slice.is-number, .op-btn, .reset-btn').forEach(b => b.style.pointerEvents = 'none');
+  setTimeout(() => {
+    document.querySelectorAll('.slice.is-number, .op-btn, .reset-btn').forEach(b => b.style.pointerEvents = '');
+    dealNewCard();
+  }, 1100);
+}
+
+function triggerWinBurst() {
+  const burst = document.getElementById('winBurst');
+  if (!burst) return;
+  // Center the burst on the hex card so colors radiate from where the slices live
+  const hex = document.getElementById('hexCard');
+  if (hex) {
+    const r = hex.getBoundingClientRect();
+    const cx = ((r.left + r.width / 2) / window.innerWidth) * 100;
+    const cy = ((r.top + r.height / 2) / window.innerHeight) * 100;
+    burst.style.setProperty('--bx', cx + '%');
+    burst.style.setProperty('--by', cy + '%');
+  }
+  burst.classList.remove('active');
+  void burst.offsetWidth;
+  burst.classList.add('active');
+}
+
+function breakStreak() {
+  if (state.streak > 0) {
+    state.streak = 0;
+    updateStats();
+    saveSettings();
+  }
+}
+
+function dealNewCard() {
+  state.cardDifficulty = 1 + Math.floor(Math.random() * 3);
+  state.card = generateCard();
+  state.sliceValue = [...state.card.nums];
+  state.sliceState = ['original','original','original','original','original'];
+  state.incorporatedCount = [1,1,1,1,1];
+  state.activeIdx = null;
+  state.pendingOp = null;
+  state.hintLevel = 0;
+  clearHintGlow();
+  hideToast();
+  buildStars();
+  updateDiffStars();
+  refreshSliceStates();
+  refreshOpStates();
+  renderNumbers();
+  updateNumsLeft();
+  const tgtEl = document.getElementById('targetText');
+  tgtEl.textContent = state.card.target;
+  tgtEl.setAttribute('font-size', state.card.target >= 100 ? '44' : '60');
+  const card = document.getElementById('hexCard');
+  card.classList.remove('new-deal');
+  void card.getBoundingClientRect();
+  card.classList.add('new-deal');
+}
+
+function updateStats() {
+  document.getElementById('statSolved').textContent = state.solved;
+  document.getElementById('statStreak').textContent = state.streak;
+  document.getElementById('statBest').textContent = state.best;
+}
+
+function updateNumsLeft() {
+  const remaining = state.sliceState.filter(s => s !== 'consumed').length;
+  const needed = MIN_NUMS[state.playLevel];
+  const used = 5 - remaining;
+  const el = document.getElementById('numsLeft');
+  if (used === 0) {
+    el.textContent = `use ${needed}+ numbers`;
+  } else if (used < needed) {
+    const still = needed - used;
+    el.textContent = `${still} more needed`;
+  } else {
+    el.textContent = `${remaining} left`;
+  }
+}
+
+const CONFETTI_COLORS = ['#ffd32a','#ff9f43','#ee5a6f','#6c5ce7','#a0c4ff','#55efc4','#fff'];
+function burstConfetti(n) {
+  const layer = document.getElementById('confetti');
+  for (let i = 0; i < n; i++) {
+    const c = document.createElement('div');
+    c.className = 'confetti';
+    c.style.left = (Math.random() * 100) + '%';
+    c.style.background = CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)];
+    c.style.setProperty('--dur', (1.4 + Math.random() * 1.2) + 's');
+    c.style.transform = `rotate(${Math.random() * 360}deg)`;
+    c.style.animationDelay = (Math.random() * 0.15) + 's';
+    layer.appendChild(c);
+    setTimeout(() => c.remove(), 2700);
+  }
+}
+
+/* ====================== Hint solver ====================== */
+function findHintSolution(nums, target, minUse, allowedOps) {
+  function combinations(arr, k) {
+    if (k === 0) return [[]];
+    if (arr.length < k) return [];
+    const out = [];
+    for (let i = 0; i <= arr.length - k; i++) {
+      for (const rest of combinations(arr.slice(i + 1), k - 1)) {
+        out.push([arr[i], ...rest]);
+      }
+    }
+    return out;
+  }
+  function permutations(arr) {
+    if (arr.length <= 1) return [arr];
+    const out = [];
+    for (let i = 0; i < arr.length; i++) {
+      const rest = [...arr.slice(0, i), ...arr.slice(i + 1)];
+      for (const p of permutations(rest)) out.push([arr[i], ...p]);
+    }
+    return out;
+  }
+  function opChains(n) {
+    if (n === 0) return [[]];
+    const out = [];
+    for (const op of allowedOps) for (const r of opChains(n - 1)) out.push([op, ...r]);
+    return out;
+  }
+  const indices = [0,1,2,3,4];
+  const sizes = (minUse === 5) ? [5] : [];
+  if (sizes.length === 0) for (let k = minUse; k <= 5; k++) sizes.push(k);
+  for (const k of sizes) {
+    for (const subset of combinations(indices, k)) {
+      for (const order of permutations(subset)) {
+        for (const opChain of opChains(k - 1)) {
+          let val = nums[order[0]];
+          let ok = true;
+          for (let i = 0; i < opChain.length; i++) {
+            const r = applyOp(val, opChain[i], nums[order[i + 1]]);
+            if (r === null) { ok = false; break; }
+            val = r;
+          }
+          if (ok && val === target) return { order, ops: opChain };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+const OP_GLYPHS = { '+': '+', '-': '−', '*': '×', '/': '÷' };
+
+function showHint() {
+  if (!state.card) return;
+  ensureAudio();
+  sfxHint();
+  if (!state.card.hintSolution) {
+    const cfg = configFor(state.cardType, state.cardDifficulty);
+    const minUse = MIN_NUMS[state.playLevel];
+    state.card.hintSolution =
+      findHintSolution(state.card.nums, state.card.target, minUse, cfg.allowedOps)
+      || state.card.solution;
+  }
+  const { order, ops } = state.card.hintSolution;
+  state.hintLevel = Math.min(state.hintLevel + 1, 2);
+  if (state.hintLevel === 1) {
+    clearHintGlow();
+    order.forEach(numIdx => {
+      const sliceIdx = numIdx + 1;
+      const el = document.querySelector(`.slice[data-slice="${sliceIdx}"]`);
+      if (el) el.classList.add('hint-glow');
+    });
+    const numsList = order.map(i => state.card.nums[i]).join(', ');
+    const requirement = state.playLevel === 'monstrous'
+      ? 'all 5 numbers'
+      : `${MIN_NUMS[state.playLevel]}+ numbers`;
+    showToast(`💡 ${state.playLevel.toUpperCase()} needs ${requirement}. Try: <b>${numsList}</b>`, 5500);
+  } else {
+    const parts = [`<b>${state.card.nums[order[0]]}</b>`];
+    for (let i = 0; i < ops.length; i++) {
+      parts.push(OP_GLYPHS[ops[i]]);
+      parts.push(`<b>${state.card.nums[order[i + 1]]}</b>`);
+    }
+    showToast(`💡 Try: ${parts.join(' ')} = ${state.card.target}`, 7000);
+  }
+}
+
+/* ====================== Toast ====================== */
+let toastTimer = null;
+function showToast(html, duration = 4000) {
+  const t = document.getElementById('toast');
+  t.innerHTML = html;
+  t.classList.add('visible');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('visible'), duration);
+}
+function hideToast() {
+  const t = document.getElementById('toast');
+  t.classList.remove('visible');
+  clearTimeout(toastTimer);
+}
+
+/* ====================== Help modal ====================== */
+function openHelp() {
+  document.getElementById('helpModal').classList.remove('hidden');
+}
+function closeHelp() {
+  document.getElementById('helpModal').classList.add('hidden');
+}
+
+document.getElementById('helpBtn').addEventListener('click', () => { ensureAudio(); openHelp(); });
+document.getElementById('helpBackdrop').addEventListener('click', closeHelp);
+document.getElementById('helpClose').addEventListener('click', closeHelp);
+document.getElementById('hintBtn').addEventListener('click', showHint);
+document.getElementById('newCardBtn').addEventListener('click', () => { ensureAudio(); breakStreak(); dealNewCard(); });
+
+/* ====================== Settings wiring ====================== */
+function updateSettingsUi() {
+  document.querySelectorAll('#levelPills .pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.level === state.playLevel);
+  });
+  document.querySelectorAll('#typePills .pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.type === state.cardType);
+  });
+  // Difficulty stars in SVG + footer
+  buildStars();
+  updateDiffStars();
+  // Op buttons availability
+  const allowed = configFor(state.cardType, state.cardDifficulty).allowedOps;
+  document.querySelectorAll('.op-btn').forEach(b => {
+    const ok = allowed.includes(b.dataset.op);
+    b.style.display = ok ? '' : 'none';
+    b.disabled = !ok;
+  });
+  buildLogo();
+  requestAnimationFrame(() => { if (typeof fitHex === 'function') fitHex(); });
+}
+
+function updateDiffStars() {
+  document.querySelectorAll('#diffStars .dstar').forEach((s, idx) => {
+    s.classList.toggle('lit', idx < state.cardDifficulty);
+  });
+}
+
+document.querySelectorAll('#levelPills .pill').forEach(p => {
+  p.addEventListener('click', () => {
+    ensureAudio();
+    if (state.playLevel === p.dataset.level) return;
+    state.playLevel = p.dataset.level;
+    breakStreak();
+    saveSettings();
+    updateSettingsUi();
+    dealNewCard();
+  });
+});
+document.querySelectorAll('#typePills .pill').forEach(p => {
+  p.addEventListener('click', () => {
+    ensureAudio();
+    if (state.cardType === p.dataset.type) return;
+    state.cardType = p.dataset.type;
+    breakStreak();
+    saveSettings();
+    updateSettingsUi();
+    dealNewCard();
+  });
+});
+
+document.querySelectorAll('.op-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    ensureAudio();
+    onOpTap(b.dataset.op);
+  });
+});
+document.getElementById('resetBtn').addEventListener('click', () => {
+  ensureAudio();
+  resetExpr();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (!document.getElementById('helpModal').classList.contains('hidden')) {
+    if (e.key === 'Escape') closeHelp();
+    return;
+  }
+  if (e.key >= '1' && e.key <= '5') {
+    const idx = parseInt(e.key, 10) - 1;
+    onNumberTap(idx);
+    return;
+  }
+  if (e.key === '+') onOpTap('+');
+  else if (e.key === '-') onOpTap('-');
+  else if (e.key === '*' || e.key === 'x' || e.key === 'X') onOpTap('*');
+  else if (e.key === '/') onOpTap('/');
+  else if (e.key === 'r' || e.key === 'R' || e.key === 'Backspace' || e.key === 'Escape') resetExpr();
+  else if (e.key === 'n' || e.key === 'N') { breakStreak(); dealNewCard(); }
+  else if (e.key === 'h' || e.key === 'H') showHint();
+  else if (e.key === '?') openHelp();
+});
+
+/* ====================== Layout fitting ====================== */
+function fitHex() {
+  const center = document.querySelector('.center');
+  const wrap = document.getElementById('hexWrap');
+  const opsBar = document.getElementById('opsBar');
+  if (!center || !wrap) return;
+  const W = center.clientWidth;
+  const opsH = opsBar ? opsBar.offsetHeight + 8 : 80;
+  const H = center.clientHeight - opsH;
+  // SVG aspect ratio is 378:327.6 (~1.154:1)
+  const aspect = 378 / 327.603;
+  const scale = 1.2;
+  let w, h;
+  if (W / H > aspect) {
+    h = Math.max(120, Math.floor(H * scale));
+    w = Math.floor(h * aspect);
+  } else {
+    w = Math.max(120, Math.floor(W * scale));
+    h = Math.floor(w / aspect);
+  }
+  wrap.style.width = w + 'px';
+  wrap.style.height = h + 'px';
+}
+window.addEventListener('resize', () => requestAnimationFrame(fitHex));
+window.addEventListener('orientationchange', () => setTimeout(fitHex, 100));
+
+/* ====================== Boot ====================== */
+loadSettings();
+buildCardSvg();
+updateSettingsUi();
+updateStats();
+dealNewCard();
+requestAnimationFrame(() => {
+  fitHex();
+  requestAnimationFrame(fitHex);
+});
+</script>
+</body>
+</html>
