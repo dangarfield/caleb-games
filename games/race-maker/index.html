@@ -10,6 +10,7 @@
 * { margin:0; padding:0; box-sizing:border-box; }
 body { background:#1a1a1a; overflow:hidden; touch-action:none;
   font-family:'Segoe UI',system-ui,sans-serif; }
+button, .piece-card, .track-item, .decor-item, .modal-btn, a { touch-action:manipulation; }
 canvas { display:block; width:100%; height:100%; }
 .hidden { display:none !important; }
 
@@ -50,10 +51,11 @@ canvas { display:block; width:100%; height:100%; }
   margin-bottom:2px; }
 #piecePalette .specials-grid { display:grid; grid-template-columns:repeat(4, 1fr);
   gap:4px; grid-column:1/-1; }
-.piece-card { padding:4px 6px; border-radius:6px; cursor:pointer;
+.piece-card { padding:8px 8px; border-radius:6px; cursor:pointer;
   background:rgba(255,255,255,0.07); border:1.5px solid transparent;
-  color:#fff; font-size:9px; font-weight:500; text-align:center;
-  transition:all 0.12s; user-select:none; white-space:nowrap; line-height:1.2; }
+  color:#fff; font-size:10px; font-weight:500; text-align:center;
+  transition:all 0.12s; user-select:none; white-space:nowrap; line-height:1.2;
+  min-height:44px; display:flex; flex-direction:column; align-items:center; justify-content:center; }
 .piece-card:hover { background:rgba(108,92,231,0.35); border-color:rgba(162,155,254,0.5); }
 .piece-card.selected { background:rgba(108,92,231,0.5); border-color:#a29bfe;
   box-shadow:0 1px 8px rgba(108,92,231,0.4); }
@@ -62,10 +64,10 @@ canvas { display:block; width:100%; height:100%; }
 /* Editor actions row — inside palette */
 #piecePalette .actions-row { display:flex; gap:4px; margin-top:6px;
   padding-top:6px; border-top:1px solid rgba(255,255,255,0.08); }
-#piecePalette .actions-row button { padding:6px 8px; border-radius:6px; border:none;
-  background:rgba(255,255,255,0.1); color:#fff; font-size:9px; cursor:pointer;
+#piecePalette .actions-row button { padding:10px 8px; border-radius:6px; border:none;
+  background:rgba(255,255,255,0.1); color:#fff; font-size:10px; cursor:pointer;
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
-  transition:all 0.12s; font-weight:600; white-space:nowrap; flex:1; }
+  transition:all 0.12s; font-weight:600; white-space:nowrap; flex:1; min-height:44px; }
 #piecePalette .actions-row button .btn-icon { font-size:16px; line-height:1; }
 #piecePalette .actions-row button:hover { background:rgba(255,255,255,0.22); }
 #piecePalette .actions-row button:active { transform:scale(0.92); }
@@ -76,17 +78,17 @@ canvas { display:block; width:100%; height:100%; }
 /* Top bar */
 #topBar { position:fixed; bottom:12px; right:12px; z-index:100;
   display:flex; gap:8px; }
-#topBar button { padding:8px 16px; border-radius:10px; border:none;
-  background:rgba(0,0,0,0.6); color:#fff; font-size:13px; font-weight:600;
+#topBar button { padding:12px 18px; border-radius:10px; border:none;
+  background:rgba(0,0,0,0.6); color:#fff; font-size:14px; font-weight:600;
   cursor:pointer; border:1px solid rgba(255,255,255,0.15);
-  backdrop-filter:blur(6px); transition:all 0.15s; }
+  backdrop-filter:blur(6px); transition:all 0.15s; min-height:44px; }
 #topBar button:hover { background:rgba(0,0,0,0.8); }
 #topBar button.active { background:linear-gradient(135deg,#6c5ce7,#a29bfe);
   border-color:rgba(162,155,254,0.5); }
 
 #editorCloseBtn { position:fixed; top:12px; right:12px; z-index:100;
-  width:36px; height:36px; border-radius:50%; border:1px solid rgba(255,255,255,0.15);
-  background:rgba(0,0,0,0.6); color:#fff; font-size:18px; cursor:pointer;
+  width:44px; height:44px; border-radius:50%; border:1px solid rgba(255,255,255,0.15);
+  background:rgba(0,0,0,0.6); color:#fff; font-size:20px; cursor:pointer;
   backdrop-filter:blur(6px); transition:all 0.15s; display:flex; align-items:center; justify-content:center; }
 #editorCloseBtn:hover { background:rgba(220,50,50,0.7); }
 #editorCloseBtn.hidden { display:none; }
@@ -252,7 +254,7 @@ canvas { display:block; width:100%; height:100%; }
   border-bottom:1px solid rgba(162,155,254,0.2); }
 .modal-header h2 { font-size:1.3rem; color:#fff; margin:0; }
 .modal-close { background:none; border:none; color:rgba(255,255,255,0.6); font-size:24px;
-  cursor:pointer; padding:4px 8px; border-radius:8px; transition:all 0.15s; }
+  cursor:pointer; padding:10px 14px; border-radius:8px; transition:all 0.15s; min-width:44px; min-height:44px; }
 .modal-close:hover { background:rgba(255,255,255,0.1); color:#fff; }
 .modal-body { padding:20px 24px; overflow-y:auto; flex:1; }
 .modal-input { width:100%; padding:12px 16px; border-radius:12px; border:2px solid rgba(162,155,254,0.3);
@@ -276,10 +278,10 @@ canvas { display:block; width:100%; height:100%; }
 .track-item .track-name { font-size:15px; font-weight:600; color:#fff; }
 .track-item .track-pieces { font-size:12px; color:rgba(255,255,255,0.5); }
 .track-item .track-download { background:none; border:none; color:rgba(162,155,254,0.7);
-  font-size:16px; cursor:pointer; padding:4px 8px; border-radius:6px; transition:all 0.15s; }
+  font-size:18px; cursor:pointer; padding:10px 12px; border-radius:6px; transition:all 0.15s; min-width:44px; min-height:44px; }
 .track-item .track-download:hover { color:#a29bfe; background:rgba(162,155,254,0.15); }
 .track-item .track-delete { background:none; border:none; color:rgba(231,76,60,0.7);
-  font-size:18px; cursor:pointer; padding:4px 8px; border-radius:6px; transition:all 0.15s; }
+  font-size:20px; cursor:pointer; padding:10px 12px; border-radius:6px; transition:all 0.15s; min-width:44px; min-height:44px; }
 .track-item .track-delete:hover { color:#e74c3c; background:rgba(231,76,60,0.15); }
 .track-empty { text-align:center; padding:30px; color:rgba(255,255,255,0.4); font-size:14px; }
 .track-empty .empty-icon { font-size:40px; margin-bottom:10px; display:block; }
@@ -1109,13 +1111,16 @@ function buildPalette() {
       updatePaletteSelection();
       updateGhost();
     };
-    card.onclick = (e) => {
+    // Unified pointer handler — works for both mouse and touch without conflicts
+    let cardPointerDown = false;
+    card.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
-      selectedPieceIdx = idx;
-      placePiece(idx);
-      updatePaletteSelection();
-    };
-    card.ontouchend = (e) => {
+      cardPointerDown = true;
+    });
+    card.addEventListener('pointerup', (e) => {
+      if (!cardPointerDown) return;
+      cardPointerDown = false;
+      e.stopPropagation();
       e.preventDefault();
       if (selectedPieceIdx === idx) {
         placePiece(idx);
@@ -1125,7 +1130,8 @@ function buildPalette() {
         updatePaletteSelection();
         updateGhost();
       }
-    };
+    });
+    card.addEventListener('pointercancel', () => { cardPointerDown = false; });
     return card;
   }
 
@@ -2650,8 +2656,8 @@ function finishRace() {
           </div>
         </div>
       `, false, true);
-      document.getElementById('raceAgainBtn').onclick = () => { hideModal(); startRace(); };
-      document.getElementById('raceExitBtn').onclick = () => { hideModal(); exitRace(); raceMenuFromOverlay = true; showRaceMenu(); };
+      document.getElementById('raceAgainBtn').addEventListener('pointerup', (e) => { e.preventDefault(); hideModal(); startRace(); });
+      document.getElementById('raceExitBtn').addEventListener('pointerup', (e) => { e.preventDefault(); hideModal(); exitRace(); raceMenuFromOverlay = true; showRaceMenu(); });
     }
 
     // Fade in
@@ -2836,8 +2842,8 @@ document.getElementById('quickRaceBtn').onclick = async () => {
   showRaceMenu();
 };
 
-document.getElementById('modeEditBtn').onclick = enterEditorMode;
-document.getElementById('modeDecorBtn').onclick = enterDecorMode;
+document.getElementById('modeEditBtn').addEventListener('pointerup', (e) => { e.preventDefault(); enterEditorMode(); });
+document.getElementById('modeDecorBtn').addEventListener('pointerup', (e) => { e.preventDefault(); enterDecorMode(); });
 
 async function returnToMenu() {
   stopMenuDemo();
@@ -2879,12 +2885,13 @@ async function returnToMenu() {
   document.getElementById('overlay').classList.remove('hidden');
   startMenuDemo();
 }
-document.getElementById('editorCloseBtn').onclick = returnToMenu;
-document.getElementById('modeRaceBtn').onclick = startRace;
-document.getElementById('switchLaneBtn').onclick = () => {
+document.getElementById('editorCloseBtn').addEventListener('pointerup', (e) => { e.preventDefault(); returnToMenu(); });
+document.getElementById('modeRaceBtn').addEventListener('pointerup', (e) => { e.preventDefault(); startRace(); });
+document.getElementById('switchLaneBtn').addEventListener('pointerdown', (e) => {
+  e.preventDefault();
   currentLane = currentLane === 'left' ? 'right' : 'left';
   sfx.switchLane();
-};
+});
 
 // Key tracking for continuous pan
 const keysDown = new Set();
@@ -3285,9 +3292,10 @@ buildDecorPalette();
 buildActionsRow();
 
 // Bind action buttons
-document.getElementById('undoBtn').onclick = undoPiece;
-document.getElementById('closeBtn').onclick = closeLoop;
-document.getElementById('resetBtn').onclick = () => {
+document.getElementById('undoBtn').addEventListener('pointerup', (e) => { e.preventDefault(); undoPiece(); });
+document.getElementById('closeBtn').addEventListener('pointerup', (e) => { e.preventDefault(); closeLoop(); });
+document.getElementById('resetBtn').addEventListener('pointerup', (e) => {
+  e.preventDefault();
   if (track.length === 0) return;
   track.forEach(p => scene.remove(p.mesh));
   decorations.forEach(d => scene.remove(d.mesh));
@@ -3302,7 +3310,7 @@ document.getElementById('resetBtn').onclick = () => {
   updateGhost();
   controls.target.set(0, 0, 0);
   loadDefaultTrack();
-};
+});
 
 // ============================================================
 // SAVE / LOAD TRACKS
@@ -3449,9 +3457,14 @@ async function showRaceMenu() {
 
   showModal('Race', html, true);
 
-  // Bind championship buttons
+  // Bind championship buttons — use pointerup for reliable tablet touch
   document.querySelectorAll('.race-series-btn').forEach(btn => {
-    btn.onclick = async () => {
+    let down = false;
+    btn.addEventListener('pointerdown', () => { down = true; });
+    btn.addEventListener('pointerup', async (e) => {
+      if (!down) return;
+      down = false;
+      e.preventDefault();
       const series = btn.dataset.series;
       const tracks = seriesMap[series];
       championship = {
@@ -3465,12 +3478,18 @@ async function showRaceMenu() {
       stopMenuDemo();
       hideModal();
       await loadChampionshipRace(0);
-    };
+    });
+    btn.addEventListener('pointercancel', () => { down = false; });
   });
 
   // Bind individual race buttons
   document.querySelectorAll('.race-single-btn').forEach(btn => {
-    btn.onclick = async () => {
+    let down = false;
+    btn.addEventListener('pointerdown', () => { down = true; });
+    btn.addEventListener('pointerup', async (e) => {
+      if (!down) return;
+      down = false;
+      e.preventDefault();
       const name = btn.dataset.track;
       const builtin = btn.dataset.builtin === 'true';
       championship = null; // Single race, no championship
@@ -3485,7 +3504,8 @@ async function showRaceMenu() {
       }
       await autoDecorate();
       await startRace();
-    };
+    });
+    btn.addEventListener('pointercancel', () => { down = false; });
   });
 }
 
@@ -3672,17 +3692,19 @@ function showChampionshipStandings(racePosition, raceTime) {
   showModal(title, html, false, true);
 
   if (!isLastRace) {
-    document.getElementById('nextRaceBtn').onclick = async () => {
+    document.getElementById('nextRaceBtn').addEventListener('pointerup', async (e) => {
+      e.preventDefault();
       hideModal();
       await loadChampionshipRace(raceIdx + 1);
-    };
+    });
   }
-  document.getElementById('champExitBtn').onclick = () => {
+  document.getElementById('champExitBtn').addEventListener('pointerup', (e) => {
+    e.preventDefault();
     championship = null;
     hideModal();
     exitRace();
     showRaceMenu();
-  };
+  });
 }
 
 document.getElementById('modalCloseBtn').onclick = hideModal;
@@ -3797,10 +3819,18 @@ async function loadTrack() {
   const builtinMap = {};
   for (const bt of builtinTracks) { builtinMap[bt.name] = bt; }
 
-  // Bind click handlers
+  // Bind click handlers — use pointerup for reliable tablet touch
   document.querySelectorAll('.track-item').forEach(item => {
-    item.addEventListener('click', async (e) => {
-      if (e.target.classList.contains('track-delete') || e.target.classList.contains('track-download')) return;
+    let itemDown = false;
+    item.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.track-delete, .track-download')) return;
+      itemDown = true;
+    });
+    item.addEventListener('pointerup', async (e) => {
+      if (!itemDown) return;
+      itemDown = false;
+      if (e.target.closest('.track-delete, .track-download')) return;
+      e.preventDefault();
       const name = item.dataset.name;
       const isBuiltin = item.dataset.builtin === 'true';
       hideModal();
@@ -3810,11 +3840,13 @@ async function loadTrack() {
         await doLoadTrack(name);
       }
     });
+    item.addEventListener('pointercancel', () => { itemDown = false; });
   });
 
   document.querySelectorAll('.track-delete').forEach(btn => {
-    btn.addEventListener('click', (e) => {
+    btn.addEventListener('pointerup', (e) => {
       e.stopPropagation();
+      e.preventDefault();
       const name = btn.dataset.delete;
       const saved = getSavedTracks();
       delete saved[name];
@@ -3836,8 +3868,9 @@ async function loadTrack() {
 
   // Download track as JSON file
   document.querySelectorAll('.track-download').forEach(btn => {
-    btn.addEventListener('click', (e) => {
+    btn.addEventListener('pointerup', (e) => {
       e.stopPropagation();
+      e.preventDefault();
       const name = btn.dataset.download;
       const isBuiltin = btn.dataset.builtin === 'true';
       let exportData;
@@ -3990,8 +4023,8 @@ async function doLoadTrack(name) {
   }
 }
 
-document.getElementById('saveBtn').onclick = saveTrack;
-document.getElementById('loadBtn').onclick = loadTrack;
+document.getElementById('saveBtn').addEventListener('pointerup', (e) => { e.preventDefault(); saveTrack(); });
+document.getElementById('loadBtn').addEventListener('pointerup', (e) => { e.preventDefault(); loadTrack(); });
 
 initThrottleBar();
 const defaultTrackReady = loadDefaultTrack();
