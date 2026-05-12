@@ -21,26 +21,28 @@ html, body {
 }
 body {
   background: #0ba9b2;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: 'Barlow Condensed', 'Segoe UI', system-ui, -apple-system, sans-serif;
   color: #fff;
   touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
 }
 
-/* ===== App grid ===== */
+/* ===== App layout ===== */
 .app {
   position: fixed;
   inset: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto 1fr auto;
-  padding: 6px;
-  gap: 0.55rem;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
 }
 
 /* ===== Top bar ===== */
 .top-bar {
+  position: fixed;
+  top: 8px;
+  right: 12px;
+  z-index: 100;
   display: flex;
   justify-content: flex-end;
   align-items: flex-start;
@@ -62,7 +64,7 @@ body {
   text-decoration: none;
   padding: 6px 18px;
   border-radius: 20px;
-  font: bold 15px/1.4 'Segoe UI', system-ui, sans-serif;
+  font: bold 18px/1.4 'Barlow Condensed', 'Segoe UI', system-ui, sans-serif;
   border: 1px solid rgba(255,255,255,0.18);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
@@ -75,7 +77,7 @@ body {
   flex-direction: column;
   gap: 0.15rem;
   align-items: flex-end;
-  font-size: 0.68rem;
+  font-size: 1.1rem;
   font-weight: 700;
   letter-spacing: 0.03em;
   color: rgba(255,255,255,0.85);
@@ -86,34 +88,39 @@ body {
   gap: 0.25rem;
   white-space: nowrap;
 }
-.stats-col b { font-size: 0.85rem; color: #ffd32a; font-weight: 900; }
+.stats-col b { font-size: 1.3rem; color: #ffd32a; font-weight: 900; }
 
 
 /* ===== Center: hex card ===== */
 .center {
-  min-height: 0;
-  min-width: 0;
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  z-index: 10;
   overflow: visible;
+  pointer-events: none;
+}
+.center * {
+  pointer-events: auto;
 }
 
 .hex-ops-col {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
+  gap: 0.5rem;
   min-height: 0;
+  height: 100%;
 }
 
 .hex-wrap {
-  flex: 0 0 auto;
+  flex: 1 1 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  min-height: 0;
 }
 .hex-card {
   width: 100%;
@@ -164,6 +171,14 @@ body {
 @keyframes hintpulse {
   0%, 100% { filter: drop-shadow(0 0 6px #ffd32a) brightness(1.05); }
   50% { filter: drop-shadow(0 0 18px #ffd32a) brightness(1.25); }
+}
+.op-btn.hint-glow {
+  box-shadow: 0 0 14px #ffd32a, 0 3px 0 rgba(0,0,0,0.25);
+  animation: opHintPulse 1.2s ease-in-out infinite;
+}
+@keyframes opHintPulse {
+  0%, 100% { box-shadow: 0 0 6px #ffd32a, 0 3px 0 rgba(0,0,0,0.25); }
+  50% { box-shadow: 0 0 18px #ffd32a, 0 3px 0 rgba(0,0,0,0.25); }
 }
 
 .num-text {
@@ -239,6 +254,9 @@ body {
   align-items: center;
   gap: 0.5rem;
   flex: 0 0 auto;
+  padding-bottom: 1.5rem;
+  position: relative;
+  z-index: 200;
 }
 .op-row {
   display: flex;
@@ -251,7 +269,7 @@ body {
   height: clamp(44px, 7vmin, 56px);
   border-radius: 50%;
   border: none;
-  background: #1a6b8c;
+  background: #0a4a7a;
   color: #fff;
   font-size: clamp(1.2rem, 4vmin, 1.6rem);
   font-weight: 900;
@@ -263,14 +281,16 @@ body {
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
+  line-height: 1;
+  padding-bottom: 2px;
 }
-.op-btn:hover { background: #145a78; transform: translateY(-2px); }
+.op-btn:hover { background: #083d66; transform: translateY(-2px); }
 .op-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,0.25), 0 2px 6px rgba(0,0,0,0.18); }
 .op-btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
 .op-btn.pending {
-  background: #ffd32a;
+  background: #f2ca37;
   color: #0d0d1a;
-  box-shadow: 0 3px 0 rgba(0,0,0,0.25), 0 0 14px rgba(255,211,42,0.6);
+  box-shadow: 0 3px 0 rgba(0,0,0,0.25), 0 0 14px rgba(242,202,55,0.6);
 }
 .op-btn.bumped { animation: opbump 0.3s; }
 @keyframes opbump {
@@ -280,11 +300,11 @@ body {
 
 .reset-btn {
   padding: clamp(0.4rem, 1.2vmin, 0.55rem) clamp(0.9rem, 3vmin, 1.4rem);
-  background: #1a6b8c;
+  background: #0a4a7a;
   color: #fff;
   border: none;
   border-radius: 24px;
-  font-size: clamp(0.78rem, 2.4vmin, 0.95rem);
+  font-size: clamp(0.9rem, 2.4vmin, 1.1rem);
   font-weight: 800;
   letter-spacing: 0.1em;
   cursor: pointer;
@@ -295,12 +315,12 @@ body {
   box-shadow: 0 3px 0 rgba(0,0,0,0.25), 0 4px 10px rgba(0,0,0,0.18);
   transition: transform 0.1s, background 0.2s;
 }
-.reset-btn:hover { background: #145a78; transform: translateY(-1px); }
+.reset-btn:hover { background: #083d66; transform: translateY(-1px); }
 .reset-btn:active { transform: translateY(1px); }
 .nums-left {
-  font-size: 0.7rem;
-  color: rgba(255,255,255,0.5);
-  font-weight: 600;
+  font-size: 1.1rem;
+  color: #0a4a7a;
+  font-weight: 700;
   letter-spacing: 0.03em;
   min-height: 1em;
 }
@@ -308,11 +328,15 @@ body {
 
 /* ===== Bottom bar ===== */
 .bottom-bar {
+  position: fixed;
+  bottom: 8px;
+  left: 12px;
+  right: 12px;
+  z-index: 100;
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
   gap: 0.6rem;
-  padding-top: 0.2rem;
 }
 .bot-left {
   display: flex;
@@ -331,8 +355,8 @@ body {
 }
 .diff-stars {
   display: flex;
-  gap: 0.15rem;
-  font-size: 1.1rem;
+  gap: 0.2rem;
+  font-size: 1.5rem;
   line-height: 1;
 }
 .diff-stars .dstar {
@@ -351,7 +375,7 @@ body {
   max-width: 100%;
 }
 .set-label {
-  font-size: 0.6rem;
+  font-size: 1rem;
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -360,10 +384,10 @@ body {
 }
 .pill-group {
   display: flex;
-  gap: 0.18rem;
+  gap: 0.25rem;
   background: rgba(0,0,0,0.2);
-  padding: 0.15rem;
-  border-radius: 20px;
+  padding: 0.25rem;
+  border-radius: 24px;
   flex-wrap: nowrap;
   max-width: 100%;
   min-width: 0;
@@ -371,13 +395,24 @@ body {
 }
 .pill-group::-webkit-scrollbar { display: none; }
 .pill-group { scrollbar-width: none; }
+.pill-group.pill-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+  gap: 0.25rem;
+  overflow-x: visible;
+}
+.pill-group.pill-grid .pill {
+  text-align: center;
+  justify-content: center;
+}
 .pill {
-  padding: 0.28rem 0.5rem;
+  padding: 0.35rem 0.7rem;
   border: none;
   background: transparent;
   color: #fff;
   border-radius: 16px;
-  font-size: 0.66rem;
+  font-size: 1.1rem;
   font-weight: 800;
   letter-spacing: 0.03em;
   cursor: pointer;
@@ -435,20 +470,20 @@ body {
 }
 .modal-close:hover { color: #fff; }
 .modal-box h2 {
-  font-size: 1.4rem;
+  font-size: 1.8rem;
   margin-bottom: 1rem;
   color: #fff;
   font-weight: 800;
 }
 .modal-box h3 {
-  font-size: 0.85rem;
+  font-size: 1.1rem;
   margin: 0.8rem 0 0.35rem;
   color: #f2ca37;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 .modal-box p, .modal-box li {
-  font-size: 0.88rem;
+  font-size: 1.15rem;
   line-height: 1.5;
   margin-bottom: 0.45rem;
   color: rgba(255,255,255,0.9);
@@ -462,7 +497,7 @@ body {
   background: rgba(0,0,0,0.25);
   padding: 0.15rem 0.4rem;
   border-radius: 4px;
-  font-size: 0.85rem;
+  font-size: 1.05rem;
 }
 .help-cols {
   display: grid;
@@ -474,29 +509,32 @@ body {
   .help-cols { grid-template-columns: 1fr; gap: 0.5rem; }
 }
 
-/* ===== Toast ===== */
+/* ===== Hint panel (right side, persistent) ===== */
 .toast {
   position: fixed;
-  top: 64px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%) translateX(20px);
   background: rgba(0,0,0,0.88);
   color: #fff;
-  padding: 0.7rem 1.2rem;
+  padding: 0.8rem 1rem;
   border-radius: 14px;
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 700;
   z-index: 150;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.3s, transform 0.3s;
   border: 1px solid rgba(255, 211, 42, 0.45);
-  max-width: 90vw;
-  text-align: center;
+  max-width: 220px;
+  text-align: left;
   box-shadow: 0 8px 28px rgba(0,0,0,0.4);
+  line-height: 1.5;
 }
-.toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.visible { opacity: 1; transform: translateY(-50%) translateX(0); pointer-events: auto; }
 .toast b { color: #ffd32a; }
+.hint-line { display: block; margin-bottom: 0.3rem; }
+.hint-line:last-child { margin-bottom: 0; }
 
 /* ===== Win burst — hex slice colors extend across the whole screen,
    BEHIND the hex (so the hex stays visible in front and the colors
@@ -579,7 +617,7 @@ body {
   <main class="center">
     <div class="hex-ops-col">
       <div class="hex-wrap" id="hexWrap">
-        <svg class="hex-card" id="hexCard" viewBox="0 0 378 327.603" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+        <svg class="hex-card" id="hexCard" viewBox="-24 -12 426 351.603" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
           <polygon id="hex_bg" points="94.5 0 283.5 0 378 163.679 283.5 327.358 94.5 327.358 0 163.679 94.5 0" fill="#0d0d1a"></polygon>
 
           <polygon id="red_section" class="slice is-number" data-slice="1" points="283.5 0 378 163.679 263.873 163.679 226.437 98.837 283.5 0" fill="#f0504e"></polygon>
@@ -615,11 +653,11 @@ body {
     <div class="bot-left">
       <div class="set-block">
         <span class="set-label">Play Level</span>
-        <div class="pill-group" id="levelPills">
+        <div class="pill-group pill-grid" id="levelPills">
           <button class="pill" data-level="easy">EASY</button>
           <button class="pill" data-level="medium">MEDIUM</button>
           <button class="pill" data-level="hard">HARD</button>
-          <button class="pill" data-level="monstrous">MONSTROUS</button>
+          <button class="pill" data-level="expert">EXPERT</button>
         </div>
       </div>
       <div class="set-block">
@@ -662,7 +700,7 @@ body {
           <li><b>EASY</b> — 2+ numbers</li>
           <li><b>MEDIUM</b> — 3+</li>
           <li><b>HARD</b> — 4+</li>
-          <li><b>MONSTROUS</b> — all 5</li>
+          <li><b>EXPERT</b> — all 5</li>
         </ul>
         <h3>Card Type</h3>
         <p><b>Classic</b> — all four operations, bigger numbers.<br><b>Fun Ones</b> — only + and −, numbers up to 12.</p>
@@ -838,7 +876,7 @@ function buildLogo() {
   const lvlG = document.getElementById('levelLabel');
   lvlG.innerHTML = '';
   const lvlY = 62;
-  const lvlMap = { easy: 'EASY', medium: 'MEDIUM', hard: 'HARD', monstrous: 'MONSTROUS' };
+  const lvlMap = { easy: 'EASY', medium: 'MEDIUM', hard: 'HARD', expert: 'EXPERT' };
   const lvl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
   lvl.setAttribute('class', 'logo-sub');
   lvl.setAttribute('x', CX);
@@ -912,10 +950,11 @@ function refreshSliceStates() {
 
 function clearHintGlow() {
   document.querySelectorAll('.slice.is-number.hint-glow').forEach(el => el.classList.remove('hint-glow'));
+  document.querySelectorAll('.op-btn.hint-glow').forEach(el => el.classList.remove('hint-glow'));
 }
 
 /* ====================== Game logic ====================== */
-const MIN_NUMS = { easy: 2, medium: 3, hard: 4, monstrous: 5 };
+const MIN_NUMS = { easy: 2, medium: 3, hard: 4, expert: 5 };
 
 let state = {
   playLevel: 'easy',
@@ -935,7 +974,7 @@ let state = {
 
 function loadSettings() {
   const { ad } = getAd();
-  if (ad.playLevel) state.playLevel = ad.playLevel;
+  if (ad.playLevel) state.playLevel = ad.playLevel === 'monstrous' ? 'expert' : ad.playLevel;
   if (ad.cardType) state.cardType = ad.cardType;
   state.best = ad.bestStreak || 0;
   state.solved = ad.totalSolved || 0;
@@ -988,7 +1027,7 @@ function configFor(cardType, cardDifficulty) {
 function generateCard() {
   const config = configFor(state.cardType, state.cardDifficulty);
   const minUse = MIN_NUMS[state.playLevel];
-  const isMonstrous = state.playLevel === 'monstrous';
+  const isMonstrous = state.playLevel === 'expert';
 
   for (let attempt = 0; attempt < 600; attempt++) {
     const nums = pickNumbers(config.numberPool, 5);
@@ -1293,42 +1332,70 @@ function showHint() {
       || state.card.solution;
   }
   const { order, ops } = state.card.hintSolution;
-  state.hintLevel = Math.min(state.hintLevel + 1, 2);
-  if (state.hintLevel === 1) {
-    clearHintGlow();
-    order.forEach(numIdx => {
-      const sliceIdx = numIdx + 1;
-      const el = document.querySelector(`.slice[data-slice="${sliceIdx}"]`);
-      if (el) el.classList.add('hint-glow');
-    });
-    const numsList = order.map(i => state.card.nums[i]).join(', ');
-    const requirement = state.playLevel === 'monstrous'
-      ? 'all 5 numbers'
-      : `${MIN_NUMS[state.playLevel]}+ numbers`;
-    showToast(`💡 ${state.playLevel.toUpperCase()} needs ${requirement}. Try: <b>${numsList}</b>`, 5500);
-  } else {
-    const parts = [`<b>${state.card.nums[order[0]]}</b>`];
-    for (let i = 0; i < ops.length; i++) {
-      parts.push(OP_GLYPHS[ops[i]]);
-      parts.push(`<b>${state.card.nums[order[i + 1]]}</b>`);
-    }
-    showToast(`💡 Try: ${parts.join(' ')} = ${state.card.target}`, 7000);
+  // Progressive hints: each tap reveals one more step
+  // 1: first two nums, 2: first op, then pairs of (num, op) for remaining, +1 for answer
+  const maxHints = 2 + (ops.length - 1) * 2 + 1;
+  state.hintLevel = Math.min(state.hintLevel + 1, maxHints);
+
+  clearHintGlow();
+  document.querySelectorAll('.op-btn.hint-glow').forEach(el => el.classList.remove('hint-glow'));
+  // Determine what to highlight based on hint level
+  // Level 1: first two numbers. Level 2: operator. Level 3: next number. Level 4: operator...
+  let revealedNums = 2; // hint 1 always shows first two
+  let highlightOp = null;
+  if (state.hintLevel >= 3) {
+    // After hint 2 (first op), each pair of steps reveals a number then an op
+    revealedNums = 2 + Math.floor((state.hintLevel - 1) / 2);
   }
+  revealedNums = Math.min(revealedNums, order.length);
+  // Even hint levels (2, 4, 6...) reveal an operator
+  if (state.hintLevel % 2 === 0) {
+    const opIdx = Math.floor(state.hintLevel / 2) - 1;
+    if (opIdx < ops.length) highlightOp = ops[opIdx];
+  }
+  for (let i = 0; i < revealedNums; i++) {
+    const sliceIdx = order[i] + 1;
+    const el = document.querySelector(`.slice[data-slice="${sliceIdx}"]`);
+    if (el) el.classList.add('hint-glow');
+  }
+  if (highlightOp) {
+    const opBtn = document.querySelector(`.op-btn[data-op="${highlightOp}"]`);
+    if (opBtn) opBtn.classList.add('hint-glow');
+  }
+
+  // Build hint lines progressively
+  let lines = [];
+  if (state.hintLevel >= 1) {
+    lines.push(`<span class="hint-line">💡 <b>${state.card.nums[order[0]]}</b> and <b>${state.card.nums[order[1]]}</b></span>`);
+  }
+  if (state.hintLevel >= 2) {
+    lines.push(`<span class="hint-line">use <b>${OP_GLYPHS[ops[0]]}</b></span>`);
+  }
+  for (let i = 1; i < ops.length; i++) {
+    const step = 2 + (i - 1) * 2 + 1;
+    if (state.hintLevel >= step) {
+      lines.push(`<span class="hint-line">then <b>${state.card.nums[order[i + 1]]}</b></span>`);
+    }
+    if (state.hintLevel >= step + 1) {
+      lines.push(`<span class="hint-line">use <b>${OP_GLYPHS[ops[i]]}</b></span>`);
+    }
+  }
+  const totalSteps = 2 + (ops.length - 1) * 2 + 1;
+  if (state.hintLevel >= totalSteps) {
+    lines.push(`<span class="hint-line">= <b>${state.card.target}</b></span>`);
+  }
+  showToast(lines.join(''));
 }
 
-/* ====================== Toast ====================== */
-let toastTimer = null;
-function showToast(html, duration = 4000) {
+/* ====================== Toast (hint panel) ====================== */
+function showToast(html) {
   const t = document.getElementById('toast');
   t.innerHTML = html;
   t.classList.add('visible');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('visible'), duration);
 }
 function hideToast() {
   const t = document.getElementById('toast');
   t.classList.remove('visible');
-  clearTimeout(toastTimer);
 }
 
 /* ====================== Help modal ====================== */
@@ -1433,18 +1500,17 @@ function fitHex() {
   const wrap = document.getElementById('hexWrap');
   const opsBar = document.getElementById('opsBar');
   if (!center || !wrap) return;
-  const W = center.clientWidth;
-  const opsH = opsBar ? opsBar.offsetHeight + 8 : 80;
-  const H = center.clientHeight - opsH;
-  // SVG aspect ratio is 378:327.6 (~1.154:1)
-  const aspect = 378 / 327.603;
-  const scale = 1.2;
+  const W = window.innerWidth;
+  const opsH = opsBar ? opsBar.offsetHeight + 16 : 80;
+  const H = window.innerHeight - opsH;
+  // SVG aspect ratio (hex content within padded viewBox)
+  const aspect = 426 / 351.603;
   let w, h;
   if (W / H > aspect) {
-    h = Math.max(120, Math.floor(H * scale));
+    h = Math.floor(H * 0.92);
     w = Math.floor(h * aspect);
   } else {
-    w = Math.max(120, Math.floor(W * scale));
+    w = Math.floor(W * 0.92);
     h = Math.floor(w / aspect);
   }
   wrap.style.width = w + 'px';
