@@ -554,6 +554,178 @@ function animalImgPath(id) {
 const TILE_NAMES = ['red','blue','green','yellow'];
 const TILE_TYPES = 4;
 
+// ===== BOARD SHAPES =====
+// Each shape is a 9x9 grid: 1 = active cell, 0 = gap. All are symmetrical.
+const BOARD_SHAPES = [
+  // 0: Full square (classic)
+  null,
+  // 1: Diamond
+  [
+    [0,0,0,0,1,0,0,0,0],
+    [0,0,0,1,1,1,0,0,0],
+    [0,0,1,1,1,1,1,0,0],
+    [0,1,1,1,1,1,1,1,0],
+    [1,1,1,1,1,1,1,1,1],
+    [0,1,1,1,1,1,1,1,0],
+    [0,0,1,1,1,1,1,0,0],
+    [0,0,0,1,1,1,0,0,0],
+    [0,0,0,0,1,0,0,0,0],
+  ],
+  // 2: Cross / plus
+  [
+    [0,0,1,1,1,1,1,0,0],
+    [0,0,1,1,1,1,1,0,0],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [0,0,1,1,1,1,1,0,0],
+    [0,0,1,1,1,1,1,0,0],
+  ],
+  // 3: Heart
+  [
+    [0,1,1,0,0,0,1,1,0],
+    [1,1,1,1,0,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [0,1,1,1,1,1,1,1,0],
+    [0,0,1,1,1,1,1,0,0],
+    [0,0,0,1,1,1,0,0,0],
+    [0,0,0,0,1,0,0,0,0],
+  ],
+  // 4: Hourglass
+  [
+    [1,1,1,1,1,1,1,1,1],
+    [0,1,1,1,1,1,1,1,0],
+    [0,0,1,1,1,1,1,0,0],
+    [0,0,0,1,1,1,0,0,0],
+    [0,0,0,1,1,1,0,0,0],
+    [0,0,0,1,1,1,0,0,0],
+    [0,0,1,1,1,1,1,0,0],
+    [0,1,1,1,1,1,1,1,0],
+    [1,1,1,1,1,1,1,1,1],
+  ],
+  // 5: Square with center hole
+  [
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,0,0,0,1,1,1],
+    [1,1,1,0,0,0,1,1,1],
+    [1,1,1,0,0,0,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+  ],
+  // 6: Arrow pointing up
+  [
+    [0,0,0,0,1,0,0,0,0],
+    [0,0,0,1,1,1,0,0,0],
+    [0,0,1,1,1,1,1,0,0],
+    [0,1,1,1,1,1,1,1,0],
+    [1,1,1,1,1,1,1,1,1],
+    [0,0,0,1,1,1,0,0,0],
+    [0,0,0,1,1,1,0,0,0],
+    [0,0,0,1,1,1,0,0,0],
+    [0,0,0,1,1,1,0,0,0],
+  ],
+  // 7: T-shape
+  [
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [0,0,0,1,1,1,0,0,0],
+    [0,0,0,1,1,1,0,0,0],
+    [0,0,0,1,1,1,0,0,0],
+    [0,0,0,1,1,1,0,0,0],
+    [0,0,0,1,1,1,0,0,0],
+    [0,0,0,1,1,1,0,0,0],
+  ],
+  // 8: Circle approximation
+  [
+    [0,0,1,1,1,1,1,0,0],
+    [0,1,1,1,1,1,1,1,0],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [0,1,1,1,1,1,1,1,0],
+    [0,0,1,1,1,1,1,0,0],
+  ],
+  // 9: Corners removed (rounded square)
+  [
+    [0,0,1,1,1,1,1,0,0],
+    [0,1,1,1,1,1,1,1,0],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [0,1,1,1,1,1,1,1,0],
+    [0,0,1,1,1,1,1,0,0],
+  ],
+  // 10: U-shape
+  [
+    [1,1,1,0,0,0,1,1,1],
+    [1,1,1,0,0,0,1,1,1],
+    [1,1,1,0,0,0,1,1,1],
+    [1,1,1,0,0,0,1,1,1],
+    [1,1,1,0,0,0,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+  ],
+  // 11: Checkerboard corners (diamond hole in center)
+  [
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,0,1,1,1,1],
+    [1,1,1,0,0,0,1,1,1],
+    [1,1,0,0,0,0,0,1,1],
+    [1,1,1,0,0,0,1,1,1],
+    [1,1,1,1,0,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+  ],
+  // 12: Wide inverted triangle
+  [
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [0,1,1,1,1,1,1,1,0],
+    [0,1,1,1,1,1,1,1,0],
+    [0,0,1,1,1,1,1,0,0],
+    [0,0,1,1,1,1,1,0,0],
+    [0,0,0,1,1,1,0,0,0],
+    [0,0,0,1,1,1,0,0,0],
+    [0,0,0,0,1,0,0,0,0],
+  ],
+];
+
+let boardMask = null; // null means full board, otherwise 9x9 of true/false
+
+function pickBoardShape() {
+  const idx = Math.floor(Math.random() * BOARD_SHAPES.length);
+  const shape = BOARD_SHAPES[idx];
+  if (!shape) { boardMask = null; return; }
+  boardMask = [];
+  for (let r = 0; r < GRID_ROWS; r++) {
+    boardMask[r] = [];
+    for (let c = 0; c < GRID_COLS; c++) {
+      boardMask[r][c] = shape[r][c] === 1;
+    }
+  }
+}
+
+function isCellActive(r, c) {
+  if (r < 0 || r >= GRID_ROWS || c < 0 || c >= GRID_COLS) return false;
+  if (!boardMask) return true;
+  return boardMask[r][c];
+}
+
 // ===== STATE =====
 const GRID_SIZE = 9;
 const GRID_COLS = 9;
@@ -751,12 +923,15 @@ function startGame(locationId) {
     levelGoals = null;
   }
 
-  // Random board each game
+  // Pick a board shape
+  pickBoardShape();
+
+  // Random board each game (respecting mask)
   grid = [];
   for (let r = 0; r < GRID_ROWS; r++) {
     grid[r] = [];
     for (let c = 0; c < GRID_COLS; c++) {
-      grid[r][c] = Math.floor(Math.random() * TILE_TYPES);
+      grid[r][c] = isCellActive(r, c) ? Math.floor(Math.random() * TILE_TYPES) : -2;
     }
   }
 
@@ -885,7 +1060,7 @@ function spawnFlyToGoal(screenX, screenY, color) {
 
 // ===== GRID LOGIC =====
 function getGroup(row, col) {
-  if (row < 0 || row >= GRID_ROWS || col < 0 || col >= GRID_COLS) return [];
+  if (!isCellActive(row, col)) return [];
   const type = grid[row][col];
   if (type < 0) return [];
   if (getSpecialAt(row, col)) return [];
@@ -896,7 +1071,7 @@ function getGroup(row, col) {
     const [r, c] = stack.pop();
     const key = r * GRID_COLS + c;
     if (visited.has(key)) continue;
-    if (r < 0 || r >= GRID_ROWS || c < 0 || c >= GRID_COLS) continue;
+    if (!isCellActive(r, c)) continue;
     if (grid[r][c] !== type) continue;
     if (getSpecialAt(r, c)) continue;
     visited.add(key);
@@ -926,7 +1101,7 @@ function handleTap(e) {
   const y = e.clientY - rect.top;
   const col = Math.floor((x - gridOffsetX) / tileSize);
   const row = Math.floor((y - gridOffsetY) / tileSize);
-  if (row < 0 || row >= GRID_ROWS || col < 0 || col >= GRID_COLS) return;
+  if (!isCellActive(row, col)) return;
 
   // Tap a special tile
   const special = getSpecialAt(row, col);
@@ -1002,7 +1177,7 @@ function handleTap(e) {
 
 // ===== SPECIAL ACTIVATION =====
 function clearCell(r, c, pts) {
-  if (r < 0 || r >= GRID_ROWS || c < 0 || c >= GRID_COLS) return;
+  if (!isCellActive(r, c)) return;
   // Chain-trigger other specials in the blast
   const otherSpecial = getSpecialAt(r, c);
   if (otherSpecial) {
@@ -1186,10 +1361,16 @@ function combineSpecials(a, b) {
 
 function applyGravityAnimated() {
   // Track how far each tile falls for bounce animation
+  // Tiles fall down, skipping over inactive (masked) cells
   for (let c = 0; c < GRID_COLS; c++) {
+    // Find the active cells in this column, bottom-to-top
     let write = GRID_ROWS - 1;
+    // Move write pointer to the lowest active cell
+    while (write >= 0 && !isCellActive(write, c)) write--;
+
     for (let r = GRID_ROWS - 1; r >= 0; r--) {
-      if (grid[r][c] === -1) continue;
+      if (!isCellActive(r, c)) continue; // skip masked cells
+      if (grid[r][c] === -1) continue; // empty, skip
       if (grid[r][c] === -3) {
         const sp = getSpecialAt(r, c);
         if (sp && write !== r) {
@@ -1198,6 +1379,7 @@ function applyGravityAnimated() {
           tileAnims.push({row:write, col:c, offsetY: -fallDist * cellH, vel:0, bouncing:true, t:0});
         }
         write--;
+        while (write >= 0 && !isCellActive(write, c)) write--;
         continue;
       }
       if (write !== r) {
@@ -1206,17 +1388,18 @@ function applyGravityAnimated() {
         tileAnims.push({row:write, col:c, offsetY: -fallDist * cellH, vel:0, bouncing:true, t:0});
       }
       write--;
+      while (write >= 0 && !isCellActive(write, c)) write--;
     }
   }
-  // Fill empty with new tiles (they drop in from above)
+  // Fill empty active cells with new tiles (they drop in from above)
   for (let c = 0; c < GRID_COLS; c++) {
     let emptyCount = 0;
     for (let r = 0; r < GRID_ROWS; r++) {
-      if (grid[r][c] === -1) emptyCount++;
+      if (isCellActive(r, c) && grid[r][c] === -1) emptyCount++;
     }
     let fillIdx = 0;
     for (let r = 0; r < GRID_ROWS; r++) {
-      if (grid[r][c] === -1) {
+      if (isCellActive(r, c) && grid[r][c] === -1) {
         grid[r][c] = Math.floor(Math.random() * TILE_TYPES);
         fillIdx++;
         tileAnims.push({row:r, col:c, offsetY: -(emptyCount + fillIdx) * cellH, vel:0, bouncing:true, t:0});
@@ -1642,6 +1825,7 @@ function gameLoop(time) {
   // Sprites are taller than cells - bottom-aligned so the "top face" extends upward
   for (let r = GRID_ROWS - 1; r >= 0; r--) {
     for (let c = 0; c < GRID_COLS; c++) {
+      if (!isCellActive(r, c)) continue;
       const val = grid[r][c];
       const special = getSpecialAt(r, c);
 
