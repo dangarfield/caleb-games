@@ -1033,43 +1033,47 @@ function resizeCanvas() {
 function buildBoardFrame() {
   const frame = document.getElementById('boardFrame');
   frame.innerHTML = '';
-  // Extra top overhang for sprite tops
-  const overhang = Math.floor(cellH * 0.3);
-  frame.style.left = gridOffsetX + 'px';
-  frame.style.top = (gridOffsetY - overhang) + 'px';
-  frame.style.width = cellW * gridCols + 'px';
-  frame.style.height = cellH * gridRows + overhang + 'px';
+  const padSide = 6;
+  const padBot = 6;
+  const padTopPx = Math.floor(cellH * 0.2);
+  frame.style.left = (gridOffsetX - padSide) + 'px';
+  frame.style.top = (gridOffsetY - padTopPx) + 'px';
+  frame.style.width = (cellW * gridCols + padSide * 2) + 'px';
+  frame.style.height = (cellH * gridRows + padTopPx + padBot) + 'px';
 
   for (let r = 0; r < gridRows; r++) {
     for (let c = 0; c < gridCols; c++) {
       if (!isCellActive(r, c)) continue;
       const cell = document.createElement('div');
       cell.className = 'bf-cell';
-      cell.style.left = c * cellW + 'px';
-      cell.style.width = cellW + 'px';
 
-      // Top-edge cells get extra height for sprite overhang
       const isTop = !isCellActive(r - 1, c);
-      if (isTop) {
-        cell.style.top = (r * cellH) + 'px';
-        cell.style.height = (cellH + overhang) + 'px';
-      } else {
-        cell.style.top = (r * cellH + overhang) + 'px';
-        cell.style.height = cellH + 'px';
-      }
+      const isBot = !isCellActive(r + 1, c);
+      const isLeft = !isCellActive(r, c - 1);
+      const isRight = !isCellActive(r, c + 1);
+
+      // Position within frame (frame already offset by padSide/padTopPx)
+      const x = padSide + c * cellW - (isLeft ? padSide : 0);
+      const y = padTopPx + r * cellH - (isTop ? padTopPx : 0);
+      const w = cellW + (isLeft ? padSide : 0) + (isRight ? padSide : 0);
+      const h = cellH + (isTop ? padTopPx : 0) + (isBot ? padBot : 0);
+
+      cell.style.left = x + 'px';
+      cell.style.top = y + 'px';
+      cell.style.width = w + 'px';
+      cell.style.height = h + 'px';
 
       // Borders on exposed edges
       if (isTop) cell.classList.add('bt');
-      if (!isCellActive(r + 1, c)) cell.classList.add('bb');
-      if (!isCellActive(r, c - 1)) cell.classList.add('bl');
-      if (!isCellActive(r, c + 1)) cell.classList.add('br');
+      if (isBot) cell.classList.add('bb');
+      if (isLeft) cell.classList.add('bl');
+      if (isRight) cell.classList.add('br');
 
-      // Rounded corners only at true convex corners
-      // A corner is convex only if the diagonal is also inactive
-      if (isTop && !isCellActive(r, c - 1) && !isCellActive(r - 1, c - 1)) cell.classList.add('rtl');
-      if (isTop && !isCellActive(r, c + 1) && !isCellActive(r - 1, c + 1)) cell.classList.add('rtr');
-      if (!isCellActive(r + 1, c) && !isCellActive(r, c - 1) && !isCellActive(r + 1, c - 1)) cell.classList.add('rbl');
-      if (!isCellActive(r + 1, c) && !isCellActive(r, c + 1) && !isCellActive(r + 1, c + 1)) cell.classList.add('rbr');
+      // Rounded corners only at true convex corners (diagonal also inactive)
+      if (isTop && isLeft && !isCellActive(r - 1, c - 1)) cell.classList.add('rtl');
+      if (isTop && isRight && !isCellActive(r - 1, c + 1)) cell.classList.add('rtr');
+      if (isBot && isLeft && !isCellActive(r + 1, c - 1)) cell.classList.add('rbl');
+      if (isBot && isRight && !isCellActive(r + 1, c + 1)) cell.classList.add('rbr');
 
       frame.appendChild(cell);
     }
@@ -1874,15 +1878,21 @@ function gameLoop(time) {
 
   // Board background: dark fill for active cells on canvas
   ctx.fillStyle = '#1a1a2e';
-  const overhangPx = Math.floor(cellH * 0.3);
+  const padSide = 6;
+  const padBot = 6;
+  const padTopPx = Math.floor(cellH * 0.2);
   for (let r = 0; r < gridRows; r++) {
     for (let c = 0; c < gridCols; c++) {
       if (!isCellActive(r, c)) continue;
       const isTop = !isCellActive(r - 1, c);
-      const x = gridOffsetX + c * cellW;
-      const y = gridOffsetY + r * cellH - (isTop ? overhangPx : 0);
-      const h = cellH + (isTop ? overhangPx : 0);
-      ctx.fillRect(x, y, cellW, h);
+      const isBot = !isCellActive(r + 1, c);
+      const isLeft = !isCellActive(r, c - 1);
+      const isRight = !isCellActive(r, c + 1);
+      const x = gridOffsetX + c * cellW - (isLeft ? padSide : 0);
+      const y = gridOffsetY + r * cellH - (isTop ? padTopPx : 0);
+      const w = cellW + (isLeft ? padSide : 0) + (isRight ? padSide : 0);
+      const h = cellH + (isTop ? padTopPx : 0) + (isBot ? padBot : 0);
+      ctx.fillRect(x, y, w, h);
     }
   }
 
