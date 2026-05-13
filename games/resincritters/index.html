@@ -99,17 +99,6 @@ body { background:#4a90d9; overflow:hidden; touch-action:none;
 #gameScreen.active { animation:gameSlideIn 0.4s ease-out; }
 @keyframes gameSlideIn { 0%{opacity:0;transform:scale(1.05)} 100%{opacity:1;transform:scale(1)} }
 #gameCanvas { display:block; width:100%; height:100%; }
-#boardFrame { position:fixed; pointer-events:none; z-index:5; }
-#boardFrame .bf-cell { position:absolute; background:transparent;
-  border:3px solid transparent; box-sizing:border-box; }
-#boardFrame .bf-cell.bt { border-top-color:#C49A1A; }
-#boardFrame .bf-cell.bb { border-bottom-color:#C49A1A; }
-#boardFrame .bf-cell.bl { border-left-color:#C49A1A; }
-#boardFrame .bf-cell.br { border-right-color:#C49A1A; }
-#boardFrame .bf-cell.rtl { border-top-left-radius:10px; }
-#boardFrame .bf-cell.rtr { border-top-right-radius:10px; }
-#boardFrame .bf-cell.rbl { border-bottom-left-radius:10px; }
-#boardFrame .bf-cell.rbr { border-bottom-right-radius:10px; }
 
 #hud { position:fixed; top:8px; left:50%; transform:translateX(-50%); z-index:50;
   background:#fff; border-radius:14px; padding:5px 8px;
@@ -393,7 +382,6 @@ body { background:#4a90d9; overflow:hidden; touch-action:none;
 
 <div id="gameScreen" class="screen">
   <canvas id="gameCanvas"></canvas>
-  <div id="boardFrame"></div>
 </div>
 
 <div id="hud">
@@ -868,7 +856,6 @@ function showScreen(id) {
   document.getElementById(id).classList.add('active');
   document.getElementById('hud').classList.remove('active');
   document.getElementById('goalItems').innerHTML = '';
-  document.getElementById('boardFrame').innerHTML = '';
   document.getElementById('gameBackBtn').classList.remove('active');
   document.getElementById('levelComplete').classList.remove('active');
   document.querySelectorAll('.fly-block').forEach(el => el.remove());
@@ -1027,58 +1014,8 @@ function resizeCanvas() {
   tileSize = cellW; // for tap detection compatibility
   gridOffsetX = Math.floor((canvas.width - cellW * gridCols) / 2);
   gridOffsetY = Math.floor((canvas.height - cellH * gridRows) / 2) + 30;
-  buildBoardFrame();
 }
 
-function buildBoardFrame() {
-  const frame = document.getElementById('boardFrame');
-  frame.innerHTML = '';
-  const padSide = 6;
-  const padBot = 6;
-  const padTopPx = Math.floor(cellH * 0.2);
-  frame.style.left = (gridOffsetX - padSide) + 'px';
-  frame.style.top = (gridOffsetY - padTopPx) + 'px';
-  frame.style.width = (cellW * gridCols + padSide * 2) + 'px';
-  frame.style.height = (cellH * gridRows + padTopPx + padBot) + 'px';
-
-  for (let r = 0; r < gridRows; r++) {
-    for (let c = 0; c < gridCols; c++) {
-      if (!isCellActive(r, c)) continue;
-      const cell = document.createElement('div');
-      cell.className = 'bf-cell';
-
-      const isTop = !isCellActive(r - 1, c);
-      const isBot = !isCellActive(r + 1, c);
-      const isLeft = !isCellActive(r, c - 1);
-      const isRight = !isCellActive(r, c + 1);
-
-      // Position within frame (frame already offset by padSide/padTopPx)
-      const x = padSide + c * cellW - (isLeft ? padSide : 0);
-      const y = padTopPx + r * cellH - (isTop ? padTopPx : 0);
-      const w = cellW + (isLeft ? padSide : 0) + (isRight ? padSide : 0);
-      const h = cellH + (isTop ? padTopPx : 0) + (isBot ? padBot : 0);
-
-      cell.style.left = x + 'px';
-      cell.style.top = y + 'px';
-      cell.style.width = w + 'px';
-      cell.style.height = h + 'px';
-
-      // Borders on exposed edges
-      if (isTop) cell.classList.add('bt');
-      if (isBot) cell.classList.add('bb');
-      if (isLeft) cell.classList.add('bl');
-      if (isRight) cell.classList.add('br');
-
-      // Rounded corners only at true convex corners (diagonal also inactive)
-      if (isTop && isLeft && !isCellActive(r - 1, c - 1)) cell.classList.add('rtl');
-      if (isTop && isRight && !isCellActive(r - 1, c + 1)) cell.classList.add('rtr');
-      if (isBot && isLeft && !isCellActive(r + 1, c - 1)) cell.classList.add('rbl');
-      if (isBot && isRight && !isCellActive(r + 1, c + 1)) cell.classList.add('rbr');
-
-      frame.appendChild(cell);
-    }
-  }
-}
 
 function updateHUD() {
   document.getElementById('hudScore').textContent = score;
@@ -1876,11 +1813,15 @@ function gameLoop(time) {
   }
   ctx.save(); ctx.translate(sx, sy);
 
-  // Board background: dark fill for active cells on canvas
+  // Board background: dark fill + gold border drawn on canvas
+  const padS = 6; // side/bottom padding
+  const padT = Math.floor(cellH * 0.2); // top padding (less)
+  const rad = 8; // corner radius
+
+  // Build a merged path covering all active cells with padding
+  // Use a simple approach: fill expanded rects, then stroke the outer outline
   ctx.fillStyle = '#1a1a2e';
-  const padSide = 6;
-  const padBot = 6;
-  const padTopPx = Math.floor(cellH * 0.2);
+  ctx.beginPath();
   for (let r = 0; r < gridRows; r++) {
     for (let c = 0; c < gridCols; c++) {
       if (!isCellActive(r, c)) continue;
@@ -1888,13 +1829,37 @@ function gameLoop(time) {
       const isBot = !isCellActive(r + 1, c);
       const isLeft = !isCellActive(r, c - 1);
       const isRight = !isCellActive(r, c + 1);
-      const x = gridOffsetX + c * cellW - (isLeft ? padSide : 0);
-      const y = gridOffsetY + r * cellH - (isTop ? padTopPx : 0);
-      const w = cellW + (isLeft ? padSide : 0) + (isRight ? padSide : 0);
-      const h = cellH + (isTop ? padTopPx : 0) + (isBot ? padBot : 0);
-      ctx.fillRect(x, y, w, h);
+      const x = gridOffsetX + c * cellW - (isLeft ? padS : 0);
+      const y = gridOffsetY + r * cellH - (isTop ? padT : 0);
+      const w = cellW + (isLeft ? padS : 0) + (isRight ? padS : 0);
+      const h = cellH + (isTop ? padT : 0) + (isBot ? padS : 0);
+      ctx.rect(x, y, w, h);
     }
   }
+  ctx.fill();
+
+  // Gold border: stroke outer edges only
+  ctx.strokeStyle = '#C49A1A';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  for (let r = 0; r < gridRows; r++) {
+    for (let c = 0; c < gridCols; c++) {
+      if (!isCellActive(r, c)) continue;
+      const isTop = !isCellActive(r - 1, c);
+      const isBot = !isCellActive(r + 1, c);
+      const isLeft = !isCellActive(r, c - 1);
+      const isRight = !isCellActive(r, c + 1);
+      const x = gridOffsetX + c * cellW - (isLeft ? padS : 0);
+      const y = gridOffsetY + r * cellH - (isTop ? padT : 0);
+      const w = cellW + (isLeft ? padS : 0) + (isRight ? padS : 0);
+      const h = cellH + (isTop ? padT : 0) + (isBot ? padS : 0);
+      if (isTop) { ctx.moveTo(x, y); ctx.lineTo(x + w, y); }
+      if (isBot) { ctx.moveTo(x, y + h); ctx.lineTo(x + w, y + h); }
+      if (isLeft) { ctx.moveTo(x, y); ctx.lineTo(x, y + h); }
+      if (isRight) { ctx.moveTo(x + w, y); ctx.lineTo(x + w, y + h); }
+    }
+  }
+  ctx.stroke();
 
   // Update tile bounce animations
   tileAnims = tileAnims.filter(a => {
