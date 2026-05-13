@@ -1812,36 +1812,38 @@ function gameLoop(time) {
   }
   ctx.save(); ctx.translate(sx, sy);
 
-  // Board background: draw dark fill per active cell, then gold border along shape edges
-  const pad = 3;
-  // Dark fill for each active cell
-  ctx.fillStyle = '#1a1a2e';
-  for (let r = 0; r < gridRows; r++) {
-    for (let c = 0; c < gridCols; c++) {
-      if (!isCellActive(r, c)) continue;
-      ctx.fillRect(gridOffsetX + c * cellW - pad, gridOffsetY + r * cellH - pad, cellW + pad * 2, cellH + pad * 2);
-    }
-  }
-  // Gold border: draw edges between active and inactive/out-of-bounds cells
-  ctx.strokeStyle = '#C49A1A';
-  ctx.lineWidth = 4;
+  // Board background: original style border, clipped to shape
+  const padTop = Math.floor(cellH * 0.18);
+  const padSide = 3;
+  const padBot = 2;
+  const boardX = gridOffsetX - padSide;
+  const boardY = gridOffsetY - padTop;
+  const boardW = cellW * gridCols + padSide * 2;
+  const boardH = cellH * gridRows + padTop + padBot;
+
+  // Build clip path from the shape
+  ctx.save();
   ctx.beginPath();
+  const cp = 4; // cell padding for clip
   for (let r = 0; r < gridRows; r++) {
     for (let c = 0; c < gridCols; c++) {
       if (!isCellActive(r, c)) continue;
-      const x = gridOffsetX + c * cellW;
-      const y = gridOffsetY + r * cellH;
-      // Top edge
-      if (!isCellActive(r - 1, c)) { ctx.moveTo(x - pad, y - pad); ctx.lineTo(x + cellW + pad, y - pad); }
-      // Bottom edge
-      if (!isCellActive(r + 1, c)) { ctx.moveTo(x - pad, y + cellH + pad); ctx.lineTo(x + cellW + pad, y + cellH + pad); }
-      // Left edge
-      if (!isCellActive(r, c - 1)) { ctx.moveTo(x - pad, y - pad); ctx.lineTo(x - pad, y + cellH + pad); }
-      // Right edge
-      if (!isCellActive(r, c + 1)) { ctx.moveTo(x + cellW + pad, y - pad); ctx.lineTo(x + cellW + pad, y + cellH + pad); }
+      const x = gridOffsetX + c * cellW - cp;
+      const y = gridOffsetY + r * cellH - cp;
+      ctx.rect(x, y, cellW + cp * 2, cellH + cp * 2);
     }
   }
-  ctx.stroke();
+  ctx.clip();
+
+  // Outer border (brown/gold like Toon Blast)
+  ctx.fillStyle = '#8B6914';
+  ctx.beginPath(); ctx.roundRect(boardX - 4, boardY - 4, boardW + 8, boardH + 8, 14); ctx.fill();
+  ctx.fillStyle = '#C49A1A';
+  ctx.beginPath(); ctx.roundRect(boardX - 2, boardY - 2, boardW + 4, boardH + 4, 12); ctx.fill();
+  // Black board interior
+  ctx.fillStyle = '#1a1a2e';
+  ctx.beginPath(); ctx.roundRect(boardX, boardY, boardW, boardH, 10); ctx.fill();
+  ctx.restore();
 
   // Update tile bounce animations
   tileAnims = tileAnims.filter(a => {
