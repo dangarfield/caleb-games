@@ -98,7 +98,7 @@ body { background:#4a90d9; overflow:hidden; touch-action:none;
 #gameScreen { padding:0; }
 #gameScreen.active { animation:gameSlideIn 0.4s ease-out; }
 @keyframes gameSlideIn { 0%{opacity:0;transform:scale(1.05)} 100%{opacity:1;transform:scale(1)} }
-#gameCanvas { display:block; width:100%; height:100%; }
+#gameCanvas { display:block; width:100%; height:100%; position:relative; z-index:2; }
 #boardFrame { position:fixed; pointer-events:none; z-index:1; }
 #boardFrame .bf-cell { position:absolute; background:#1a1a2e;
   border:3px solid transparent; box-sizing:border-box; }
@@ -1033,10 +1033,12 @@ function resizeCanvas() {
 function buildBoardFrame() {
   const frame = document.getElementById('boardFrame');
   frame.innerHTML = '';
+  // Extra top overhang for sprite tops
+  const overhang = Math.floor(cellH * 0.3);
   frame.style.left = gridOffsetX + 'px';
-  frame.style.top = gridOffsetY + 'px';
+  frame.style.top = (gridOffsetY - overhang) + 'px';
   frame.style.width = cellW * gridCols + 'px';
-  frame.style.height = cellH * gridRows + 'px';
+  frame.style.height = cellH * gridRows + overhang + 'px';
 
   for (let r = 0; r < gridRows; r++) {
     for (let c = 0; c < gridCols; c++) {
@@ -1044,21 +1046,30 @@ function buildBoardFrame() {
       const cell = document.createElement('div');
       cell.className = 'bf-cell';
       cell.style.left = c * cellW + 'px';
-      cell.style.top = r * cellH + 'px';
       cell.style.width = cellW + 'px';
-      cell.style.height = cellH + 'px';
+
+      // Top-edge cells get extra height for sprite overhang
+      const isTop = !isCellActive(r - 1, c);
+      if (isTop) {
+        cell.style.top = (r * cellH) + 'px';
+        cell.style.height = (cellH + overhang) + 'px';
+      } else {
+        cell.style.top = (r * cellH + overhang) + 'px';
+        cell.style.height = cellH + 'px';
+      }
 
       // Borders on exposed edges
-      if (!isCellActive(r - 1, c)) cell.classList.add('bt');
+      if (isTop) cell.classList.add('bt');
       if (!isCellActive(r + 1, c)) cell.classList.add('bb');
       if (!isCellActive(r, c - 1)) cell.classList.add('bl');
       if (!isCellActive(r, c + 1)) cell.classList.add('br');
 
-      // Rounded corners on convex corners (outer corner where two border edges meet)
-      if (!isCellActive(r - 1, c) && !isCellActive(r, c - 1)) cell.classList.add('rtl');
-      if (!isCellActive(r - 1, c) && !isCellActive(r, c + 1)) cell.classList.add('rtr');
-      if (!isCellActive(r + 1, c) && !isCellActive(r, c - 1)) cell.classList.add('rbl');
-      if (!isCellActive(r + 1, c) && !isCellActive(r, c + 1)) cell.classList.add('rbr');
+      // Rounded corners only at true convex corners
+      // A corner is convex only if the diagonal is also inactive
+      if (isTop && !isCellActive(r, c - 1) && !isCellActive(r - 1, c - 1)) cell.classList.add('rtl');
+      if (isTop && !isCellActive(r, c + 1) && !isCellActive(r - 1, c + 1)) cell.classList.add('rtr');
+      if (!isCellActive(r + 1, c) && !isCellActive(r, c - 1) && !isCellActive(r + 1, c - 1)) cell.classList.add('rbl');
+      if (!isCellActive(r + 1, c) && !isCellActive(r, c + 1) && !isCellActive(r + 1, c + 1)) cell.classList.add('rbr');
 
       frame.appendChild(cell);
     }
