@@ -1814,12 +1814,11 @@ function gameLoop(time) {
   ctx.save(); ctx.translate(sx, sy);
 
   // Board background: dark fill + gold border drawn on canvas
-  const padS = 6; // side/bottom padding
-  const padT = Math.floor(cellH * 0.2); // top padding (less)
+  const padS = 4; // side/bottom padding
+  const padT = Math.floor(cellH * 0.2); // top padding
   const rad = 8; // corner radius
 
-  // Build a merged path covering all active cells with padding
-  // Use a simple approach: fill expanded rects, then stroke the outer outline
+  // Build a merged path covering all active cells with padding, rounded at outer corners
   ctx.fillStyle = '#1a1a2e';
   ctx.beginPath();
   for (let r = 0; r < gridRows; r++) {
@@ -1833,12 +1832,29 @@ function gameLoop(time) {
       const y = gridOffsetY + r * cellH - (isTop ? padT : 0);
       const w = cellW + (isLeft ? padS : 0) + (isRight ? padS : 0);
       const h = cellH + (isTop ? padT : 0) + (isBot ? padS : 0);
-      ctx.rect(x, y, w, h);
+      const rTL = (isTop && isLeft) ? rad : 0;
+      const rTR = (isTop && isRight) ? rad : 0;
+      const rBR = (isBot && isRight) ? rad : 0;
+      const rBL = (isBot && isLeft) ? rad : 0;
+      ctx.moveTo(x + rTL, y);
+      ctx.lineTo(x + w - rTR, y);
+      if (rTR) ctx.arc(x + w - rTR, y + rTR, rTR, 1.5 * Math.PI, 2 * Math.PI);
+      else ctx.lineTo(x + w, y);
+      ctx.lineTo(x + w, y + h - rBR);
+      if (rBR) ctx.arc(x + w - rBR, y + h - rBR, rBR, 0, 0.5 * Math.PI);
+      else ctx.lineTo(x + w, y + h);
+      ctx.lineTo(x + rBL, y + h);
+      if (rBL) ctx.arc(x + rBL, y + h - rBL, rBL, 0.5 * Math.PI, Math.PI);
+      else ctx.lineTo(x, y + h);
+      ctx.lineTo(x, y + rTL);
+      if (rTL) ctx.arc(x + rTL, y + rTL, rTL, Math.PI, 1.5 * Math.PI);
+      else ctx.lineTo(x, y);
+      ctx.closePath();
     }
   }
   ctx.fill();
 
-  // Gold border: stroke outer edges only
+  // Gold border: stroke outer edges with rounded outer corners, trimmed at inner corners
   ctx.strokeStyle = '#C49A1A';
   ctx.lineWidth = 3;
   ctx.beginPath();
@@ -1853,10 +1869,48 @@ function gameLoop(time) {
       const y = gridOffsetY + r * cellH - (isTop ? padT : 0);
       const w = cellW + (isLeft ? padS : 0) + (isRight ? padS : 0);
       const h = cellH + (isTop ? padT : 0) + (isBot ? padS : 0);
-      if (isTop) { ctx.moveTo(x, y); ctx.lineTo(x + w, y); }
-      if (isBot) { ctx.moveTo(x, y + h); ctx.lineTo(x + w, y + h); }
-      if (isLeft) { ctx.moveTo(x, y); ctx.lineTo(x, y + h); }
-      if (isRight) { ctx.moveTo(x + w, y); ctx.lineTo(x + w, y + h); }
+      // Outer corners: where two edges meet at a convex corner
+      const cornerTL = isTop && isLeft;
+      const cornerTR = isTop && isRight;
+      const cornerBL = isBot && isLeft;
+      const cornerBR = isBot && isRight;
+      if (isTop) {
+        let lx = x, rx = x + w;
+        if (isCellActive(r - 1, c - 1)) lx = gridOffsetX + c * cellW + padS;
+        else if (cornerTL) lx += rad;
+        if (isCellActive(r - 1, c + 1)) rx = gridOffsetX + (c + 1) * cellW - padS;
+        else if (cornerTR) rx -= rad;
+        if (lx < rx) { ctx.moveTo(lx, y); ctx.lineTo(rx, y); }
+      }
+      if (isBot) {
+        let lx = x, rx = x + w;
+        if (isCellActive(r + 1, c - 1)) lx = gridOffsetX + c * cellW + padS;
+        else if (cornerBL) lx += rad;
+        if (isCellActive(r + 1, c + 1)) rx = gridOffsetX + (c + 1) * cellW - padS;
+        else if (cornerBR) rx -= rad;
+        if (lx < rx) { ctx.moveTo(lx, y + h); ctx.lineTo(rx, y + h); }
+      }
+      if (isLeft) {
+        let ty = y, by = y + h;
+        if (isCellActive(r - 1, c - 1)) ty = gridOffsetY + r * cellH + padS;
+        else if (cornerTL) ty += rad;
+        if (isCellActive(r + 1, c - 1)) by = gridOffsetY + (r + 1) * cellH - padT;
+        else if (cornerBL) by -= rad;
+        if (ty < by) { ctx.moveTo(x, ty); ctx.lineTo(x, by); }
+      }
+      if (isRight) {
+        let ty = y, by = y + h;
+        if (isCellActive(r - 1, c + 1)) ty = gridOffsetY + r * cellH + padS;
+        else if (cornerTR) ty += rad;
+        if (isCellActive(r + 1, c + 1)) by = gridOffsetY + (r + 1) * cellH - padT;
+        else if (cornerBR) by -= rad;
+        if (ty < by) { ctx.moveTo(x + w, ty); ctx.lineTo(x + w, by); }
+      }
+      // Draw rounded arcs at outer corners
+      if (cornerTL) { ctx.moveTo(x, y + rad); ctx.arc(x + rad, y + rad, rad, Math.PI, 1.5 * Math.PI); }
+      if (cornerTR) { ctx.moveTo(x + w - rad, y); ctx.arc(x + w - rad, y + rad, rad, 1.5 * Math.PI, 2 * Math.PI); }
+      if (cornerBL) { ctx.moveTo(x + rad, y + h); ctx.arc(x + rad, y + h - rad, rad, 0.5 * Math.PI, Math.PI); }
+      if (cornerBR) { ctx.moveTo(x + w, y + h - rad); ctx.arc(x + w - rad, y + h - rad, rad, 0, 0.5 * Math.PI); }
     }
   }
   ctx.stroke();
