@@ -125,6 +125,15 @@ body { background:#4a90d9; overflow:hidden; touch-action:none;
 .hud-location { width:36px; height:36px; border-radius:8px; flex-shrink:0;
   display:flex; align-items:center; justify-content:center; font-size:1.3rem;
   background:rgba(74,32,128,0.1); border:2px solid #d4a0ff; }
+/* Goal items inline in HUD */
+.goal-item { display:flex; align-items:center; gap:2px; }
+.goal-icon { width:24px; height:28px; object-fit:contain; }
+.goal-count { font-size:14px; font-weight:800; color:#2d3436; min-width:18px; text-align:center; }
+.goal-item.done .goal-count { color:#27ae60; }
+.goal-item.done .goal-icon { opacity:0.4; }
+#goalItems { display:flex; align-items:center; gap:8px; }
+.fly-block { position:fixed; width:22px; height:26px; z-index:200;
+  pointer-events:none; object-fit:contain; }
 
 
 #levelComplete { position:fixed; inset:0; z-index:100; display:none;
@@ -345,6 +354,7 @@ body { background:#4a90d9; overflow:hidden; touch-action:none;
 <button id="screenBackBtn" onclick="showScreen('mainMenu')">&larr; Back</button>
 
 <div id="playerSelect" class="screen active">
+  <div id="secretReset" onclick="showResetMenu()" style="position:absolute;top:0;right:0;width:60px;height:60px;z-index:100;cursor:default;"></div>
   <h1>Resin Animals</h1>
   <div class="sub">Collect, combine, discover</div>
   <div class="player-buttons">
@@ -379,8 +389,9 @@ body { background:#4a90d9; overflow:hidden; touch-action:none;
   <div class="hud-stats">
     <div class="hud-item"><div class="hud-label">Score</div><div class="hud-value score" id="hudScore">0</div></div>
     <div class="hud-item"><div class="hud-label">Best</div><div class="hud-value" id="hudBest">0</div></div>
-    <div class="hud-item"><div class="hud-label">Moves</div><div class="hud-value moves" id="hudMoves">3</div></div>
+    <div class="hud-item" id="hudMovesItem"><div class="hud-label">Moves</div><div class="hud-value moves" id="hudMoves">3</div></div>
   </div>
+  <div id="goalItems"></div>
   <div class="hud-location" id="hudLocation"></div>
 </div>
 
@@ -563,6 +574,41 @@ let shakeAmount = 0;
 let specialTiles = []; // {row, col, type:'tnt'}
 let gameActive = false;
 
+// Goal-based level system (Caleb only)
+let levelGoals = null; // [{color: 0-3, remaining: N}] or null for Ezra
+const TILE_COLORS_CSS = ['#e74c3c','#3498db','#27ae60','#f1c40f'];
+
+function isGoalMode() { return currentPlayer === 'caleb'; }
+
+function calcTotalGoalBlocks(locationId) {
+  // 150 blocks when 0 animals found, scales to 750 when all 10 found (1.5x of 100-500)
+  const profile = getProfile();
+  const loc = LOCATIONS.find(l => l.id === locationId);
+  const found = loc.animals.filter(id => (profile.animals[id] || 0) > 0).length;
+  // Linear scale: 150 + (found/10) * 600
+  return 150 + Math.round((found / 10) * 600);
+}
+
+function generateGoals(locationId) {
+  const total = calcTotalGoalBlocks(locationId);
+  // Pick 2-4 colors for goals depending on difficulty
+  const numColors = total <= 150 ? 2 : total <= 300 ? 3 : 4;
+  const colors = [];
+  const available = [0, 1, 2, 3];
+  for (let i = 0; i < numColors; i++) {
+    const idx = Math.floor(Math.random() * available.length);
+    colors.push(available.splice(idx, 1)[0]);
+  }
+  // Distribute total evenly across chosen colors
+  const perColor = Math.floor(total / numColors);
+  const remainder = total - perColor * numColors;
+  return colors.map((c, i) => ({
+    color: c,
+    remaining: perColor + (i < remainder ? 1 : 0),
+    total: perColor + (i < remainder ? 1 : 0)
+  }));
+}
+
 // Animation states per tile
 let tileAnims = []; // [{row, col, scaleX, scaleY, offsetY, bounceVel}]
 let destroyAnims = []; // [{row, col, type, scale, alpha, x, y}]
@@ -606,8 +652,10 @@ function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   document.getElementById('hud').classList.remove('active');
+  document.getElementById('goalItems').innerHTML = '';
   document.getElementById('gameBackBtn').classList.remove('active');
   document.getElementById('levelComplete').classList.remove('active');
+  document.querySelectorAll('.fly-block').forEach(el => el.remove());
   // Show <- Games only on initial and main menu
   const backBtn = document.getElementById('backBtn');
   backBtn.classList.toggle('visible', id === 'playerSelect' || id === 'mainMenu');
@@ -638,8 +686,17 @@ function updateMainMenu() {
     const found = loc.animals.filter(id => (profile.animals[id] || 0) > 0).length;
     const total = loc.animals.length;
     const remaining = total - found;
+    let scoreText;
+    if (currentPlayer === 'caleb') {
+      const goalTotal = 150 + Math.round((found / 10) * 600);
+      scoreText = remaining > 0
+        ? `${remaining}/${total} left • ${goalTotal} blocks`
+        : `✓ All found! • ${goalTotal} blocks`;
+    } else {
+      scoreText = remaining > 0 ? remaining + '/' + total + ' left' : '✓ All found!';
+    }
     btn.innerHTML = `<span class="loc-emoji">${loc.emoji}</span>${loc.name}
-      <span class="loc-score ${remaining > 0 ? 'remaining' : 'complete'}">${remaining > 0 ? remaining + '/' + total + ' left' : '✓ All found!'}</span>`;
+      <span class="loc-score ${remaining > 0 ? 'remaining' : 'complete'}">${scoreText}</span>`;
     btn.onclick = () => startGame(loc.id);
     locGrid.appendChild(btn);
   });
@@ -687,6 +744,12 @@ function startGame(locationId) {
   destroyAnims = [];
   travelAnims = [];
   explosionAnims = [];
+  // Set up goals for Caleb, moves for Ezra
+  if (isGoalMode()) {
+    levelGoals = generateGoals(locationId);
+  } else {
+    levelGoals = null;
+  }
 
   // Random board each game
   grid = [];
@@ -706,7 +769,14 @@ function startGame(locationId) {
     gameActive = true;
     document.getElementById('hud').classList.add('active');
     document.getElementById('gameBackBtn').classList.add('active');
+    if (isGoalMode()) {
+      document.getElementById('hudMovesItem').style.display = 'none';
+    } else {
+      document.getElementById('goalItems').innerHTML = '';
+      document.getElementById('hudMovesItem').style.display = '';
+    }
     updateHUD();
+    updateGoalsHUD();
     initCanvas();
     requestAnimationFrame(gameLoop);
   }, 350);
@@ -747,6 +817,70 @@ function updateHUD() {
   document.getElementById('hudBest').textContent = profile.highScores[currentLocation.id] || 0;
   document.getElementById('hudAvatar').textContent = currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1);
   document.getElementById('hudLocation').textContent = currentLocation.emoji;
+}
+
+function updateGoalsHUD() {
+  if (!levelGoals) return;
+  const el = document.getElementById('goalItems');
+  el.innerHTML = '';
+  levelGoals.forEach((g, i) => {
+    const item = document.createElement('div');
+    item.className = 'goal-item' + (g.remaining <= 0 ? ' done' : '');
+    item.id = 'goalItem' + i;
+    const icon = document.createElement('img');
+    icon.className = 'goal-icon';
+    icon.src = ASSET_PATH + TILE_NAMES[g.color] + '.png';
+    const count = document.createElement('div');
+    count.className = 'goal-count';
+    count.textContent = Math.max(0, g.remaining);
+    item.appendChild(icon);
+    item.appendChild(count);
+    el.appendChild(item);
+  });
+}
+
+function spawnFlyToGoal(screenX, screenY, color) {
+  if (!levelGoals) return;
+  const goalIdx = levelGoals.findIndex(g => g.color === color && g.remaining > 0);
+  if (goalIdx < 0) return;
+  const goalEl = document.getElementById('goalItem' + goalIdx);
+  if (!goalEl) return;
+  const rect = goalEl.getBoundingClientRect();
+  const targetX = rect.left + rect.width / 2;
+  const targetY = rect.top + rect.height / 2;
+  const el = document.createElement('img');
+  el.className = 'fly-block';
+  el.src = ASSET_PATH + TILE_NAMES[color] + '.png';
+  el.style.left = screenX - 11 + 'px';
+  el.style.top = screenY - 13 + 'px';
+  document.body.appendChild(el);
+  // Animate with requestAnimationFrame
+  const startX = screenX, startY = screenY;
+  const duration = 350 + Math.random() * 100;
+  const startTime = performance.now();
+  function animate(now) {
+    const progress = Math.min((now - startTime) / duration, 1);
+    const ease = 1 - Math.pow(1 - progress, 3);
+    const cx = startX + (targetX - startX) * ease;
+    const cy = startY + (targetY - startY) * ease;
+    el.style.left = cx - 10 + 'px';
+    el.style.top = cy - 10 + 'px';
+    el.style.transform = `scale(${1 - progress * 0.5})`;
+    if (progress < 1) {
+      requestAnimationFrame(animate);
+    } else {
+      el.remove();
+      if (levelGoals && levelGoals[goalIdx]) {
+        levelGoals[goalIdx].remaining = Math.max(0, levelGoals[goalIdx].remaining - 1);
+        updateGoalsHUD();
+        if (levelGoals.every(g => g.remaining <= 0) && gameActive) {
+          gameActive = false;
+          setTimeout(levelComplete, 600);
+        }
+      }
+    }
+  }
+  requestAnimationFrame(animate);
 }
 
 // ===== GRID LOGIC =====
@@ -805,7 +939,7 @@ function handleTap(e) {
     } else {
       activateSpecial(special);
     }
-    movesLeft--;
+    if (!isGoalMode()) movesLeft--;
     updateHUD();
     checkEnd();
     return;
@@ -816,7 +950,7 @@ function handleTap(e) {
   if (group.length < 2) return;
 
   animating = true;
-  movesLeft--;
+  if (!isGoalMode()) movesLeft--;
   const size = group.length;
   const type = grid[group[0].row][group[0].col];
   const pts = size * 10 + (size > 4 ? (size - 4) * 25 : 0) + (size > 7 ? (size - 7) * 30 : 0);
@@ -827,7 +961,7 @@ function handleTap(e) {
   const cy = gridOffsetY + row * cellH;
   floatingTexts.push({x:cx, y:cy, text:'+'+pts, life:1, color:'#fff'});
 
-  // Destroy animations (scale up then fade)
+  // Destroy animations (scale up then fade) + fly to goal
   group.forEach(({row:gr, col:gc}) => {
     const dx = gridOffsetX + gc * cellW + cellW / 2;
     const dy = gridOffsetY + gr * cellH + cellH / 2;
@@ -838,6 +972,7 @@ function handleTap(e) {
       particles.push({x:dx,y:dy,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed - 4,
         life:1, type, size:24+Math.random()*24});
     }
+    if (isGoalMode()) spawnFlyToGoal(dx, dy, type);
   });
 
   if (size >= 9) shakeAmount = 12;
@@ -877,15 +1012,17 @@ function clearCell(r, c, pts) {
     return;
   }
   if (grid[r][c] < 0) return;
+  const tileColor = grid[r][c];
   const px = gridOffsetX + c * cellW + cellW/2;
   const py = gridOffsetY + r * cellH + cellH/2;
-  destroyAnims.push({row:r, col:c, type: grid[r][c], scale:1, alpha:1, x:px, y:py, t:0});
+  destroyAnims.push({row:r, col:c, type: tileColor, scale:1, alpha:1, x:px, y:py, t:0});
   for (let i = 0; i < 4; i++) {
     const angle = Math.random() * Math.PI * 2;
     const speed = 3 + Math.random() * 6;
     particles.push({x:px,y:py,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed-3,
-      life:0.8, type: grid[r][c], size:15+Math.random()*18});
+      life:0.8, type: tileColor, size:15+Math.random()*18});
   }
+  if (isGoalMode()) spawnFlyToGoal(px, py, tileColor);
   grid[r][c] = -1;
 }
 
@@ -1091,7 +1228,8 @@ function applyGravityAnimated() {
 }
 
 function checkEnd() {
-  if (movesLeft <= 0) { gameActive = false; setTimeout(levelComplete, 400); }
+  if (!isGoalMode() && movesLeft <= 0) { gameActive = false; setTimeout(levelComplete, 400); }
+  // Goal mode completion is handled in spawnFlyToGoal callback
 }
 
 function levelComplete() {
@@ -1706,6 +1844,20 @@ function playBoom() {
   src.connect(gain);gain.connect(c.destination);src.start();
 }
 function playWin() { [523,659,784,1047].forEach((f,i)=>setTimeout(()=>playTone(f,0.2,'sine',0.06),i*80)); }
+
+// ===== RESET =====
+function showResetMenu() {
+  const choice = prompt("Clear data for whom?\nType: caleb, ezra, or both");
+  if (!choice) return;
+  const key = choice.trim().toLowerCase();
+  if (key !== 'caleb' && key !== 'ezra' && key !== 'both') return;
+  const d = loadData();
+  const blank = {animals:{},rares:{},epics:{},highScores:{},totalWins:0};
+  if (key === 'caleb' || key === 'both') d.resinAnimals.profiles.caleb = {...blank};
+  if (key === 'ezra' || key === 'both') d.resinAnimals.profiles.ezra = {...blank};
+  saveData(d);
+  location.reload();
+}
 
 // ===== INIT =====
 updatePlayerSelect();

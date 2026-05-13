@@ -1,6 +1,6 @@
 # Games Index
 
-All 49 games in Garfield Boys' Arcade.
+All 50 games in Garfield Boys' Arcade.
 
 | Game | Directory | Description |
 |------|-----------|-------------|
@@ -52,6 +52,7 @@ All 49 games in Garfield Boys' Arcade.
 | Monster Jump | games/monster-jump/ | Drive Mad / Fancade WASM physics platformer |
 | Monster Smash | games/monster-smash/ | Tap-to-smash monsters |
 | Race Maker | games/race-maker/ | Build a Scalextric-style track piece-by-piece, then race it with corner braking and AI drivers (Three.js + Kenney Racing Kit) |
+| Adsumudi | games/adsumudi/ | Hexagonal mental-math card game — combine 5 numbers with + − × ÷ to reach the target |
 
 ## Naming quirks worth knowing
 

@@ -18,12 +18,22 @@ Toon Blast-style collapse puzzle game with a resin animal collection and two-pla
 
 ## Core Mechanics
 
-- **9x10 grid** of 5 tile colors (red, blue, green, yellow, purple)
+- **9x9 grid** of 4 tile colors (red, blue, green, yellow)
 - **Collapse mechanic:** tap a connected group of 2+ same-color tiles to pop them. Adjacency = up/down/left/right.
 - Touch-first: single tap to collapse a group. Also works with mouse click.
 - After collapse, tiles fall down (gravity with spring physics bounce). New tiles spawn at top.
-- **30 moves per level**, random board generation (pure Math.random(), no seeds)
-- Score target to complete each level
+- Random board generation (pure Math.random(), no seeds)
+
+### Caleb mode — Block collection goals (no move limit)
+
+Each level gives Caleb a set of colored block goals (e.g. "collect 50 red, 50 blue"). When blocks are popped they fly to the goal icons in the HUD, decrementing the count. Level completes when all goals hit zero. No move limit — play until done.
+
+**Scaling:** Total blocks to collect scales from 100 (0 animals found in that location) to 500 (all 10 found). Number of colors in the goal goes from 2 (easy) → 3 → 4 (hard) as the total increases.
+
+### Ezra mode — 30 moves (original)
+
+- **30 moves per level**, always completes and awards an animal
+- Score target display only (no fail state)
 
 ### Special Tiles (created by large groups)
 
