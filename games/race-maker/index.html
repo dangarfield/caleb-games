@@ -643,6 +643,19 @@ function loadModel(id) {
           child.position.sub(offset);
         });
       }
+      // Override light red (#f59c9b) -> #f48c8a globally
+      model.traverse(child => {
+        if (child.isMesh && child.material) {
+          const mats = Array.isArray(child.material) ? child.material : [child.material];
+          mats.forEach(mat => {
+            if (mat.color && mat.color.getHexString() === 'f59c9b') {
+              mat.color.set(0xf48c8a);
+              mat.map = null;
+              mat.needsUpdate = true;
+            }
+          });
+        }
+      });
       modelCache[id] = model;
       resolve(model.clone());
     }, undefined, reject);
@@ -2138,6 +2151,7 @@ async function spawnGridCars() {
   }
   carMesh.visible = true;
   carMesh.scale.setScalar(carScale);
+  recolorCar(carMesh, carColorConfig.player);
 
   // Remove old AI cars if count changed
   while (aiCars.length > raceConfig.aiCount) {
@@ -2151,6 +2165,7 @@ async function spawnGridCars() {
     const mesh = await loadModel(colorId);
     mesh.scale.setScalar(carScale);
     mesh.visible = true;
+    recolorCar(mesh, carColorConfig['ai' + i] || '#ffffff');
     scene.add(mesh);
     aiCars.push({
       mesh,
@@ -2916,12 +2931,8 @@ document.addEventListener('keydown', e => {
     sfx.switchLane();
   }
   if (e.key === 'Escape') {
-    if (!document.getElementById('trackModal').classList.contains('hidden')) hideModal();
-    else if (mode === 'race') exitRace();
-    else if (decorGUI) {
-      const d = decorGUI.domElement.style;
-      d.display = d.display === 'none' ? '' : 'none';
-    }
+    e.preventDefault();
+    toggleColorGUI();
   }
 });
 
@@ -3284,6 +3295,159 @@ function buildDecorGUI() {
     console.log(json);
     navigator.clipboard.writeText(json).then(() => alert('Copied to clipboard!'));
   }}, 'export').name('Export JSON to clipboard');
+}
+
+// ============================================================
+// COLOR TUNING GUI (toggle with Escape)
+// ============================================================
+let colorGUI = null;
+const _materialsByColor = {}; // hex -> [mat, mat, ...]
+
+function collectUniqueMaterials() {
+  for (const key in _materialsByColor) delete _materialsByColor[key];
+  // Collect from all cached models
+  Object.values(modelCache).forEach(model => {
+    model.traverse(child => {
+      if (child.isMesh && child.material) {
+        const mats = Array.isArray(child.material) ? child.material : [child.material];
+        mats.forEach(mat => {
+          if (mat.color) {
+            const hex = '#' + mat.color.getHexString();
+            if (!_materialsByColor[hex]) _materialsByColor[hex] = [];
+            if (!_materialsByColor[hex].includes(mat)) _materialsByColor[hex].push(mat);
+          }
+        });
+      }
+    });
+  });
+  // Also collect from placed track/decor meshes (cloned materials)
+  [...track, ...decorations].forEach(item => {
+    if (!item.mesh) return;
+    item.mesh.traverse(child => {
+      if (child.isMesh && child.material) {
+        const mats = Array.isArray(child.material) ? child.material : [child.material];
+        mats.forEach(mat => {
+          if (mat.color) {
+            const hex = '#' + mat.color.getHexString();
+            if (!_materialsByColor[hex]) _materialsByColor[hex] = [];
+            if (!_materialsByColor[hex].includes(mat)) _materialsByColor[hex].push(mat);
+          }
+        });
+      }
+    });
+  });
+  // Ground plane
+  const gh = '#' + groundMat.color.getHexString();
+  if (!_materialsByColor[gh]) _materialsByColor[gh] = [];
+  if (!_materialsByColor[gh].includes(groundMat)) _materialsByColor[gh].push(groundMat);
+}
+
+function recolorCar(mesh, hexColor) {
+  if (!mesh) return;
+  mesh.traverse(child => {
+    if (child.isMesh && child.material) {
+      const mats = Array.isArray(child.material) ? child.material : [child.material];
+      mats.forEach(mat => {
+        if (mat.color) {
+          const r = mat.color.r, g = mat.color.g, b = mat.color.b;
+          // Target the dominant/saturated color on the car body (not dark/gray parts)
+          if (Math.max(r,g,b) - Math.min(r,g,b) > 0.15 && Math.max(r,g,b) > 0.4) {
+            mat.color.set(hexColor);
+            mat.map = null;
+            mat.needsUpdate = true;
+          }
+        }
+      });
+    }
+  });
+}
+
+const carColorConfig = {
+  player: '#f77573',
+  ai0: '#5097e2',
+  ai1: '#f0c85c',
+  ai2: '#ffffff',
+};
+
+function buildColorGUI() {
+  if (colorGUI) colorGUI.destroy();
+  collectUniqueMaterials();
+
+  const gui = new GUI({ title: 'Color Tuning', width: 320 });
+  gui.domElement.style.zIndex = '10000';
+  gui.domElement.style.position = 'fixed';
+  gui.domElement.style.top = '10px';
+  gui.domElement.style.right = '10px';
+  colorGUI = gui;
+
+  const colors = Object.keys(_materialsByColor).sort();
+  const colorParams = {};
+
+  // Car colors
+  const carFolder = gui.addFolder('Car Colors');
+  carFolder.open();
+  carFolder.addColor(carColorConfig, 'player').name('Player').onChange(v => {
+    recolorCar(carMesh, v);
+  });
+  carFolder.addColor(carColorConfig, 'ai0').name('AI 1').onChange(v => {
+    if (aiCars[0]) recolorCar(aiCars[0].mesh, v);
+  });
+  carFolder.addColor(carColorConfig, 'ai1').name('AI 2').onChange(v => {
+    if (aiCars[1]) recolorCar(aiCars[1].mesh, v);
+  });
+  carFolder.addColor(carColorConfig, 'ai2').name('AI 3').onChange(v => {
+    if (aiCars[2]) recolorCar(aiCars[2].mesh, v);
+  });
+  carFolder.add({ apply() {
+    recolorCar(carMesh, carColorConfig.player);
+    aiCars.forEach((ai, i) => recolorCar(ai.mesh, carColorConfig['ai' + i] || '#ffffff'));
+  }}, 'apply').name('Apply All Car Colors');
+
+  // Ground plane entry
+  const groundHex = '#' + groundMat.color.getHexString();
+  const groundFolder = gui.addFolder('Ground Plane');
+  const groundParam = { color: groundHex };
+  groundFolder.addColor(groundParam, 'color').name(groundHex).onChange(v => {
+    groundMat.color.set(v);
+    groundMat.needsUpdate = true;
+  });
+  groundFolder.open();
+
+  // Model materials
+  const matFolder = gui.addFolder('Model Materials');
+  matFolder.open();
+  colors.forEach(hex => {
+    if (hex === groundHex && _materialsByColor[hex].length === 1 && _materialsByColor[hex][0] === groundMat) return;
+    colorParams[hex] = hex;
+    matFolder.addColor(colorParams, hex).name(hex).onChange(v => {
+      _materialsByColor[hex].forEach(mat => {
+        mat.color.set(v);
+        mat.map = null;
+        mat.needsUpdate = true;
+      });
+    });
+  });
+
+  gui.add({ logColors() {
+    console.log('=== Current Colors ===');
+    console.log('Ground:', '#' + groundMat.color.getHexString());
+    console.log('Player car:', carColorConfig.player);
+    console.log('AI 1:', carColorConfig.ai0);
+    console.log('AI 2:', carColorConfig.ai1);
+    console.log('AI 3:', carColorConfig.ai2);
+    Object.keys(colorParams).forEach(origHex => {
+      console.log(`${origHex} -> ${colorParams[origHex]}`);
+    });
+  }}, 'logColors').name('Log Current Colors');
+}
+
+function toggleColorGUI() {
+  if (colorGUI) {
+    colorGUI.destroy();
+    colorGUI = null;
+  } else {
+    buildColorGUI();
+  }
 }
 
 // Init
