@@ -555,120 +555,131 @@ const TILE_NAMES = ['red','blue','green','yellow'];
 const TILE_TYPES = 4;
 
 // ===== BOARD SHAPES =====
-// Each shape is a 9x9 grid: 1 = active cell, 0 = gap. All are symmetrical.
+// Each shape: {cols, rows, mask} where mask is rows×cols of 1/0.
+// All shapes target ~81 active cells and are symmetrical.
 const BOARD_SHAPES = [
-  // 0: Full square (classic)
+  // 0: Full 9x9 square (81 cells)
   null,
-  // 1: Diamond
-  [
+  // 1: Diamond on 9x13 (81 cells: 1+3+5+7+9*5+7+5+3+1=81)
+  {cols:9, rows:13, mask:[
     [0,0,0,0,1,0,0,0,0],
     [0,0,0,1,1,1,0,0,0],
     [0,0,1,1,1,1,1,0,0],
     [0,1,1,1,1,1,1,1,0],
     [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
     [0,1,1,1,1,1,1,1,0],
     [0,0,1,1,1,1,1,0,0],
     [0,0,0,1,1,1,0,0,0],
+    [0,0,0,1,1,1,0,0,0],
+  ]},
+  // 2: Cross on 11x11 (81 cells)
+  {cols:11, rows:11, mask:[
+    [0,0,0,1,1,1,1,1,0,0,0],
+    [0,0,0,1,1,1,1,1,0,0,0],
+    [0,0,0,1,1,1,1,1,0,0,0],
+    [1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1],
+    [0,0,0,1,1,1,1,1,0,0,0],
+    [0,0,0,1,1,1,1,1,0,0,0],
+    [0,0,0,1,1,1,1,1,0,0,0],
+  ]},
+  // 3: Heart on 11x12 (80 cells)
+  {cols:11, rows:12, mask:[
+    [0,0,1,1,1,0,1,1,1,0,0],
+    [0,1,1,1,1,1,1,1,1,1,0],
+    [1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1],
+    [0,1,1,1,1,1,1,1,1,1,0],
+    [0,1,1,1,1,1,1,1,1,1,0],
+    [0,0,1,1,1,1,1,1,1,0,0],
+    [0,0,0,1,1,1,1,1,0,0,0],
+    [0,0,0,0,1,1,1,0,0,0,0],
+    [0,0,0,0,0,1,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0],
+  ]},
+  // 4: Hourglass on 9x13 (81 cells)
+  {cols:9, rows:13, mask:[
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [0,1,1,1,1,1,1,1,0],
+    [0,0,1,1,1,1,1,0,0],
+    [0,0,1,1,1,1,1,0,0],
+    [0,0,0,1,1,1,0,0,0],
+    [0,0,0,1,1,1,0,0,0],
+    [0,0,0,1,1,1,0,0,0],
+    [0,0,1,1,1,1,1,0,0],
+    [0,0,1,1,1,1,1,0,0],
+    [0,1,1,1,1,1,1,1,0],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+  ]},
+  // 5: Square with center hole 9x10 (81 cells)
+  {cols:9, rows:10, mask:[
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,0,0,0,1,1,1],
+    [1,1,1,0,0,0,1,1,1],
+    [1,1,1,0,0,0,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+  ]},
+  // 6: Arrow on 9x13 (80 cells)
+  {cols:9, rows:13, mask:[
     [0,0,0,0,1,0,0,0,0],
-  ],
-  // 2: Cross / plus
-  [
-    [0,0,1,1,1,1,1,0,0],
-    [0,0,1,1,1,1,1,0,0],
-    [1,1,1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1,1,1],
-    [0,0,1,1,1,1,1,0,0],
-    [0,0,1,1,1,1,1,0,0],
-  ],
-  // 3: Heart
-  [
-    [0,1,1,0,0,0,1,1,0],
-    [1,1,1,1,0,1,1,1,1],
-    [1,1,1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1,1,1],
-    [0,1,1,1,1,1,1,1,0],
-    [0,0,1,1,1,1,1,0,0],
-    [0,0,0,1,1,1,0,0,0],
-    [0,0,0,0,1,0,0,0,0],
-  ],
-  // 4: Hourglass
-  [
-    [1,1,1,1,1,1,1,1,1],
-    [0,1,1,1,1,1,1,1,0],
-    [0,0,1,1,1,1,1,0,0],
-    [0,0,0,1,1,1,0,0,0],
-    [0,0,0,1,1,1,0,0,0],
     [0,0,0,1,1,1,0,0,0],
     [0,0,1,1,1,1,1,0,0],
     [0,1,1,1,1,1,1,1,0],
     [1,1,1,1,1,1,1,1,1],
-  ],
-  // 5: Square with center hole
-  [
     [1,1,1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1,1,1],
+    [0,1,1,1,1,1,1,1,0],
+    [0,1,1,1,1,1,1,1,0],
+    [0,1,1,1,1,1,1,1,0],
+    [0,0,1,1,1,1,1,0,0],
+    [0,0,1,1,1,1,1,0,0],
+    [0,0,1,1,1,1,1,0,0],
+    [0,0,1,1,1,1,1,0,0],
+  ]},
+  // 7: T-shape on 11x11 (81 cells)
+  {cols:11, rows:11, mask:[
+    [1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1],
+    [0,0,0,1,1,1,1,1,0,0,0],
+    [0,0,0,1,1,1,1,1,0,0,0],
+    [0,0,0,1,1,1,1,1,0,0,0],
+    [0,0,0,1,1,1,1,1,0,0,0],
+    [0,0,0,1,1,1,1,1,0,0,0],
+    [0,0,0,1,1,1,1,1,0,0,0],
+    [0,0,1,1,1,1,1,1,1,0,0],
+    [0,0,1,1,1,1,1,1,1,0,0],
+  ]},
+  // 8: Circle on 11x9 (81 cells)
+  {cols:11, rows:9, mask:[
+    [0,0,0,1,1,1,1,1,0,0,0],
+    [0,1,1,1,1,1,1,1,1,1,0],
+    [1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1],
+    [0,1,1,1,1,1,1,1,1,1,0],
+    [0,0,0,1,1,1,1,1,0,0,0],
+  ]},
+  // 9: U-shape on 9x11 (81 cells)
+  {cols:9, rows:11, mask:[
     [1,1,1,0,0,0,1,1,1],
     [1,1,1,0,0,0,1,1,1],
-    [1,1,1,0,0,0,1,1,1],
-    [1,1,1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1,1,1],
-  ],
-  // 6: Arrow pointing up
-  [
-    [0,0,0,0,1,0,0,0,0],
-    [0,0,0,1,1,1,0,0,0],
-    [0,0,1,1,1,1,1,0,0],
-    [0,1,1,1,1,1,1,1,0],
-    [1,1,1,1,1,1,1,1,1],
-    [0,0,0,1,1,1,0,0,0],
-    [0,0,0,1,1,1,0,0,0],
-    [0,0,0,1,1,1,0,0,0],
-    [0,0,0,1,1,1,0,0,0],
-  ],
-  // 7: T-shape
-  [
-    [1,1,1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1,1,1],
-    [0,0,0,1,1,1,0,0,0],
-    [0,0,0,1,1,1,0,0,0],
-    [0,0,0,1,1,1,0,0,0],
-    [0,0,0,1,1,1,0,0,0],
-    [0,0,0,1,1,1,0,0,0],
-    [0,0,0,1,1,1,0,0,0],
-  ],
-  // 8: Circle approximation
-  [
-    [0,0,1,1,1,1,1,0,0],
-    [0,1,1,1,1,1,1,1,0],
-    [1,1,1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1,1,1],
-    [0,1,1,1,1,1,1,1,0],
-    [0,0,1,1,1,1,1,0,0],
-  ],
-  // 9: Corners removed (rounded square)
-  [
-    [0,0,1,1,1,1,1,0,0],
-    [0,1,1,1,1,1,1,1,0],
-    [1,1,1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1,1,1],
-    [0,1,1,1,1,1,1,1,0],
-    [0,0,1,1,1,1,1,0,0],
-  ],
-  // 10: U-shape
-  [
     [1,1,1,0,0,0,1,1,1],
     [1,1,1,0,0,0,1,1,1],
     [1,1,1,0,0,0,1,1,1],
@@ -678,9 +689,10 @@ const BOARD_SHAPES = [
     [1,1,1,1,1,1,1,1,1],
     [1,1,1,1,1,1,1,1,1],
     [1,1,1,1,1,1,1,1,1],
-  ],
-  // 11: Checkerboard corners (diamond hole in center)
-  [
+  ]},
+  // 10: Diamond hole on 9x11 (82 cells)
+  {cols:9, rows:11, mask:[
+    [1,1,1,1,1,1,1,1,1],
     [1,1,1,1,1,1,1,1,1],
     [1,1,1,1,1,1,1,1,1],
     [1,1,1,1,0,1,1,1,1],
@@ -690,46 +702,65 @@ const BOARD_SHAPES = [
     [1,1,1,1,0,1,1,1,1],
     [1,1,1,1,1,1,1,1,1],
     [1,1,1,1,1,1,1,1,1],
-  ],
-  // 12: Wide inverted triangle
-  [
-    [1,1,1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1,1,1],
+    [0,1,1,1,1,1,1,1,0],
+  ]},
+  // 11: Wide pyramid on 11x11 (82 cells)
+  {cols:11, rows:11, mask:[
+    [0,0,0,0,0,1,0,0,0,0,0],
+    [0,0,0,0,1,1,1,0,0,0,0],
+    [0,0,0,1,1,1,1,1,0,0,0],
+    [0,0,1,1,1,1,1,1,1,0,0],
+    [0,1,1,1,1,1,1,1,1,1,0],
+    [1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1],
+    [0,0,0,0,0,0,0,0,0,0,0],
+  ]},
+  // 12: Vase / chalice on 9x13 (81 cells)
+  {cols:9, rows:13, mask:[
     [0,1,1,1,1,1,1,1,0],
     [0,1,1,1,1,1,1,1,0],
     [0,0,1,1,1,1,1,0,0],
     [0,0,1,1,1,1,1,0,0],
     [0,0,0,1,1,1,0,0,0],
     [0,0,0,1,1,1,0,0,0],
-    [0,0,0,0,1,0,0,0,0],
-  ],
+    [0,0,0,1,1,1,0,0,0],
+    [0,0,1,1,1,1,1,0,0],
+    [0,1,1,1,1,1,1,1,0],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1],
+    [0,1,1,1,1,1,1,1,0],
+  ]},
 ];
 
-let boardMask = null; // null means full board, otherwise 9x9 of true/false
+let boardMask = null; // null means full board, otherwise rows×cols of true/false
+let gridRows = 9, gridCols = 9; // current level dimensions
 
 function pickBoardShape() {
   const idx = Math.floor(Math.random() * BOARD_SHAPES.length);
   const shape = BOARD_SHAPES[idx];
-  if (!shape) { boardMask = null; return; }
+  if (!shape) { boardMask = null; gridRows = 9; gridCols = 9; return; }
+  gridRows = shape.rows;
+  gridCols = shape.cols;
   boardMask = [];
-  for (let r = 0; r < GRID_ROWS; r++) {
+  for (let r = 0; r < gridRows; r++) {
     boardMask[r] = [];
-    for (let c = 0; c < GRID_COLS; c++) {
-      boardMask[r][c] = shape[r][c] === 1;
+    for (let c = 0; c < gridCols; c++) {
+      boardMask[r][c] = shape.mask[r][c] === 1;
     }
   }
 }
 
 function isCellActive(r, c) {
-  if (r < 0 || r >= GRID_ROWS || c < 0 || c >= GRID_COLS) return false;
+  if (r < 0 || r >= gridRows || c < 0 || c >= gridCols) return false;
   if (!boardMask) return true;
   return boardMask[r][c];
 }
 
 // ===== STATE =====
-const GRID_SIZE = 9;
-const GRID_COLS = 9;
-const GRID_ROWS = 9;
 const MOVES_PER_LEVEL = 30;
 let currentPlayer = null;
 let currentLocation = null;
@@ -928,9 +959,9 @@ function startGame(locationId) {
 
   // Random board each game (respecting mask)
   grid = [];
-  for (let r = 0; r < GRID_ROWS; r++) {
+  for (let r = 0; r < gridRows; r++) {
     grid[r] = [];
-    for (let c = 0; c < GRID_COLS; c++) {
+    for (let c = 0; c < gridCols; c++) {
       grid[r][c] = isCellActive(r, c) ? Math.floor(Math.random() * TILE_TYPES) : -2;
     }
   }
@@ -977,12 +1008,12 @@ function resizeCanvas() {
   canvas.height = window.innerHeight;
   const maxW = canvas.width - 8;
   const maxH = canvas.height - 120;
-  cellW = Math.floor(Math.min(maxW / GRID_COLS, maxH / GRID_ROWS));
+  cellW = Math.floor(Math.min(maxW / gridCols, maxH / gridRows));
   cellH = cellW; // square cells for tap detection
   spriteH = Math.floor(cellW * (SPRITE_H / SPRITE_W)); // full sprite height (taller than cell)
   tileSize = cellW; // for tap detection compatibility
-  gridOffsetX = Math.floor((canvas.width - cellW * GRID_COLS) / 2);
-  gridOffsetY = Math.floor((canvas.height - cellH * GRID_ROWS) / 2) + 30;
+  gridOffsetX = Math.floor((canvas.width - cellW * gridCols) / 2);
+  gridOffsetY = Math.floor((canvas.height - cellH * gridRows) / 2) + 30;
 }
 
 function updateHUD() {
@@ -1069,7 +1100,7 @@ function getGroup(row, col) {
   const stack = [[row, col]];
   while (stack.length) {
     const [r, c] = stack.pop();
-    const key = r * GRID_COLS + c;
+    const key = r * gridCols + c;
     if (visited.has(key)) continue;
     if (!isCellActive(r, c)) continue;
     if (grid[r][c] !== type) continue;
@@ -1223,7 +1254,7 @@ function activateSpecial(special) {
     // Rocket travels left and right with trail
     travelAnims.push({x:px, y:py, dx:18, dy:0, life:1, color:'#e74c3c'});
     travelAnims.push({x:px, y:py, dx:-18, dy:0, life:1, color:'#e74c3c'});
-    for (let c = 0; c < GRID_COLS; c++) clearCell(row, c);
+    for (let c = 0; c < gridCols; c++) clearCell(row, c);
     shakeAmount = 8;
     score += 150;
     floatingTexts.push({x:px, y:py-cellH/2, text:'+150', life:1.2, color:'#74b9ff'});
@@ -1232,7 +1263,7 @@ function activateSpecial(special) {
     // Rocket travels up and down with trail
     travelAnims.push({x:px, y:py, dx:0, dy:-18, life:1, color:'#3498db'});
     travelAnims.push({x:px, y:py, dx:0, dy:18, life:1, color:'#3498db'});
-    for (let r = 0; r < GRID_ROWS; r++) clearCell(r, col);
+    for (let r = 0; r < gridRows; r++) clearCell(r, col);
     shakeAmount = 8;
     score += 150;
     floatingTexts.push({x:px, y:py-cellH/2, text:'+150', life:1.2, color:'#74b9ff'});
@@ -1256,12 +1287,12 @@ function activateSpecial(special) {
   } else if (type === 'disco') {
     // Rainbow wave of sparkles outward
     const counts = [0,0,0,0];
-    for (let r = 0; r < GRID_ROWS; r++)
-      for (let c = 0; c < GRID_COLS; c++)
+    for (let r = 0; r < gridRows; r++)
+      for (let c = 0; c < gridCols; c++)
         if (grid[r][c] >= 0 && grid[r][c] < TILE_TYPES) counts[grid[r][c]]++;
     const targetColor = counts.indexOf(Math.max(...counts));
-    for (let r = 0; r < GRID_ROWS; r++)
-      for (let c = 0; c < GRID_COLS; c++)
+    for (let r = 0; r < gridRows; r++)
+      for (let c = 0; c < gridCols; c++)
         if (grid[r][c] === targetColor) {
           const cx = gridOffsetX + c * cellW + cellW/2;
           const cy = gridOffsetY + r * cellH + cellH/2;
@@ -1305,8 +1336,8 @@ function combineSpecials(a, b) {
 
   if (hasDisco && hasDisco && types[0] === 'disco') {
     // Disco + Disco: clear EVERYTHING
-    for (let r = 0; r < GRID_ROWS; r++)
-      for (let c = 0; c < GRID_COLS; c++) clearCell(r, c);
+    for (let r = 0; r < gridRows; r++)
+      for (let c = 0; c < gridCols; c++) clearCell(r, c);
     shakeAmount = 20; score += 2000;
     floatingTexts.push({x:gridOffsetX+col*cellW+cellW/2, y:gridOffsetY+row*cellH,
       text:'+2000', life:2, color:'#fd79a8'});
@@ -1314,12 +1345,12 @@ function combineSpecials(a, b) {
   } else if (hasDisco) {
     // Disco + anything: clear all of 2 colors
     const counts = [0,0,0,0];
-    for (let r = 0; r < GRID_ROWS; r++)
-      for (let c = 0; c < GRID_COLS; c++)
+    for (let r = 0; r < gridRows; r++)
+      for (let c = 0; c < gridCols; c++)
         if (grid[r][c] >= 0) counts[grid[r][c]]++;
     const sorted = counts.map((v,i)=>({v,i})).sort((a,b)=>b.v-a.v);
-    for (let r = 0; r < GRID_ROWS; r++)
-      for (let c = 0; c < GRID_COLS; c++)
+    for (let r = 0; r < gridRows; r++)
+      for (let c = 0; c < gridCols; c++)
         if (grid[r][c] === sorted[0].i || grid[r][c] === sorted[1].i) clearCell(r, c);
     shakeAmount = 18; score += 1000;
     floatingTexts.push({x:gridOffsetX+col*cellW+cellW/2, y:gridOffsetY+row*cellH,
@@ -1328,9 +1359,9 @@ function combineSpecials(a, b) {
   } else if (hasBomb && rocketCount > 0) {
     // Bomb + Rocket: clear 3 rows AND 3 columns
     for (let r = row-1; r <= row+1; r++)
-      for (let c = 0; c < GRID_COLS; c++) clearCell(r, c);
+      for (let c = 0; c < gridCols; c++) clearCell(r, c);
     for (let c = col-1; c <= col+1; c++)
-      for (let r = 0; r < GRID_ROWS; r++) clearCell(r, c);
+      for (let r = 0; r < gridRows; r++) clearCell(r, c);
     shakeAmount = 16; score += 600;
     floatingTexts.push({x:gridOffsetX+col*cellW+cellW/2, y:gridOffsetY+row*cellH,
       text:'+600', life:1.4, color:'#ffeaa7'});
@@ -1345,8 +1376,8 @@ function combineSpecials(a, b) {
     playBoom();
   } else if (rocketCount === 2) {
     // Rocket + Rocket: clear entire row AND column (cross)
-    for (let c = 0; c < GRID_COLS; c++) clearCell(row, c);
-    for (let r = 0; r < GRID_ROWS; r++) clearCell(r, col);
+    for (let c = 0; c < gridCols; c++) clearCell(row, c);
+    for (let r = 0; r < gridRows; r++) clearCell(r, col);
     shakeAmount = 10; score += 300;
     floatingTexts.push({x:gridOffsetX+col*cellW+cellW/2, y:gridOffsetY+row*cellH,
       text:'+300', life:1.2, color:'#74b9ff'});
@@ -1362,13 +1393,13 @@ function combineSpecials(a, b) {
 function applyGravityAnimated() {
   // Track how far each tile falls for bounce animation
   // Tiles fall down, skipping over inactive (masked) cells
-  for (let c = 0; c < GRID_COLS; c++) {
+  for (let c = 0; c < gridCols; c++) {
     // Find the active cells in this column, bottom-to-top
-    let write = GRID_ROWS - 1;
+    let write = gridRows - 1;
     // Move write pointer to the lowest active cell
     while (write >= 0 && !isCellActive(write, c)) write--;
 
-    for (let r = GRID_ROWS - 1; r >= 0; r--) {
+    for (let r = gridRows - 1; r >= 0; r--) {
       if (!isCellActive(r, c)) continue; // skip masked cells
       if (grid[r][c] === -1) continue; // empty, skip
       if (grid[r][c] === -3) {
@@ -1392,13 +1423,13 @@ function applyGravityAnimated() {
     }
   }
   // Fill empty active cells with new tiles (they drop in from above)
-  for (let c = 0; c < GRID_COLS; c++) {
+  for (let c = 0; c < gridCols; c++) {
     let emptyCount = 0;
-    for (let r = 0; r < GRID_ROWS; r++) {
+    for (let r = 0; r < gridRows; r++) {
       if (isCellActive(r, c) && grid[r][c] === -1) emptyCount++;
     }
     let fillIdx = 0;
-    for (let r = 0; r < GRID_ROWS; r++) {
+    for (let r = 0; r < gridRows; r++) {
       if (isCellActive(r, c) && grid[r][c] === -1) {
         grid[r][c] = Math.floor(Math.random() * TILE_TYPES);
         fillIdx++;
@@ -1781,23 +1812,36 @@ function gameLoop(time) {
   }
   ctx.save(); ctx.translate(sx, sy);
 
-  // Board background: dark fill with gold/brown border
-  // Extra top margin to account for sprite overhang, tighter sides/bottom
-  const padTop = Math.floor(cellH * 0.18);
-  const padSide = 3;
-  const padBot = 2;
-  const boardX = gridOffsetX - padSide;
-  const boardY = gridOffsetY - padTop;
-  const boardW = cellW * GRID_COLS + padSide * 2;
-  const boardH = cellH * GRID_ROWS + padTop + padBot;
-  // Outer border (brown/gold like Toon Blast)
-  ctx.fillStyle = '#8B6914';
-  ctx.beginPath(); ctx.roundRect(boardX - 4, boardY - 4, boardW + 8, boardH + 8, 14); ctx.fill();
-  ctx.fillStyle = '#C49A1A';
-  ctx.beginPath(); ctx.roundRect(boardX - 2, boardY - 2, boardW + 4, boardH + 4, 12); ctx.fill();
-  // Black board interior
+  // Board background: draw dark fill per active cell, then gold border along shape edges
+  const pad = 3;
+  // Dark fill for each active cell
   ctx.fillStyle = '#1a1a2e';
-  ctx.beginPath(); ctx.roundRect(boardX, boardY, boardW, boardH, 10); ctx.fill();
+  for (let r = 0; r < gridRows; r++) {
+    for (let c = 0; c < gridCols; c++) {
+      if (!isCellActive(r, c)) continue;
+      ctx.fillRect(gridOffsetX + c * cellW - pad, gridOffsetY + r * cellH - pad, cellW + pad * 2, cellH + pad * 2);
+    }
+  }
+  // Gold border: draw edges between active and inactive/out-of-bounds cells
+  ctx.strokeStyle = '#C49A1A';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  for (let r = 0; r < gridRows; r++) {
+    for (let c = 0; c < gridCols; c++) {
+      if (!isCellActive(r, c)) continue;
+      const x = gridOffsetX + c * cellW;
+      const y = gridOffsetY + r * cellH;
+      // Top edge
+      if (!isCellActive(r - 1, c)) { ctx.moveTo(x - pad, y - pad); ctx.lineTo(x + cellW + pad, y - pad); }
+      // Bottom edge
+      if (!isCellActive(r + 1, c)) { ctx.moveTo(x - pad, y + cellH + pad); ctx.lineTo(x + cellW + pad, y + cellH + pad); }
+      // Left edge
+      if (!isCellActive(r, c - 1)) { ctx.moveTo(x - pad, y - pad); ctx.lineTo(x - pad, y + cellH + pad); }
+      // Right edge
+      if (!isCellActive(r, c + 1)) { ctx.moveTo(x + cellW + pad, y - pad); ctx.lineTo(x + cellW + pad, y + cellH + pad); }
+    }
+  }
+  ctx.stroke();
 
   // Update tile bounce animations
   tileAnims = tileAnims.filter(a => {
@@ -1823,8 +1867,8 @@ function gameLoop(time) {
 
   // Draw cubes bottom-to-top: upper rows drawn last, on top (top face overlaps row below)
   // Sprites are taller than cells - bottom-aligned so the "top face" extends upward
-  for (let r = GRID_ROWS - 1; r >= 0; r--) {
-    for (let c = 0; c < GRID_COLS; c++) {
+  for (let r = gridRows - 1; r >= 0; r--) {
+    for (let c = 0; c < gridCols; c++) {
       if (!isCellActive(r, c)) continue;
       const val = grid[r][c];
       const special = getSpecialAt(r, c);
