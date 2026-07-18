@@ -18,10 +18,29 @@ body { background:linear-gradient(180deg,#0a0a2e,#141452,#1a1a6e); min-height:10
 .player-badge{position:fixed;top:12px;right:12px;z-index:9999;background:rgba(108,92,231,0.6);color:#fff;
   padding:5px 14px;border-radius:20px;font:bold 13px/1.4 'Segoe UI',system-ui,sans-serif;
   border:1px solid rgba(255,255,255,0.2);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
-.screen { display:flex; flex-direction:column; align-items:center; padding:55px 12px 32px; min-height:100vh; gap:12px; }
+.screen { display:flex; flex-direction:column; align-items:center; padding:50px 12px 20px; min-height:100vh; gap:10px; }
 .title { font-size:clamp(2rem,8vw,3.5rem); text-shadow:0 0 20px rgba(255,200,50,0.5); text-align:center; }
 .subtitle { color:#a0c4ff; font-size:1.1rem; text-align:center; }
 .info-text { color:rgba(255,255,255,0.5); font-size:0.85rem; margin-top:8px; }
+.title-screen{justify-content:center;gap:16px;}
+.title-hero{text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px;}
+.title-player{color:#a0c4ff;font-size:1.2rem;font-weight:600;}
+.title-stats{display:flex;gap:20px;}
+.title-stat{display:flex;flex-direction:column;align-items:center;background:rgba(255,255,255,0.05);padding:8px 18px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);}
+.title-stat-num{font-size:1.4rem;font-weight:900;color:#ffd32a;}
+.title-stat-label{font-size:0.7rem;color:rgba(255,255,255,0.5);}
+.title-actions{display:flex;flex-direction:column;align-items:center;gap:8px;}
+.btn-lg{padding:16px 40px;font-size:1.2rem;}
+.menu-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:360px;width:100%;}
+.menu-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:20px 12px;
+  border-radius:16px;border:2px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);
+  cursor:pointer;transition:all 0.2s;color:#fff;}
+.menu-tile:hover{transform:scale(1.05);border-color:rgba(108,92,231,0.5);background:rgba(108,92,231,0.12);}
+.menu-tile:active{transform:scale(0.95);}
+.menu-tile-primary{border-color:rgba(108,92,231,0.5);background:linear-gradient(135deg,rgba(108,92,231,0.2),rgba(162,155,254,0.1));}
+.menu-icon{font-size:2.2rem;}
+.menu-label{font-size:1rem;font-weight:700;}
+.menu-sub{font-size:0.65rem;color:rgba(255,255,255,0.4);font-weight:400;}
 </style>
 </head>
 <body>
@@ -41,7 +60,7 @@ function showScreenFlash(type){
   const el=document.createElement('div');
   el.className='screen-flash screen-flash-'+type;
   document.body.appendChild(el);
-  setTimeout(()=>el.remove(),800);
+  setTimeout(()=>el.remove(),400);
 }
 function sfxWin(){playTone(523,0.12,'sine',0.08);setTimeout(()=>playTone(659,0.12,'sine',0.08),120);setTimeout(()=>playTone(784,0.12,'sine',0.08),240);setTimeout(()=>playTone(1047,0.3,'sine',0.1),360);}
 function sfxLose(){playTone(400,0.2,'sine',0.08,100);setTimeout(()=>playTone(200,0.4,'sine',0.06,80),200);}
@@ -78,6 +97,7 @@ const GOAL_PER_TYPE = 151; // Total across all types (used as overall goal)
 // ===== STATE (per-player profiles) =====
 let currentPlayer=null; // 'caleb' or 'ezra'
 let state={};
+let gameMode='energy'; // 'energy' or 'attack'
 
 function stateKey(){return 'garfimonState_'+currentPlayer;}
 function loadState(){
@@ -91,7 +111,19 @@ function getDisplayName(){return currentPlayer?currentPlayer.charAt(0).toUpperCa
 function updatePlayerBadge(visible){const el=document.getElementById('playerBadge');if(el){el.textContent=currentPlayer?getDisplayName():'';el.style.display=visible===false?'none':'block';}}
 function isCardResting(cardId){return(state.resting&&state.resting[cardId]||0)>0;}
 function restingTurns(cardId){return(state.resting&&state.resting[cardId])||0;}
-function restAllUsedCards(){state.team.forEach(c=>{state.resting[c.id]=2;});state.battleCount++;state.team=[];saveState();}
+function restAllUsedCards(){
+  state.team.forEach(c=>{
+    // Dynamic rest: stronger cards rest longer (use max attack damage)
+    const dmg=Math.max(...(c.attacks||[{damage:c.attack?c.attack.damage:10}]).map(a=>a.damage));
+    const rest=1; // Testing: max 1 rest
+    state.resting[c.id]=rest;
+  });
+  state.battleCount++;state.team=[];
+  // If fewer than 3 cards are available, clear all resting
+  const available=state.collection.filter(c=>!isCardResting(c.id)).length;
+  if(available<3){state.resting={};}
+  saveState();
+}
 function tickResting(){Object.keys(state.resting).forEach(id=>{state.resting[id]--;if(state.resting[id]<=0)delete state.resting[id];});saveState();}
 
 // ===== CARD DATA (static from cards.json) =====
@@ -114,18 +146,13 @@ function getBasicCards() { return ALL_CARDS.filter(c => c.stage === 'Basic'); }
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 
 function getStarterCards() {
-  // 6 random Basic cards from different types
-  const basics = getBasicCards();
-  const byType = {};
-  basics.forEach(c => { if (!byType[c.type]) byType[c.type] = []; byType[c.type].push(c); });
-  const types = shuffle(Object.keys(byType)).slice(0, 3);
-  const cards = [];
-  types.forEach(t => { cards.push(...shuffle(byType[t]).slice(0, 2)); });
-  // Fill up to 6 if needed
-  while (cards.length < 6) {
-    const pick = basics[Math.floor(Math.random() * basics.length)];
-    if (!cards.find(c => c.id === pick.id)) cards.push(pick);
-  }
+  // 3 from bottom 1/3 damage, 2 from middle 1/3, 1 from top 1/3
+  const sorted = [...ALL_CARDS].sort((a, b) => Math.max(...a.attacks.map(x=>x.damage)) - Math.max(...b.attacks.map(x=>x.damage)));
+  const third = Math.ceil(sorted.length / 3);
+  const low = shuffle(sorted.slice(0, third));
+  const mid = shuffle(sorted.slice(third, third * 2));
+  const high = shuffle(sorted.slice(third * 2));
+  const cards = [...low.slice(0, 3), ...mid.slice(0, 2), ...high.slice(0, 1)];
   return cards;
 }
 
@@ -155,8 +182,10 @@ function getGymTeam(gymIndex) {
   }
   const typeSlice = shuffle(tierSlice(typeCards));
   const rndSlice = shuffle(tierSlice(otherCards));
+  // Tier ⭐⭐ and ⭐⭐⭐ get 4 cards, tier ⭐ gets 3
+  const teamSize = tier >= 2 ? 4 : 3;
   const team = [];
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < teamSize; i++) {
     const useType = Math.random() < 0.5 || rndSlice.length === 0;
     const pool = useType ? typeSlice : rndSlice;
     if (pool.length > 0) team.push(pool.splice(0, 1)[0]);
@@ -166,19 +195,18 @@ function getGymTeam(gymIndex) {
   return team;
 }
 
-function getRewardCards(gymType) {
+function getRewardCards(gymType, gymTier) {
   const existing = new Set(state.collection.map(c => c.id));
-  const typeCards = shuffle(ALL_CARDS.filter(c => c.type === gymType && !existing.has(c.id)));
-  const rndCards = shuffle(ALL_CARDS.filter(c => c.type !== gymType && !existing.has(c.id)));
-  const rewards = [];
-  rewards.push(...typeCards.slice(0, 2));
-  rewards.push(...rndCards.slice(0, 1));
-  // If not enough new cards, just pick any undiscovered
-  if (rewards.length < 3) {
-    const any = shuffle(ALL_CARDS.filter(c => !existing.has(c.id) && !rewards.find(r => r.id === c.id)));
-    rewards.push(...any.slice(0, 3 - rewards.length));
-  }
-  return rewards;
+  // Only reward from the same tier pool as the gym
+  const typeCards = ALL_CARDS.filter(c => c.type === gymType).sort((a, b) => Math.max(...a.attacks.map(x=>x.damage)) - Math.max(...b.attacks.map(x=>x.damage)));
+  const third = Math.ceil(typeCards.length / 3);
+  let pool;
+  if (gymTier === 0) pool = typeCards.slice(0, third);
+  else if (gymTier === 1) pool = typeCards.slice(0, third * 2);
+  else pool = typeCards;
+  const available = shuffle(pool.filter(c => !existing.has(c.id)));
+  // Only give cards from this gym's pool — no fallback to random types
+  return available.slice(0, 1);
 }
 
 // ===== RENDERING =====
@@ -198,7 +226,7 @@ function cardHTML(card,opts={}){
     ${restBadge}
     <div class="card-header" style="background:${color}"><span class="card-name">${card.name}</span><span class="card-hp">HP ${card.hp}</span></div>
     ${img}
-    <div class="card-footer"><span class="card-type">${TYPE_EMOJI[card.type]||card.type}</span><span class="card-attack">⚔️ ${card.attack.name} (${card.attack.damage})</span><span class="card-weak">${card.weakness?TYPE_EMOJI[card.weakness]||card.weakness:''}</span></div>
+    <div class="card-footer"><span class="card-type">${TYPE_EMOJI[card.type]||card.type}</span><span class="card-attack">${(card.attacks||[{name:card.attack.name,damage:card.attack.damage,energyCost:1}]).map(a=>`${a.name} (${a.damage} / ${a.energyCost}⚡)`).join(' ')}</span><span class="card-weak">${card.weakness?TYPE_EMOJI[card.weakness]||card.weakness:''}</span></div>
   </div>`;
 }
 
@@ -214,17 +242,23 @@ function undiscoveredCardHTML(type){
 // ===== TITLE =====
 function showPlayerSelect(){
   updatePlayerBadge(false);
-  render(`<div class="screen title-screen">
+  // Get card counts for each player
+  let calebCards=0,ezraCards=0;
+  try{const c=JSON.parse(localStorage.getItem('garfimonState_caleb'));if(c&&c.collection)calebCards=c.collection.length;}catch(e){}
+  try{const e=JSON.parse(localStorage.getItem('garfimonState_ezra'));if(e&&e.collection)ezraCards=e.collection.length;}catch(e){}
+  render(`<div class="screen title-screen player-select-screen">
     <h1 class="title">⚡ Garfimon ⚡</h1>
     <p class="subtitle">Who's playing?</p>
     <div class="player-select">
       <button class="btn-player" onclick="pickPlayer('caleb')">
         <span class="player-avatar">🧢</span>
         <span class="player-name">Caleb</span>
+        <span class="player-cards">${calebCards} cards</span>
       </button>
       <button class="btn-player" onclick="pickPlayer('ezra')">
         <span class="player-avatar">⭐</span>
         <span class="player-name">Ezra</span>
+        <span class="player-cards">${ezraCards} cards</span>
       </button>
     </div>
   </div>`);
@@ -241,19 +275,30 @@ function showTitle(){
   const has=state.collection.length>0;
   const displayName=getDisplayName();
   render(`<div class="screen title-screen">
-    <h1 class="title">⚡ Garfimon ⚡</h1>
-    <p class="subtitle">${displayName}'s Adventure</p>
-    ${has?`<button class="btn btn-primary" onclick="showGymSelect()">Continue Adventure</button>
-      <button class="btn btn-secondary" onclick="showCards('pokedex')">📖 Pokédex (${state.collection.length})</button>
-      <button class="btn btn-danger" onclick="confirmReset()">New Game</button>`
-      :`<button class="btn btn-primary" onclick="startNewGame()">Start Adventure!</button>
-      <button class="btn btn-secondary" onclick="showHowToPlay()">How to Play</button>`}
-    <button class="btn btn-secondary" onclick="switchPlayer()">Switch Player</button>
-    <div class="info-text">Battle ${TOTAL_GYMS} Gym Leaders using real Pokémon cards!</div>
+    <div class="title-hero">
+      <h1 class="title">⚡ Garfimon ⚡</h1>
+      <p class="title-player">${displayName}'s Adventure</p>
+      <div class="title-stats">
+        <div class="title-stat"><span class="title-stat-num">${state.collection.length}</span><span class="title-stat-label">Cards</span></div>
+        <div class="title-stat"><span class="title-stat-num">${state.gymsBeaten.length}</span><span class="title-stat-label">Badges</span></div>
+      </div>
+    </div>
+    ${has?`<div class="menu-grid">
+      <button class="menu-tile" onclick="showGymSelect()"><span class="menu-icon">🗺️</span><span class="menu-label">Battle</span></button>
+      <button class="menu-tile" onclick="showCards('pokedex')"><span class="menu-icon">📖</span><span class="menu-label">Pokédex</span></button>
+      <button class="menu-tile" onclick="showHowToPlay()"><span class="menu-icon">📜</span><span class="menu-label">Rules</span></button>
+      <button class="menu-tile" onclick="toggleMode()"><span class="menu-icon">${gameMode==='energy'?'⚡':'⚔️'}</span><span class="menu-label">${gameMode==='energy'?'Energy Mode':'Attack Mode'}</span><span class="menu-sub">tap to change</span></button>
+    </div>`:`<div class="menu-grid">
+      <button class="menu-tile menu-tile-primary" onclick="startNewGame()"><span class="menu-icon">🎴</span><span class="menu-label">Start!</span></button>
+      <button class="menu-tile" onclick="showHowToPlay()"><span class="menu-icon">📜</span><span class="menu-label">Rules</span></button>
+      <button class="menu-tile" onclick="toggleMode()"><span class="menu-icon">${gameMode==='energy'?'⚡':'⚔️'}</span><span class="menu-label">${gameMode==='energy'?'Energy Mode':'Attack Mode'}</span><span class="menu-sub">tap to change</span></button>
+      <button class="menu-tile" onclick="switchPlayer()"><span class="menu-icon">🔄</span><span class="menu-label">Switch</span></button>
+    </div>`}
   </div>`);
 }
 
 function switchPlayer(){currentPlayer=null;showPlayerSelect();}
+function toggleMode(){gameMode=gameMode==='energy'?'attack':'energy';showTitle();}
 
 function showHowToPlay(){
   render(`<div class="screen rules-screen">
@@ -266,6 +311,7 @@ function showHowToPlay(){
       <div class="rule-section"><div class="rule-icon">🎁</div><div class="rule-text"><strong>5. Win = New Cards!</strong><br>Beat a Gym Leader to discover 3 new cards. Fill your Pokédex and beat all ${TOTAL_GYMS} gyms!</div></div>
     </div>
     <button class="btn btn-primary" onclick="showTitle()">Got it!</button>
+    <button class="btn btn-danger" onclick="confirmReset()">Reset ${getDisplayName()}'s data</button>
   </div>`);
 }
 
@@ -282,7 +328,7 @@ async function startNewGame(){
   saveState();
   showCardReveal(starters, 'Your Starter Cards!', 'Choose wisely for battle!', () => showGymSelect());
 }
-function confirmReset(){if(confirm('Start over? All cards and progress lost!')){state={collection:[],team:[],gymsBeaten:[],currentGym:0};saveState();showTitle();}}
+function confirmReset(){if(confirm(`Reset all data for ${getDisplayName()}? Cards and progress will be lost!`)){state={collection:[],team:[],gymsBeaten:[],currentGym:0,resting:{},battleCount:0};saveState();showTitle();}}
 
 // ===== CARD REVEAL (animated) =====
 function showCardReveal(cards,title,sub,onDone){
@@ -305,11 +351,12 @@ let cardSort='latest'; // 'latest','type','alpha','hp','damage'
 function sortCards(cards){
   const sorted=[...cards];
   switch(cardSort){
-    case 'type': sorted.sort((a,b)=>a.type.localeCompare(b.type)||b.hp-a.hp); break;
+    case 'type': sorted.sort((a,b)=>{const ai=TYPES.indexOf(a.type),bi=TYPES.indexOf(b.type);return(ai===-1?99:ai)-(bi===-1?99:bi)||b.hp-a.hp;}); break;
     case 'alpha': sorted.sort((a,b)=>a.name.localeCompare(b.name)); break;
-    case 'hp': sorted.sort((a,b)=>b.hp-a.hp||b.attack.damage-a.attack.damage); break;
-    case 'damage': sorted.sort((a,b)=>b.attack.damage-a.attack.damage||b.hp-a.hp); break;
-    default: sorted.reverse(); break; // 'latest' = most recently added first
+    case 'hp': sorted.sort((a,b)=>b.hp-a.hp||Math.max(...b.attacks.map(x=>x.damage))-Math.max(...a.attacks.map(x=>x.damage))); break;
+    case 'damage': sorted.sort((a,b)=>Math.max(...b.attacks.map(x=>x.damage))-Math.max(...a.attacks.map(x=>x.damage))||b.hp-a.hp); break;
+    case 'dps': sorted.sort((a,b)=>Math.max(...b.attacks.map(x=>x.damage/x.energyCost))-Math.max(...a.attacks.map(x=>x.damage/x.energyCost))); break;
+    default: sorted.reverse(); break; // 'latest' = most recently added first (reverse of collection order)
   }
   return sorted;
 }
@@ -336,25 +383,26 @@ function showCards(mode,gymIdx){
 
   const pendingGymInfo=gymIdx!==undefined?GYMS[gymIdx]:null;
   render(`<div class="screen cards-screen">
-    <h2>${cardsMode==='team-select'?'Pick Your Team (3)':'📖 Pokédex'}</h2>
+    <div class="cards-header"><h2>${cardsMode==='team-select'?'Pick Your Team (3)':'📖 Pokédex'}</h2><button class="cards-back-btn" onclick="showGymSelect()">← Back</button></div>
     ${pendingGymInfo?`<p class="team-hint">Tip: ${pendingGymInfo.leader} uses <span style="color:${TYPE_COLORS[pendingGymInfo.type]}">${pendingGymInfo.type}</span> type!</p>`:''}
     ${cardsMode==='team-select'?`<p class="team-count">Selected: ${state.team.length} / 3</p>`:`<p class="pokedex-progress">Discovered: ${coll.length} / ${ALL_CARDS.length}</p>`}
-    <div class="btn-group type-filter-group">
-      <button class="btn-group-item ${cardsFilter==='all'?'active':''}" onclick="cardsFilter='all';showCards('${cardsMode}',${gymIdx})">All</button>
-      ${TYPES.map(t=>{const tot=(allByType[t]||[]).length;return`<button class="btn-group-item ${cardsFilter===t?'active':''}" style="--tc:${TYPE_COLORS[t]}" onclick="cardsFilter='${t}';showCards('${cardsMode}',${gymIdx})">${TYPE_EMOJI[t]||t} <span class="btn-group-count">${(byType[t]||[]).length}/${tot}</span></button>`}).join('')}
-    </div>
-    <div class="toggle-row">
+    <div class="filters-row">
+      <div class="btn-group type-filter-group">
+        <button class="btn-group-item ${cardsFilter==='all'?'active':''}" onclick="cardsFilter='all';showCards('${cardsMode}',${gymIdx})">All</button>
+        ${TYPES.map(t=>{const tot=(allByType[t]||[]).length;return`<button class="btn-group-item ${cardsFilter===t?'active':''}" style="--tc:${TYPE_COLORS[t]}" onclick="cardsFilter='${t}';showCards('${cardsMode}',${gymIdx})">${TYPE_EMOJI[t]||t} <span class="btn-group-count">${(byType[t]||[]).length}/${tot}</span></button>`}).join('')}
+      </div>
       ${cardsMode==='pokedex'?`<div class="toggle-group">
-        <button class="toggle-item ${showDiscovered===true?'active':''}" onclick="showDiscovered=true;showCards('pokedex')">Discovered</button>
-        <button class="toggle-item ${showDiscovered===false?'active':''}" onclick="showDiscovered=false;showCards('pokedex')">Undiscovered</button>
+        <button class="toggle-item ${showDiscovered===true?'active':''}" onclick="showDiscovered=true;showCards('pokedex')">✓</button>
+        <button class="toggle-item ${showDiscovered===false?'active':''}" onclick="showDiscovered=false;showCards('pokedex')">?</button>
         <button class="toggle-item ${showDiscovered==='all'?'active':''}" onclick="showDiscovered='all';showCards('pokedex')">All</button>
       </div>`:''}
       <div class="toggle-group">
-        <button class="toggle-item ${cardSort==='latest'?'active':''}" onclick="cardSort='latest';showCards('${cardsMode}',${gymIdx})">Latest</button>
+        <button class="toggle-item ${cardSort==='latest'?'active':''}" onclick="cardSort='latest';showCards('${cardsMode}',${gymIdx})">New</button>
         <button class="toggle-item ${cardSort==='type'?'active':''}" onclick="cardSort='type';showCards('${cardsMode}',${gymIdx})">Type</button>
         <button class="toggle-item ${cardSort==='alpha'?'active':''}" onclick="cardSort='alpha';showCards('${cardsMode}',${gymIdx})">A-Z</button>
         <button class="toggle-item ${cardSort==='hp'?'active':''}" onclick="cardSort='hp';showCards('${cardsMode}',${gymIdx})">HP</button>
         <button class="toggle-item ${cardSort==='damage'?'active':''}" onclick="cardSort='damage';showCards('${cardsMode}',${gymIdx})">Dmg</button>
+        <button class="toggle-item ${cardSort==='dps'?'active':''}" onclick="cardSort='dps';showCards('${cardsMode}',${gymIdx})">DPS</button>
       </div>
     </div>
     <div class="card-grid">
@@ -370,11 +418,8 @@ function showCards(mode,gymIdx){
         return html;
       })()}
     </div>
-    <div id="cardModal" class="card-modal hidden" onclick="closeModal()"><div class="card-modal-inner" onclick="event.stopPropagation()"><div id="modalContent"></div><button class="btn btn-secondary" onclick="closeModal()">Close</button></div></div>
-    <div class="nav-btns">
-      ${cardsMode==='team-select'&&state.team.length===3?`<button class="btn btn-primary" onclick="startBattle(${gymIdx})">⚔️ Battle!</button>`:''}
-      <button class="btn btn-secondary" onclick="showGymSelect()">Back</button>
-    </div>
+    <div id="cardModal" class="card-modal hidden" onclick="closeModal()"><div class="card-modal-inner" onclick="event.stopPropagation()"><div id="modalContent"></div></div></div>
+    ${cardsMode==='team-select'&&state.team.length===3?`<div class="cards-battle-btn"><button class="btn btn-primary" onclick="startBattle(${gymIdx})">⚔️ Battle!</button></div>`:''}
   </div>`);
 }
 
@@ -387,21 +432,20 @@ function toggleTeamCard(cardId,gymIdx){
 }
 
 function enlargeCard(cardId){
-  const card=state.collection.find(c=>c.id===cardId);
+  const card=state.collection.find(c=>c.id===cardId)||ALL_CARDS.find(c=>c.id===cardId);
   if(!card)return;
   const modal=document.getElementById('cardModal');
   const content=document.getElementById('modalContent');
   const color=TYPE_COLORS[card.type]||'#666';
+  const attacks=card.attacks||[card.attack||{name:'Tackle',damage:10,energyCost:1}];
+  const energyIcons=(n,type)=>(TYPE_EMOJI[type]||'⚡').repeat(n);
   content.innerHTML=`<div class="modal-card">
     ${card.image?`<img src="${card.image}" alt="${card.name}" class="modal-card-img">`:`<div class="modal-card-ph" style="background:${color}">${card.name[0]}</div>`}
     <div class="modal-card-details">
       <h3 style="color:${color}">${card.name}</h3>
-      <p>Type: <strong style="color:${color}">${card.type}</strong></p>
-      <p>HP: <strong>${card.hp}</strong></p>
-      <p>Attack: <strong>${card.attack.name}</strong> (${card.attack.damage} dmg)</p>
-      ${card.weakness?`<p>Weakness: <strong style="color:${TYPE_COLORS[card.weakness]||'#fff'}">${card.weakness}</strong> ×2</p>`:''}
-      ${card.resistance?`<p>Resistance: <strong>${card.resistance}</strong> -30</p>`:''}
-      <p>Rarity: ${card.rarity}</p>
+      <p><strong style="color:${color}">${card.type}</strong> ${TYPE_EMOJI[card.type]||''} · HP <strong>${card.hp}</strong></p>
+      ${attacks.map(a=>`<p><strong>${a.name}</strong> ${a.damage} dmg ${energyIcons(a.energyCost,card.type)}</p>`).join('')}
+      <p>${card.weakness?`Weak: <strong style="color:${TYPE_COLORS[card.weakness]||'#fff'}">${card.weakness}</strong> ${TYPE_EMOJI[card.weakness]||''}`:''}${card.weakness&&card.resistance?' · ':''}${card.resistance?`Resist: <strong style="color:${TYPE_COLORS[card.resistance]||'#fff'}">${card.resistance}</strong> ${TYPE_EMOJI[card.resistance]||''}`:''}</p>
     </div>
   </div>`;
   modal.classList.remove('hidden');
@@ -432,28 +476,64 @@ function isGymUnlocked(gymIdx){
 }
 
 function showGymSelect(){
-  const grouped={};TYPES.forEach(t=>grouped[t]=GYMS.filter(g=>g.type===t));
-  render(`<div class="screen">
-    <h2>Choose a Gym</h2>
-    <p class="gym-progress">🏅 Badges: ${state.gymsBeaten.length} / ${TOTAL_GYMS}</p>
-    <div class="gym-type-list">
-      ${TYPES.map(type=>{
-        const gyms=grouped[type];
-        return`<div class="gym-type-group">
-          <div class="gym-type-header" style="color:${TYPE_COLORS[type]}">${TYPE_EMOJI[type]} ${type}</div>
-          <div class="gym-type-row">${gyms.map(g=>{
-            const beaten=state.gymsBeaten.includes(g.index);
-            const available=isGymUnlocked(g.index);
-            const cls=beaten?'gym-beaten':available?'gym-available':'gym-locked';
-            return`<div class="gym-chip ${cls}" ${available?`onclick="selectGym(${g.index})"`:''}">
-              <span class="gym-chip-name">${g.leader}</span>
-              <span class="gym-chip-tier">${'⭐'.repeat(g.tier+1)}</span>
-              ${beaten?'<span class="gym-chip-badge">🏅</span>':''}
-              ${!available?'<span class="gym-chip-lock">🔒</span>':''}
-            </div>`;
-          }).join('')}</div>
+  updatePlayerBadge(true);
+  const beatenCount=state.gymsBeaten.length;
+  // Build map data — each type gets a region with positioned gyms
+  const regions=[
+    {type:'Fire',x:12,y:10,label:'Ember Lands'},
+    {type:'Water',x:55,y:8,label:'Azure Coast'},
+    {type:'Grass',x:32,y:38,label:'Verdant Woods'},
+    {type:'Lightning',x:75,y:32,label:'Storm Peaks'},
+    {type:'Fighting',x:15,y:65,label:'Iron Mountains'},
+    {type:'Psychic',x:48,y:60,label:'Mystic Isle'},
+    {type:'Colorless',x:85,y:68,label:'Sky Citadel'},
+  ];
+
+  render(`<div class="screen gym-screen">
+    <div class="map-header">
+      <h2>The Garfimon Kingdom</h2>
+      <div class="gym-badge-counter">${beatenCount}/${TOTAL_GYMS} 🏅</div>
+    </div>
+    <div class="kingdom-map">
+      <div class="map-bg"></div>
+      ${regions.map(r=>{
+        const gyms=GYMS.filter(g=>g.type===r.type);
+        const color=TYPE_COLORS[r.type];
+        const allCaught=ALL_CARDS.filter(c=>c.type===r.type).every(c=>state.collection.some(x=>x.id===c.id));
+        return`<div class="map-region ${allCaught?'region-complete':''}" style="left:${r.x}%;top:${r.y}%;--rc:${color}">
+          <div class="region-terrain">${TYPE_EMOJI[r.type]||''}</div>
+          <div class="region-label">${r.label}</div>
+          <div class="region-gyms">
+            ${gyms.map(g=>{
+              const beaten=state.gymsBeaten.includes(g.index);
+              const available=isGymUnlocked(g.index);
+              const cls=beaten?'node-beaten':available?'node-available':'node-locked';
+              // Calculate catchable cards for this gym
+              const gymTypeCards=ALL_CARDS.filter(c=>c.type===g.type).sort((a,b)=>Math.max(...a.attacks.map(x=>x.damage))-Math.max(...b.attacks.map(x=>x.damage)));
+              const gThird=Math.ceil(gymTypeCards.length/3);
+              const gymPool=g.tier===0?gymTypeCards.slice(0,gThird):g.tier===1?gymTypeCards.slice(0,gThird*2):gymTypeCards;
+              const gymUncaught=gymPool.filter(c=>!state.collection.some(x=>x.id===c.id)).length;
+              const catchText=gymUncaught>0?`${gymUncaught} ${TYPE_EMOJI[g.type]||''}`:'✓';
+              return`<div class="map-node ${cls} ${gymUncaught===0?'node-complete':''}" ${available?`onclick="selectGym(${g.index})"`:''}  style="--gc:${color}">
+                <span class="node-star">${'⭐'.repeat(g.tier+1)}</span>
+                <span class="node-leader">${g.leader}</span>
+                ${available||beaten?`<span class="node-catch ${gymUncaught===0?'node-catch-done':''}">${catchText}</span>`:''}
+                ${!available&&!beaten?'<span class="node-lock">🔒</span>':''}
+              </div>`;
+            }).join('')}
+          </div>
         </div>`;
       }).join('')}
+      <!-- Decorative paths between regions -->
+      <svg class="map-paths" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <path d="M18 15 Q35 20 35 38" stroke="rgba(255,255,255,0.15)" stroke-width="0.4" fill="none" stroke-dasharray="1,1"/>
+        <path d="M60 12 Q65 20 78 33" stroke="rgba(255,255,255,0.15)" stroke-width="0.4" fill="none" stroke-dasharray="1,1"/>
+        <path d="M35 42 Q45 48 53 55" stroke="rgba(255,255,255,0.15)" stroke-width="0.4" fill="none" stroke-dasharray="1,1"/>
+        <path d="M22 65 Q35 60 50 58" stroke="rgba(255,255,255,0.15)" stroke-width="0.4" fill="none" stroke-dasharray="1,1"/>
+        <path d="M55 60 Q68 62 80 67" stroke="rgba(255,255,255,0.15)" stroke-width="0.4" fill="none" stroke-dasharray="1,1"/>
+        <path d="M78 35 Q80 50 82 65" stroke="rgba(255,255,255,0.15)" stroke-width="0.4" fill="none" stroke-dasharray="1,1"/>
+        <path d="M18 18 Q38 10 55 10" stroke="rgba(255,255,255,0.15)" stroke-width="0.4" fill="none" stroke-dasharray="1,1"/>
+      </svg>
     </div>
     <div class="nav-btns">
       <button class="btn btn-secondary" onclick="showCards('pokedex')">📖 Pokédex</button>
@@ -467,6 +547,8 @@ function selectGym(idx){sfxSelect();showCards('team-select',idx);}
 let battle=null;
 
 async function startBattle(gymIdx){
+  // Tick resting at battle start — cards recover one turn
+  tickResting();
   render(`<div class="screen loading-screen"><div class="spinner"></div><p>The Gym Leader approaches...</p></div>`);
   const gym=GYMS[gymIdx];
   if (ALL_CARDS.length === 0) await loadCardData();
@@ -477,8 +559,11 @@ async function startBattle(gymIdx){
   }
   const playerFirst = Math.random() < 0.5;
   battle = {gymIdx, gym,
-    playerTeam: state.team.map(c => ({...c, currentHp: c.hp})),
-    enemyTeam: enemyTeam.map(c => ({...c, currentHp: c.hp})),
+    playerTeam: state.team.map(c => {
+      const card = ALL_CARDS.find(x => x.id === c.id) || c;
+      return {...card, currentHp: card.hp, energy: 0, attacks: card.attacks || [{name:(c.attack||{}).name||'Tackle',damage:(c.attack||{}).damage||10,energyCost:1}]};
+    }),
+    enemyTeam: enemyTeam.map(c => ({...c, currentHp: c.hp, energy: 0, attacks: c.attacks || [{name:'Tackle',damage:10,energyCost:1}]})),
     playerIndex: 0, enemyIndex: 0, log: [], phase: 'coin-toss', animClass: '', playerFirst
   };
   sfxBench();
@@ -486,10 +571,11 @@ async function startBattle(gymIdx){
 }
 
 function showCoinToss(playerFirst){
+  const leaderName=battle.gym.leader;
   render(`<div class="screen coin-toss-screen">
     <div class="coin-flip-anim">🪙</div>
-    <h2 class="coin-result">${playerFirst?'You go first!':'Leader goes first!'}</h2>
-    <p class="coin-sub">${playerFirst?'Tap to attack!':'Brace yourself...'}</p>
+    <h2 class="coin-result">${playerFirst?`${getDisplayName()} goes first!`:`${leaderName} goes first!`}</h2>
+    <p class="coin-sub">${playerFirst?'Tap to attack!':`${leaderName} is preparing...`}</p>
     <button class="btn btn-primary" onclick="beginBattle()">Start!</button>
   </div>`);
 }
@@ -502,7 +588,7 @@ function beginBattle(){
     battle.log.push(`${battle.gym.leader} attacks first!`);
   }
   renderBattle();
-  if(!battle.playerFirst){setTimeout(enemyAttack,800);}
+  if(!battle.playerFirst){setTimeout(enemyAttack,400);}
 }
 
 function renderBattle(){
@@ -548,9 +634,11 @@ function renderBattle(){
         ${pBench.map(c=>`<div class="bench-card anim-bench-in">${benchCardHTML(c)}</div>`).join('')}
       </div>
     </div>
-    <div class="battle-log">${b.log.slice(-2).map(l=>`<div class="log-line">${l}</div>`).join('')}</div>
     <div class="battle-actions">
-      ${b.phase==='player-turn'?`<button class="btn btn-attack" onclick="playerAttack()">⚔️ ${p.attack.name} (${p.attack.damage})</button>`:''}
+      ${b.phase==='player-turn'?`${gameMode==='energy'?`
+        ${(p.attacks||[]).map((a,i)=>`<button class="btn btn-atk-choice ${(p.energy||0)>=a.energyCost?'':'btn-disabled'}" ${(p.energy||0)>=a.energyCost?`onclick="playerAttack(${i})"`:''}>${a.name} ${a.damage} dmg</button>`).join('')}
+        <button class="btn btn-draw" onclick="playerDraw()">Draw ${TYPE_EMOJI[p.type]||'⚡'}</button>
+      `:`${(p.attacks||[]).map((a,i)=>`<button class="btn btn-attack" onclick="playerAttack(${i})">⚔️ ${a.name} ${a.damage} dmg</button>`).join('')}`}`:''}
       ${b.phase==='enemy-turn'?`<div class="enemy-thinking">💭 ${b.gym.leader} is attacking...</div>`:''}
       ${isLost?`<button class="btn btn-primary" onclick="showGymSelect()">Try Again</button>`:''}
     </div>
@@ -563,11 +651,15 @@ function battleCardHTML(card){
   const pct=Math.max(0,card.currentHp/card.hp*100);
   const hpCol=pct>50?'#2ecc71':pct>25?'#f39c12':'#e74c3c';
   const img=card.image?`<img src="${card.image}" alt="${card.name}" class="battle-card-img" loading="lazy">`:`<div class="battle-card-img-ph" style="background:${color}">${card.name[0]}</div>`;
+  const energyIcons=gameMode==='energy'?(TYPE_EMOJI[card.type]||'⚡').repeat(card.energy||0):'';
   return`<div class="battle-card-inner">
     ${img}
-    <div class="battle-card-info"><div class="bc-name">${card.name}</div><div class="bc-type" style="color:${color}">${card.type}</div>
-    <div class="hp-bar"><div class="hp-fill" style="width:${pct}%;background:${hpCol}"></div></div>
-    <div class="hp-text">${Math.max(0,card.currentHp)}/${card.hp}</div></div>
+    <div class="battle-card-info">
+      <div class="bc-name">${card.name}</div>
+      ${energyIcons?`<div class="bc-energy-row">${energyIcons}</div>`:''}
+      <div class="hp-bar"><div class="hp-fill" style="width:${pct}%;background:${hpCol}"></div></div>
+      <div class="hp-text">${Math.max(0,card.currentHp)}/${card.hp}</div>
+    </div>
   </div>`;
 }
 
@@ -577,14 +669,36 @@ function benchCardHTML(card){
   return`<div class="bench-card-inner">${img}<span class="bench-hp">${card.currentHp}</span></div>`;
 }
 
-function playerAttack(){
+function playerDraw(){
+  const b=battle;
+  if(b.phase!=='player-turn')return;
+  const p=b.playerTeam[b.playerIndex];
+  p.energy=(p.energy||0)+1;
+  b.log.push(`${p.name} draws energy! (⚡${p.energy})`);
+  b.phase='enemy-turn';
+  renderBattle();
+  setTimeout(enemyAttack,450);
+}
+
+function playerAttack(atkIdx){
   const b=battle;
   if(b.phase!=='player-turn')return;
   const p=b.playerTeam[b.playerIndex],e=b.enemyTeam[b.enemyIndex];
+  const attacks=p.attacks||[{name:'Tackle',damage:10,energyCost:1}];
+  const atk=attacks[atkIdx]||attacks[0];
+
+  // Energy mode: check cost
+  if(gameMode==='energy'){
+    if((p.energy||0)<atk.energyCost)return;
+    p.energy-=atk.energyCost;
+  }
+
   const mult=getTypeMult(p.type,e);
-  const dmg=Math.round(p.attack.damage*mult);
+  const isCrit=Math.random()<0.1;
+  const dmg=Math.round(atk.damage*mult*(isCrit?1.5:1));
   e.currentHp-=dmg; if(mult>1){sfxDouble();showScreenFlash('double');}else if(mult<1){sfxResist();showScreenFlash('resist');}else{sfxHit();}
-  let msg=`${p.name} uses ${p.attack.name} for ${dmg} dmg!`;
+  let msg=`${p.name} uses ${atk.name} for ${dmg} dmg!`;
+  if(isCrit)msg+=' 💥 CRIT!';
   if(mult>1)msg+=' ⚡ SUPER EFFECTIVE!';if(mult<1)msg+=' 🛡️ Resisted...';
   b.log.push(msg);
   b.animClass='enemy-hit';
@@ -597,22 +711,46 @@ function playerAttack(){
     renderBattle();
     setTimeout(()=>{
       const next=b.enemyTeam.findIndex((c,i)=>i>b.enemyIndex&&c.currentHp>0);
-      if(next>=0){b.enemyIndex=next;b.log.push(`${b.gym.leader} sends out ${b.enemyTeam[next].name}!`);sfxBench();b.phase='enemy-turn';renderBattle();setTimeout(enemyAttack,900);}
+      if(next>=0){b.enemyIndex=next;b.log.push(`${b.gym.leader} sends out ${b.enemyTeam[next].name}!`);sfxBench();b.phase='enemy-turn';renderBattle();setTimeout(enemyAttack,450);}
       else{b.phase='won';sfxWin();showBattleWin(b.gymIdx);}
-    },800);
+    },400);
     return;
   }
   b.phase='enemy-turn';
   renderBattle();
-  setTimeout(enemyAttack,900);
+  setTimeout(enemyAttack,450);
 }
 
 function enemyAttack(){
   const b=battle,p=b.playerTeam[b.playerIndex],e=b.enemyTeam[b.enemyIndex];
+  const attacks=e.attacks||[{name:'Tackle',damage:10,energyCost:1}];
+
+  // Energy mode: AI picks best affordable attack, or draws
+  if(gameMode==='energy'){
+    e.energy=(e.energy||0);
+    const affordable=attacks.filter(a=>a.energyCost<=e.energy);
+    if(affordable.length===0){
+      e.energy++;
+      b.log.push(`${e.name} draws energy! (⚡${e.energy})`);
+      b.phase='player-turn';
+      renderBattle();
+      return;
+    }
+    // Pick highest damage affordable
+    affordable.sort((a,b2)=>b2.damage-a.damage);
+    var atk=affordable[0];
+    e.energy-=atk.energyCost;
+  } else {
+    // Attack mode: just use best attack
+    var atk=attacks.reduce((best,a)=>a.damage>best.damage?a:best,attacks[0]);
+  }
+
   const mult=getTypeMult(e.type,p);
-  const dmg=Math.round(e.attack.damage*mult);
+  const isCrit=Math.random()<0.1;
+  const dmg=Math.round(atk.damage*mult*(isCrit?1.5:1));
   p.currentHp-=dmg; if(mult>1){sfxDouble();showScreenFlash('double');}else if(mult<1){sfxResist();showScreenFlash('resist');}else{sfxHit();}
-  let msg=`${e.name} uses ${e.attack.name} for ${dmg} dmg!`;
+  let msg=`${e.name} uses ${atk.name} for ${dmg} dmg!`;
+  if(isCrit)msg+=' 💥 CRIT!';
   if(mult>1)msg+=' ⚡ SUPER EFFECTIVE!';if(mult<1)msg+=' 🛡️ Resisted...';
   b.log.push(msg);
   b.animClass='player-hit';
@@ -626,8 +764,8 @@ function enemyAttack(){
     setTimeout(()=>{
       const next=b.playerTeam.findIndex((c,i)=>i>b.playerIndex&&c.currentHp>0);
       if(next>=0){b.playerIndex=next;b.log.push(`You send out ${b.playerTeam[next].name}!`);sfxBench();b.phase='player-turn';renderBattle();}
-      else{b.phase='lost';sfxLose();b.log.push('💀 You lost...');restAllUsedCards();tickResting();renderBattle();}
-    },800);
+      else{b.phase='lost';sfxLose();b.log.push('💀 You lost...');restAllUsedCards();renderBattle();}
+    },400);
     return;
   }
   b.phase='player-turn';
@@ -640,11 +778,10 @@ function showBattleWin(gymIdx){
   const gym=GYMS[gymIdx];
   if(!state.gymsBeaten.includes(gymIdx)){state.gymsBeaten.push(gymIdx);}
   restAllUsedCards();
-  tickResting();
   saveState();
 
-  // Get 1 reward card
-  const rewards = getRewardCards(gym.type).slice(0,1);
+  // Get 2 reward cards
+  const rewards = getRewardCards(gym.type, gym.tier).slice(0,1);
   if(rewards.length>0){
     state.collection.push(...rewards.filter(c=>!state.collection.some(x=>x.id===c.id)));
     saveState();
@@ -656,24 +793,17 @@ function showBattleWin(gymIdx){
     <div class="battle-bg"><div class="battle-bg-left" style="background:linear-gradient(135deg,${TYPE_COLORS[gym.type]}22 0%,${TYPE_COLORS[gym.type]}55 100%)"></div><div class="battle-bg-right"></div></div>
     <div class="confetti-container" id="confetti"></div>
     <div class="win-reward-screen">
-      <div class="win-reward-badge">🏆</div>
-      <h2 class="win-reward-title">${gym.leader} Defeated!</h2>
-      ${card?`
-        <p class="win-reward-sub">New card discovered!</p>
-        <div class="win-reward-card">
-          <div class="modal-card">
-            ${card.image?`<img src="${card.image}" alt="${card.name}" class="modal-card-img">`:`<div class="modal-card-ph" style="background:${color}">${card.name[0]}</div>`}
-            <div class="modal-card-details">
-              <h3 style="color:${color}">${card.name}</h3>
-              <p>Type: <strong style="color:${color}">${card.type}</strong> ${TYPE_EMOJI[card.type]||''}</p>
-              <p>HP: <strong>${card.hp}</strong></p>
-              <p>Attack: <strong>${card.attack.name}</strong> (${card.attack.damage} dmg)</p>
-              ${card.weakness?`<p>Weakness: <strong style="color:${TYPE_COLORS[card.weakness]||'#fff'}">${card.weakness}</strong> ${TYPE_EMOJI[card.weakness]||''}</p>`:''}
-            </div>
-          </div>
+      <div class="win-left">
+        <div class="win-reward-badge">🏆</div>
+        <h2 class="win-reward-title">${gym.leader} Defeated!</h2>
+        <p class="win-reward-sub">${card?'New card discovered!':'You already have all Pokémon from this gym!'}</p>
+        <button class="btn btn-primary win-reward-btn" onclick="showGymSelect()">Continue</button>
+      </div>
+      ${card?`<div class="win-right">
+        <div class="win-card-display">
+          ${card.image?`<img src="${card.image}" alt="${card.name}" class="win-card-img">`:`<div class="modal-card-ph" style="background:${color}">${card.name[0]}</div>`}
         </div>
-      `:`<p class="win-reward-sub">You've collected all available cards!</p>`}
-      <button class="btn btn-primary win-reward-btn" onclick="showGymSelect()">Continue</button>
+      </div>`:''}
     </div>
   </div>`);
   spawnConfetti();
@@ -719,9 +849,9 @@ function spawnConfetti(){
 .card-selected::after{content:'✓';position:absolute;top:5px;right:5px;width:22px;height:22px;background:#2ecc71;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:bold;color:#fff;z-index:5;box-shadow:0 2px 6px rgba(0,0,0,0.3);}
 .card-rare{box-shadow:0 0 12px rgba(255,215,0,0.5);}
 .card-undiscovered{opacity:0.5;cursor:default;}
-.card-resting{opacity:0.5;filter:grayscale(0.6);cursor:not-allowed!important;}
+.card-resting{filter:grayscale(0.6) brightness(0.6);cursor:not-allowed!important;}
 .card-resting:hover{transform:none!important;}
-.rest-badge{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:6;background:rgba(0,0,0,0.8);color:#ffd32a;font-size:1.2rem;font-weight:900;padding:6px 12px;border-radius:10px;white-space:nowrap;pointer-events:none;}
+.rest-badge{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:6;background:rgba(0,0,0,0.85);color:#ffd32a;font-size:1.2rem;font-weight:900;padding:6px 12px;border-radius:10px;white-space:nowrap;pointer-events:none;filter:brightness(1.8);}
 .card-header{padding:5px 7px;display:flex;justify-content:space-between;align-items:center;}
 .card-name{font-weight:700;font-size:0.72rem;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .card-hp{font-weight:700;font-size:0.68rem;color:#fff;white-space:nowrap;}
@@ -747,35 +877,64 @@ function spawnConfetti(){
 .btn-group-item.active{background:var(--tc,rgba(108,92,231,0.4));color:#fff;font-weight:700;}
 .toggle-item.active{background:rgba(108,92,231,0.5);color:#fff;font-weight:700;}
 .btn-group-count{font-size:0.6rem;opacity:0.7;}
-.type-filter-group{margin-bottom:6px;}
-.toggle-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:10px;}
+.type-filter-group{margin-bottom:0;}
+.filters-row{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:nowrap;margin-bottom:10px;overflow-x:auto;width:100%;padding:0 4px;}
+.toggle-row{display:flex;gap:8px;flex-wrap:nowrap;justify-content:center;margin-bottom:10px;align-items:center;}
 .team-hint{color:rgba(255,255,255,0.7);font-size:0.85rem;}.team-hint span{font-weight:700;}
 .team-count,.pokedex-progress{color:#ffd32a;font-weight:700;font-size:0.9rem;}
 .no-cards{color:rgba(255,255,255,0.4);font-style:italic;text-align:center;padding:2rem;grid-column:1/-1;}
 .nav-btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:10px;}
+.cards-back-btn{background:rgba(0,0,0,0.55);color:#fff;
+  padding:5px 14px;border-radius:20px;border:1px solid rgba(255,255,255,0.18);font:bold 13px/1.4 'Segoe UI',system-ui,sans-serif;
+  cursor:pointer;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:background 0.2s;}
+.cards-back-btn:hover{background:rgba(0,0,0,0.75);}
+.cards-header{display:flex;justify-content:center;align-items:center;width:100%;position:relative;}
+.cards-header h2{text-align:center;}
+.cards-header .cards-back-btn{position:absolute;right:0;}
+.cards-battle-btn{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:9998;}
 
 /* Player select */
-.player-select{display:flex;gap:20px;margin:16px 0;}
-.btn-player{display:flex;flex-direction:column;align-items:center;gap:8px;padding:24px 36px;border-radius:16px;border:3px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);cursor:pointer;transition:all 0.2s;}
-.btn-player:hover{transform:scale(1.05);border-color:rgba(108,92,231,0.6);background:rgba(108,92,231,0.15);}
+.player-select-screen{justify-content:center;}
+.player-select{display:flex;gap:24px;margin:20px 0;}
+.btn-player{display:flex;flex-direction:column;align-items:center;gap:8px;padding:28px 44px;border-radius:20px;border:3px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);cursor:pointer;transition:all 0.2s;}
+.btn-player:hover{transform:scale(1.08);border-color:rgba(108,92,231,0.6);background:rgba(108,92,231,0.15);}
 .btn-player:active{transform:scale(0.95);}
-.player-avatar{font-size:3rem;}
-.player-name{font-size:1.3rem;font-weight:700;color:#fff;}
+.player-avatar{font-size:3.5rem;}
+.player-name{font-size:1.5rem;font-weight:700;color:#fff;}
+.player-cards{font-size:0.85rem;color:rgba(255,255,255,0.5);}
 
-/* Gyms */
-.gym-progress{color:#ffd32a;font-size:1rem;font-weight:700;}
-.gym-type-list{width:100%;max-width:800px;display:flex;flex-direction:column;gap:10px;}
-.gym-type-group{background:rgba(255,255,255,0.03);border-radius:10px;padding:8px 12px;}
-.gym-type-header{font-weight:700;font-size:0.85rem;margin-bottom:6px;}
-.gym-type-row{display:flex;gap:8px;flex-wrap:wrap;}
-.gym-chip{background:#1e2a3a;border-radius:10px;padding:8px 12px;text-align:center;cursor:pointer;transition:transform 0.2s;border:2px solid rgba(255,255,255,0.1);min-width:80px;position:relative;}
-.gym-chip:hover{transform:translateY(-2px);}
-.gym-available{border-color:rgba(108,92,231,0.5);}
-.gym-beaten{border-color:rgba(46,204,113,0.5);opacity:0.7;}
-.gym-locked{opacity:0.35;cursor:not-allowed;}
-.gym-chip-name{display:block;font-weight:700;font-size:0.8rem;}
-.gym-chip-tier{display:block;font-size:0.6rem;}
-.gym-chip-badge,.gym-chip-lock{position:absolute;top:2px;right:4px;font-size:0.7rem;}
+/* Kingdom Map */
+.gym-screen{padding:50px 12px 20px;height:100vh;}
+.map-header{display:flex;justify-content:center;align-items:center;width:100%;margin-bottom:8px;position:relative;}
+.map-header h2{font-size:1.3rem;text-shadow:0 0 12px rgba(255,200,50,0.3);text-align:center;}
+.gym-badge-counter{position:absolute;right:0;background:rgba(255,211,42,0.15);border:1px solid rgba(255,211,42,0.3);color:#ffd32a;padding:4px 12px;border-radius:16px;font-weight:700;font-size:0.85rem;}
+.kingdom-map{position:relative;width:100%;flex:1;min-height:300px;border-radius:16px;overflow:hidden;
+  background:linear-gradient(180deg,#0d2137 0%,#132a1a 40%,#1a2a10 70%,#0d1a2a 100%);
+  border:2px solid rgba(255,255,255,0.08);box-shadow:inset 0 0 60px rgba(0,0,0,0.5);}
+.map-bg{position:absolute;inset:0;opacity:0.06;
+  background-image:repeating-linear-gradient(0deg,transparent,transparent 20px,rgba(255,255,255,0.3) 20px,rgba(255,255,255,0.3) 21px),
+  repeating-linear-gradient(90deg,transparent,transparent 20px,rgba(255,255,255,0.3) 20px,rgba(255,255,255,0.3) 21px);}
+.map-paths{position:absolute;inset:0;width:100%;height:100%;z-index:1;}
+.map-region{position:absolute;z-index:2;display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-20%);}
+.region-terrain{filter:drop-shadow(0 2px 6px rgba(0,0,0,0.6));animation:float 3s ease-in-out infinite;}
+.region-terrain img{width:48px;height:48px;}
+.region-label{font-size:1rem;font-weight:700;color:var(--rc);text-shadow:0 1px 4px rgba(0,0,0,0.9);white-space:nowrap;margin-top:4px;text-transform:uppercase;letter-spacing:0.5px;}
+.region-complete .region-label{color:#2ecc71;}
+.region-gyms{display:flex;flex-direction:column;gap:5px;margin-top:8px;}
+.map-node{display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:8px;cursor:pointer;transition:all 0.2s;white-space:nowrap;font-size:1rem;width:220px;}
+.map-node:hover{transform:scale(1.1);}
+.node-available{background:rgba(0,0,0,0.7);border:2px solid var(--gc);box-shadow:0 0 8px color-mix(in srgb,var(--gc) 40%,transparent);}
+.node-beaten{background:rgba(0,0,0,0.6);border:2px solid var(--gc);box-shadow:0 0 6px color-mix(in srgb,var(--gc) 30%,transparent);}
+.node-complete{background:color-mix(in srgb,var(--gc) 15%,rgba(0,0,0,0.6))!important;border-color:var(--gc)!important;box-shadow:0 0 6px color-mix(in srgb,var(--gc) 30%,transparent)!important;}
+.node-locked{background:rgba(0,0,0,0.5);border:2px solid rgba(255,255,255,0.1);opacity:0.4;cursor:not-allowed;}
+.node-locked:hover{transform:none;}
+.node-star{font-size:0.8rem;}
+.node-leader{font-weight:700;color:#fff;font-size:0.95rem;}
+.node-catch{font-size:0.95rem;color:#fff;margin-left:auto;white-space:nowrap;font-weight:600;}
+.node-catch img{width:16px;height:16px;}
+.node-catch-done{color:#2ecc71;}
+.node-done{font-size:0.85rem;}
+.node-lock{font-size:0.85rem;margin-left:auto;}
 </style>
 <style>
 /* Battle */
@@ -807,23 +966,33 @@ function spawnConfetti(){
 .battle-card-img{width:100%;aspect-ratio:600/825;object-fit:contain;background:#111;display:block;}
 .battle-card-img-ph{width:100%;aspect-ratio:600/825;display:flex;align-items:center;justify-content:center;font-size:2.5rem;color:rgba(255,255,255,0.3);}
 .battle-card-info{padding:8px;text-align:center;}
-.bc-name{font-weight:700;font-size:0.9rem;}.bc-type{font-size:0.7rem;font-weight:600;}
+.bc-name{font-weight:700;font-size:0.9rem;text-align:center;}
+.bc-energy-row{display:flex;justify-content:center;gap:1px;margin:2px 0;}
+.bc-energy-row img{width:14px;height:14px;}
 .hp-bar{width:100%;height:8px;background:rgba(255,255,255,0.1);border-radius:4px;margin-top:4px;overflow:hidden;}
 .hp-fill{height:100%;border-radius:4px;transition:width 0.4s;}
 .hp-text{font-size:0.65rem;color:rgba(255,255,255,0.5);margin-top:2px;}
 .vs-badge{font-size:1.8rem;font-weight:900;color:#ffd32a;text-shadow:0 0 12px rgba(255,211,42,0.6);flex-shrink:0;}
-.battle-log{width:100%;background:rgba(0,0,0,0.3);border-radius:8px;padding:8px;height:54px;overflow:hidden;font-size:0.8rem;color:rgba(255,255,255,0.8);position:relative;z-index:1;text-align:center;}
 .log-line{margin:2px 0;}
-.battle-actions{height:56px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1;}
+.battle-actions{height:60px;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;position:relative;z-index:1;flex-shrink:0;padding:8px 12px;}
+.btn-atk-choice{padding:10px 18px;font-size:0.9rem;border:none;border-radius:10px;background:linear-gradient(135deg,#e74c3c,#f39c12);color:#fff;font-weight:700;cursor:pointer;transition:transform 0.15s;}
+.btn-atk-choice:hover{transform:scale(1.05);}
+.btn-atk-choice.btn-disabled{opacity:0.35;cursor:not-allowed;filter:grayscale(0.8);}
+.btn-atk-choice.btn-disabled:hover{transform:none;}
+.btn-atk-choice img{width:14px;height:14px;vertical-align:middle;}
+.btn-draw{padding:10px 18px;font-size:0.9rem;border:none;border-radius:10px;background:rgba(241,196,15,0.3);color:#ffd32a;font-weight:700;cursor:pointer;border:1px solid rgba(241,196,15,0.4);}
+.btn-draw img{width:16px;height:16px;vertical-align:middle;}
 
 /* Battle won overlay */
-.win-reward-screen{position:relative;z-index:2;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;gap:10px;padding:20px;}
+.win-reward-screen{position:relative;z-index:2;flex:1;display:flex;align-items:center;justify-content:center;width:100%;gap:30px;padding:20px;}
+.win-left{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;}
 .win-reward-badge{font-size:4rem;animation:victory-pop 0.6s ease;}
 .win-reward-title{font-size:1.6rem;color:#ffd32a;text-shadow:0 0 20px rgba(255,211,42,0.6);animation:victory-title-in 0.5s ease 0.2s both;}
 .win-reward-sub{color:#a0c4ff;font-size:1rem;animation:victory-title-in 0.5s ease 0.4s both;}
-.win-reward-card{animation:reveal-in 0.6s ease 0.6s both;max-width:320px;width:100%;}
-.win-reward-card .modal-card{box-shadow:0 8px 40px rgba(255,211,42,0.3);animation:pulse-glow 2s ease-in-out infinite;}
-.win-reward-btn{animation:victory-title-in 0.5s ease 1s both;}
+.win-reward-btn{animation:victory-title-in 0.5s ease 0.6s both;}
+.win-right{animation:reveal-in 0.6s ease 0.5s both;height:80vh;max-height:500px;}
+.win-card-display{height:100%;display:flex;align-items:center;}
+.win-card-img{height:100%;width:auto;border-radius:12px;box-shadow:0 8px 40px rgba(255,211,42,0.3);animation:pulse-glow 2s ease-in-out infinite;}
 </style>
 <style>
 /* Animations */
