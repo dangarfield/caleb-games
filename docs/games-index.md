@@ -1,6 +1,6 @@
 # Games Index
 
-All 53 games in Garfield Boys' Arcade (54 directories — Archers has legacy 2D + current 3D).
+All 54 games in Garfield Boys' Arcade (55 directories — Archers has legacy 2D + current 3D).
 
 | Game | Directory | Description |
 |------|-----------|-------------|
@@ -57,6 +57,7 @@ All 53 games in Garfield Boys' Arcade (54 directories — Archers has legacy 2D 
 | Grid Quest | games/grid-quest/ | Ordnance Survey map puzzle game — 100 map quizzes + 100 route challenges with real OpenTopoMap tiles via Leaflet |
 | Shapez | games/shapez/ | Factory automation — extract, belt, cut, rotate, paint, stack & deliver shapes to the hub |
 | Librarian | games/librarian/ | 3D first-person book-sorting game — sort scattered books back onto enchanted library shelves (Three.js) |
+| Spin Smash | games/spin-smash/ | Beyblade-style arena battler — knock tops off the edge, roguelike perk progression, 3 arenas with hazards |
 
 ## Naming quirks worth knowing
 
