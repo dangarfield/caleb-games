@@ -1,6 +1,6 @@
 # Games Index
 
-All 50 games in Garfield Boys' Arcade.
+All 53 games in Garfield Boys' Arcade (54 directories — Archers has legacy 2D + current 3D).
 
 | Game | Directory | Description |
 |------|-----------|-------------|
@@ -53,6 +53,10 @@ All 50 games in Garfield Boys' Arcade.
 | Monster Smash | games/monster-smash/ | Tap-to-smash monsters |
 | Race Maker | games/race-maker/ | Build a Scalextric-style track piece-by-piece, then race it with corner braking and AI drivers (Three.js + Kenney Racing Kit) |
 | Adsumudi | games/adsumudi/ | Hexagonal mental-math card game — combine 5 numbers with + − × ÷ to reach the target |
+| Forest Friends | games/forest-friends/ | 3D survival game — survive 99 nights, rescue kids, tame wolves, fish/farm/cook, explore 4 biomes (Three.js) |
+| Grid Quest | games/grid-quest/ | Ordnance Survey map puzzle game — 100 map quizzes + 100 route challenges with real OpenTopoMap tiles via Leaflet |
+| Shapez | games/shapez/ | Factory automation — extract, belt, cut, rotate, paint, stack & deliver shapes to the hub |
+| Librarian | games/librarian/ | 3D first-person book-sorting game — sort scattered books back onto enchanted library shelves (Three.js) |
 
 ## Naming quirks worth knowing
 

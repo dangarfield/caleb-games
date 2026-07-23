@@ -10,6 +10,14 @@
         "get_object_info",
         "execute_blender_code",
         "get_viewport_screenshot"
+      ],
+      "disabled": true
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest"
       ]
     }
   }

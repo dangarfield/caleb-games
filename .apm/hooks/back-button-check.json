@@ -1,0 +1,7 @@
+{
+  "name": "back-button-check",
+  "description": "Deterministic guard: every games/*/index.html back button must href to ../../index.html (GitHub Pages 404s the trailing-slash form). Runs before commit.",
+  "event": "pre-commit",
+  "run": "node .apm/hooks/scripts/back-button-check.js",
+  "failOnError": true
+}

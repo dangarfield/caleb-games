@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Librarian - Garfield Boys' Arcade</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#1a0a2e; overflow:hidden; touch-action:none;
+  font-family:'Segoe UI',system-ui,sans-serif; }
+canvas { display:block; width:100%; height:100%; }
+#backBtn { position:fixed; top:12px; left:12px; z-index:9999;
+  background:rgba(0,0,0,0.55); color:#fff; text-decoration:none;
+  padding:6px 18px; border-radius:20px;
+  font:bold 15px/1.4 'Segoe UI',system-ui,sans-serif;
+  border:1px solid rgba(255,255,255,0.18);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  transition:background 0.2s; }
+#backBtn:hover { background:rgba(0,0,0,0.75); }
+
+#overlay { position:fixed; inset:0; z-index:20; display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  background:rgba(10,5,30,0.92); color:#fff; text-align:center; }
+#overlay h1 { font-size:clamp(2rem,8vw,4rem); margin-bottom:0.5rem;
+  text-shadow:0 0 30px rgba(168,130,255,0.6); }
+#overlay .sub { font-size:clamp(1rem,3vw,1.4rem); color:#c4a0ff; margin-bottom:1rem; }
+#overlay .info { font-size:clamp(0.85rem,2.5vw,1.1rem); color:rgba(255,255,255,0.7);
+  margin-bottom:1.5rem; max-width:550px; padding:0 1rem; line-height:1.6; }
+#overlay .narrative { font-size:clamp(0.9rem,2.5vw,1.05rem); color:#ffd32a;
+  margin-bottom:1.5rem; max-width:500px; padding:0 1rem; line-height:1.5;
+  font-style:italic; }
+#overlay button { padding:14px 40px; font-size:1.3rem; border:none; border-radius:12px;
+  background:linear-gradient(135deg,#6c5ce7,#a29bfe); color:#fff;
+  cursor:pointer; font-weight:700;
+  box-shadow:0 4px 20px rgba(108,92,231,0.4); transition:transform 0.15s;
+  margin:6px; }
+#overlay button:hover { transform:scale(1.05); }
+#overlay button:active { transform:scale(0.95); }
+
+#hud { position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:10;
+  background:rgba(0,0,0,0.5); border-radius:14px; padding:8px 20px;
+  border:1px solid rgba(255,255,255,0.1); backdrop-filter:blur(6px);
+  display:none; color:#fff; font-size:14px; white-space:nowrap;
+  pointer-events:none; }
+#hud .score { font-size:22px; font-weight:bold; color:#ffd32a; }
+#hud .label { font-size:12px; color:rgba(255,255,255,0.6); margin-right:16px; }
+
+#held-books { position:fixed; bottom:12px; left:12px; z-index:10;
+  background:rgba(0,0,0,0.7); border-radius:12px; padding:10px 14px;
+  border:1px solid rgba(255,255,255,0.12); backdrop-filter:blur(6px);
+  display:none; color:#fff; font-size:12px; min-width:180px; max-width:260px; }
+#held-books h3 { font-size:12px; color:rgba(255,255,255,0.5); margin-bottom:6px;
+  text-transform:uppercase; letter-spacing:0.5px; }
+#held-books .book-item { padding:4px 8px; margin-bottom:4px; border-radius:6px;
+  border-left:4px solid; font-size:12px; line-height:1.3; }
+#held-books .empty { color:rgba(255,255,255,0.35); font-style:italic; }
+
+#crosshair { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+  width:24px; height:24px; z-index:5; pointer-events:none; display:none; }
+#crosshair::before, #crosshair::after {
+  content:''; position:absolute; background:rgba(255,255,255,0.7); }
+#crosshair::before { width:2px; height:24px; left:11px; top:0; }
+#crosshair::after { width:24px; height:2px; top:11px; left:0; }
+
+#tooltip { position:fixed; bottom:80px; left:50%; transform:translateX(-50%); z-index:15;
+  background:rgba(0,0,0,0.8); border-radius:10px; padding:8px 16px;
+  color:#fff; font-size:14px; display:none; pointer-events:none;
+  border:1px solid rgba(168,130,255,0.3); max-width:400px; text-align:center; }
+
+#abilities { position:fixed; right:12px; top:50%; transform:translateY(-50%); z-index:10;
+  display:none; flex-direction:column; gap:8px; }
+.ability-btn { width:50px; height:50px; border-radius:12px; border:2px solid rgba(255,255,255,0.2);
+  background:rgba(0,0,0,0.6); color:#fff; font-size:20px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; position:relative;
+  transition:all 0.2s; }
+.ability-btn:hover { border-color:#a29bfe; background:rgba(108,92,231,0.3); }
+.ability-btn.cooldown { opacity:0.4; pointer-events:none; }
+.ability-btn .key { position:absolute; bottom:-4px; right:-4px; background:#6c5ce7;
+  border-radius:6px; padding:1px 5px; font-size:10px; font-weight:bold; }
+
+#map-panel { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:25;
+  background:rgba(20,10,40,0.96); border-radius:16px; padding:20px 24px;
+  border:2px solid rgba(200,160,80,0.4); color:#fff; display:none;
+  max-width:420px; width:90vw; max-height:80vh; overflow-y:auto; }
+#map-panel h2 { font-size:1.2rem; color:#f0e0c0; margin-bottom:12px; text-align:center;
+  border-bottom:1px solid rgba(200,160,80,0.3); padding-bottom:8px; }
+#map-panel .legend-row { display:flex; align-items:center; padding:6px 0;
+  border-bottom:1px solid rgba(255,255,255,0.06); }
+#map-panel .legend-code { font-weight:bold; font-size:1.1rem; color:#f0e0c0;
+  min-width:40px; text-align:center; }
+#map-panel .legend-name { flex:1; margin-left:12px; font-size:0.95rem; }
+#map-panel .legend-side { font-size:0.75rem; color:rgba(255,255,255,0.4); margin-left:8px; }
+#map-panel .close-btn { display:block; margin:14px auto 0; padding:8px 24px;
+  background:rgba(108,92,231,0.6); border:none; border-radius:8px; color:#fff;
+  font-size:0.9rem; cursor:pointer; font-weight:600; }
+#map-panel .close-btn:hover { background:rgba(108,92,231,0.8); }
+#map-panel .hint { font-size:0.75rem; color:rgba(255,255,255,0.4); text-align:center; margin-top:10px; }
+
+#map-btn { position:fixed; top:12px; right:12px; z-index:10;
+  background:rgba(0,0,0,0.6); color:#f0e0c0; border:1px solid rgba(200,160,80,0.4);
+  padding:6px 14px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:bold;
+  display:none; }
+#map-btn:hover { background:rgba(0,0,0,0.8); }
+
+#victoryScreen { position:fixed; inset:0; z-index:30; display:none;
+  flex-direction:column; align-items:center; justify-content:center;
+  background:rgba(10,5,30,0.95); color:#fff; text-align:center; }
+#victoryScreen h1 { font-size:clamp(2rem,8vw,3.5rem); color:#ffd32a;
+  text-shadow:0 0 40px rgba(255,211,42,0.5); margin-bottom:1rem; }
+#victoryScreen .stats { font-size:1.2rem; color:#a0c4ff; margin-bottom:2rem; line-height:2; }
+#victoryScreen button { padding:14px 40px; font-size:1.3rem; border:none; border-radius:12px;
+  background:linear-gradient(135deg,#6c5ce7,#a29bfe); color:#fff;
+  cursor:pointer; font-weight:700; }
+
+#instructions { position:fixed; top:60px; right:12px; z-index:10;
+  background:rgba(0,0,0,0.6); border-radius:10px; padding:8px 12px;
+  color:rgba(255,255,255,0.6); font-size:11px; line-height:1.6;
+  border:1px solid rgba(255,255,255,0.1); display:none; }
+
+#info-panel { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:25;
+  background:rgba(20,10,40,0.96); border-radius:16px; padding:20px 28px;
+  border:2px solid rgba(168,130,255,0.4); color:#fff; display:none;
+  max-width:500px; width:90vw; max-height:80vh; overflow-y:auto; }
+#info-panel h2 { font-size:1.2rem; color:#a29bfe; margin-bottom:14px; text-align:center;
+  border-bottom:1px solid rgba(168,130,255,0.3); padding-bottom:8px; }
+#info-panel .info-section { margin-bottom:14px; }
+#info-panel .info-section h3 { font-size:0.9rem; color:rgba(255,255,255,0.5);
+  text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; }
+#info-panel .info-row { display:flex; align-items:baseline; padding:3px 0; font-size:0.9rem; }
+#info-panel .info-key { min-width:60px; font-weight:bold; color:#ffd32a;
+  font-family:monospace; font-size:0.85rem; }
+#info-panel ul { padding-left:18px; font-size:0.85rem; color:rgba(255,255,255,0.75); line-height:1.7; }
+#info-panel .close-btn { display:block; margin:14px auto 0; padding:8px 24px;
+  background:rgba(108,92,231,0.6); border:none; border-radius:8px; color:#fff;
+  font-size:0.9rem; cursor:pointer; font-weight:600; }
+#info-panel .close-btn:hover { background:rgba(108,92,231,0.8); }
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+
+<div id="overlay">
+  <h1>Librarian</h1>
+  <div class="sub">Tidy Up the Enchanted Library!</div>
+  <div class="narrative">"Oh no! The Book Fairy has thrown every single book off the shelves!
+  Can you help Professor Hoots sort them all back before the library opens in the morning?"</div>
+  <div class="info">
+    <strong>WASD</strong> to move &bull; <strong>Mouse</strong> to look<br>
+    <strong>E</strong> to pick up / place books &bull; <strong>Q</strong> to drop &bull; <strong>R</strong> to cycle &bull; <strong>Space</strong> to jump<br>
+    <strong>M</strong> for map legend &bull; <strong>1-3</strong> for magic abilities
+  </div>
+  <button onclick="window.startGame()">Play (480 books)</button>
+</div>
+
+<div id="hud">
+  <span class="label">Shelved</span><span class="score" id="hudScore">0</span>
+  <span class="label" style="margin-left:16px">Series</span><span class="score" id="hudSeries">0</span>
+  <span class="label" style="margin-left:16px">Carrying</span><span class="score" id="hudCarry">0/3</span>
+</div>
+
+<div id="held-books">
+  <h3>Held Books</h3>
+  <div id="held-books-list"></div>
+</div>
+
+<div id="crosshair"></div>
+<div id="tooltip"></div>
+<button id="map-btn" onclick="window.toggleMap()">M - Map</button>
+
+<div id="map-panel">
+  <h2>Library Map &amp; Legend</h2>
+  <div id="map-legend"></div>
+  <div class="hint">Ground floor = 1A–1F &bull; Upper balcony = 2A–2F</div>
+  <button class="close-btn" onclick="window.toggleMap()">Close (M)</button>
+</div>
+
+<div id="abilities">
+  <button class="ability-btn" id="abilityInsight" onclick="window.useAbility('insight')" title="Insight - highlights matching books">
+    &#x1F50D;<span class="key">1</span>
+  </button>
+  <button class="ability-btn" id="abilitySort" onclick="window.useAbility('sort')" title="Sort - orders books in hand">
+    &#x1F4DA;<span class="key">2</span>
+  </button>
+  <button class="ability-btn" id="abilityGuide" onclick="window.useAbility('guide')" title="Guide - shows where book belongs">
+    &#x1F5FA;<span class="key">3</span>
+  </button>
+</div>
+
+<div id="victoryScreen">
+  <h1>Library Sorted!</h1>
+  <div class="stats" id="victoryStats"></div>
+  <button onclick="window.restartGame()">Play Again</button>
+</div>
+
+<div id="instructions">
+  WASD - Move<br>
+  Mouse - Look around<br>
+  E - Pick up / Place book<br>
+  Q - Drop held book<br>
+  R - Cycle held books<br>
+  Space - Jump<br>
+  M - Library map<br>
+  I - Controls &amp; abilities<br>
+  1/2/3 - Use abilities<br>
+  Shift - Sprint
+</div>
+
+<div id="info-panel">
+  <h2>Controls &amp; Abilities</h2>
+  <div class="info-section">
+    <h3>Controls</h3>
+    <div class="info-row"><span class="info-key">WASD</span><span>Move around the library</span></div>
+    <div class="info-row"><span class="info-key">Mouse</span><span>Look around</span></div>
+    <div class="info-row"><span class="info-key">Shift</span><span>Sprint</span></div>
+    <div class="info-row"><span class="info-key">Space</span><span>Jump</span></div>
+    <div class="info-row"><span class="info-key">E</span><span>Pick up a book / Place on shelf / Take from shelf</span></div>
+    <div class="info-row"><span class="info-key">Q</span><span>Drop the top held book (tosses it forward)</span></div>
+    <div class="info-row"><span class="info-key">R</span><span>Cycle through held books (changes which is on top)</span></div>
+    <div class="info-row"><span class="info-key">M</span><span>Open the library map &amp; legend</span></div>
+    <div class="info-row"><span class="info-key">I</span><span>Toggle this panel</span></div>
+  </div>
+  <div class="info-section">
+    <h3>Abilities</h3>
+    <div class="info-row"><span class="info-key">1</span><span><strong>Insight</strong> — Highlights all nearby books from the same category as your held book (15s cooldown)</span></div>
+    <div class="info-row"><span class="info-key">2</span><span><strong>Sort</strong> — Sorts your held books by category, series, then volume (5s cooldown)</span></div>
+    <div class="info-row"><span class="info-key">3</span><span><strong>Guide</strong> — Shows a floating arrow pointing to the correct shelf for your held book (10s cooldown)</span></div>
+  </div>
+  <div class="info-section">
+    <h3>Tips</h3>
+    <ul>
+      <li>Check the spine label (e.g. "BQ #3") to identify a book's series and volume</li>
+      <li>Each shelf row is for one series — books must go in the correct volume slot</li>
+      <li>You can take books back off shelves if you placed one wrong</li>
+      <li>You can carry up to 3 books at once</li>
+    </ul>
+  </div>
+  <button class="close-btn" onclick="window.toggleInfo()">Close (I)</button>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+    "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/+esm"
+  }
+}
+</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "name": "docs-writeback",
+  "description": "Persistence guarantee: if any games/<name>/** changed this session, ensure docs/game-<name>.md was updated (bug/decision logged) — else fire the game-docs-sync skill, and prompt for a docs/decisions.memory.md entry if a cross-cutting decision was made.",
+  "event": "stop",
+  "run": "node .apm/hooks/scripts/docs-writeback.js",
+  "action": "invoke-skill:game-docs-sync",
+  "failOnError": false
+}

@@ -1,0 +1,24 @@
+name: garfield-arcade
+version: 0.1.0
+description: >
+  AI-native SDLC for the Garfield Boys' Arcade — primitives for adding new
+  browser games easily, consistently, and mostly autonomously. Grounded in
+  Meppiel's PROSE/APM model.
+author: Dan Garfield
+license: UNLICENSED
+targets:
+  - kiro
+  - claude
+includes: auto          # deploy the local .apm/ tree into each harness
+dependencies:
+  apm: []               # add source.* pins here if any primitive is published
+  mcp:
+    # optional — only used by game-reviewer for headless QA
+    - name: chrome-devtools
+      registry: false
+      command: npx
+      args: ["-y", "chrome-devtools-mcp@latest"]
+      transport: stdio
+scripts:
+  back-button-check: node .apm/hooks/scripts/back-button-check.js
+  docs-writeback: node .apm/hooks/scripts/docs-writeback.js

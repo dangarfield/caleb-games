@@ -1,0 +1,37 @@
+---
+applyTo: "games/**"
+description: "Non-negotiable build conventions for every Garfield Boys' Arcade game"
+---
+
+# Arcade Build Conventions
+
+Mechanical, non-negotiable rules for any file under `games/`. These are MUST rules —
+the *how-to-think* detail (boilerplate, audio recipes, UX patterns) lives in
+`knowledge/` and is read just-in-time. Keep this file short.
+
+## Structure
+- One self-contained `games/<name>/index.html` is the default. Multi-file is allowed only when it genuinely helps; keep it inside `games/<name>/`.
+- Canvas 2D for rendering. No frameworks, no build step, no external runtime dependencies.
+- No network calls for core play (Web Audio for SFX, `localStorage` for saves).
+
+## Touch & viewport
+- Touch-first: `touch-action: none`, pointer events, large tap targets.
+- Viewport meta with `user-scalable=no`.
+
+## The back button (most-repeated bug — get it right)
+- Every game MUST have a back button whose href is exactly `../../index.html`.
+- NOT `../../`, NOT `/`. GitHub Pages 404s the trailing-slash form in production even though it works on localhost.
+
+## Visual identity
+- Dark theme, base background `#0a0a2e` (gradient `#0a0a2e → #141452 → #1a1a6e`).
+- Palette: accent `#6c5ce7`, glow `#a29bfe`, subtitle `#a0c4ff`, score/gold `#ffd32a`, danger `#e74c3c`.
+- HUD as a canvas-drawn pill, top-centre. Game-over screen canvas-drawn (not HTML).
+
+## Persistence
+- Shared localStorage key `calebArcadeData` (JSON). Per-game data under `data.<gameName>`.
+
+## When you finish
+- The game's `docs/game-<name>.md` node MUST reflect reality (features, files, and any bug fixed appended to its `## Memory` section). This is enforced by the `docs-writeback` hook.
+
+Full boilerplate, audio recipes, and UX specs: see `knowledge/boilerplate.md`,
+`knowledge/audio-patterns.md`, `knowledge/ux-patterns.md`.

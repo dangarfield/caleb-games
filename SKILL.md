@@ -1,1 +1,1 @@
-.claude/skills/garfield-arcade/SKILL.md
+.apm/skills/update-game/SKILL.md

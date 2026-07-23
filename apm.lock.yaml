@@ -1,0 +1,201 @@
+lockfile_version: '1'
+generated_at: '2026-07-23T12:22:37.668752+00:00'
+dependencies: []
+deployments:
+- kind: project-relative
+  target: claude
+  value: .claude/agents/game-builder.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:de4945ce9c0d579407cf2f08b3512bc81e0daa730964bf04cfcd7dc0c073ab98
+- kind: project-relative
+  target: claude
+  value: .claude/agents/game-reviewer.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:6f5f8dbd03dbcb4761bfcf80a2c3c014812974cbacaec541edac61bb94419f7d
+- kind: project-relative
+  target: claude
+  value: .claude/agents/game-scout.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:20faba7ab62144695647aa619d508cb26189f2d408b34d8c58ecc1860026f29f
+- kind: project-relative
+  target: claude
+  value: .claude/rules/arcade-build.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:953767cb1c19f07e4ed3291b9955da5b68371dcbd90cf26f041f586c3c833fbb
+- kind: project-relative
+  target: claude
+  value: .claude/rules/docs-governance.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:2b1bef3e8060acf847629cb2b075912148f81e6e6b06e5c801af6755dbdb9a62
+- kind: project-relative
+  target: claude
+  value: .claude/skills/game-docs-sync
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/game-docs-sync/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:996d68c1147fa88170596ddd5901763d5f4d5a2768f041bb86548596a3f997f8
+- kind: project-relative
+  target: claude
+  value: .claude/skills/new-game
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/new-game/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:96acf9e1803151d3a164f50a39fb01786dc3843d2ace1f83ed81c53dbdbe592f
+- kind: project-relative
+  target: kiro
+  value: .kiro/skills/game-docs-sync
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: kiro
+  value: .kiro/skills/game-docs-sync/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:996d68c1147fa88170596ddd5901763d5f4d5a2768f041bb86548596a3f997f8
+- kind: project-relative
+  target: kiro
+  value: .kiro/skills/new-game
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: kiro
+  value: .kiro/skills/new-game/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:96acf9e1803151d3a164f50a39fb01786dc3843d2ace1f83ed81c53dbdbe592f
+- kind: project-relative
+  target: kiro
+  value: .kiro/steering/arcade-build.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:87b95fdbe2ba0a4fe65566b8c039872a6d9974527aae57b8fdaab37059da6d7b
+- kind: project-relative
+  target: kiro
+  value: .kiro/steering/docs-governance.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:fbf62144aebc2909955dcf9e69f686d152063ee976a48bed2970231f999459e7
+- kind: uri
+  target: mcp
+  value: chrome-devtools
+  runtime: claude
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: uri
+  target: mcp
+  value: chrome-devtools
+  runtime: kiro
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+mcp_servers:
+- chrome-devtools
+mcp_configs:
+  chrome-devtools:
+    name: chrome-devtools
+    transport: stdio
+    args:
+    - -y
+    - chrome-devtools-mcp@latest
+    registry: false
+    command: npx
+mcp_target_servers:
+  claude:
+  - chrome-devtools
+  kiro:
+  - chrome-devtools
+local_deployed_files:
+- .claude/agents/game-builder.md
+- .claude/agents/game-reviewer.md
+- .claude/agents/game-scout.md
+- .claude/rules/arcade-build.md
+- .claude/rules/docs-governance.md
+- .claude/skills/game-docs-sync
+- .claude/skills/game-docs-sync/SKILL.md
+- .claude/skills/new-game
+- .claude/skills/new-game/SKILL.md
+- .kiro/skills/game-docs-sync
+- .kiro/skills/game-docs-sync/SKILL.md
+- .kiro/skills/new-game
+- .kiro/skills/new-game/SKILL.md
+- .kiro/steering/arcade-build.md
+- .kiro/steering/docs-governance.md
+local_deployed_file_hashes:
+  .claude/agents/game-builder.md: sha256:de4945ce9c0d579407cf2f08b3512bc81e0daa730964bf04cfcd7dc0c073ab98
+  .claude/agents/game-reviewer.md: sha256:6f5f8dbd03dbcb4761bfcf80a2c3c014812974cbacaec541edac61bb94419f7d
+  .claude/agents/game-scout.md: sha256:20faba7ab62144695647aa619d508cb26189f2d408b34d8c58ecc1860026f29f
+  .claude/rules/arcade-build.md: sha256:953767cb1c19f07e4ed3291b9955da5b68371dcbd90cf26f041f586c3c833fbb
+  .claude/rules/docs-governance.md: sha256:2b1bef3e8060acf847629cb2b075912148f81e6e6b06e5c801af6755dbdb9a62
+  .claude/skills/game-docs-sync/SKILL.md: sha256:996d68c1147fa88170596ddd5901763d5f4d5a2768f041bb86548596a3f997f8
+  .claude/skills/new-game/SKILL.md: sha256:96acf9e1803151d3a164f50a39fb01786dc3843d2ace1f83ed81c53dbdbe592f
+  .kiro/skills/game-docs-sync/SKILL.md: sha256:996d68c1147fa88170596ddd5901763d5f4d5a2768f041bb86548596a3f997f8
+  .kiro/skills/new-game/SKILL.md: sha256:96acf9e1803151d3a164f50a39fb01786dc3843d2ace1f83ed81c53dbdbe592f
+  .kiro/steering/arcade-build.md: sha256:87b95fdbe2ba0a4fe65566b8c039872a6d9974527aae57b8fdaab37059da6d7b
+  .kiro/steering/docs-governance.md: sha256:fbf62144aebc2909955dcf9e69f686d152063ee976a48bed2970231f999459e7
