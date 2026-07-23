@@ -1036,7 +1036,7 @@ let breakdown=this.computeBuildBreakdown(this.player.perks);
 ctx.save();
 
 // === TOP-LEFT (stacked, matching original style) ===
-let lx=24,ly=50;
+let lx=24,ly=80;
 
 // Pause button (thin cyan line left border accent)
 ctx.fillStyle='#00F3FF';ctx.fillRect(lx-4,ly-4,3,130);
@@ -1069,7 +1069,7 @@ for(let seg of breakdown){let sw=barW*seg.pct;ctx.fillStyle=ARCH_COLORS[seg.id]|
 }
 
 // === TOP-RIGHT ===
-let rRight=W-24;let rTop=50;
+let rRight=W-24;let rTop=80;
 // DASH CORE label
 let canDash=this.player.canDash();
 ctx.fillStyle=canDash?'#fff':'rgba(255,255,255,0.4)';ctx.font='bold 14px "Segoe UI",system-ui,sans-serif';ctx.textAlign='right';
