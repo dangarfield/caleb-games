@@ -664,7 +664,7 @@ switch(save.tip){case'flat':this.player.friction=0.88;this.player.speed*=0.8;thi
 if((u.fabricator||0)>0){let pool=PERK_DB.filter(p=>(p.rarity==='common'||p.rarity==='rare')&&!p.prereq&&!(this.ascendedTier2&&p.id==='edge_anchor'));for(let i=0;i<Math.min(u.fabricator,pool.length);i++){let avail=pool.filter(p=>!this.player.perks.some(o=>o.id===p.id));if(avail.length){let pick=avail[Math.floor(Math.random()*avail.length)];this.player.perks.push(pick)}}this.player.applyPerkMods()}
 this.updateArenaSize();this.startWave()},
 startWave(){
-this.arenaModifiers={gravityRift:false};this.mines=[];this.hitStop=0;this.hitStopCooldown=0;this.matchTimer=0;
+this.arenaModifiers={gravityRift:false};this.mines=[];this.hitStop=0;this.hitStopCooldown=0;this.matchTimer=0;this._waveCompleteTimer=null;
 let expand=this.arenaExpansionMult();let isBoss=this.wave>0&&this.wave%10===0;
 this.arena.shape=this.ascendedTier2?'oval':'circle';
 let shrinkRate=0.008,shrinkFloor=0.8;
@@ -690,7 +690,13 @@ buzzsawRimPos(angle){let cx=W/2,cy=H/2;let rx=this.arena.radiusX*0.82,ry=this.ar
 
 // --- Physics Update ---
 physicsStep(dtf){
-if(!this.player||!this.player.active)return;
+if(!this.player)return;
+// During 'dying' state, only update particles/projectiles (no player input or collision)
+if(!this.player.active){
+this.projectiles.forEach(p=>{if(p.active)p.update(dtf)});
+this.particles.forEach(p=>{if(p.active)p.update(dtf)});
+this.screenShake*=Utils.decayPow(0.8,dtf);if(this.screenShake<0.5)this.screenShake=0;
+return}
 // Player input - keyboard always works (not gated by isMobile)
 let kbActive=this.keys['KeyW']||this.keys['ArrowUp']||this.keys['KeyS']||this.keys['ArrowDown']||this.keys['KeyA']||this.keys['ArrowLeft']||this.keys['KeyD']||this.keys['ArrowRight'];
 if(kbActive){
@@ -728,7 +734,7 @@ if(this.matchTimer>delay){let prog=Utils.clamp((this.matchTimer-delay)/dur,0,1);
 this.arena.radius=this.arena.waveStartRadius+(minR-this.arena.waveStartRadius)*eased;
 if(this.arena.shape==='oval'){this.arena.radiusX=this.arena.waveStartRadiusX+(minR*2-this.arena.waveStartRadiusX)*eased;this.arena.radiusY=this.arena.waveStartRadiusY+(minR-this.arena.waveStartRadiusY)*eased}}
 // Check wave complete
-if(this.enemies.every(e=>!e.active))this.waveComplete();
+if(this.enemies.every(e=>!e.active)&&!this._waveCompleteTimer){this._waveCompleteTimer=setTimeout(()=>{this._waveCompleteTimer=null;this.waveComplete()},500)}
 // Camera
 let targetScale=this.player.dashTimer>0?this.baseCameraScale*1.06:this.baseCameraScale;
 this.cameraScale+=(targetScale-this.cameraScale)*(1-Utils.decayPow(0.85,dtf));
@@ -800,13 +806,21 @@ checkArenaDeath(){
 let all=[this.player,...this.enemies].filter(e=>e&&e.active);
 all.forEach(e=>{let nd=this.arenaNormalizedDist(e.pos);
 if(nd>1&&e.dashGraceTimer<=0&&e.invulnTimer<=0&&e.spawnInvulnTimer<=0){
-e.active=false;this.createExplosion(e.pos.x,e.pos.y,e.color);this.screenShake=Math.max(this.screenShake,10);
+e.active=false;this.screenShake=Math.max(this.screenShake,10);
 if(!e.isPlayer){
+this.createExplosion(e.pos.x,e.pos.y,e.color);
 let shardVal=this.ascendedTier2?5:this.ascended?3:1;let harvestMult=1+(save.upgrades.harvest||0)*0.1;
 this.runShards+=Math.round(shardVal*harvestMult);AudioSys.playShard()}
 else{
+// Big player death explosion — shockwave ring + multi-burst
+this.screenShake=15;
+for(let i=0;i<50;i++)this.spawnParticle(e.pos.x,e.pos.y,e.color,Utils.rand(5,18),Utils.rand(3,7));
+for(let i=0;i<20;i++)this.spawnParticle(e.pos.x,e.pos.y,'#fff',Utils.rand(6,14),Utils.rand(2,4));
+// Shockwave ring
+for(let i=0;i<24;i++){let a=(Math.PI*2/24)*i;let p=new Particle(e.pos.x+Math.cos(a)*10,e.pos.y+Math.sin(a)*10,e.color,0,3,true);p.vel=new Vec2(Math.cos(a)*8,Math.sin(a)*8);p.decay=0.04;this.particles.push(p)}
+AudioSys.playExplosion(15);AudioSys.playGameOver();
 // Delay game-over so explosion is visible
-this.state='dying';AudioSys.playGameOver();
+this.state='dying';
 setTimeout(()=>{if(this.state==='dying')this.gameOver()},600)}}})},
 
 // --- Hexagon Hazard ---
