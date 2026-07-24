@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Pokemon FireRed - Garfield Boys' Arcade</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a2e; overflow: hidden; touch-action: none;
+  font-family: 'Segoe UI', system-ui, sans-serif; }
+#backBtn { position: fixed; top: 12px; left: 12px; z-index: 9999;
+  background: rgba(0,0,0,0.55); color: #fff; text-decoration: none;
+  padding: 6px 18px; border-radius: 20px;
+  font: bold 15px/1.4 'Segoe UI', system-ui, sans-serif;
+  border: 1px solid rgba(255,255,255,0.18);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  transition: background 0.2s; }
+#backBtn:hover { background: rgba(0,0,0,0.75); }
+#game { width: 100vw; height: 100vh; }
+#save-btn {
+  position: fixed; top: 12px; right: 12px; z-index: 9999;
+  background: rgba(108,92,231,0.7); color: #fff; border: none;
+  padding: 8px 18px; border-radius: 20px; cursor: pointer;
+  font: bold 14px/1.4 'Segoe UI', system-ui, sans-serif;
+  border: 1px solid rgba(162,155,254,0.4);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 2px 12px rgba(108,92,231,0.3);
+  transition: transform 0.15s, background 0.2s;
+}
+#save-btn:hover { background: rgba(108,92,231,0.9); transform: scale(1.05); }
+#save-btn:active { transform: scale(0.95); }
+#save-btn.saved { background: rgba(46,204,113,0.7); }
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+<button id="save-btn" onclick="quickSave()">💾 Save</button>
+<div id="game"></div>
+
+<script type="text/javascript">
+  // EmulatorJS Configuration
+  EJS_player = '#game';
+  EJS_core = 'gba';
+  EJS_gameName = 'Pokemon FireRed';
+  EJS_gameID = 1001;
+  EJS_color = '#6c5ce7';
+  EJS_startOnLoaded = false;
+  EJS_fullscreenOnLoaded = false;
+  EJS_volume = 0.5;
+
+  // ROM path — place pokemon-firered.gba in this folder
+  EJS_gameUrl = 'pokemon-firered.gba';
+
+  // Use CDN for emulator data files
+  EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
+
+  // BIOS is optional for mGBA core
+  EJS_biosUrl = '';
+
+  // Default save state location to browser (IndexedDB)
+  EJS_defaultOptions = {
+    'save-state-location': 'browser'
+  };
+
+  // Show virtual gamepad on mobile (built-in EmulatorJS controls)
+  // EmulatorJS auto-detects touch devices and shows virtual gamepad
+
+  // Quick save function
+  function quickSave() {
+    const btn = document.getElementById('save-btn');
+    if (typeof EJS_emulator !== 'undefined' && EJS_emulator.saveState) {
+      EJS_emulator.saveState();
+      btn.textContent = '✅ Saved!';
+      btn.classList.add('saved');
+      setTimeout(() => {
+        btn.textContent = '💾 Save';
+        btn.classList.remove('saved');
+      }, 1500);
+    } else {
+      btn.textContent = '⚠️ Not ready';
+      setTimeout(() => { btn.textContent = '💾 Save'; }, 1500);
+    }
+  }
+</script>
+<script src="https://cdn.emulatorjs.org/stable/data/loader.js"></script>
+</body>
+</html>
