@@ -7,9 +7,9 @@
 <title>Pokemon FireRed - Garfield Boys' Arcade</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #0a0a2e; overflow: hidden; touch-action: none;
+body { background: #0a0a2e; overflow: hidden; touch-action: manipulation;
   font-family: 'Segoe UI', system-ui, sans-serif; }
-#backBtn { position: fixed; top: 12px; left: 12px; z-index: 9999;
+#backBtn { position: fixed; top: 12px; left: 12px; z-index: 99999;
   background: rgba(0,0,0,0.55); color: #fff; text-decoration: none;
   padding: 6px 18px; border-radius: 20px;
   font: bold 15px/1.4 'Segoe UI', system-ui, sans-serif;
@@ -18,25 +18,90 @@ body { background: #0a0a2e; overflow: hidden; touch-action: none;
   transition: background 0.2s; }
 #backBtn:hover { background: rgba(0,0,0,0.75); }
 #game { width: 100vw; height: 100vh; }
-#save-btn {
-  position: fixed; top: 12px; right: 12px; z-index: 9999;
-  background: rgba(108,92,231,0.7); color: #fff; border: none;
-  padding: 8px 18px; border-radius: 20px; cursor: pointer;
-  font: bold 14px/1.4 'Segoe UI', system-ui, sans-serif;
-  border: 1px solid rgba(162,155,254,0.4);
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-  box-shadow: 0 2px 12px rgba(108,92,231,0.3);
-  transition: transform 0.15s, background 0.2s;
+.emu-icon-btn {
+  position: fixed; z-index: 99999;
+  width: 32px; height: 32px; border-radius: 50%;
+  background: rgba(0,0,0,0.2); color: #fff; border: none;
+  font-size: 15px; cursor: pointer; display: flex;
+  align-items: center; justify-content: center;
+  border: 1px solid rgba(255,255,255,0.08);
+  transition: transform 0.15s, background 0.2s, opacity 0.2s;
+  pointer-events: auto; opacity: 0.4;
 }
-#save-btn:hover { background: rgba(108,92,231,0.9); transform: scale(1.05); }
-#save-btn:active { transform: scale(0.95); }
-#save-btn.saved { background: rgba(46,204,113,0.7); }
+.emu-icon-btn:hover { background: rgba(0,0,0,0.5); opacity: 1; transform: scale(1.1); }
+.emu-icon-btn:active { transform: scale(0.9); }
+.emu-icon-btn.success { background: rgba(46,204,113,0.6); opacity: 1; }
+#save-btn { top: 46px; left: 18px; }
+#load-btn { top: 46px; left: 60px; }
+/* Force virtual gamepad to always show */
+.ejs_virtualGamepad_parent { display: block !important; }
+/* Move Start/Select/Fast/Slow to top-right */
+.ejs_virtualGamepad_bottom {
+  position: fixed !important;
+  top: 48px !important;
+  right: 8px !important;
+  bottom: auto !important;
+  left: auto !important;
+  display: grid !important;
+  grid-template-columns: auto auto;
+  gap: 4px !important;
+  width: auto !important;
+  z-index: 9000;
+}
+.ejs_virtualGamepad_bottom .ejs_virtualGamepad_button {
+  position: relative !important;
+  left: auto !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: auto !important;
+  opacity: 0.5;
+  font-size: 11px !important;
+  padding: 3px 8px !important;
+  height: auto !important;
+  line-height: 1.4 !important;
+}
+/* EmulatorJS notification text — white, top center */
+.ejs_notification, [class*="ejs_notification"], [class*="ejs_message"] {
+  color: #fff !important;
+  background: rgba(0,0,0,0.6) !important;
+  position: fixed !important;
+  top: 12px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  padding: 6px 16px !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
+  z-index: 99998 !important;
+  animation: fadeOutMsg 2s forwards !important;
+}
+@keyframes fadeOutMsg { 0%{opacity:1} 70%{opacity:1} 100%{opacity:0;pointer-events:none} }
+#overlay { position: fixed; inset: 0; z-index: 90000; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: rgba(10,10,46,0.92); color: #fff; text-align: center; }
+#overlay h1 { font-size: clamp(2rem,8vw,3.5rem); margin-bottom: 0.5rem;
+  text-shadow: 0 0 30px #6c5ce7, 0 0 60px #a29bfe; }
+#overlay .sub { font-size: clamp(1rem,3vw,1.4rem); color: #a0c4ff; margin-bottom: 1.5rem; }
+#overlay .info { font-size: clamp(0.85rem,2.5vw,1.1rem); color: rgba(255,255,255,0.7);
+  margin-bottom: 2rem; max-width: 500px; padding: 0 1rem; line-height: 1.5; }
+.play-btn { padding: 14px 40px; font-size: 1.3rem; border: none; border-radius: 12px;
+  background: linear-gradient(135deg,#6c5ce7,#a29bfe); color: #fff;
+  cursor: pointer; font-weight: 700;
+  box-shadow: 0 4px 20px rgba(108,92,231,0.4); transition: transform 0.15s; }
+.play-btn:hover { transform: scale(1.05); }
+.play-btn:active { transform: scale(0.95); }
 </style>
 </head>
 <body>
 <a id="backBtn" href="../../index.html">&larr; Games</a>
-<button id="save-btn" onclick="quickSave()">💾 Save</button>
-<div id="game"></div>
+<button class="emu-icon-btn" id="save-btn" title="Quick Save">💾</button>
+<button class="emu-icon-btn" id="load-btn" title="Quick Load">📂</button>
+<div id="overlay">
+  <h1>Pokemon FireRed</h1>
+  <div class="sub">The classic GBA adventure</div>
+  <div class="info">Catch 'em all in Kanto! Touch controls on mobile, keyboard on desktop.</div>
+  <button id="startBtn" class="play-btn">Play</button>
+</div>
+<div id="game" style="display:none"></div>
 
 <script type="text/javascript">
   // EmulatorJS Configuration
@@ -46,43 +111,69 @@ body { background: #0a0a2e; overflow: hidden; touch-action: none;
   EJS_gameID = 1001;
   EJS_color = '#6c5ce7';
   EJS_language = 'en-US';
-  EJS_startOnLoaded = false;
+  EJS_startOnLoaded = true;
   EJS_fullscreenOnLoaded = false;
   EJS_volume = 0.5;
 
-  // ROM hosted locally (5.3MB zip, EmulatorJS decompresses automatically)
+  // ROM
   EJS_gameUrl = 'pokemon_firered.zip';
 
   // Use CDN for emulator data files
   EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
 
-  // BIOS is optional for mGBA core
+  // BIOS optional
   EJS_biosUrl = '';
 
-  // Default save state location to browser (IndexedDB)
+  // Force mobile mode for on-screen controls
+  EJS_browserMode = 'mobile';
+  EJS_controlScheme = 'gba';
+
+  // Default options
   EJS_defaultOptions = {
     'save-state-location': 'browser'
   };
 
-  // Show virtual gamepad on mobile (built-in EmulatorJS controls)
-  // EmulatorJS auto-detects touch devices and shows virtual gamepad
+  // Start button — hides overlay, shows emulator
+  document.getElementById('startBtn').addEventListener('click', () => {
+    document.getElementById('overlay').style.display = 'none';
+    document.getElementById('game').style.display = '';
+  });
 
-  // Quick save function
-  function quickSave() {
-    const btn = document.getElementById('save-btn');
-    if (typeof EJS_emulator !== 'undefined' && EJS_emulator.saveState) {
-      EJS_emulator.saveState();
-      btn.textContent = '✅ Saved!';
-      btn.classList.add('saved');
-      setTimeout(() => {
-        btn.textContent = '💾 Save';
-        btn.classList.remove('saved');
-      }, 1500);
-    } else {
-      btn.textContent = '⚠️ Not ready';
-      setTimeout(() => { btn.textContent = '💾 Save'; }, 1500);
+  // Save/Load by clicking EmulatorJS's built-in buttons
+  function findEJSButton(label) {
+    const gameDiv = document.querySelector('#game');
+    if (!gameDiv) return null;
+    const buttons = gameDiv.querySelectorAll('button');
+    for (let btn of buttons) {
+      if (btn.textContent.trim().toLowerCase() === label.toLowerCase()) return btn;
     }
+    return null;
   }
+
+  function flashBtn(btn, icon, cls) {
+    const orig = btn.textContent;
+    btn.textContent = icon;
+    if (cls) btn.classList.add(cls);
+    setTimeout(() => { btn.textContent = orig; if (cls) btn.classList.remove(cls); }, 1200);
+  }
+
+  document.getElementById('save-btn').addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    if (!confirm('Save your game?')) return;
+    const btn = document.getElementById('save-btn');
+    const ejsBtn = findEJSButton('Save State');
+    if (ejsBtn) { ejsBtn.click(); flashBtn(btn, '✅', 'success'); }
+    else { flashBtn(btn, '⚠️', ''); }
+  });
+
+  document.getElementById('load-btn').addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    if (!confirm('Go back to your last save?')) return;
+    const btn = document.getElementById('load-btn');
+    const ejsBtn = findEJSButton('Load State');
+    if (ejsBtn) { ejsBtn.click(); flashBtn(btn, '✅', 'success'); }
+    else { flashBtn(btn, '⚠️', ''); }
+  });
 </script>
 <script src="https://cdn.emulatorjs.org/stable/data/loader.js"></script>
 </body>
