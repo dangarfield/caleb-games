@@ -913,6 +913,24 @@ gameOver(){
 this.state='gameover';AudioSys.playGameOver();this.updateTouchControls();
 save=getSave();save.shards+=this.runShards;if(this.wave>save.bestWave)save.bestWave=this.wave;saveSave(save);
 this.goAlpha=0;this.goQuip=getQuip(this.wave)},
+retryWave(){
+// Restart the same wave with same perks/upgrades — just reset player and enemies
+this.projectiles=[];this.particles=[];this.mines=[];this.enemies=[];this.hexagon=null;this.buzzsaw=null;
+this.hitStop=0;this.hitStopCooldown=0;this.screenShake=0;
+// Rebuild player with same perks
+let oldPerks=this.player?[...this.player.perks]:[];
+save=getSave();
+this.player=new Top(W/2,H/2,true);
+this.player.speed*=1.1;this.player.maxSpeed*=1.3;this.player.dashDuration=Math.round(this.player.dashDuration*0.65);
+let u=save.upgrades;
+this.player.mass*=(1+u.mass*0.15);this.player.spinDecay*=(1-u.spin*0.10);
+this.player.speed*=(1+u.speed*0.15);this.player.maxSpeed*=(1+u.speed*0.15);
+this.player.dashCooldownMax=Math.max(20,Math.round(this.player.dashCooldownMax*(1-(u.cooldown||0)*0.05)));
+this.player.stunDurationMult=1+(u.stun||0)*0.05;
+switch(save.tip){case'flat':this.player.friction=0.88;this.player.speed*=0.8;this.player.mass*=1.2;break;case'spike':this.player.friction=0.965;this.player.speed*=1.15;this.player.maxSpeed*=1.45;this.player.mass*=0.85;break}
+this.player.perks=oldPerks;this.player.applyPerkMods();
+this.runShards=0;
+this.startWave();this.updateTouchControls()},
 
 // --- Main Loop ---
 loop(now){
@@ -1123,8 +1141,9 @@ ctx.fillStyle='#ffd32a';ctx.fillText(`+${this.runShards} ◆`,W/2,H/2);
 ctx.font='italic 16px "Segoe UI",system-ui,sans-serif';ctx.fillStyle='rgba(255,255,255,0.7)';
 ctx.fillText(this.goQuip||'',W/2,H/2+35);
 // Buttons
-this.drawButton(W/2,H/2+90,200,50,'PLAY AGAIN','goPlay');
-this.drawButton(W/2,H/2+155,160,44,'MENU','goMenu');
+this.drawButton(W/2,H/2+90,200,50,'RETRY WAVE','goRetry');
+this.drawButton(W/2,H/2+155,200,50,'NEW RUN','goPlay');
+this.drawButton(W/2,H/2+215,160,44,'MENU','goMenu');
 }ctx.restore()},
 drawButton(x,y,w,h,text,id){
 ctx.save();let bx=x-w/2,by=y-h/2;
@@ -1141,12 +1160,14 @@ canvas.addEventListener('click',e=>{
 if(G.state!=='gameover'||!G._buttons)return;
 let rect=canvas.getBoundingClientRect();let mx=(e.clientX-rect.left)*(W/rect.width);let my=(e.clientY-rect.top)*(H/rect.height);
 for(let id in G._buttons){let b=G._buttons[id];if(mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h){
+if(id==='goRetry')G.retryWave();
 if(id==='goPlay')G.startRun(G.ascendedTier2?41:G.ascended?21:1);
 if(id==='goMenu')G.showMenu()}}});
 canvas.addEventListener('touchend',e=>{
 if(G.state!=='gameover'||!G._buttons)return;
 let touch=e.changedTouches[0];let rect=canvas.getBoundingClientRect();let mx=(touch.clientX-rect.left)*(W/rect.width);let my=(touch.clientY-rect.top)*(H/rect.height);
 for(let id in G._buttons){let b=G._buttons[id];if(mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h){
+if(id==='goRetry')G.retryWave();
 if(id==='goPlay')G.startRun(G.ascendedTier2?41:G.ascended?21:1);
 if(id==='goMenu')G.showMenu()}}});
 
