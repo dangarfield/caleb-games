@@ -1,6 +1,6 @@
 # Games Index
 
-All 55 games in Garfield Boys' Arcade (56 directories — Archers has legacy 2D + current 3D).
+All 55 games in Garfield Boys' Arcade (57 directories — Archers has legacy 2D + current 3D).
 
 | Game | Directory | Description |
 |------|-----------|-------------|
