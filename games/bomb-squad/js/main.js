@@ -316,7 +316,6 @@ function retryLevel() {
 let debugMode = false;
 
 function flashWarningLight() {
-  // Pulse all scene lights to red dramatically
   const duration = 300;
   const startTime = performance.now();
 
@@ -326,36 +325,32 @@ function flashWarningLight() {
   const pulse = () => {
     const elapsed = performance.now() - startTime;
     const t = Math.min(1, elapsed / duration);
-    // Sharp in, smooth out
     const intensity = t < 0.3 ? t / 0.3 : 1 - (t - 0.3) / 0.7;
 
-    // Lerp key light white → red
-    keyLight.color.setRGB(1, 1 - intensity * 0.8, 1 - intensity * 0.9);
-    keyLight.intensity = 1.6 + intensity * 2;
+    // Subtle light color shift
+    keyLight.color.setRGB(1, 1 - intensity * 0.4, 1 - intensity * 0.5);
+    keyLight.intensity = 1.6 + intensity * 0.6;
 
-    // Lerp fill light → red
-    fillLight.color.setRGB(0.6 + intensity * 0.4, 0.67 * (1 - intensity * 0.7), 0.87 * (1 - intensity * 0.8));
-    fillLight.intensity = 0.8 + intensity * 1.5;
+    fillLight.color.setRGB(0.6 + intensity * 0.2, 0.67 * (1 - intensity * 0.3), 0.87 * (1 - intensity * 0.4));
+    fillLight.intensity = 0.8 + intensity * 0.4;
 
-    // Pulse sky sphere color from dark to red
+    // Subtle sky/background tint
     if (scene.userData.skyMat) {
       scene.userData.skyMat.color.setRGB(
-        0.02 + intensity * 0.3,
-        0.02 * (1 - intensity),
-        0.02 * (1 - intensity)
+        0.02 + intensity * 0.12,
+        0.02 * (1 - intensity * 0.5),
+        0.02 * (1 - intensity * 0.5)
       );
     }
-    // Also pulse scene background
     scene.background.setRGB(
-      0.02 + intensity * 0.2,
-      0.02 * (1 - intensity * 0.8),
-      0.02 * (1 - intensity * 0.8)
+      0.02 + intensity * 0.08,
+      0.02 * (1 - intensity * 0.5),
+      0.02 * (1 - intensity * 0.5)
     );
 
     if (t < 1) {
       requestAnimationFrame(pulse);
     } else {
-      // Reset
       keyLight.color.setHex(origKeyColor);
       keyLight.intensity = 1.6;
       fillLight.color.setHex(origFillColor);
@@ -368,9 +363,9 @@ function flashWarningLight() {
   };
   pulse();
 
-  // Screen vignette flash
+  // Subtle vignette
   const container = document.getElementById('game-container');
-  container.style.boxShadow = 'inset 0 0 100px rgba(255,0,0,0.5)';
+  container.style.boxShadow = 'inset 0 0 60px rgba(255,0,0,0.25)';
   setTimeout(() => { container.style.boxShadow = 'none'; }, 300);
 }
 
@@ -830,7 +825,23 @@ function onPointerUp(event) {
   pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
   raycaster.setFromCamera(pointer, camera);
-  const hits = raycaster.intersectObjects(interactables, false);
+
+  // Raycast against the full bomb group to get body occlusion distance
+  let bodyDist = Infinity;
+  if (bombGroup) {
+    const bodyHits = raycaster.intersectObject(bombGroup, true);
+    // Find the first hit that is part of the bomb body (not a component)
+    for (const bh of bodyHits) {
+      if (!bh.object.userData.componentType && !bh.object.userData.isScrew && !bh.object.userData.isScrewPanel && !bh.object.userData.parentComponent) {
+        bodyDist = bh.distance;
+        break;
+      }
+    }
+  }
+
+  // Only accept component hits that are closer than the bomb body (not on the far side)
+  const hits = raycaster.intersectObjects(interactables, false)
+    .filter(h => h.distance < bodyDist + 0.05);
 
   if (hits.length === 0) return;
 
