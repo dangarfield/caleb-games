@@ -43,6 +43,12 @@ export class WireComponent {
     const tube = new THREE.Mesh(tubeGeo, wireMat);
     group.add(tube);
 
+    // Invisible wider hitbox for easier tapping
+    const hitboxGeo = new THREE.TubeGeometry(curve, 12, tubeRadius * 4, 6, false);
+    const hitboxMat = new THREE.MeshBasicMaterial({ visible: false });
+    const hitbox = new THREE.Mesh(hitboxGeo, hitboxMat);
+    group.add(hitbox);
+
     // Terminal blocks (fixed to bomb)
     const termGeo = new THREE.BoxGeometry(0.05, 0.055, 0.04);
     const termMat = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.7 });
