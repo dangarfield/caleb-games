@@ -39,3 +39,5 @@
 - OrbitControls for bomb rotation, raycasting for tap interaction on individual component meshes.
 
 ## Memory
+
+- **Keypad (and all taps) unusable on tablet (fixed 2026-07-29).** Two compounding causes: (1) `TAP_THRESHOLD` was a flat 8px — a child's finger rolls/slides >8px between touchdown and liftoff, so nearly every tap was reclassified as a rotate-drag and discarded; the keypad was worst because it needs 4 good taps in a row. (2) Keypad keys were small `w*0.3` cubes with no enlarged hit target (unlike wires, which already had a 4× invisible hitbox). Fix: tap-vs-drag now branches on `pointerType` — 8px for mouse, 28px for touch — plus a quick-jab escape hatch (≤250ms and ≤45px still counts as a tap). Keypad gained an invisible tap plate over the whole 2×2 key area; a near-miss is routed to the nearest key centre (Voronoi) in `main.js` via the world-space hit point, so any tap on the keypad registers a digit. Nearest-key resolution avoids the wrong-digit ERROR resets that overlapping per-key hitboxes would cause.

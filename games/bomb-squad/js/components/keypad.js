@@ -89,6 +89,21 @@ export class KeypadComponent {
       group.add(key);
     });
 
+    // Invisible tap plate covering the whole 2x2 key area. On a tablet a small
+    // finger often lands between/beside the keys; this plate catches those
+    // near-misses and main.js routes them to the NEAREST key centre, so every
+    // tap on the keypad registers a digit. Sits just in front of the keys so
+    // it wins the raycast, but its digit is resolved from the local hit point.
+    const plateGeo = new THREE.BoxGeometry(w * 0.95, h * 0.72, 0.02);
+    const plateMat = new THREE.MeshBasicMaterial({ visible: false });
+    const tapPlate = new THREE.Mesh(plateGeo, plateMat);
+    tapPlate.position.set(0, -h * 0.08, 0.055);
+    tapPlate.userData.isKeyPlate = true;
+    tapPlate.userData.isKey = true; // treated as a key hit by main.js
+    // Local (x,y) centre of each key so nearest-key can be resolved from a hit.
+    tapPlate.userData.keyCenters = keyPositions.map(kp => ({ x: kp.x, y: kp.y, digit: kp.digit }));
+    group.add(tapPlate);
+
     group.userData.componentType = 'keypad';
     group.userData.variant = variant;
     group.userData.entered = '';

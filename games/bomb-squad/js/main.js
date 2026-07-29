@@ -48,7 +48,16 @@ const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 let pointerDownPos = { x: 0, y: 0 };
 let pointerDownTime = 0;
-const TAP_THRESHOLD = 8; // pixels - less than this = tap, more = drag/rotate
+let pointerDownType = 'mouse';
+// Movement (in CSS px) under which a pointerup still counts as a tap, not a drag.
+// Touch fingers roll/slide far more than a mouse, so touch gets a much bigger slop —
+// a child pressing a keypad key on a tablet almost always drifts >8px.
+const TAP_THRESHOLD_MOUSE = 8;
+const TAP_THRESHOLD_TOUCH = 28;
+// A quick press is treated as a tap regardless of drift (up to this hard cap),
+// so a fast, slightly-sloppy jab on a key still registers.
+const QUICK_TAP_MS = 250;
+const QUICK_TAP_MAX_MOVE = 45;
 
 function createBackground() {
   // Dark sky sphere with grid pattern (black/yellow theme)
@@ -777,6 +786,7 @@ function onKeyDown(event) {
 function onPointerDown(event) {
   pointerDownPos = { x: event.clientX, y: event.clientY };
   pointerDownTime = performance.now();
+  pointerDownType = event.pointerType || 'mouse';
 
   // For hold-button, start the hold immediately on down
   if (state !== STATE.PLAYING) return;
@@ -805,8 +815,13 @@ function onPointerUp(event) {
   const dx = event.clientX - pointerDownPos.x;
   const dy = event.clientY - pointerDownPos.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
+  const elapsed = performance.now() - pointerDownTime;
 
-  if (dist > TAP_THRESHOLD) {
+  const moveThreshold = pointerDownType === 'touch' ? TAP_THRESHOLD_TOUCH : TAP_THRESHOLD_MOUSE;
+  // Tap if the finger barely moved, OR it was a quick jab that didn't slide too far.
+  const isTap = dist <= moveThreshold || (elapsed <= QUICK_TAP_MS && dist <= QUICK_TAP_MAX_MOVE);
+
+  if (!isTap) {
     // It was a drag/rotate — do NOT interact, but handle hold-button release
     pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
     pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -850,6 +865,7 @@ function onPointerUp(event) {
   if (hits.length === 0) return;
 
   const hit = hits[0].object;
+  const hitPoint = hits[0].point; // world-space intersection point
 
   // Check if it's a screw
   let screwGroup = null;
@@ -881,7 +897,19 @@ function onPointerUp(event) {
   // Handle keypad key press specially
   if (componentMesh.userData.componentType === 'keypad' && hit.userData && hit.userData.isKey) {
     if (componentMesh.userData.onKeyPress) {
-      const result = componentMesh.userData.onKeyPress(hit.userData.digit);
+      let digit = hit.userData.digit;
+      // Tap plate near-miss: resolve to the nearest key centre so a slightly
+      // off-target finger still hits the intended digit.
+      if (hit.userData.isKeyPlate && hit.userData.keyCenters) {
+        const local = componentMesh.worldToLocal(hitPoint.clone());
+        let best = null, bestD = Infinity;
+        for (const c of hit.userData.keyCenters) {
+          const d = (c.x - local.x) ** 2 + (c.y - local.y) ** 2;
+          if (d < bestD) { bestD = d; best = c; }
+        }
+        if (best) digit = best.digit;
+      }
+      const result = componentMesh.userData.onKeyPress(digit);
       if (result === true) {
         handleCorrectInteraction(componentMesh);
       }
