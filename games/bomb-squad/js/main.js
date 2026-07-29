@@ -115,9 +115,9 @@ function init() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x050505);
 
-  // Camera
+  // Camera — offset to right to account for left HUD panel
   camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
-  camera.position.set(0, 0, 4);
+  camera.position.set(0.4, 0, 3);
 
   // Renderer
   renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -135,6 +135,7 @@ function init() {
   controls.enableZoom = false;
   controls.enablePan = false;
   controls.rotateSpeed = 0.8;
+  controls.target.set(0.4, 0, 0);
 
   // Lighting - 3 lights for performance (ambient + key + fill)
   const ambient = new THREE.HemisphereLight(0xaabbdd, 0x444422, 1.2);
@@ -297,7 +298,8 @@ function startRound() {
 
   // Reset camera
   controls.reset();
-  camera.position.set(0, 0, 4);
+  camera.position.set(0.4, 0, 3);
+  controls.target.set(0.4, 0, 0);
 
   // Update HUD
   hud.show();
@@ -565,7 +567,8 @@ function buildDebugBomb() {
   currentSolutionStep = 0;
 
   controls.reset();
-  camera.position.set(0, 0, 5);
+  camera.position.set(0.4, 0, 4.5);
+  controls.target.set(0.4, 0, 0);
 
   const typeCounts = {};
   allComponents.forEach(c => { typeCounts[c.type] = (typeCounts[c.type] || 0) + 1; });
@@ -703,7 +706,8 @@ function loadDebugShape(shapeName) {
     currentSolutionStep = 0;
 
     controls.reset();
-    camera.position.set(0, 0, 5);
+    camera.position.set(0.4, 0, 4.5);
+    controls.target.set(0.4, 0, 0);
 
     showToast(`Shape: ${shapeName} — ${shapeDefinition.faces.length} faces`, 'rgba(108,92,231,0.9)');
   });
