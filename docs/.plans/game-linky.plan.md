@@ -50,9 +50,11 @@ node counts increasing with size.
 
 ## Steps / Gates
 - [x] Frame (concept given)
-- [~] Spec → plan (this file)
-- [ ] Build (game-builder)
-- [ ] Review (game-reviewer) — loop until pass
-- [ ] back-button-check green
-- [ ] game-docs-sync
-- [ ] STOP — human ships
+- [x] Spec → plan (this file)
+- [x] Build (game-builder, Opus 5) — DONE. games/linky/{index.html,levels.js,tools/gen-levels.mjs}, docs/game-linky.md; wired root index.html + games-index.md (57 games). All 50 levels verify full coverage; ?selftest present.
+  - NOTE: fixed broken agent frontmatter first (bad tool names → zero tools; invalid model). Now tools=Read/Write/Edit/Grep/Glob/Bash, model=claude-opus-5.
+- [x] Review (game-reviewer, Opus 5) — PASS, zero defects. ?selftest all 50 pass in-browser.
+- [x] back-button-check green (href=../../index.html confirmed line 111)
+- [x] Independent verify by orchestrator: all 50 solutions valid + full coverage (separate code path)
+- [x] game-docs-sync — docs verified accurate; recorded dev-server ?selftest quirk in game Memory; project memory written.
+- [ ] STOP — human ships (awaiting)

@@ -1,8 +1,8 @@
 ---
 name: game-reviewer
 description: "Reviews a newly built arcade game against the conventions rubric; reports pass/fail + defects"
-tools: ['codebase', 'search', 'chrome-devtools']
-model: Claude Sonnet 4
+tools: ['Read', 'Grep', 'Glob', 'Bash', 'mcp__chrome-devtools__navigate_page', 'mcp__chrome-devtools__new_page', 'mcp__chrome-devtools__list_console_messages', 'mcp__chrome-devtools__take_screenshot', 'mcp__chrome-devtools__evaluate_script', 'mcp__chrome-devtools__click', 'mcp__chrome-devtools__take_snapshot']
+model: claude-opus-5
 ---
 
 # Game Reviewer

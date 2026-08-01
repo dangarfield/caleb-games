@@ -2,7 +2,7 @@
 name: game-scout
 description: "Proposes new arcade game concepts that fill genre gaps and suit the audience"
 tools: ['codebase', 'search', 'fetch']
-model: Claude Sonnet 4
+model: claude-opus-5
 ---
 
 # Game Scout

@@ -1,8 +1,8 @@
 ---
 name: game-builder
 description: "Implements one approved game concept to arcade conventions and wires it in"
-tools: ['codebase', 'search', 'editFiles', 'runCommands']
-model: Claude Sonnet 4
+tools: ['Read', 'Write', 'Edit', 'Grep', 'Glob', 'Bash']
+model: claude-opus-5
 ---
 
 # Game Builder
