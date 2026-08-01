@@ -141,7 +141,9 @@ function init() {
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
-  controls.enableZoom = false;
+  controls.enableZoom = true;
+  controls.minDistance = 1.5;
+  controls.maxDistance = 3;
   controls.enablePan = false;
   controls.rotateSpeed = 0.8;
   controls.target.set(0.4, 0, 0);
