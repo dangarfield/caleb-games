@@ -426,6 +426,10 @@ function checkWin() {
   for (const wp of level.waypoints) {
     if (!isWaypointReached(wp)) return false;
   }
+  // Path must end at the highest numbered waypoint
+  const maxWp = level.waypoints.reduce((a, b) => a.n > b.n ? a : b);
+  const last = path[path.length - 1];
+  if (last.r !== maxWp.r || last.c !== maxWp.c) return false;
   return true;
 }
 
