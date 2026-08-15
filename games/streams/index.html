@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Streams - Garfield Boys' Arcade</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#1a1a2e; overflow:hidden; touch-action:none;
+  font-family:'Segoe UI',system-ui,sans-serif; color:#fff; }
+#backBtn { position:fixed; top:12px; left:12px; z-index:9999;
+  background:rgba(0,0,0,0.55); color:#fff; text-decoration:none;
+  padding:6px 18px; border-radius:20px;
+  font:bold 15px/1.4 'Segoe UI',system-ui,sans-serif;
+  border:1px solid rgba(255,255,255,0.18);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
+#backBtn:hover { background:rgba(0,0,0,0.75); }
+canvas { display:block; width:100%; height:100%; }
+.hidden { display:none !important; }
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+<canvas id="c"></canvas>
+</body>
+</html>
+<script>
+// === STREAMS - Grid Path Puzzle ===
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H;
+function resize() { W = canvas.width = innerWidth; H = canvas.height = innerHeight; draw(); }
+resize(); window.addEventListener('resize', resize);
+
+// === LEVELS ===
+const LEVELS = [
+  { // Level 1: 4x4, 2 waypoints, no walls
+    size: 4, waypoints: [{n:1,r:0,c:0},{n:2,r:3,c:3}], walls: []
+  },
+  { // Level 2: 4x4, 3 waypoints, 1 wall
+    size: 4, waypoints: [{n:1,r:0,c:0},{n:2,r:2,c:2},{n:3,r:3,c:3}],
+    walls: [{r1:0,c1:1,r2:1,c2:1}]
+  },
+  { // Level 3: 5x5, 3 waypoints, 2 walls
+    size: 5, waypoints: [{n:1,r:0,c:2},{n:2,r:2,c:4},{n:3,r:4,c:0}],
+    walls: [{r1:1,c1:0,r2:1,c2:1},{r1:3,c1:3,r2:3,c2:4}]
+  },
+  { // Level 4: 5x5, 4 waypoints, 3 walls
+    size: 5, waypoints: [{n:1,r:0,c:0},{n:2,r:1,c:3},{n:3,r:3,c:1},{n:4,r:4,c:4}],
+    walls: [{r1:0,c1:2,r2:1,c2:2},{r1:2,c1:0,r2:2,c2:1},{r1:3,c1:3,r2:4,c2:3}]
+  },
+  { // Level 5: 6x6, 5 waypoints, 4 walls
+    size: 6,
+    waypoints: [{n:1,r:0,c:2},{n:2,r:1,c:5},{n:3,r:3,c:0},{n:4,r:4,c:3},{n:5,r:5,c:5}],
+    walls: [{r1:0,c1:4,r2:0,c2:5},{r1:2,c1:1,r2:2,c2:2},{r1:3,c1:4,r2:4,c2:4},{r1:4,c1:1,r2:5,c2:1}]
+  },
+];
+
+// === STATE ===
+let state = 'menu'; // menu, levelSelect, playing, won
+let currentPlayer = null;
+let currentLevel = 0;
+let level = null;
+let path = []; // [{r,c}, ...]
+let dragging = false;
+let nextWaypoint = 1;
+let hintCell = null;
+let hintTimer = 0;
+
+// === PERSISTENCE ===
+function loadArcadeData() {
+  try { return JSON.parse(localStorage.getItem('calebArcadeData'))||{}; } catch(e) { return {}; }
+}
+function saveArcadeData(d) { localStorage.setItem('calebArcadeData', JSON.stringify(d)); }
+function getPlayerData(name) {
+  const d = loadArcadeData();
+  if (!d.streams) d.streams = {};
+  if (!d.streams[name]) { d.streams[name] = { highest: 1 }; saveArcadeData(d); }
+  return d.streams[name];
+}
+function savePlayerData(name, pd) {
+  const d = loadArcadeData(); if (!d.streams) d.streams = {};
+  d.streams[name] = pd; saveArcadeData(d);
+}
+
+// === AUDIO ===
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  if (audioCtx.state==='suspended') audioCtx.resume(); return audioCtx;
+}
+function playTone(f,dur,type,vol) {
+  const ctx=ensureAudio(),o=ctx.createOscillator(),g=ctx.createGain();
+  o.type=type||'sine'; o.frequency.value=f;
+  g.gain.setValueAtTime(vol||0.08,ctx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+dur);
+  o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime+dur);
+}
+function sfxMove() { playTone(400+path.length*20, 0.06, 'sine', 0.06); }
+function sfxWaypoint() { playTone(800,0.15,'triangle',0.1); setTimeout(()=>playTone(1000,0.1,'triangle',0.08),80); }
+function sfxWin() { [523,659,784,1047].forEach((f,i)=>setTimeout(()=>playTone(f,0.2,'triangle',0.1),i*100)); }
+function sfxUndo() { playTone(250,0.05,'square',0.04); }
+
+// === GRID HELPERS ===
+function isWall(r1,c1,r2,c2) {
+  if (!level) return false;
+  return level.walls.some(w =>
+    (w.r1===r1&&w.c1===c1&&w.r2===r2&&w.c2===c2)||
+    (w.r1===r2&&w.c1===c2&&w.r2===r1&&w.c2===c1)
+  );
+}
+function isAdjacent(r1,c1,r2,c2) {
+  return (Math.abs(r1-r2)+Math.abs(c1-c2))===1;
+}
+function inPath(r,c) { return path.some(p=>p.r===r&&p.c===c); }
+function pathIndex(r,c) { return path.findIndex(p=>p.r===r&&p.c===c); }
+function getWaypointAt(r,c) {
+  return level ? level.waypoints.find(w=>w.r===r&&w.c===c) : null;
+}
+
+// === GRID GEOMETRY ===
+let gridX, gridY, cellSize;
+function calcGrid() {
+  if (!level) return;
+  const s = level.size;
+  const maxSize = Math.min(W*0.85, H*0.75);
+  cellSize = Math.floor(maxSize / s);
+  const gridW = cellSize * s;
+  const gridH = cellSize * s;
+  gridX = Math.floor((W - gridW) / 2);
+  gridY = Math.floor((H - gridH) / 2) + 20;
+}
+function cellCenter(r, c) {
+  return { x: gridX + c*cellSize + cellSize/2, y: gridY + r*cellSize + cellSize/2 };
+}
+function cellFromPos(px, py) {
+  const c = Math.floor((px - gridX) / cellSize);
+  const r = Math.floor((py - gridY) / cellSize);
+  if (r<0||r>=level.size||c<0||c>=level.size) return null;
+  return {r, c};
+}
+
+// === DRAWING ===
+function draw() {
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0, 0, W, H);
+  if (state === 'menu') drawMenu();
+  else if (state === 'levelSelect') drawLevelSelect();
+  else if (state === 'playing' || state === 'won') drawGame();
+}
+
+function drawMenu() {
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${Math.min(60, W*0.1)}px 'Segoe UI',sans-serif`;
+  ctx.fillText('Streams', W/2, H*0.25);
+  ctx.font = `${Math.min(22, W*0.04)}px sans-serif`;
+  ctx.fillStyle = '#a0c4ff';
+  ctx.fillText('Connect the flow', W/2, H*0.32);
+
+  // Player buttons
+  const bw = Math.min(180, W*0.35), bh = 60, gap = 20;
+  const bx1 = W/2 - bw - gap/2, bx2 = W/2 + gap/2, by = H*0.45;
+  ['Caleb','Ezra'].forEach((name, i) => {
+    const bx = i===0 ? bx1 : bx2;
+    ctx.fillStyle = '#e74c3c';
+    ctx.beginPath();
+    roundRect(ctx, bx, by, bw, bh, 12);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold 20px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(name, bx+bw/2, by+28);
+    const pd = getPlayerData(name);
+    ctx.font = '12px sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillText(`Level ${pd.highest}`, bx+bw/2, by+48);
+  });
+  // Store button rects for click
+  window._menuBtns = [
+    {x:bx1,y:by,w:bw,h:bh,player:'Caleb'},
+    {x:bx2,y:by,w:bw,h:bh,player:'Ezra'},
+  ];
+}
+
+function drawLevelSelect() {
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ffd32a';
+  ctx.font = 'bold 24px sans-serif';
+  ctx.fillText(currentPlayer, W/2, 50);
+  ctx.fillStyle = '#a0c4ff';
+  ctx.font = '16px sans-serif';
+  ctx.fillText('Select Level', W/2, 75);
+
+  const pd = getPlayerData(currentPlayer);
+  const cols = Math.min(5, Math.floor((W-40)/70));
+  const btnSize = 55, gap = 10;
+  const totalW = cols*(btnSize+gap)-gap;
+  const startX = (W-totalW)/2;
+  const startY = 100;
+  window._levelBtns = [];
+  for (let i=0; i<LEVELS.length; i++) {
+    const col = i%cols, row = Math.floor(i/cols);
+    const x = startX + col*(btnSize+gap);
+    const y = startY + row*(btnSize+gap);
+    const unlocked = i < pd.highest;
+    ctx.fillStyle = unlocked ? '#6c5ce7' : 'rgba(255,255,255,0.1)';
+    ctx.beginPath(); roundRect(ctx, x, y, btnSize, btnSize, 10); ctx.fill();
+    ctx.fillStyle = unlocked ? '#fff' : 'rgba(255,255,255,0.3)';
+    ctx.font = 'bold 20px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(i+1, x+btnSize/2, y+btnSize/2+7);
+    if (unlocked) window._levelBtns.push({x,y,w:btnSize,h:btnSize,level:i});
+  }
+  // Back button
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.beginPath(); roundRect(ctx, 15, 15, 60, 32, 8); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 14px sans-serif';
+  ctx.textAlign = 'center'; ctx.fillText('← Back', 45, 36);
+  window._lsBack = {x:15,y:15,w:60,h:32};
+}
+
+function drawGame() {
+  if (!level) return;
+  calcGrid();
+  const s = level.size;
+
+  // Grid background
+  ctx.fillStyle = '#222236';
+  ctx.beginPath(); roundRect(ctx, gridX-8, gridY-8, s*cellSize+16, s*cellSize+16, 12); ctx.fill();
+
+  // Cell borders
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 1;
+  for (let r=0; r<=s; r++) {
+    ctx.beginPath(); ctx.moveTo(gridX, gridY+r*cellSize); ctx.lineTo(gridX+s*cellSize, gridY+r*cellSize); ctx.stroke();
+  }
+  for (let c=0; c<=s; c++) {
+    ctx.beginPath(); ctx.moveTo(gridX+c*cellSize, gridY); ctx.lineTo(gridX+c*cellSize, gridY+s*cellSize); ctx.stroke();
+  }
+
+  // Walls
+  ctx.strokeStyle = '#4488cc';
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  for (const w of level.walls) {
+    drawWall(w);
+  }
+
+  // Draw the path (globule stream)
+  if (path.length > 0) drawPath();
+
+  // Empty cell dots (not in path)
+  for (let r=0; r<s; r++) {
+    for (let c=0; c<s; c++) {
+      if (!inPath(r,c)) {
+        const {x,y} = cellCenter(r,c);
+        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(x, y, cellSize*0.15, 0, Math.PI*2); ctx.stroke();
+      }
+    }
+  }
+
+  // Waypoints
+  for (const wp of level.waypoints) {
+    const {x,y} = cellCenter(wp.r, wp.c);
+    const reached = inPath(wp.r, wp.c) && isWaypointReached(wp);
+    const radius = cellSize * 0.28;
+    if (reached) {
+      ctx.fillStyle = '#2196F3';
+      ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#fff';
+    } else {
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI*2); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    }
+    ctx.font = `bold ${Math.floor(cellSize*0.3)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(wp.n, x, y + cellSize*0.1);
+  }
+
+  // Hint highlight
+  if (hintCell && performance.now() - hintTimer < 2000) {
+    const {x,y} = cellCenter(hintCell.r, hintCell.c);
+    const alpha = 0.5 + 0.3*Math.sin(performance.now()*0.01);
+    ctx.fillStyle = `rgba(46,204,113,${alpha})`;
+    ctx.beginPath(); ctx.arc(x, y, cellSize*0.25, 0, Math.PI*2); ctx.fill();
+  }
+
+  // HUD
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText(`Level ${currentLevel+1}`, 70, 30);
+  // Hint button
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath(); roundRect(ctx, W-110, 10, 45, 35, 8); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.font = '20px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('💡', W-88, 34);
+  // Reset button
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath(); roundRect(ctx, W-55, 10, 45, 35, 8); ctx.fill();
+  ctx.fillText('↺', W-33, 34);
+  window._hudBtns = [
+    {x:W-110,y:10,w:45,h:35,action:'hint'},
+    {x:W-55,y:10,w:45,h:35,action:'reset'},
+  ];
+
+  // Win overlay
+  if (state === 'won') {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#2ecc71';
+    ctx.font = `bold ${Math.min(48,W*0.08)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText('✓ Complete!', W/2, H/2 - 30);
+    ctx.fillStyle = '#6c5ce7';
+    ctx.beginPath(); roundRect(ctx, W/2-80, H/2+10, 160, 50, 12); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 18px sans-serif';
+    ctx.fillText('Next Level', W/2, H/2+42);
+    window._winBtn = {x:W/2-80, y:H/2+10, w:160, h:50};
+  }
+}
+
+function drawWall(w) {
+  // Wall between two adjacent cells — draw thick line on the shared edge
+  const {r1,c1,r2,c2} = w;
+  let x1,y1,x2,y2;
+  if (r1===r2) { // horizontal neighbors — vertical wall
+    const wallC = Math.max(c1,c2);
+    x1 = gridX + wallC*cellSize;
+    y1 = gridY + r1*cellSize + 2;
+    x2 = x1;
+    y2 = y1 + cellSize - 4;
+  } else { // vertical neighbors — horizontal wall
+    const wallR = Math.max(r1,r2);
+    x1 = gridX + c1*cellSize + 2;
+    y1 = gridY + wallR*cellSize;
+    x2 = x1 + cellSize - 4;
+    y2 = y1;
+  }
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+}
+
+function drawPath() {
+  if (path.length < 1) return;
+  const blobR = cellSize * 0.32;
+
+  // Draw filled blobs at each cell in path
+  for (let i=0; i<path.length; i++) {
+    const {x,y} = cellCenter(path[i].r, path[i].c);
+    const t = path.length > 1 ? i/(path.length-1) : 0;
+    // Gradient: blue to cyan
+    const r = Math.floor(33 + t*0);
+    const g = Math.floor(150 + t*56);
+    const b = Math.floor(243 - t*40);
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    ctx.beginPath(); ctx.arc(x, y, blobR, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Draw connections between adjacent path cells (thick rounded joins)
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  for (let i=0; i<path.length-1; i++) {
+    const a = cellCenter(path[i].r, path[i].c);
+    const b = cellCenter(path[i+1].r, path[i+1].c);
+    const t = path.length > 2 ? i/(path.length-2) : 0;
+    const r = Math.floor(33 + t*0);
+    const g = Math.floor(150 + t*56);
+    const bl = Math.floor(243 - t*40);
+    ctx.strokeStyle = `rgb(${r},${g},${bl})`;
+    ctx.lineWidth = blobR * 1.8;
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  }
+
+  // Overdraw blobs on top for smooth globule look
+  for (let i=0; i<path.length; i++) {
+    const {x,y} = cellCenter(path[i].r, path[i].c);
+    const t = path.length > 1 ? i/(path.length-1) : 0;
+    const r = Math.floor(33 + t*0);
+    const g = Math.floor(150 + t*56);
+    const b = Math.floor(243 - t*40);
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    ctx.beginPath(); ctx.arc(x, y, blobR, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+function isWaypointReached(wp) {
+  // A waypoint is reached if it's in the path at the right sequence position
+  const idx = pathIndex(wp.r, wp.c);
+  if (idx < 0) return false;
+  // Check all waypoints with lower n are earlier in path
+  for (const other of level.waypoints) {
+    if (other.n < wp.n) {
+      const oi = pathIndex(other.r, other.c);
+      if (oi < 0 || oi >= idx) return false;
+    }
+  }
+  return true;
+}
+
+function checkWin() {
+  if (!level) return false;
+  // All cells covered
+  if (path.length !== level.size * level.size) return false;
+  // All waypoints reached in order
+  for (const wp of level.waypoints) {
+    if (!isWaypointReached(wp)) return false;
+  }
+  return true;
+}
+
+// === INPUT ===
+function handlePointerDown(px, py) {
+  if (state === 'menu') {
+    for (const b of (window._menuBtns||[])) {
+      if (px>=b.x&&px<=b.x+b.w&&py>=b.y&&py<=b.y+b.h) {
+        ensureAudio(); currentPlayer = b.player;
+        state = 'levelSelect'; draw(); return;
+      }
+    }
+  } else if (state === 'levelSelect') {
+    const lb = window._lsBack;
+    if (lb && px>=lb.x&&px<=lb.x+lb.w&&py>=lb.y&&py<=lb.y+lb.h) {
+      state = 'menu'; draw(); return;
+    }
+    for (const b of (window._levelBtns||[])) {
+      if (px>=b.x&&px<=b.x+b.w&&py>=b.y&&py<=b.y+b.h) {
+        startLevel(b.level); return;
+      }
+    }
+  } else if (state === 'won') {
+    const wb = window._winBtn;
+    if (wb && px>=wb.x&&px<=wb.x+wb.w&&py>=wb.y&&py<=wb.y+wb.h) {
+      const next = currentLevel + 1;
+      if (next < LEVELS.length) startLevel(next);
+      else { state = 'levelSelect'; draw(); }
+      return;
+    }
+  } else if (state === 'playing') {
+    // HUD buttons
+    for (const b of (window._hudBtns||[])) {
+      if (px>=b.x&&px<=b.x+b.w&&py>=b.y&&py<=b.y+b.h) {
+        if (b.action==='reset') { path=[]; nextWaypoint=1; hintCell=null; draw(); sfxUndo(); }
+        if (b.action==='hint') showHint();
+        return;
+      }
+    }
+    // Start or continue drawing
+    const cell = cellFromPos(px, py);
+    if (!cell) return;
+    if (path.length === 0) {
+      // Must start at waypoint 1
+      const wp1 = level.waypoints.find(w=>w.n===1);
+      if (cell.r===wp1.r && cell.c===wp1.c) {
+        path.push(cell); nextWaypoint=2; dragging=true; sfxMove(); draw();
+      }
+    } else {
+      // Tapping on existing path cell = undo to that point
+      const idx = pathIndex(cell.r, cell.c);
+      if (idx >= 0 && idx < path.length-1) {
+        path = path.slice(0, idx+1);
+        recalcWaypoints();
+        sfxUndo(); dragging=true; draw();
+      } else if (idx === path.length-1) {
+        dragging = true; // continue from end
+      }
+    }
+  }
+}
+
+function handlePointerMove(px, py) {
+  if (!dragging || state !== 'playing') return;
+  const cell = cellFromPos(px, py);
+  if (!cell) return;
+  const last = path[path.length-1];
+  if (!last) return;
+  if (cell.r===last.r && cell.c===last.c) return;
+
+  // Check if tracing backward (undo)
+  if (path.length >= 2) {
+    const prev = path[path.length-2];
+    if (cell.r===prev.r && cell.c===prev.c) {
+      path.pop();
+      recalcWaypoints();
+      sfxUndo(); draw(); return;
+    }
+  }
+
+  // Check valid move: adjacent, no wall, not already in path
+  if (!isAdjacent(last.r, last.c, cell.r, cell.c)) return;
+  if (isWall(last.r, last.c, cell.r, cell.c)) return;
+  if (inPath(cell.r, cell.c)) return;
+
+  // Check waypoint order: if this cell has a waypoint, it must be the next one
+  const wp = getWaypointAt(cell.r, cell.c);
+  if (wp && wp.n !== nextWaypoint) return;
+
+  path.push(cell);
+  if (wp) { nextWaypoint = wp.n + 1; sfxWaypoint(); }
+  else sfxMove();
+  hintCell = null;
+  draw();
+
+  if (checkWin()) {
+    state = 'won';
+    sfxWin();
+    // Save progress
+    const pd = getPlayerData(currentPlayer);
+    if (currentLevel + 1 >= pd.highest) { pd.highest = currentLevel + 2; savePlayerData(currentPlayer, pd); }
+    draw();
+  }
+}
+
+function handlePointerUp() { dragging = false; }
+
+function recalcWaypoints() {
+  nextWaypoint = 1;
+  for (const wp of level.waypoints.sort((a,b)=>a.n-b.n)) {
+    if (inPath(wp.r, wp.c) && isWaypointReached(wp)) nextWaypoint = wp.n + 1;
+  }
+}
+
+function showHint() {
+  // Simple hint: if path is empty, highlight waypoint 1.
+  // Otherwise, try to find a valid next cell (not a full solver, just direction)
+  if (path.length === 0) {
+    const wp1 = level.waypoints.find(w=>w.n===1);
+    hintCell = {r:wp1.r, c:wp1.c};
+  } else {
+    const last = path[path.length-1];
+    const dirs = [{r:-1,c:0},{r:1,c:0},{r:0,c:-1},{r:0,c:1}];
+    for (const d of dirs) {
+      const nr = last.r+d.r, nc = last.c+d.c;
+      if (nr<0||nr>=level.size||nc<0||nc>=level.size) continue;
+      if (inPath(nr,nc)) continue;
+      if (isWall(last.r,last.c,nr,nc)) continue;
+      const wp = getWaypointAt(nr,nc);
+      if (wp && wp.n !== nextWaypoint) continue;
+      hintCell = {r:nr, c:nc}; break;
+    }
+  }
+  hintTimer = performance.now();
+  draw();
+}
+
+function startLevel(idx) {
+  currentLevel = idx;
+  level = LEVELS[idx];
+  path = [];
+  nextWaypoint = 1;
+  dragging = false;
+  hintCell = null;
+  state = 'playing';
+  calcGrid();
+  draw();
+}
+
+// === EVENTS ===
+canvas.addEventListener('pointerdown', e => { handlePointerDown(e.clientX, e.clientY); });
+canvas.addEventListener('pointermove', e => { handlePointerMove(e.clientX, e.clientY); });
+canvas.addEventListener('pointerup', handlePointerUp);
+canvas.addEventListener('pointerleave', handlePointerUp);
+
+// === UTIL ===
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w, y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r, y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x, y+r); ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath();
+}
+
+// === ANIMATION LOOP (for hint pulsing) ===
+function loop() {
+  if (hintCell && performance.now() - hintTimer < 2000) draw();
+  requestAnimationFrame(loop);
+}
+loop();
+
+// Initial draw
+draw();
+</script>

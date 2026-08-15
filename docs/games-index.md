@@ -1,6 +1,6 @@
 # Games Index
 
-All 57 games in Garfield Boys' Arcade (58 directories — Archers has legacy 2D + current 3D).
+All 58 games in Garfield Boys' Arcade (59 directories — Archers has legacy 2D + current 3D).
 
 | Game | Directory | Description |
 |------|-----------|-------------|
@@ -60,6 +60,7 @@ All 57 games in Garfield Boys' Arcade (58 directories — Archers has legacy 2D 
 | Spin Smash | games/spin-smash/ | Beyblade-style arena battler — knock tops off the edge, roguelike perk progression, 3 arenas with hazards |
 | Pokemon FireRed | games/pokemon-firered/ | GBA emulator (EmulatorJS) — classic Pokemon adventure with save states |
 | Bomb Squad | games/bomb-squad/ | 3D bomb defusal puzzle — rotate, find components, defuse in order (Three.js, seeded generation) |
+| Streams | games/streams/ | Grid path puzzle — drag through every node visiting waypoints in order |
 | Linky | games/linky/ | Flow Free clone — drag colored pipes to connect dot pairs and cover the whole board; 50 provably-solvable levels, Caleb/Ezra progress, hints |
 
 ## Naming quirks worth knowing
