@@ -8,7 +8,9 @@ Grid path puzzle game. Drag a single continuous path through every cell in a gri
 - Drag to draw path, trace backward to undo
 - Numbered waypoints must be visited in sequence
 - Walls between cells block movement
-- Hint system (highlights next valid move)
+- Hint system — follows the stored `solution` path (highlights the next correct
+  cell when on-track, or the last correct cell to trace back to when the player
+  has strayed); 15s cooldown ring
 - Per-player profiles (Caleb/Ezra) with level progress
 - Level select screen
 - Web Audio SFX (move, waypoint reached, win, undo)
@@ -23,3 +25,12 @@ Grid path puzzle game. Drag a single continuous path through every cell in a gri
 - Level data is a simple array of objects — easy to extend with more boards later
 
 ## Memory
+
+- Bug: **the hint was completely wrong.** `showHint()` picked an arbitrary open
+  orthogonal neighbour of the path's end — for a fill-every-cell (Hamiltonian)
+  puzzle that almost always points down a dead end. Fixed to follow the level's
+  stored `solution`: match the player's path as a prefix of the solution, then
+  highlight the next solution cell if on-track, or the last correct cell (to
+  trace back to) if the player has diverged. All 42 solutions verified as legal
+  full-coverage paths, so the hint can't mislead.
+- Hint cooldown shortened 30s → 15s (matches Stars).

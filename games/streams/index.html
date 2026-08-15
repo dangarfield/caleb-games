@@ -86,7 +86,7 @@ let nextWaypoint = 1;
 let hintCell = null;
 let hintTimer = 0;
 let hintCooldown = 0;
-const HINT_COOLDOWN_MS = 30000;
+const HINT_COOLDOWN_MS = 15000;
 let pointerX = 0, pointerY = 0; // current pointer position for goo stretch
 let winAnim = 0; // 0 = not animating, >0 = timestamp started
 let streamPhase = 0; // for flowing animation
@@ -667,23 +667,28 @@ function showHint() {
   if (performance.now() < hintCooldown) return;
   hintCooldown = performance.now() + HINT_COOLDOWN_MS;
 
-  // Simple hint: if path is empty, highlight waypoint 1.
-  // Otherwise, try to find a valid next cell (not a full solver, just direction)
-  if (path.length === 0) {
-    const wp1 = level.waypoints.find(w=>w.n===1);
-    hintCell = {r:wp1.r, c:wp1.c};
-  } else {
-    const last = path[path.length-1];
-    const dirs = [{r:-1,c:0},{r:1,c:0},{r:0,c:-1},{r:0,c:1}];
-    for (const d of dirs) {
-      const nr = last.r+d.r, nc = last.c+d.c;
-      if (nr<0||nr>=(level.height||level.size)||nc<0||nc>=(level.width||level.size)) continue;
-      if (inPath(nr,nc)) continue;
-      if (isWall(last.r,last.c,nr,nc)) continue;
-      const wp = getWaypointAt(nr,nc);
-      if (wp && wp.n !== nextWaypoint) continue;
-      hintCell = {r:nr, c:nc}; break;
+  // Hint follows the stored solution path (the level's true Hamiltonian route),
+  // NOT a random open neighbour — a greedy neighbour dead-ends almost immediately
+  // on a fill-every-cell puzzle. Find how far the player's path matches the
+  // solution as a prefix; then either point at the next correct cell or, if the
+  // player has strayed off the true route, point at the cell to trace back to.
+  const sol = level.solution;
+  if (sol && sol.length) {
+    let k = 0; // length of the correct prefix the player has drawn so far
+    while (k < path.length && k < sol.length &&
+           path[k].r === sol[k].r && path[k].c === sol[k].c) k++;
+    if (k === path.length) {
+      // On track: highlight the next cell of the solution.
+      hintCell = k < sol.length ? { r: sol[k].r, c: sol[k].c } : null;
+    } else {
+      // Strayed off the solution at index k: highlight the last correct cell so
+      // the player traces back to it (tap it to undo to that point).
+      hintCell = { r: sol[k - 1].r, c: sol[k - 1].c };
     }
+  } else {
+    // No solution data (shouldn't happen): fall back to highlighting waypoint 1.
+    const wp1 = level.waypoints.find(w=>w.n===1);
+    hintCell = wp1 ? { r: wp1.r, c: wp1.c } : null;
   }
   hintTimer = performance.now();
   draw();
