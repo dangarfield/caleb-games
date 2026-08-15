@@ -35,28 +35,59 @@ function resize() { W = canvas.width = innerWidth; H = canvas.height = innerHeig
 resize(); window.addEventListener('resize', resize);
 
 // === LEVELS ===
-const LEVELS = [
-  { // Level 1: 4x4, 2 waypoints, no walls
-    size: 4, waypoints: [{n:1,r:0,c:0},{n:2,r:3,c:3}], walls: []
-  },
-  { // Level 2: 4x4, 3 waypoints, 1 wall
-    size: 4, waypoints: [{n:1,r:0,c:0},{n:2,r:2,c:2},{n:3,r:3,c:3}],
-    walls: [{r1:0,c1:1,r2:1,c2:1}]
-  },
-  { // Level 3: 5x5, 3 waypoints, 2 walls
-    size: 5, waypoints: [{n:1,r:0,c:2},{n:2,r:2,c:4},{n:3,r:4,c:0}],
-    walls: [{r1:1,c1:0,r2:1,c2:1},{r1:3,c1:3,r2:3,c2:4}]
-  },
-  { // Level 4: 5x5, 4 waypoints, 3 walls
-    size: 5, waypoints: [{n:1,r:0,c:0},{n:2,r:1,c:3},{n:3,r:3,c:1},{n:4,r:4,c:4}],
-    walls: [{r1:0,c1:2,r2:1,c2:2},{r1:2,c1:0,r2:2,c2:1},{r1:3,c1:3,r2:4,c2:3}]
-  },
-  { // Level 5: 6x6, 5 waypoints, 4 walls
-    size: 6,
-    waypoints: [{n:1,r:0,c:2},{n:2,r:1,c:5},{n:3,r:3,c:0},{n:4,r:4,c:3},{n:5,r:5,c:5}],
-    walls: [{r1:0,c1:4,r2:0,c2:5},{r1:2,c1:1,r2:2,c2:2},{r1:3,c1:4,r2:4,c2:4},{r1:4,c1:1,r2:5,c2:1}]
-  },
+// JSON puzzle files to load (add new files here)
+const PUZZLE_FILES = [
+  'currents-2026-08-15.json',
 ];
+
+// Convert JSON puzzle format to internal level format
+function convertPuzzle(data) {
+  const g = data.grid;
+  const walls = [];
+  // Horizontal walls: [row, col] = wall on BOTTOM edge of (row,col) → blocks (row,col)↔(row+1,col)
+  if (g.walls.horizontal) {
+    for (const [row, col] of g.walls.horizontal) {
+      walls.push({ r1: row, c1: col, r2: row + 1, c2: col });
+    }
+  }
+  // Vertical walls: [row, col] = wall on RIGHT edge of (row,col) → blocks (row,col)↔(row,col+1)
+  if (g.walls.vertical) {
+    for (const [row, col] of g.walls.vertical) {
+      walls.push({ r1: row, c1: col, r2: row, c2: col + 1 });
+    }
+  }
+  const waypoints = g.gates.map(gate => ({ n: gate.order, r: gate.row, c: gate.col }));
+  return {
+    size: g.width, // assuming square grids (width === height)
+    title: data.title || '',
+    waypoints,
+    walls,
+    solution: g.solutions && g.solutions[0] ? g.solutions[0].map(s => ({ r: s.row, c: s.col })) : null,
+  };
+}
+
+// Test levels as fallback
+const TEST_LEVELS = [
+  { size: 4, title: 'Test 1', waypoints: [{n:1,r:0,c:0},{n:2,r:3,c:3}], walls: [] },
+  { size: 4, title: 'Test 2', waypoints: [{n:1,r:0,c:0},{n:2,r:2,c:2},{n:3,r:3,c:3}], walls: [{r1:0,c1:1,r2:1,c2:1}] },
+  { size: 5, title: 'Test 3', waypoints: [{n:1,r:0,c:2},{n:2,r:2,c:4},{n:3,r:4,c:0}], walls: [{r1:1,c1:0,r2:1,c2:1},{r1:3,c1:3,r2:3,c2:4}] },
+];
+
+let LEVELS = [...TEST_LEVELS];
+
+// Load puzzle files
+async function loadPuzzles() {
+  for (const file of PUZZLE_FILES) {
+    try {
+      const resp = await fetch(file);
+      if (!resp.ok) continue;
+      const data = await resp.json();
+      const level = convertPuzzle(data);
+      LEVELS.push(level);
+    } catch (e) { console.warn('Failed to load puzzle:', file, e); }
+  }
+}
+loadPuzzles().then(() => { if (_initialized) draw(); });
 
 // === STATE ===
 let state = 'menu'; // menu, levelSelect, playing, won
@@ -299,7 +330,8 @@ function drawGame() {
 
   // HUD
   ctx.fillStyle = '#fff'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'left';
-  ctx.fillText(`Level ${currentLevel+1}`, 70, 30);
+  const hudTitle = level.title ? `${currentLevel+1}. ${level.title}` : `Level ${currentLevel+1}`;
+  ctx.fillText(hudTitle, 70, 30);
   // Hint button with cooldown ring
   const hintX = W-110, hintY = 10, hintW = 45, hintH = 35;
   ctx.fillStyle = 'rgba(0,0,0,0.4)';
