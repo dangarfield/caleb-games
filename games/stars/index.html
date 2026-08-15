@@ -1,0 +1,2477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Stars - Garfield Boys' Arcade</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { width:100%; height:100%; }
+body { background:#0a0a2e; overflow:hidden; touch-action:none;
+  font-family:'Segoe UI',system-ui,sans-serif; color:#fff;
+  -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none; }
+#backBtn { position:fixed; top:12px; left:12px; z-index:9999;
+  background:rgba(0,0,0,0.55); color:#fff; text-decoration:none;
+  padding:6px 18px; border-radius:20px;
+  font:bold 15px/1.4 'Segoe UI',system-ui,sans-serif;
+  border:1px solid rgba(255,255,255,0.18);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  transition:background 0.2s; }
+#backBtn:hover { background:rgba(0,0,0,0.75); }
+canvas { display:block; width:100%; height:100%; touch-action:none; }
+.hidden { display:none !important; }
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+<canvas id="c"></canvas>
+<script>
+/* =====================================================================
+   STARS — Star Battle / "Two Not Touch" logic puzzle
+   1 star per row, per column, per region. Stars may never touch,
+   not even diagonally.
+   Single-file, Canvas 2D, no dependencies.
+   ===================================================================== */
+
+// ---------------------------------------------------------------- canvas
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W = 1, H = 1;
+let ready = false;                    // guards resize -> draw before init
+function resize() {
+  W = canvas.width = Math.max(1, innerWidth);
+  H = canvas.height = Math.max(1, innerHeight);
+  if (ready) draw();
+}
+resize();
+addEventListener('resize', resize);
+addEventListener('orientationchange', resize);
+
+// ---------------------------------------------------------------- theme
+const COL = {
+  bg0:'#0a0a2e', bg1:'#141452', bg2:'#1a1a6e',
+  accent:'#6c5ce7', glow:'#a29bfe', sub:'#a0c4ff',
+  gold:'#ffd32a', danger:'#e74c3c', good:'#2ecc71'
+};
+// Region fills — muted so gold stars and white crosses stay legible.
+const REGION_COLORS = [
+  '#4b3c96', '#2f6b4f', '#7d4a29', '#8a6d2f', '#2a5b8f', '#8c3a52',
+  '#414d70', '#5d3b74', '#2f6b6b', '#6b5a2b', '#3b4a94'
+];
+const TIER_COLORS = { tutorial:'#2ecc71', easy:'#6c5ce7', normal:'#e67e22', hard:'#e74c3c' };
+const TIER_LABEL  = { tutorial:'Tutorial', easy:'Easy', normal:'Normal', hard:'Hard' };
+
+// ---------------------------------------------------------------- levels
+// Fallback so the game still runs when opened via file:// (fetch blocked).
+const FALLBACK_LEVELS = [{
+  id:1, group:'tutorial', srcId:'starBattle.tutorial.1', tier:'tutorial', size:5, stars:1,
+  regions:[[0,1,1,1,1],[2,3,2,1,2],[2,3,2,2,2],[2,2,2,4,4],[2,2,2,2,2]],
+  solution:[{r:0,c:0},{r:1,c:3},{r:2,c:1},{r:3,c:4},{r:4,c:2}]
+}];
+let LEVELS = [];
+let levelsLoaded = false;
+
+// 801 levels is far too many for one flat grid, so they are bucketed by their
+// `group` field ("tutorial", "easyA" … "hardC") into a two-tier picker.
+// GROUPS holds the display order; each level also learns its own group index and
+// its 1-based number WITHIN the group (the saved id stays global).
+let GROUPS = [];
+function groupLabel(key) {
+  const m = /^([a-z]+)([A-Z])$/.exec(key);
+  if (m) return (TIER_LABEL[m[1]] || (m[1][0].toUpperCase() + m[1].slice(1))) + ' ' + m[2];
+  return TIER_LABEL[key] || (key[0].toUpperCase() + key.slice(1));
+}
+function buildGroups() {
+  GROUPS = [];
+  const byKey = {};
+  for (let i = 0; i < LEVELS.length; i++) {
+    const lv = LEVELS[i];
+    const key = lv.group || lv.tier || 'all';
+    let grp = byKey[key];
+    if (!grp) {
+      grp = byKey[key] = { key, label: groupLabel(key), tier: lv.tier || 'easy',
+                           gi: GROUPS.length, idx: [] };
+      GROUPS.push(grp);
+    }
+    grp.idx.push(i);
+    lv._gi = grp.gi;                 // group index
+    lv._ni = grp.idx.length;         // 1-based number inside the group
+  }
+}
+
+// A bare relative fetch('levels.json') breaks when the page is served WITHOUT a
+// trailing slash (/games/stars): the browser then treats "stars" as the document
+// name, so the request escapes to /games/levels.json and 404s. Build the list of
+// candidate URLs with the most-likely-correct one FIRST so the common cases never
+// even log a failed request.
+function levelsUrls() {
+  const out = [];
+  let p = '';
+  try { p = (location && location.pathname) || ''; } catch (e) { /* no location */ }
+  if (p && !p.endsWith('/') && !/\.html?$/i.test(p)) {
+    out.push(p.replace(/\/+$/, '') + '/levels.json');   // /games/stars -> /games/stars/levels.json
+  }
+  try { out.push(new URL('levels.json', document.baseURI).href); } catch (e) { /* opaque base */ }
+  out.push('levels.json');
+  const dir = p.replace(/[^/]*$/, '');
+  if (dir) out.push(dir + 'stars/levels.json');          // last-ditch retry
+  return out.filter((u, i) => out.indexOf(u) === i);
+}
+async function loadLevels() {
+  let lastErr = null;
+  for (const url of levelsUrls()) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (Array.isArray(data) && data.length) { LEVELS = data; break; }
+      throw new Error('empty level list');
+    } catch (e) { lastErr = e; }
+  }
+  if (!LEVELS.length) {
+    LEVELS = FALLBACK_LEVELS;
+    console.warn('levels.json unavailable, using built-in fallback:', lastErr && lastErr.message);
+  }
+  buildGroups();
+  levelsLoaded = true;
+  if (ready) draw();
+}
+
+// ---------------------------------------------------------------- storage
+function loadArcadeData() {
+  try { return JSON.parse(localStorage.getItem('calebArcadeData')) || {}; }
+  catch (e) { return {}; }
+}
+function saveArcadeData(d) {
+  try { localStorage.setItem('calebArcadeData', JSON.stringify(d)); }
+  catch (e) { /* private mode */ }
+}
+// Menus read this every frame, so the parsed record is memoised (nothing else
+// writes the key) instead of re-parsing localStorage 60x a second.
+const pdCache = {};
+function getPlayerData(name) {
+  if (!name) return { solved:{}, hints:0 };     // no profile chosen yet: never persist
+  if (pdCache[name]) return pdCache[name];
+  const d = loadArcadeData();
+  if (!d.stars) d.stars = {};
+  if (!d.stars[name]) { d.stars[name] = { solved:{}, hints:0 }; saveArcadeData(d); }
+  if (!d.stars[name].solved) d.stars[name].solved = {};
+  pdCache[name] = d.stars[name];
+  return d.stars[name];
+}
+function savePlayerData(name, pd) {
+  if (!name) return;
+  const d = loadArcadeData();
+  if (!d.stars) d.stars = {};
+  d.stars[name] = pd;
+  pdCache[name] = pd;
+  progressCache = {};
+  saveArcadeData(d);
+}
+function markSolved(name, levelId) {
+  const pd = getPlayerData(name);
+  pd.solved[levelId] = true;
+  savePlayerData(name, pd);
+}
+// Group progress = solved ids whose level belongs to that group. The picker would
+// otherwise recount 801 ids every frame, so results are cached per player and
+// dropped whenever a save happens.
+let progressCache = {};
+function groupProgress(name, grp) {
+  const key = name + '|' + grp.key;
+  if (progressCache[key] !== undefined) return progressCache[key];
+  const solved = getPlayerData(name).solved || {};
+  let done = 0;
+  for (const i of grp.idx) if (solved[LEVELS[i].id]) done++;
+  progressCache[key] = done;
+  return done;
+}
+function totalSolved(name) {
+  const key = name + '|*';
+  if (progressCache[key] !== undefined) return progressCache[key];
+  const solved = getPlayerData(name).solved || {};
+  let done = 0;
+  for (const lv of LEVELS) if (solved[lv.id]) done++;
+  progressCache[key] = done;
+  return done;
+}
+
+// ---------------------------------------------------------------- audio
+let audioCtx = null;
+function ensureAudio() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  } catch (e) { audioCtx = null; }
+  return audioCtx;
+}
+function playTone(freq, dur, type, vol, endFreq) {
+  const ac = ensureAudio(); if (!ac) return;
+  const osc = ac.createOscillator(), gain = ac.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.setValueAtTime(freq, ac.currentTime);
+  if (endFreq) osc.frequency.exponentialRampToValueAtTime(Math.max(endFreq, 20), ac.currentTime + dur);
+  gain.gain.setValueAtTime(vol || 0.08, ac.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
+  osc.connect(gain); gain.connect(ac.destination);
+  osc.start(); osc.stop(ac.currentTime + dur);
+}
+const sfx = {
+  cross()  { playTone(300, 0.05, 'square', 0.045); },
+  tick(f)  { playTone(f, 0.035, 'triangle', 0.028); },
+  star()   { playTone(660, 0.10, 'triangle', 0.09); setTimeout(()=>playTone(990, 0.14, 'triangle', 0.07), 70); },
+  erase()  { playTone(260, 0.07, 'sine', 0.05, 170); },
+  undo()   { playTone(220, 0.06, 'square', 0.04, 160); },
+  reset()  { [400,320,250].forEach((f,i)=>setTimeout(()=>playTone(f,0.09,'sine',0.05),i*60)); },
+  hint()   { playTone(880, 0.09, 'sine', 0.06); setTimeout(()=>playTone(1175,0.12,'sine',0.05),90); },
+  error()  { playTone(150, 0.16, 'sawtooth', 0.06); setTimeout(()=>playTone(115,0.16,'sawtooth',0.05),110); },
+  win()    { [523,659,784,1047,1319].forEach((f,i)=>setTimeout(()=>playTone(f,0.24,'triangle',0.09),i*110)); },
+  nope()   { playTone(180, 0.08, 'square', 0.04); }
+};
+
+// ---------------------------------------------------------------- state
+let view = 'menu';                  // menu | groupSelect | levelSelect | playing | won
+let player = null;
+let curGroup = 0;                     // index into GROUPS, drives the level grid
+let levelIdx = 0;
+let level = null;                     // active level record
+let n = 0, starsPer = 1;              // grid size, stars per line/region
+let st = [];                          // 0 empty | 1 cross | 2 star (flat, n*n)
+let tag = [];                         // autoBy: originating star key or null
+let anim = [];                        // per-cell {kind,t0,delay} or null
+let regionCells = [];                 // regionId -> [[r,c],...]
+let undoStack = [];
+let solSet = new Set();               // "r,c" of solution stars
+let particles = [];                   // sparkle + confetti
+let conflictCells = new Set();
+let conflictMsg = '';
+let errorFlash = 0;
+let winAt = 0;
+let solvedFlash = 0;
+let hintsUsed = 0;
+
+// hint state
+const HINT_COOLDOWN = 15000;          // ring sweeps over 15s, label counts 15 -> 1
+let hintCooldownUntil = 0;
+let hint = null;                      // active guided hint
+let helpOpen = false;
+let toast = null;                     // {msg, t0}
+
+const DIRS8 = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+const K = (r,c) => r + ',' + c;
+const I = (r,c) => r * n + c;
+const inB = (r,c) => r >= 0 && r < n && c >= 0 && c < n;
+
+// ------------------------------------------------------- menu navigation
+// Vertical scroll offset per scrollable view (the group picker and the 100-tile
+// level grid). `selMax` is published by the layout pass so drags can clamp.
+const selScroll = { groupSelect:0, levelSelect:0 };
+const selMax = { groupSelect:0, levelSelect:0 };
+function curGroupObj() { return GROUPS[curGroup] || GROUPS[0] || null; }
+// A one-level group (the tutorial) gets no grid — an almost-empty 10x10 board of
+// tiles reads as broken, so it opens its single puzzle straight away.
+function openGroup(gi) {
+  curGroup = Math.max(0, Math.min(GROUPS.length - 1, gi));
+  const grp = curGroupObj();
+  if (!grp) return;
+  if (grp.idx.length === 1) { startLevel(grp.idx[0]); return; }
+  selScroll.levelSelect = 0;
+  view = 'levelSelect';
+  scrollToFirstUnsolved();
+  draw();
+}
+function showLevelSelect() {
+  const grp = curGroupObj();
+  if (!grp || grp.idx.length <= 1) { view = 'groupSelect'; draw(); return; }
+  view = 'levelSelect';
+  const k = grp.idx.indexOf(levelIdx);
+  if (k >= 0) pendingScrollTo = k;          // land back on the level just played
+  draw();
+}
+function showGroupSelect() { view = 'groupSelect'; draw(); }
+// After picking a group, jump the grid to where the player actually is.
+function scrollToFirstUnsolved() {
+  const grp = curGroupObj();
+  if (!grp) return;
+  const solved = getPlayerData(player).solved || {};
+  let k = grp.idx.findIndex(i => !solved[LEVELS[i].id]);
+  if (k < 0) k = 0;
+  pendingScrollTo = k;
+}
+let pendingScrollTo = -1;             // tile index the grid should reveal on next draw
+
+// ---------------------------------------------------------------- level setup
+function startLevel(idx) {
+  levelIdx = Math.max(0, Math.min(LEVELS.length - 1, idx));
+  level = LEVELS[levelIdx];
+  if (level._gi !== undefined) curGroup = level._gi;   // ☰ returns to this group
+  n = level.size;
+  starsPer = level.stars || 1;
+  st = new Array(n*n).fill(0);
+  tag = new Array(n*n).fill(null);
+  anim = new Array(n*n).fill(null);
+  regionCells = [];
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+    const reg = level.regions[r][c];
+    if (!regionCells[reg]) regionCells[reg] = [];
+    regionCells[reg].push([r, c]);
+  }
+  solSet = new Set(level.solution.map(s => K(s.r, s.c)));
+  undoStack = [];
+  particles = [];
+  conflictCells = new Set(); conflictMsg = '';
+  errorFlash = 0; winAt = 0; solvedFlash = 0;
+  hint = null; helpOpen = false; toast = null;
+  hintCooldownUntil = 0; hintsUsed = 0;
+  view = 'playing';
+  draw();
+}
+
+// ---------------------------------------------------------------- undo
+function snapshot() { return { st: st.slice(), tag: tag.slice() }; }
+function pushUndo() {
+  undoStack.push(snapshot());
+  if (undoStack.length > 300) undoStack.shift();
+}
+function doUndo() {
+  if (!undoStack.length) { sfx.nope(); showToast('Nothing to undo'); return; }
+  const s = undoStack.pop();
+  st = s.st.slice(); tag = s.tag.slice();
+  anim = new Array(n*n).fill(null);
+  hint = null;
+  sfx.undo();
+  afterMutation(false);
+}
+function doReset() {
+  if (st.every(v => v === 0)) { sfx.nope(); showToast('Board is already empty'); return; }
+  pushUndo();
+  st = new Array(n*n).fill(0);
+  tag = new Array(n*n).fill(null);
+  anim = new Array(n*n).fill(null);
+  hint = null;
+  sfx.reset();
+  afterMutation(false);
+}
+
+// ---------------------------------------------------------------- mutations
+function forbiddenTargets(r, c) {
+  // Cells a star at (r,c) forbids: whole row, whole column, whole region, 8 neighbours.
+  const seen = new Set(); const out = [];
+  const self = I(r,c);
+  const add = (rr, cc) => {
+    if (!inB(rr,cc)) return;
+    const j = rr*n + cc;
+    if (j === self || seen.has(j)) return;
+    seen.add(j); out.push({ r:rr, c:cc, j });
+  };
+  for (let k = 0; k < n; k++) { add(r, k); add(k, c); }
+  for (const [rr,cc] of regionCells[level.regions[r][c]]) add(rr, cc);
+  for (const [dr,dc] of DIRS8) add(r+dr, c+dc);
+  return out;
+}
+
+function placeStar(r, c, withSound) {
+  const i = I(r,c);
+  st[i] = 2; tag[i] = null;
+  anim[i] = { kind:'star', t0: performance.now(), delay:0 };
+  spawnSparkles(r, c);
+  if (withSound !== false) sfx.star();
+
+  // Distance-ordered cascade of auto-crosses (nearest first, rippling out).
+  const targets = forbiddenTargets(r, c).filter(t => st[t.j] === 0);
+  for (const t of targets) t.d = Math.hypot(t.r - r, t.c - c);
+  targets.sort((a, b) => a.d - b.d);
+  const now = performance.now();
+  const key = K(r,c);
+  targets.forEach((t, k) => {
+    st[t.j] = 1;
+    tag[t.j] = key;
+    const delay = Math.min(420, t.d * 46);
+    anim[t.j] = { kind:'cross', t0: now, delay };
+    if (withSound !== false && k < 9) {
+      setTimeout(() => sfx.tick(420 + k * 55), delay);
+    }
+  });
+}
+
+function findOtherForbiddingStar(r, c, exclude) {
+  for (let rr = 0; rr < n; rr++) for (let cc = 0; cc < n; cc++) {
+    const j = rr*n + cc;
+    if (st[j] !== 2 || j === exclude) continue;
+    if (rr === r || cc === c) return K(rr,cc);
+    if (level.regions[rr][cc] === level.regions[r][c]) return K(rr,cc);
+    if (Math.abs(rr - r) <= 1 && Math.abs(cc - c) <= 1) return K(rr,cc);
+  }
+  return null;
+}
+
+function removeStar(r, c) {
+  const i = I(r,c);
+  const key = K(r,c);
+  st[i] = 0; tag[i] = null; anim[i] = null;
+  // Clean up exactly the auto-crosses this star created. If another star still
+  // forbids that cell, hand the cross over to it instead of clearing it.
+  for (let rr = 0; rr < n; rr++) for (let cc = 0; cc < n; cc++) {
+    const j = rr*n + cc;
+    if (st[j] !== 1 || tag[j] !== key) continue;
+    const other = findOtherForbiddingStar(rr, cc, i);
+    if (other) { tag[j] = other; }
+    else { st[j] = 0; tag[j] = null; anim[j] = null; }
+  }
+  sfx.erase();
+}
+
+// Player-placed cross (tag = null, so it is never removed by reverting a star).
+// Returns false if the cell already holds something.
+function paintCross(r, c) {
+  const i = I(r,c);
+  if (st[i] !== 0) return false;
+  st[i] = 1; tag[i] = null;
+  anim[i] = { kind:'cross', t0: performance.now(), delay:0 };
+  return true;
+}
+
+function tapCell(r, c) {
+  const i = I(r,c);
+  pushUndo();
+  if (st[i] === 0) {                       // empty -> cross
+    paintCross(r, c);
+    sfx.cross();
+  } else if (st[i] === 1) {                // cross -> star
+    placeStar(r, c, true);
+  } else {                                 // star -> empty
+    removeStar(r, c);
+  }
+  afterMutation(true);
+}
+
+function setCross(r, c) {                  // used by guided hints
+  const i = I(r,c);
+  if (st[i] === 1) return false;
+  if (st[i] === 2) removeStar(r, c);
+  st[i] = 1; tag[i] = null;
+  anim[i] = { kind:'cross', t0: performance.now(), delay:0 };
+  return true;
+}
+function setEmpty(r, c) {
+  const i = I(r,c);
+  if (st[i] === 2) { removeStar(r, c); return true; }
+  if (st[i] === 0) return false;
+  st[i] = 0; tag[i] = null; anim[i] = null;
+  return true;
+}
+
+// ---------------------------------------------------------------- rules check
+function starPositions() {
+  const out = [];
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (st[I(r,c)] === 2) out.push({r,c});
+  return out;
+}
+// Live check: reports OVER-placement only, so a partial board is never "wrong".
+function liveConflicts() {
+  const bad = new Set();
+  // Several rules can break at once; the message must not depend on scan order,
+  // so flags are collected and one fixed priority picks the sentence.
+  const hit = { touch:false, row:false, col:false, reg:false };
+  const rows = new Array(n).fill(0), cols = new Array(n).fill(0), regs = {};
+  const stars = starPositions();
+  for (const s of stars) {
+    rows[s.r]++; cols[s.c]++;
+    const g = level.regions[s.r][s.c];
+    regs[g] = (regs[g] || 0) + 1;
+  }
+  for (const s of stars) {
+    if (rows[s.r] > starsPer) { bad.add(K(s.r,s.c)); hit.row = true; }
+    if (cols[s.c] > starsPer) { bad.add(K(s.r,s.c)); hit.col = true; }
+    if (regs[level.regions[s.r][s.c]] > starsPer) { bad.add(K(s.r,s.c)); hit.reg = true; }
+  }
+  for (const s of stars) for (const [dr,dc] of DIRS8) {
+    const rr = s.r + dr, cc = s.c + dc;
+    if (inB(rr,cc) && st[I(rr,cc)] === 2) {
+      bad.add(K(s.r,s.c)); bad.add(K(rr,cc));
+      hit.touch = true;
+    }
+  }
+  // Touching first — it is the rule that is hardest to spot. Only ONE sentence is
+  // shown even when several rules broke: a 7-year-old gets one clear instruction,
+  // and every offending cell is ringed on the board anyway.
+  let msg = '';
+  if (hit.touch) msg = '★ cannot touch, not even diagonally.';
+  else if (hit.row) msg = 'Too many ★ in that row.';
+  else if (hit.col) msg = 'Too many ★ in that column.';
+  else if (hit.reg) msg = 'Too many ★ in that colour region.';
+  return { bad, msg };
+}
+function isSolved() {
+  const rows = new Array(n).fill(0), cols = new Array(n).fill(0), regs = {};
+  const stars = starPositions();
+  if (stars.length !== n * starsPer) return false;
+  for (const s of stars) {
+    rows[s.r]++; cols[s.c]++;
+    const g = level.regions[s.r][s.c];
+    regs[g] = (regs[g] || 0) + 1;
+  }
+  for (let k = 0; k < n; k++) { if (rows[k] !== starsPer || cols[k] !== starsPer) return false; }
+  for (let g = 0; g < regionCells.length; g++) {
+    if (!regionCells[g]) continue;
+    if ((regs[g] || 0) !== starsPer) return false;
+  }
+  for (const s of stars) for (const [dr,dc] of DIRS8) {
+    const rr = s.r + dr, cc = s.c + dc;
+    if (inB(rr,cc) && st[I(rr,cc)] === 2) return false;
+  }
+  return true;
+}
+
+function afterMutation(fromPlayer) {
+  const lc = liveConflicts();
+  const had = conflictCells.size;
+  conflictCells = lc.bad; conflictMsg = lc.msg;
+  if (fromPlayer && conflictCells.size > had) { errorFlash = performance.now(); sfx.error(); }
+  if (hint) {
+    // dismiss the hint once every suggested cell has been dealt with
+    if (hint.cells.every(cell => hintCellDone(cell))) hint = null;
+  }
+  if (isSolved()) triggerWin();
+  draw();
+}
+
+function triggerWin() {
+  view = 'won';
+  winAt = performance.now();
+  hint = null; helpOpen = false;
+  sfx.win();
+  markSolved(player, level.id);
+  spawnConfetti();
+}
+
+// ---------------------------------------------------------------- particles
+function spawnSparkles(r, c) {
+  const g = geom(); if (!g) return;
+  const p = cellCenter(g, r, c);
+  for (let k = 0; k < 12; k++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = g.cell * (0.05 + Math.random() * 0.14);
+    particles.push({ x:p.x, y:p.y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp,
+      life:1, decay:0.035 + Math.random()*0.03, size:g.cell*0.07,
+      color: Math.random() < 0.6 ? COL.gold : '#fff', grav:0 });
+  }
+}
+function spawnConfetti() {
+  const g = geom(); if (!g) return;
+  const cols = ['#ffd32a','#a29bfe','#6c5ce7','#2ecc71','#ff7675','#74b9ff','#fff'];
+  for (let k = 0; k < 130; k++) {
+    particles.push({
+      x: g.x + Math.random() * g.size,
+      y: g.y - 20 - Math.random() * 120,
+      vx: (Math.random() - 0.5) * 3.2,
+      vy: 1.5 + Math.random() * 3.2,
+      life: 1, decay: 0.006 + Math.random() * 0.006,
+      size: 3 + Math.random() * 5,
+      color: cols[(Math.random() * cols.length) | 0],
+      grav: 0.06, spin: (Math.random() - 0.5) * 0.3, rot: Math.random() * 6.28
+    });
+  }
+}
+function stepParticles() {
+  for (let k = particles.length - 1; k >= 0; k--) {
+    const p = particles[k];
+    p.x += p.vx; p.y += p.vy;
+    p.vy += p.grav || 0;
+    if (p.spin) p.rot += p.spin;
+    p.life -= p.decay;
+    if (p.life <= 0) particles.splice(k, 1);
+  }
+}
+
+// ============================================================================
+//  HINT ENGINE
+//  A pluggable priority ladder of deduction techniques. Each technique gets the
+//  board as g[r][c] = [state, regionId] with state '-' empty, 'x' player cross,
+//  'X' auto cross, '*' star, and returns
+//    { status, type, highlight:[{row,col}], striped:[{row,col}], message? }
+//  highlight = cells the reasoning is about (usually where a star goes)
+//  striped   = cells the player may now eliminate
+//  Ladder order: corrections first, cheap deductions, expensive search, then a
+//  spoiler as the floor. Rules 3..11 are pure deduction and never read the
+//  solution; 1, 2 and 14 do.
+// ============================================================================
+const HT = {
+  WRONG_STAR:'wrong_star', WRONG_CROSS:'wrong_cross',
+  SINGLE_CELL:'single_cell', REGION_FILLED:'region_filled',
+  SINGLE_LEFT_STAR_ROW:'single_left_star_row', SINGLE_LEFT_STAR_COL:'single_left_star_col',
+  SINGLE_LEFT_CROSS_ROW:'single_left_cross_row', SINGLE_LEFT_CROSS_COL:'single_left_cross_col',
+  FILL_CROSS:'fill_cross', REGION_ELIMINATION:'region_elimination',
+  EXCLUSION_ROW:'exclusion_of_parts_row', EXCLUSION_COL:'exclusion_of_parts_column',
+  SCANNING:'scanning', X_WING:'x_wing',
+  FUTURE_PREDICTION:'future_prediction', CONFLICT_DETECTION:'conflict_detection',
+  STAR_PLACEMENT:'star_placement'
+};
+// Kid-friendly copy for every technique the ladder can emit.
+const HINT_COPY = {
+  wrong_star:            { icon:'⚠️', title:'That One Can\'t Be Right', msg:'This ★ breaks the puzzle. Take it off and try somewhere else.' },
+  wrong_cross:           { icon:'⚠️', title:'Crossed Too Soon',        msg:'A ★ actually belongs in the glowing square — clear the ✕.' },
+  single_cell:           { icon:'⭐', title:'Only One Square',          msg:'This colour region is a single square, so its ★ has to go there.' },
+  region_filled:         { icon:'⭐', title:'Last Spot in the Region',  msg:'Every other square in this region is crossed out, so the ★ goes in the glowing one.' },
+  single_left_star_row:  { icon:'⭐', title:'Last Spot in the Row',     msg:'Only one square is left in this row, so that is where the ★ goes.' },
+  single_left_star_col:  { icon:'⭐', title:'Last Spot in the Column',  msg:'Only one square is left in this column, so that is where the ★ goes.' },
+  single_left_cross_row: { icon:'✕',  title:'Row Already Has Its ★',    msg:'This row already has its ★, so the last empty square can be crossed out.' },
+  single_left_cross_col: { icon:'✕',  title:'Column Already Has Its ★', msg:'This column already has its ★, so the last empty square can be crossed out.' },
+  fill_cross:            { icon:'✕',  title:'No Room Near a ★',         msg:'Nothing can share a row, column, region or side with this ★. Cross the striped squares out.' },
+  region_elimination:    { icon:'🔍', title:'Elimination',              msg:'The highlighted area needs a ⭐. Wherever it lands, the striped squares are ruled out.' },
+  exclusion_of_parts_row:{ icon:'🔍', title:'Rows Are Taken',           msg:'These regions need every one of those rows for their ★, so no other region may use them.' },
+  exclusion_of_parts_column:{ icon:'🔍', title:'Columns Are Taken',     msg:'These regions need every one of those columns for their ★, so no other region may use them.' },
+  scanning:              { icon:'🔍', title:'Scanning',                 msg:'This line\'s ★ must sit in the highlighted region, so that region cannot use its other squares.' },
+  x_wing:                { icon:'✳️', title:'X-Wing',                   msg:'Four regions lock up two rows and two columns — the striped squares cannot hold a ★.' },
+  future_prediction:     { icon:'🧠', title:'Looking Ahead',            msg:'Every striped square leads to the same dead end, so none of them can hold a ★.' },
+  conflict_detection:    { icon:'🧠', title:'Dead End',                 msg:'Putting a ★ in the striped square would make the puzzle impossible.' },
+  star_placement:        { icon:'⭐', title:'Here Is One',              msg:'The glowing square needs a ⭐.' }
+};
+const NOHINT = { status:false, highlight:[], striped:[] };
+
+function boardToGrid() {
+  const g = [];
+  for (let r = 0; r < n; r++) {
+    const row = [];
+    for (let c = 0; c < n; c++) {
+      const v = st[I(r,c)];
+      row.push([v === 0 ? '-' : v === 2 ? '*' : (tag[I(r,c)] ? 'X' : 'x'), level.regions[r][c]]);
+    }
+    g.push(row);
+  }
+  return g;
+}
+const isX = ch => ch === 'x' || ch === 'X';
+const marked = ch => isX(ch) || ch === '*';
+
+function cellsEliminatedBy(r, c, size) {
+  // Row + column + the 8 neighbours (region is NOT included here — matches the
+  // reference implementation; region logic lives inside the region rules).
+  const s = new Set();
+  for (let k = 0; k < size; k++) { s.add(r + ',' + k); s.add(k + ',' + c); }
+  s.delete(r + ',' + c);
+  for (const [dr,dc] of DIRS8) {
+    const a = r + dr, b = c + dc;
+    if (a >= 0 && a < size && b >= 0 && b < size) s.add(a + ',' + b);
+  }
+  return s;
+}
+function groupByRegion(g, size, freeOnly) {
+  const m = {};
+  for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) {
+    const reg = g[r][c][1];
+    if (!m[reg]) m[reg] = [];
+    if (!freeOnly || g[r][c][0] === '-') m[reg].push([r,c]);
+  }
+  return m;
+}
+const parseKey = s => { const [a,b] = s.split(',').map(Number); return { row:a, col:b }; };
+
+// -- 1 ------------------------------------------------------------ wrong star
+function rWrongStar(g, size, stars, sol) {
+  for (let r = 0; r < size; r++) for (let c = 0; c < size; c++)
+    if (g[r][c][0] === '*' && !sol.has(r + ',' + c))
+      return { status:true, type:HT.WRONG_STAR, highlight:[{row:r,col:c}], striped:[] };
+  return NOHINT;
+}
+// -- 2 ----------------------------------------------------------- wrong cross
+function rWrongCross(g, size, stars, sol) {
+  for (let r = 0; r < size; r++) for (let c = 0; c < size; c++)
+    if (isX(g[r][c][0]) && sol.has(r + ',' + c))
+      return { status:true, type:HT.WRONG_CROSS, highlight:[{row:r,col:c}], striped:[] };
+  return NOHINT;
+}
+// -- 3 ----------------------------------------------------------- single cell
+function rSingleCell(g, size) {
+  const all = groupByRegion(g, size, false);
+  for (const key of Object.keys(all)) {
+    const cells = all[key];
+    if (cells.length === 1 && g[cells[0][0]][cells[0][1]][0] === '-')
+      return { status:true, type:HT.SINGLE_CELL,
+        highlight:[{row:cells[0][0], col:cells[0][1]}], striped:[] };
+  }
+  return NOHINT;
+}
+// -- 4 --------------------------------------------------------- region filled
+function rRegionFilled(g, size) {
+  const all = groupByRegion(g, size, false);
+  let best = null;
+  for (const key of Object.keys(all)) {
+    const cells = all[key];
+    const empties = cells.filter(([r,c]) => g[r][c][0] === '-');
+    const hasStar = cells.some(([r,c]) => g[r][c][0] === '*');
+    const onlyXorEmpty = cells.every(([r,c]) => isX(g[r][c][0]) || g[r][c][0] === '-');
+    if (empties.length === 1 && !hasStar && onlyXorEmpty) {
+      if (!best || cells.length < best.cells.length) best = { cells, cell:empties[0] };
+    }
+  }
+  if (best) return { status:true, type:HT.REGION_FILLED,
+    highlight:[{row:best.cell[0], col:best.cell[1]}], striped:[] };
+  return NOHINT;
+}
+// -- 5 ---------------------------------------------- single cell left in line
+function rSingleLeft(g, size, stars) {
+  for (let r = 0; r < size; r++) {
+    let cnt = 0, hasStar = false, last = null;
+    for (let c = 0; c < size; c++) {
+      const ch = g[r][c][0];
+      if (isX(ch)) cnt++;
+      else if (ch === '*') { cnt++; hasStar = true; }
+      else last = { row:r, col:c };
+    }
+    if (cnt === size - stars && last) return { status:true,
+      type: hasStar ? HT.SINGLE_LEFT_CROSS_ROW : HT.SINGLE_LEFT_STAR_ROW,
+      highlight:[last], striped:[] };
+  }
+  for (let c = 0; c < size; c++) {
+    let cnt = 0, hasStar = false, last = null;
+    for (let r = 0; r < size; r++) {
+      const ch = g[r][c][0];
+      if (isX(ch)) cnt++;
+      else if (ch === '*') { cnt++; hasStar = true; }
+      else last = { row:r, col:c };
+    }
+    if (cnt === size - stars && last) return { status:true,
+      type: hasStar ? HT.SINGLE_LEFT_CROSS_COL : HT.SINGLE_LEFT_STAR_COL,
+      highlight:[last], striped:[] };
+  }
+  return NOHINT;
+}
+// -- 6 ------------------------------------------------------------ fill cross
+function rFillCross(g, size) {
+  const all = groupByRegion(g, size, false);
+  for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) {
+    if (g[r][c][0] !== '*') continue;
+    const striped = []; const seen = new Set();
+    const push = (rr, cc) => {
+      const k = rr + ',' + cc;
+      if (seen.has(k) || g[rr][cc][0] !== '-') return;
+      seen.add(k); striped.push({ row:rr, col:cc });
+    };
+    for (const [rr,cc] of all[g[r][c][1]]) push(rr, cc);
+    for (const k of cellsEliminatedBy(r, c, size)) { const p = parseKey(k); push(p.row, p.col); }
+    if (striped.length) return { status:true, type:HT.FILL_CROSS,
+      highlight:[{row:r, col:c}], striped };
+  }
+  return NOHINT;
+}
+// -- 7 ------------------------------------------------------ region eliminate
+function rRegionElimination(g, size) {
+  const all = groupByRegion(g, size, false);
+  const cands = [];
+  for (const key of Object.keys(all)) {
+    const cells = all[key];
+    if (cells.some(([r,c]) => g[r][c][0] === '*')) continue;   // region already solved
+    const free = cells.filter(([r,c]) => g[r][c][0] === '-');
+    if (free.length < 2) continue;
+    cands.push({ reg:Number(key), free });
+  }
+  cands.sort((a,b) => a.free.length - b.free.length);
+  for (const cand of cands) {
+    let inter = null;
+    for (const [r,c] of cand.free) {
+      const set = cellsEliminatedBy(r, c, size);
+      inter = inter === null ? set : new Set([...inter].filter(k => set.has(k)));
+      if (!inter.size) break;
+    }
+    if (!inter || !inter.size) continue;
+    const striped = [...inter].map(parseKey).filter(p => g[p.row][p.col][0] === '-');
+    if (striped.length) return { status:true, type:HT.REGION_ELIMINATION,
+      highlight: cand.free.map(([r,c]) => ({row:r, col:c})), striped };
+  }
+  return NOHINT;
+}
+// -- 8/9 -------------------------------------------------- exclusion of parts
+function linesByRegion(g, size, byRow) {
+  const m = new Map();
+  for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) {
+    const [ch, reg] = g[r][c];
+    if (marked(ch)) continue;
+    if (!m.has(reg)) m.set(reg, new Set());
+    m.get(reg).add(byRow ? r : c);
+  }
+  const out = [];
+  for (const [reg, set] of m.entries()) if (set.size >= 1) out.push({ reg, lines:[...set] });
+  return out;
+}
+function subsetGroups(list) {
+  const out = [];
+  for (let i = 0; i < list.length; i++) {
+    const mine = list[i].lines;
+    const acc = new Set();
+    for (let j = 0; j < list.length; j++) {
+      if (i === j) continue;
+      if (list[j].lines.every(v => mine.includes(v))) acc.add(list[j].reg);
+    }
+    if (acc.size === mine.length - 1 && acc.size > 0)
+      out.push({ reg:list[i].reg, lines:mine, accommodates:[...acc] });
+  }
+  out.sort((a,b) => a.accommodates.length - b.accommodates.length);
+  return out;
+}
+function exclusionApply(g, groups, size, byRow, type) {
+  for (const grp of groups) {
+    const allowed = [grp.reg, ...grp.accommodates];
+    const highlight = [], striped = [];
+    for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) {
+      const line = byRow ? r : c;
+      if (!grp.lines.includes(line)) continue;
+      if (g[r][c][0] !== '-') continue;
+      if (allowed.includes(g[r][c][1])) highlight.push({row:r, col:c});
+      else striped.push({row:r, col:c});
+    }
+    if (striped.length) return { status:true, type, highlight, striped };
+  }
+  return NOHINT;
+}
+function rExclusionRow(g, size) {
+  return exclusionApply(g, subsetGroups(linesByRegion(g, size, true)), size, true, HT.EXCLUSION_ROW);
+}
+function rExclusionCol(g, size) {
+  return exclusionApply(g, subsetGroups(linesByRegion(g, size, false)), size, false, HT.EXCLUSION_COL);
+}
+// -- 10 -------------------------------------------------------------- scanning
+function rScanning(g, size) {
+  const scan = (byRow) => {
+    for (let line = 0; line < size; line++) {
+      const regs = new Set();
+      for (let k = 0; k < size; k++) {
+        const r = byRow ? line : k, c = byRow ? k : line;
+        if (g[r][c][0] === '-') regs.add(g[r][c][1]);
+      }
+      if (regs.size !== 1) continue;
+      const reg = [...regs][0];
+      const highlight = [], striped = [];
+      for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) {
+        if (g[r][c][1] !== reg || g[r][c][0] !== '-') continue;
+        const on = byRow ? (r === line) : (c === line);
+        (on ? highlight : striped).push({row:r, col:c});
+      }
+      if (highlight.length && striped.length)
+        return { status:true, type:HT.SCANNING, highlight, striped };
+    }
+    return NOHINT;
+  };
+  const a = scan(false); if (a.status) return a;   // columns first, like the original
+  return scan(true);
+}
+// -- 11 ---------------------------------------------------------------- x-wing
+function rXWing(g, size) {
+  // Keep only regions whose free cells form a single row/column "cross" shape,
+  // giving the region one centre [row, col].
+  const free = groupByRegion(g, size, true);
+  const cand = {};
+  for (const key of Object.keys(free)) {
+    const cells = free[key];
+    if (cells.length < 2) continue;
+    const rows = new Set(cells.map(p => p[0])), cols = new Set(cells.map(p => p[1]));
+    if (rows.size <= 1 || cols.size <= 1) continue;
+    const strongRow = [...rows].find(r => cells.filter(p => p[0] === r).length > 1);
+    const strongCol = [...cols].find(c => cells.filter(p => p[1] === c).length > 1);
+    if (strongRow === undefined || strongCol === undefined) continue;
+    if (!cells.every(([r,c]) => r === strongRow || c === strongCol)) continue;
+    cand[key] = { cells, centre:[strongRow, strongCol] };
+  }
+  const keys = Object.keys(cand);
+  if (keys.length < 4) return NOHINT;
+  // Find four regions whose centres span exactly 2 rows x 2 cols, all corners filled.
+  let quad = null;
+  for (let a = 0; a < keys.length - 3 && !quad; a++)
+  for (let b = a+1; b < keys.length - 2 && !quad; b++)
+  for (let c = b+1; c < keys.length - 1 && !quad; c++)
+  for (let d = c+1; d < keys.length && !quad; d++) {
+    const pick = [keys[a], keys[b], keys[c], keys[d]];
+    const centres = pick.map(k => cand[k].centre);
+    const rs = [...new Set(centres.map(p => p[0]))].sort((x,y)=>x-y);
+    const cs = [...new Set(centres.map(p => p[1]))].sort((x,y)=>x-y);
+    if (rs.length !== 2 || cs.length !== 2) continue;
+    const corners = [[rs[0],cs[0]],[rs[0],cs[1]],[rs[1],cs[0]],[rs[1],cs[1]]];
+    if (!corners.every(([r,c]) => centres.some(p => p[0] === r && p[1] === c))) continue;
+    quad = pick;
+  }
+  if (!quad) return NOHINT;
+  const occupied = new Set();
+  const strongRows = new Set(), strongCols = new Set();
+  for (const k of quad) {
+    const cells = cand[k].cells;
+    const rc = {}, cc = {};
+    for (const [r,c] of cells) { occupied.add(r+','+c); rc[r] = (rc[r]||0)+1; cc[c] = (cc[c]||0)+1; }
+    for (const r of Object.keys(rc)) if (rc[r] > 1) strongRows.add(Number(r));
+    for (const c of Object.keys(cc)) if (cc[c] > 1) strongCols.add(Number(c));
+  }
+  const elim = [];
+  for (const r of strongRows) for (let c = 0; c < size; c++) if (!occupied.has(r+','+c)) elim.push([r,c]);
+  for (const c of strongCols) for (let r = 0; r < size; r++) if (!occupied.has(r+','+c)) elim.push([r,c]);
+  for (const k of quad) elim.push(cand[k].centre);
+  const seen = new Set(); const striped = [];
+  for (const [r,c] of elim) {
+    const key = r+','+c;
+    if (seen.has(key) || g[r][c][0] !== '-') continue;
+    seen.add(key); striped.push({row:r, col:c});
+  }
+  if (!striped.length) return NOHINT;
+  const highlight = [];
+  for (const k of quad) for (const [r,c] of cand[k].cells)
+    if (!seen.has(r+','+c)) highlight.push({row:r, col:c});
+  return { status:true, type:HT.X_WING, highlight, striped };
+}
+// -- 12/13 ----------------------------------------------- shallow lookahead
+// Hypothetically star each empty cell in a starless region, auto-cross, then run
+// the cheap deduction ladder a handful of times looking for a contradiction.
+function cloneGrid(g) { return g.map(row => row.map(cell => cell.slice())); }
+function autoCrossTrial(g, size, r, c) {
+  const reg = g[r][c][1];
+  for (let k = 0; k < size; k++) {
+    if (k !== c && g[r][k][0] === '-') g[r][k][0] = 'x';
+    if (k !== r && g[k][c][0] === '-') g[k][c][0] = 'x';
+  }
+  for (let rr = 0; rr < size; rr++) for (let cc = 0; cc < size; cc++)
+    if (g[rr][cc][1] === reg && !(rr === r && cc === c) && g[rr][cc][0] === '-') g[rr][cc][0] = 'x';
+  for (const [dr,dc] of DIRS8) {
+    const a = r + dr, b = c + dc;
+    if (a >= 0 && a < size && b >= 0 && b < size && g[a][b][0] === '-') g[a][b][0] = 'x';
+  }
+}
+const STAR_TYPES = [HT.SINGLE_CELL, HT.REGION_FILLED, HT.SINGLE_LEFT_STAR_ROW, HT.SINGLE_LEFT_STAR_COL];
+const CROSS_HL_TYPES = [HT.SINGLE_LEFT_CROSS_ROW, HT.SINGLE_LEFT_CROSS_COL];
+function applyHintToTrial(g, size, h) {
+  let changed = false;
+  if (h.highlight && h.highlight.length && STAR_TYPES.includes(h.type)) {
+    for (const p of h.highlight) if (g[p.row][p.col][0] === '-') {
+      g[p.row][p.col][0] = '*'; autoCrossTrial(g, size, p.row, p.col); changed = true;
+    }
+  }
+  if (h.striped) for (const p of h.striped) if (g[p.row][p.col][0] === '-') { g[p.row][p.col][0] = 'x'; changed = true; }
+  if (h.highlight && h.highlight.length && CROSS_HL_TYPES.includes(h.type)) {
+    for (const p of h.highlight) if (g[p.row][p.col][0] === '-') { g[p.row][p.col][0] = 'x'; changed = true; }
+  }
+  return changed;
+}
+function deduceOnly(g, size, stars) {
+  const chain = [rSingleCell, rRegionFilled, (a,b) => rSingleLeft(a,b,stars),
+    rFillCross, rRegionElimination, rExclusionRow, rExclusionCol, rScanning];
+  for (const fn of chain) { const h = fn(g, size); if (h && h.status) return h; }
+  return NOHINT;
+}
+function trialConflicts(g, size, stars) {
+  const bad = [];
+  const rows = new Array(size).fill(0), cols = new Array(size).fill(0), regs = {};
+  const stArr = [];
+  for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) if (g[r][c][0] === '*') {
+    stArr.push([r,c]); rows[r]++; cols[c]++;
+    regs[g[r][c][1]] = (regs[g[r][c][1]] || 0) + 1;
+  }
+  for (const [r,c] of stArr) {
+    if (rows[r] > stars || cols[c] > stars || regs[g[r][c][1]] > stars) bad.push({row:r, col:c});
+    for (const [dr,dc] of DIRS8) {
+      const a = r+dr, b = c+dc;
+      if (a>=0&&a<size&&b>=0&&b<size&&g[a][b][0]==='*') { bad.push({row:r,col:c}); bad.push({row:a,col:b}); }
+    }
+  }
+  return bad;
+}
+function deadRegion(g, size) {
+  const all = groupByRegion(g, size, false);
+  for (const key of Object.keys(all)) {
+    const cells = all[key];
+    if (!cells.length) continue;
+    if (cells.some(([r,c]) => g[r][c][0] === '*')) continue;
+    if (cells.every(([r,c]) => isX(g[r][c][0]))) return cells.map(([r,c]) => ({row:r, col:c}));
+  }
+  return null;
+}
+function regionHasStar(g, size, r, c) {
+  const reg = g[r][c][1];
+  for (let rr = 0; rr < size; rr++) for (let cc = 0; cc < size; cc++)
+    if (g[rr][cc][1] === reg && g[rr][cc][0] === '*') return true;
+  return false;
+}
+function lookahead(g, size, stars, wide) {
+  const deadline = performance.now() + 240;   // hard time budget; hints must feel instant
+  const groups = new Map(); const lone = [];
+  for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) {
+    if (performance.now() > deadline) break;
+    if (g[r][c][0] !== '-' || regionHasStar(g, size, r, c)) continue;
+    const t = cloneGrid(g);
+    t[r][c][0] = '*'; autoCrossTrial(t, size, r, c);
+    let bad = null, iter = 0;
+    while (iter++ < 10) {
+      const h = deduceOnly(t, size, stars);
+      if (!h.status || !applyHintToTrial(t, size, h)) break;
+      const conf = trialConflicts(t, size, stars);
+      if (conf.length) { bad = conf; break; }
+      const dead = deadRegion(t, size);
+      if (dead) { bad = dead; break; }
+    }
+    if (!bad) continue;
+    const norm = []; const seen = new Set();
+    for (const p of bad.slice().sort((a,b) => a.row - b.row || a.col - b.col)) {
+      const k = p.row + ',' + p.col;
+      if (!seen.has(k)) { seen.add(k); norm.push(p); }
+    }
+    if (!norm.length) { lone.push({row:r, col:c}); continue; }
+    const sig = norm.map(p => p.row + ',' + p.col).join('|');
+    if (!groups.has(sig)) groups.set(sig, { striped:[], region:norm });
+    groups.get(sig).striped.push({row:r, col:c});
+  }
+  let best = null;
+  for (const v of groups.values()) if (!best || v.striped.length > best.striped.length) best = v;
+  if (best) {
+    const hl = best.region.filter(p => g[p.row][p.col][0] === '-');
+    return { status:true, type: wide ? HT.FUTURE_PREDICTION : HT.CONFLICT_DETECTION,
+      striped: wide ? best.striped : [best.striped[0]], highlight: hl };
+  }
+  if (lone.length) return { status:true,
+    type: wide ? HT.FUTURE_PREDICTION : HT.CONFLICT_DETECTION,
+    striped:[lone[0]], highlight:[] };
+  return NOHINT;
+}
+// -- 14 ------------------------------------------------------ spoiler (floor)
+function rStarPlacement(g, size, stars, sol) {
+  for (const key of sol) {
+    const p = parseKey(key);
+    if (g[p.row][p.col][0] === '-')
+      return { status:true, type:HT.STAR_PLACEMENT, highlight:[p], striped:[] };
+  }
+  return NOHINT;
+}
+
+// The ladder. Order matters: correction, cheap deduction, search, spoiler.
+const LADDER = [
+  (g,s,k,sol) => rWrongStar(g,s,k,sol),
+  (g,s,k,sol) => rWrongCross(g,s,k,sol),
+  (g,s)       => rSingleCell(g,s),
+  (g,s)       => rRegionFilled(g,s),
+  (g,s,k)     => rSingleLeft(g,s,k),
+  (g,s)       => rFillCross(g,s),
+  (g,s)       => rRegionElimination(g,s),
+  (g,s)       => rExclusionRow(g,s),
+  (g,s)       => rExclusionCol(g,s),
+  (g,s)       => rScanning(g,s),
+  (g,s)       => rXWing(g,s),
+  (g,s,k)     => lookahead(g,s,k,true),
+  (g,s,k)     => lookahead(g,s,k,false),
+  (g,s,k,sol) => rStarPlacement(g,s,k,sol)
+];
+
+// Safety net: a hint must never contradict the known solution.
+function sanitizeHint(h, sol) {
+  if (!h || !h.status) return null;
+  const hl = (h.highlight || []).slice();
+  let striped = (h.striped || []).slice();
+  const action = hintAction(h.type);
+  if (action === 'star') {
+    if (!hl.length) return null;
+    if (!hl.every(p => sol.has(p.row + ',' + p.col))) return null;
+    return { type:h.type, highlight:hl, striped:[], action, cells:hl };
+  }
+  if (action === 'clear') {
+    if (!hl.length) return null;
+    return { type:h.type, highlight:hl, striped:[], action, cells:hl };
+  }
+  // cross-style hints: never suggest crossing a solution star
+  if (h.type === HT.SINGLE_LEFT_CROSS_ROW || h.type === HT.SINGLE_LEFT_CROSS_COL) {
+    const cells = hl.filter(p => !sol.has(p.row + ',' + p.col));
+    if (cells.length !== hl.length || !cells.length) return null;
+    return { type:h.type, highlight:hl, striped:[], action:'cross', cells };
+  }
+  striped = striped.filter(p => !sol.has(p.row + ',' + p.col));
+  if (!striped.length) return null;
+  return { type:h.type, highlight:hl, striped, action:'cross', cells:striped };
+}
+function hintAction(type) {
+  if (STAR_TYPES.includes(type) || type === HT.STAR_PLACEMENT) return 'star';
+  if (type === HT.WRONG_STAR || type === HT.WRONG_CROSS) return 'clear';
+  return 'cross';
+}
+function computeHint() {
+  const g = boardToGrid();
+  for (const rule of LADDER) {
+    let raw = null;
+    try { raw = rule(g, n, starsPer, solSet); }
+    catch (e) { console.warn('hint rule failed', e); continue; }
+    const clean = sanitizeHint(raw, solSet);
+    if (clean) {
+      const copy = HINT_COPY[clean.type] || { icon:'💡', title:'Hint', msg:'Look at the glowing squares.' };
+      return Object.assign(clean, copy, { t0: performance.now() });
+    }
+  }
+  return null;
+}
+function hintCellDone(cell) {
+  const i = I(cell.row, cell.col);
+  if (!hint) return true;
+  if (hint.action === 'star') return st[i] === 2;
+  if (hint.action === 'cross') return st[i] === 1;
+  return st[i] === 0;                                     // 'clear'
+}
+function requestHint() {
+  const now = performance.now();
+  if (hint) { hint = null; draw(); return; }
+  if (now < hintCooldownUntil) { sfx.nope(); showToast('Hint is recharging…'); return; }
+  const h = computeHint();
+  hintCooldownUntil = now + HINT_COOLDOWN;
+  hintsUsed++;
+  if (!h) { sfx.nope(); showToast('No hint found — the board looks done!'); draw(); return; }
+  hint = h; sfx.hint(); draw();
+}
+function applyHint() {
+  if (!hint) return;
+  pushUndo();
+  let did = false;
+  for (const cell of hint.cells) {
+    if (hint.action === 'star') { if (st[I(cell.row,cell.col)] !== 2) { placeStar(cell.row, cell.col, !did); did = true; } }
+    else if (hint.action === 'cross') { if (setCross(cell.row, cell.col)) { if (!did) sfx.cross(); did = true; } }
+    else { if (setEmpty(cell.row, cell.col)) { if (!did) sfx.erase(); did = true; } }
+  }
+  if (!did) undoStack.pop();
+  hint = null;
+  afterMutation(false);
+}
+function applyHintCell(r, c) {
+  if (!hint) return false;
+  const target = hint.cells.find(p => p.row === r && p.col === c);
+  if (!target) return false;
+  pushUndo();
+  let did = false;
+  if (hint.action === 'star') { if (st[I(r,c)] !== 2) { placeStar(r, c, true); did = true; } }
+  else if (hint.action === 'cross') { if (setCross(r, c)) { sfx.cross(); did = true; } }
+  else { if (setEmpty(r, c)) { sfx.erase(); did = true; } }
+  if (!did) undoStack.pop();
+  afterMutation(false);
+  return true;
+}
+
+// ---------------------------------------------------------------- toast
+function showToast(msg) { toast = { msg, t0: performance.now() }; draw(); }
+
+// ================================================================= geometry
+let hitboxes = { menu:[], groups:[], levels:[], hud:[], bar:[], modal:[], win:[] };
+
+// Landscape phones are wide and short. A top HUD plus a bottom button bar leaves
+// a square board only ~20px cells there while 60% of the width sits empty, so in
+// that shape the chrome moves into side columns and the board takes the full
+// height. Everything downstream just reads geom()/boardSquare().
+function isLandscape() { return W > H * 1.25 && H < 620; }
+function landCols() {
+  return {
+    left:  Math.max(126, Math.min(180, W * 0.20)),   // HUD / hint column
+    right: Math.max(84,  Math.min(104, W * 0.13))    // button column
+  };
+}
+// The portrait HUD pill is top-centre, but on narrow screens it would collide
+// with the fixed back button, so it drops to a second row (board starts lower).
+// "Easy A 37" reads better than the global id 138 now that levels are grouped.
+function levelTitle() {
+  const grp = GROUPS[level._gi];
+  if (!grp) return 'Level ' + (levelIdx + 1);
+  if (grp.idx.length === 1) return grp.label;
+  return grp.label + ' ' + level._ni;
+}
+function hudLayout() {
+  const label = levelTitle() + '  ·  ' + level.size + '×' + level.size;
+  if (isLandscape()) {
+    const { left } = landCols();
+    return { land:true, label, px:12, py:56, pw: Math.max(118, left - 24), ph:92, twoRow:false };
+  }
+  ctx.font = 'bold 17px "Segoe UI",system-ui,sans-serif';
+  const pw = Math.max(210, Math.ceil(ctx.measureText(label).width) + 34);
+  const px = Math.round((W - pw) / 2);
+  const twoRow = px < 116 || px + pw > W - 66;
+  return { land:false, label, pw, px, py: twoRow ? 58 : 12, ph: 50, twoRow };
+}
+const BAR_BTN_H = 58;                              // bottom/side button bar
+function barTopY() { return H - BAR_BTN_H - 18; }
+function boardTop() { return isLandscape() ? 10 : (hudLayout().twoRow ? 116 : 74); }
+
+// Largest square that fits, sized against BOTH axes and against whatever the
+// open hint card has reserved (so a hint can never sit on top of the board).
+function boardSquare() {
+  const m = hintCardMetrics();
+  if (isLandscape()) {
+    const { left, right } = landCols();
+    let x0 = left, x1 = W - right;
+    if (m) x0 = Math.max(x0, m.cx + m.shownW + 16);   // card owns the left column
+    const availW = Math.max(80, x1 - x0 - 8);
+    const availH = H - 20;
+    const cell = Math.floor(Math.max(80, Math.min(availW, availH, 560)) / n);
+    return { land:true, top:10, x0, x1, availW, availH, cell, s: cell * n };
+  }
+  const top = boardTop();
+  let availH = barTopY() - 12 - top;
+  if (m) availH -= m.reserve + 10;
+  availH = Math.max(80, availH);
+  const availW = W - 24;
+  const cell = Math.floor(Math.max(80, Math.min(availW, availH, 560)) / n);
+  return { land:false, top, availH, availW, cell, s: cell * n };
+}
+function geom() {
+  if (!level) return null;
+  const b = boardSquare();
+  if (b.land) {
+    const x = b.x0 + Math.max(0, (b.x1 - b.x0 - 8 - b.s) / 2);
+    const y = b.top + Math.max(0, (b.availH - b.s) / 2);
+    return { x: Math.floor(x), y: Math.floor(y), size: b.s, cell: b.cell, land:true, top:b.top };
+  }
+  // bias the board a little upward so the conflict line has room underneath
+  const x = (W - b.s) / 2;
+  const y = b.top + Math.max(0, (b.availH - b.s) * 0.4);
+  return { x: Math.floor(x), y: Math.floor(y), size: b.s, cell: b.cell, land:false, top:b.top };
+}
+function cellCenter(g, r, c) { return { x: g.x + c*g.cell + g.cell/2, y: g.y + r*g.cell + g.cell/2 }; }
+function cellFromXY(g, px, py) {
+  const c = Math.floor((px - g.x) / g.cell), r = Math.floor((py - g.y) / g.cell);
+  if (r < 0 || r >= n || c < 0 || c >= n) return null;
+  return { r, c };
+}
+
+// ================================================================== drawing
+function roundRect(x, y, w, h, r) {
+  const rr = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+rr, y);
+  ctx.lineTo(x+w-rr, y); ctx.quadraticCurveTo(x+w, y, x+w, y+rr);
+  ctx.lineTo(x+w, y+h-rr); ctx.quadraticCurveTo(x+w, y+h, x+w-rr, y+h);
+  ctx.lineTo(x+rr, y+h); ctx.quadraticCurveTo(x, y+h, x, y+h-rr);
+  ctx.lineTo(x, y+rr); ctx.quadraticCurveTo(x, y, x+rr, y);
+  ctx.closePath();
+}
+function drawBackground() {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, COL.bg0); g.addColorStop(0.55, COL.bg1); g.addColorStop(1, COL.bg2);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  // faint starfield
+  ctx.save();
+  for (let i = 0; i < 60; i++) {
+    const x = ((i * 977) % 1000) / 1000 * W;
+    const y = ((i * 613) % 1000) / 1000 * H;
+    const a = 0.05 + 0.12 * ((i * 37) % 10) / 10;
+    ctx.fillStyle = 'rgba(255,255,255,' + a + ')';
+    ctx.fillRect(x, y, 1.6, 1.6);
+  }
+  ctx.restore();
+}
+function starPath(x, y, outer, inner, rot) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const rad = i % 2 === 0 ? outer : inner;
+    const a = -Math.PI/2 + rot + i * Math.PI/5;
+    const px = x + Math.cos(a) * rad, py = y + Math.sin(a) * rad;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+}
+function drawStarGlyph(x, y, size, scale, glow) {
+  ctx.save();
+  ctx.translate(x, y); ctx.scale(scale, scale);
+  if (glow > 0) {
+    ctx.shadowColor = COL.gold; ctx.shadowBlur = 18 * glow;
+  }
+  const grd = ctx.createLinearGradient(0, -size, 0, size);
+  grd.addColorStop(0, '#fff6c2'); grd.addColorStop(0.45, COL.gold); grd.addColorStop(1, '#f39c12');
+  ctx.fillStyle = grd;
+  starPath(0, 0, size, size * 0.44, 0);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.lineWidth = Math.max(1, size * 0.09);
+  ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+  ctx.stroke();
+  ctx.restore();
+}
+// EVERY cross drawn anywhere comes through here and uses CROSS_COLOR — one constant,
+// one code path, so two crosses can never disagree about their colour. The
+// auto/player distinction stays internal (undo revert + hint ladder) and is
+// deliberately NOT surfaced as a colour: identical-looking situations were
+// rendering in two different colours purely because of who marked them first.
+const CROSS_COLOR = 'rgba(206,210,248,0.80)';
+function drawCrossGlyph(x, y, size, scale) {
+  ctx.save();
+  ctx.translate(x, y); ctx.scale(scale, scale);
+  ctx.lineWidth = Math.max(1.5, size * 0.26);
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = CROSS_COLOR;
+  ctx.beginPath();
+  ctx.moveTo(-size, -size); ctx.lineTo(size, size);
+  ctx.moveTo(size, -size); ctx.lineTo(-size, size);
+  ctx.stroke();
+  ctx.restore();
+}
+function animScale(a, now) {
+  if (!a) return { scale:1, glow:0, alpha:1 };
+  const t = now - a.t0 - (a.delay || 0);
+  const dur = a.kind === 'star' ? 250 : 150;
+  if (t < 0) return { scale:0, glow:0, alpha:0 };
+  if (t >= dur) return { scale:1, glow:0, alpha:1 };
+  const p = t / dur;
+  if (a.kind === 'star') {
+    // scale bounce with a bit of overshoot + fading glow
+    const s = p < 0.6 ? (p / 0.6) * 1.25 : 1.25 - ((p - 0.6) / 0.4) * 0.25;
+    return { scale:s, glow: 1 - p, alpha: Math.min(1, p * 3) };
+  }
+  const s = 0.2 + 0.8 * (1 - Math.pow(1 - p, 3));
+  return { scale:s, glow:0, alpha: Math.min(1, p * 2.5) };
+}
+
+function drawBoard(g, now) {
+  const dimForHint = !!hint;
+  const lit = new Set();
+  if (hint) {
+    for (const p of hint.highlight) lit.add(K(p.row, p.col));
+    for (const p of hint.striped) lit.add(K(p.row, p.col));
+  }
+  const hlSet = new Set(hint ? hint.highlight.map(p => K(p.row, p.col)) : []);
+  const stripeSet = new Set(hint ? hint.striped.map(p => K(p.row, p.col)) : []);
+
+  // board plate
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 22; ctx.shadowOffsetY = 8;
+  ctx.fillStyle = 'rgba(10,10,46,0.85)';
+  roundRect(g.x - 7, g.y - 7, g.size + 14, g.size + 14, 14); ctx.fill();
+  ctx.restore();
+
+  // region fills
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+    const reg = level.regions[r][c];
+    ctx.fillStyle = REGION_COLORS[reg % REGION_COLORS.length];
+    ctx.fillRect(g.x + c*g.cell, g.y + r*g.cell, g.cell, g.cell);
+  }
+  // internal thin grid
+  ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = 1;
+  for (let k = 1; k < n; k++) {
+    ctx.beginPath(); ctx.moveTo(g.x + k*g.cell, g.y); ctx.lineTo(g.x + k*g.cell, g.y + g.size); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(g.x, g.y + k*g.cell); ctx.lineTo(g.x + g.size, g.y + k*g.cell); ctx.stroke();
+  }
+
+  // hint highlight / stripes go under the glyphs
+  if (hint) {
+    for (const p of hint.highlight) {
+      const x = g.x + p.col*g.cell, y = g.y + p.row*g.cell;
+      ctx.fillStyle = 'rgba(255,211,42,0.22)';
+      ctx.fillRect(x, y, g.cell, g.cell);
+    }
+    ctx.save();
+    for (const p of hint.striped) {
+      const x = g.x + p.col*g.cell, y = g.y + p.row*g.cell;
+      ctx.beginPath(); ctx.rect(x, y, g.cell, g.cell); ctx.clip();
+      ctx.strokeStyle = 'rgba(255,255,255,0.42)'; ctx.lineWidth = 2;
+      for (let k = -g.cell; k < g.cell * 2; k += 7) {
+        ctx.beginPath(); ctx.moveTo(x + k, y); ctx.lineTo(x + k + g.cell, y + g.cell); ctx.stroke();
+      }
+      ctx.restore(); ctx.save();
+    }
+    ctx.restore();
+  }
+
+  // glyphs
+  const gs = g.cell * 0.30;
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+    const i = I(r,c);
+    if (st[i] === 0) continue;
+    const p = cellCenter(g, r, c);
+    const a = animScale(anim[i], now);
+    if (a.alpha <= 0) continue;
+    ctx.save();
+    ctx.globalAlpha = a.alpha;
+    if (st[i] === 2) drawStarGlyph(p.x, p.y, gs * 1.15, a.scale, a.glow || (winAt ? 0.6 : 0));
+    else drawCrossGlyph(p.x, p.y, gs * 0.52, a.scale);      // small, unobtrusive ✕
+    ctx.restore();
+  }
+
+  // region borders (thick) + outer edge
+  ctx.save();
+  ctx.strokeStyle = '#e9e6ff';
+  ctx.lineWidth = Math.max(2.5, g.cell * 0.075);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+    const reg = level.regions[r][c];
+    const x = g.x + c*g.cell, y = g.y + r*g.cell;
+    if (r === 0 || level.regions[r-1][c] !== reg) { ctx.moveTo(x, y); ctx.lineTo(x + g.cell, y); }
+    if (c === 0 || level.regions[r][c-1] !== reg) { ctx.moveTo(x, y); ctx.lineTo(x, y + g.cell); }
+    if (r === n-1) { ctx.moveTo(x, y + g.cell); ctx.lineTo(x + g.cell, y + g.cell); }
+    if (c === n-1) { ctx.moveTo(x + g.cell, y); ctx.lineTo(x + g.cell, y + g.cell); }
+  }
+  ctx.stroke();
+  ctx.restore();
+
+  // conflict rings — AFTER the bright region borders so a small cell cannot
+  // overdraw them; a red wash plus a glowing ring keeps them obvious.
+  if (conflictCells.size) {
+    const pulse = 0.6 + 0.35 * Math.sin(now * 0.008);
+    ctx.save();
+    for (const key of conflictCells) {
+      const [r,c] = key.split(',').map(Number);
+      ctx.fillStyle = 'rgba(231,76,60,' + (0.26 * pulse).toFixed(3) + ')';
+      ctx.fillRect(g.x + c*g.cell, g.y + r*g.cell, g.cell, g.cell);
+    }
+    const lw = Math.max(3.5, g.cell * 0.12);
+    ctx.lineWidth = lw;
+    ctx.shadowColor = 'rgba(231,76,60,0.95)'; ctx.shadowBlur = 12;
+    ctx.strokeStyle = 'rgba(255,96,80,' + pulse.toFixed(3) + ')';
+    for (const key of conflictCells) {
+      const [r,c] = key.split(',').map(Number);
+      roundRect(g.x + c*g.cell + lw/2, g.y + r*g.cell + lw/2, g.cell - lw, g.cell - lw, 5);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // dim non-hint cells
+  if (dimForHint) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(10,10,46,0.68)';
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+      if (lit.has(K(r,c))) continue;
+      ctx.fillRect(g.x + c*g.cell, g.y + r*g.cell, g.cell, g.cell);
+    }
+    // pulsing outline on the actionable cells
+    const pulse = 0.5 + 0.4 * Math.sin(now * 0.006);
+    ctx.lineWidth = Math.max(2.5, g.cell * 0.08);
+    for (const key of lit) {
+      const [r,c] = key.split(',').map(Number);
+      ctx.strokeStyle = hlSet.has(key) ? 'rgba(255,211,42,' + pulse.toFixed(3) + ')'
+                                       : 'rgba(162,155,254,' + pulse.toFixed(3) + ')';
+      roundRect(g.x + c*g.cell + 2, g.y + r*g.cell + 2, g.cell - 4, g.cell - 4, 5);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // win glow
+  if (winAt) {
+    const t = Math.min(1, (now - winAt) / 900);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,211,42,' + (0.35 + 0.45 * Math.sin(now * 0.004)).toFixed(3) + ')';
+    ctx.lineWidth = 5 + 4 * t;
+    ctx.shadowColor = COL.gold; ctx.shadowBlur = 30;
+    roundRect(g.x - 8, g.y - 8, g.size + 16, g.size + 16, 16);
+    ctx.stroke();
+    ctx.restore();
+  }
+  // error flash
+  if (errorFlash && now - errorFlash < 700) {
+    const t = (now - errorFlash) / 700;
+    ctx.strokeStyle = 'rgba(231,76,60,' + ((1 - t) * 0.8).toFixed(3) + ')';
+    ctx.lineWidth = 5;
+    roundRect(g.x - 10, g.y - 10, g.size + 20, g.size + 20, 16);
+    ctx.stroke();
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, p.life));
+    ctx.fillStyle = p.color;
+    if (p.rot !== undefined) {
+      ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+      ctx.fillRect(-p.size/2, -p.size/4, p.size, p.size/2);
+    } else {
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+function drawHud(g, now) {
+  hitboxes.hud = [];
+  const won = view === 'won';
+  const placed = st.filter(v => v === 2).length;
+  const hl = hudLayout();
+  const px = hl.px, py = hl.py, pw = hl.pw, ph = hl.ph;
+  const frac = Math.min(1, placed / (n * starsPer));
+  // In landscape the side hint card lives where this card does; the pill is
+  // transient information, the hint is not, so the card wins.
+  if (!(hl.land && hint)) {
+    ctx.fillStyle = 'rgba(0,0,0,0.42)';
+    roundRect(px, py, pw, ph, 14); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1;
+    roundRect(px, py, pw, ph, 14); ctx.stroke();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    if (hl.land) {
+      // stacked card in the left column
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 17px "Segoe UI",system-ui,sans-serif';
+      ctx.fillText(levelTitle(), px + 14, py + 20);
+      ctx.fillStyle = COL.sub; ctx.font = '13px "Segoe UI",system-ui,sans-serif';
+      ctx.fillText(level.size + '×' + level.size, px + 14, py + 40);
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      roundRect(px + 14, py + 54, pw - 28, 5, 3); ctx.fill();
+      ctx.fillStyle = COL.glow;
+      roundRect(px + 14, py + 54, (pw - 28) * frac, 5, 3); ctx.fill();
+      ctx.fillStyle = COL.gold; ctx.font = 'bold 16px "Segoe UI",system-ui,sans-serif';
+      ctx.fillText('★ ' + placed + '/' + (n * starsPer), px + 14, py + 76);
+    } else {
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 17px "Segoe UI",system-ui,sans-serif';
+      ctx.fillText(hl.label, px + 16, py + 18);
+      const bx = px + 16, by = py + 33, bw = pw - 32 - 58;
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      roundRect(bx, by, bw, 5, 3); ctx.fill();
+      ctx.fillStyle = COL.glow;
+      roundRect(bx, by, bw * frac, 5, 3); ctx.fill();
+      ctx.fillStyle = COL.gold; ctx.textAlign = 'right';
+      ctx.font = 'bold 15px "Segoe UI",system-ui,sans-serif';
+      ctx.fillText('★ ' + placed + '/' + (n * starsPer), px + pw - 14, py + 34);
+    }
+  }
+
+  // levels button (top right) — hidden on the win screen, which has its own
+  // "All Levels" button (a live-looking button that ignored taps read as broken)
+  if (!won) {
+    const lb = { x: W - 58, y: 12, w: 46, h: 40, action:'levels' };
+    ctx.fillStyle = 'rgba(0,0,0,0.42)';
+    roundRect(lb.x, lb.y, lb.w, lb.h, 12); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)'; roundRect(lb.x, lb.y, lb.w, lb.h, 12); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = '19px system-ui,sans-serif';
+    ctx.fillText('☰', lb.x + lb.w/2, lb.y + lb.h/2 + 1);
+    hitboxes.hud.push(lb);
+  }
+
+  // conflict / status message (suppressed while a hint card is up — the card
+  // owns that strip of the screen)
+  if (conflictMsg && !hint && !won) {
+    ctx.font = 'bold 15px "Segoe UI",system-ui,sans-serif';
+    ctx.fillStyle = COL.danger;
+    if (hl.land) {
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+      ctx.font = 'bold 13px "Segoe UI",system-ui,sans-serif';
+      const lines = wrapLines(conflictMsg, pw, 'bold 13px "Segoe UI",system-ui,sans-serif');
+      ctx.fillStyle = COL.danger;
+      lines.forEach((ln, i) => ctx.fillText(ln, px, py + ph + 26 + i * 17));
+    } else {
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(conflictMsg, W/2, Math.min(g.y + g.size + 20, barTopY() - 14));
+    }
+  }
+}
+
+function drawBar(g, now) {
+  hitboxes.bar = [];
+  // The win screen has its own buttons; a full-opacity bar there looked live but
+  // ignored every tap, so it is simply not drawn (and registers no hitboxes).
+  if (view === 'won') return;
+  const bh = BAR_BTN_H;
+  const base = [
+    { action:'reset', icon:'↺', label:'Reset' },
+    { action:'undo',  icon:'↶', label:'Undo'  },
+    { action:'hint',  icon:'💡', label:'Hint'  },
+    { action:'help',  icon:'?',  label:'Help'  }
+  ];
+  let bw, defs;
+  if (isLandscape()) {
+    // vertical stack in the right-hand column, below the levels button
+    const { right } = landCols();
+    bw = Math.max(64, Math.min(84, right - 16));
+    const bx = W - right + (right - bw) / 2;
+    const gap = 9, topLimit = 60;
+    let bhL = bh;
+    if (topLimit + bhL*4 + gap*3 > H - 8) {          // very short viewport
+      bhL = Math.max(38, Math.floor((H - 8 - topLimit - gap*3) / 4));
+    }
+    const stack = bhL*4 + gap*3;
+    const y0 = Math.max(topLimit, Math.min((H - stack) / 2, H - 8 - stack));
+    defs = base.map((d, i) => Object.assign({}, d, { x: bx, y: y0 + i * (bhL + gap), h: bhL }));
+  } else {
+    const gap = 10;
+    bw = Math.min(84, (W - 48 - gap*3) / 4);
+    const contW = Math.min(W - 24, bw*4 + gap*3 + 44);
+    const cx0 = (W - contW) / 2;
+    const by = barTopY();
+    const xs = [cx0, cx0 + bw + gap, cx0 + contW - bw*2 - gap, cx0 + contW - bw];
+    defs = base.map((d, i) => Object.assign({}, d, { x: xs[i], y: by, h: bh }));
+  }
+  const cooling = now < hintCooldownUntil;
+  const coolSecs = Math.max(0, Math.ceil((hintCooldownUntil - now) / 1000));
+  for (const d of defs) {
+    const by = d.y, bhx = d.h;
+    const disabled = (d.action === 'hint' && cooling && !hint);
+    const isCool = d.action === 'hint' && cooling;
+    ctx.save();
+    ctx.fillStyle = disabled ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.45)';
+    roundRect(d.x, by, bw, bhx, 14); ctx.fill();
+    ctx.strokeStyle = disabled ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.16)';
+    ctx.lineWidth = 1; roundRect(d.x, by, bw, bhx, 14); ctx.stroke();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = disabled ? 'rgba(255,255,255,0.35)' : '#fff';
+    ctx.font = (d.action === 'hint' ? '20px' : 'bold 22px') + ' system-ui,sans-serif';
+    ctx.fillText(d.icon, d.x + bw/2, by + bhx * 0.36);
+    ctx.font = 'bold 11px "Segoe UI",system-ui,sans-serif';
+    // while cooling, the label becomes the remaining seconds (keeps the icon clear)
+    ctx.fillStyle = isCool ? 'rgba(255,211,42,0.95)' : (disabled ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.75)');
+    ctx.fillText(isCool ? String(coolSecs) : d.label.toUpperCase(), d.x + bw/2, by + bhx * 0.76);
+    ctx.restore();
+    // circular countdown ring around the hint button
+    if (d.action === 'hint' && cooling) {
+      const remain = (hintCooldownUntil - now) / HINT_COOLDOWN;
+      const cx = d.x + bw/2, cy = by + bhx/2;
+      const rad = Math.min(bw, bhx)/2 + 5;
+      ctx.save();
+      ctx.lineWidth = 4; ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+      ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI*2); ctx.stroke();
+      ctx.strokeStyle = COL.gold;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rad, -Math.PI/2, -Math.PI/2 + remain * Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+    hitboxes.bar.push({ x:d.x, y:by, w:bw, h:bhx, action:d.action, disabled });
+  }
+}
+
+function wrapLines(text, maxW, font) {
+  ctx.font = font;
+  const words = text.split(' ');
+  const lines = []; let cur = '';
+  for (const w of words) {
+    const t = cur ? cur + ' ' + w : w;
+    if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; }
+    else cur = t;
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+// Card geometry, shared by geom() (so the board can slide up out of the way)
+// and by drawHintCard. Depends only on the hint text + viewport, never on the board.
+const HINT_BODY_FONT = '15px "Segoe UI",system-ui,sans-serif';
+// Never calls boardSquare() (that would be circular): the card is laid out from
+// the text + viewport alone, publishes how much room it needs, and the board is
+// then fitted into what is left. `scale` shrinks the whole card on short screens
+// rather than letting it grow over the board.
+const HINT_PAD = 15, HINT_BW_APPLY = 112, HINT_BW_GOT = 88;
+// The two buttons sit side by side when they fit, shrink together when the card
+// is narrow, and stack once "Got it" would drop below a tappable width. Without
+// this a narrow landscape card pushed "Got it" to a negative x (off-screen).
+function hintButtons(cardW) {
+  const bh = 40, gap = 10, avail = cardW - HINT_PAD * 2;
+  if (HINT_BW_APPLY + gap + HINT_BW_GOT <= avail) {
+    return { stack:false, wA:HINT_BW_APPLY, wG:HINT_BW_GOT, bh, gap, blockH:bh };
+  }
+  const k = avail / (HINT_BW_APPLY + gap + HINT_BW_GOT);
+  if (HINT_BW_GOT * k >= 62) {
+    return { stack:false, wA:HINT_BW_APPLY * k, wG:HINT_BW_GOT * k, bh, gap, blockH:bh };
+  }
+  return { stack:true, wA:avail, wG:avail, bh, gap:8, blockH:bh * 2 + 8 };
+}
+function hintCardMetrics() {
+  if (!hint) return null;
+  const measure = (cardW) => {
+    const lines = wrapLines(hint.msg, cardW - 92, HINT_BODY_FONT);
+    const btn = hintButtons(cardW);
+    return { cardW, lines, btn, cardH: 52 + lines.length * 20 + 21 + btn.blockH + 12 };
+  };
+  if (isLandscape()) {
+    // side-docked in the left column, board beside it. On a very narrow
+    // landscape viewport the card is capped so the board keeps usable width.
+    const { right } = landCols();
+    const keepForBoard = Math.min(H - 20, 240);
+    const maxCardW = W - right - 28 - keepForBoard;
+    const m = measure(Math.max(170, Math.min(400, Math.max(230, W * 0.36), Math.max(170, maxCardW))));
+    let scale = Math.min(1, (H - 24) / m.cardH);
+    let cy = Math.max(12, (H - m.cardH * scale) / 2);
+    const topGuard = 52;                 // keep clear of the HTML back button
+    if (cy < topGuard) {
+      scale = Math.min(scale, (H - topGuard - 12) / m.cardH);
+      cy = Math.max(topGuard, (H - m.cardH * scale) / 2);
+    }
+    return { side:true, cx:12, cy,
+             cardW:m.cardW, lines:m.lines, cardH:m.cardH, btn:m.btn, scale,
+             shownW: m.cardW * scale, reserve: m.cardH * scale,
+             bodyFont:HINT_BODY_FONT, bh:m.btn.bh };
+  }
+  const top = boardTop();
+  const zoneH = Math.max(140, barTopY() - 12 - top);      // board + card share this
+  const m = measure(Math.min(W - 24, 430));
+  // The board is guaranteed this much room, so the card can never cover it. Big
+  // boards (10x10, 11x11) need the larger share on a short screen, so the
+  // guarantee grows with n and the card scales down instead.
+  const boardMin = Math.min(zoneH * 0.62, n * 36);
+  const shown = Math.max(96, Math.min(m.cardH, zoneH - boardMin - 10));
+  const scale = Math.min(1, shown / m.cardH);
+  return { side:false, cx:(W - m.cardW * scale) / 2, cy: barTopY() - 12 - m.cardH * scale,
+           cardW:m.cardW, lines:m.lines, cardH:m.cardH, btn:m.btn, scale,
+           shownW: m.cardW * scale, reserve: m.cardH * scale,
+           bodyFont:HINT_BODY_FONT, bh:m.btn.bh };
+}
+function drawHintCard(g, now) {
+  hitboxes.modal = [];
+  if (!hint) return;
+  const m = hintCardMetrics();
+  const { cardW, cx, lines, bodyFont, bh, cardH, cy, scale, btn } = m;
+  const helpFont = '12px "Segoe UI",system-ui,sans-serif';
+  const bwApply = btn.wA, bwGot = btn.wG, pad = HINT_PAD;
+  const t = Math.min(1, (now - hint.t0) / 220);
+  const ease = 1 - Math.pow(1 - t, 3);
+  const oy = (1 - ease) * 24;
+  // laid out in local card coordinates, then scaled+placed as a unit
+  ctx.save();
+  ctx.globalAlpha = ease;
+  ctx.translate(cx, cy + oy);
+  ctx.scale(scale, scale);
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 26; ctx.shadowOffsetY = 8;
+  const grd = ctx.createLinearGradient(0, 0, 0, cardH);
+  grd.addColorStop(0, 'rgba(32,28,86,0.97)'); grd.addColorStop(1, 'rgba(18,16,58,0.97)');
+  ctx.fillStyle = grd;
+  roundRect(0, 0, cardW, cardH, 18); ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(162,155,254,0.5)'; ctx.lineWidth = 1.5;
+  roundRect(0, 0, cardW, cardH, 18); ctx.stroke();
+
+  // icon bubble
+  ctx.fillStyle = 'rgba(108,92,231,0.35)';
+  ctx.beginPath(); ctx.arc(38, 34, 21, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = 'rgba(162,155,254,0.6)'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = '21px system-ui,sans-serif'; ctx.fillStyle = '#fff';
+  ctx.fillText(hint.icon, 38, 35);
+
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = COL.gold; ctx.font = 'bold 18px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText(hint.title, 68, 30);
+  ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.font = bodyFont;
+  lines.forEach((ln, i) => ctx.fillText(ln, 68, 52 + i * 20));
+
+  // helper line, then the two buttons on their own row
+  const helperY = 52 + lines.length * 20 + 6;
+  ctx.font = helpFont; ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  ctx.fillText('…or tap the glowing squares yourself.', pad, helperY);
+
+  // Apply on top / right, "Got it" beside or below it — see hintButtons().
+  const blockTop = cardH - btn.blockH - 12;
+  const applyX = btn.stack ? pad : cardW - pad - bwApply;
+  const applyY = blockTop;
+  const gotX = btn.stack ? pad : applyX - btn.gap - bwGot;
+  const gotY = btn.stack ? blockTop + bh + btn.gap : blockTop;
+  const gr = ctx.createLinearGradient(applyX, applyY, applyX + bwApply, applyY + bh);
+  gr.addColorStop(0, COL.accent); gr.addColorStop(1, COL.glow);
+  ctx.fillStyle = gr; roundRect(applyX, applyY, bwApply, bh, 12); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = 'bold 15px "Segoe UI",system-ui,sans-serif';
+  const applyLabel = hint.action === 'star' ? 'Place ★' : hint.action === 'cross' ? 'Mark ✕' : 'Clear it';
+  ctx.fillText(applyLabel, applyX + bwApply/2, applyY + bh/2);
+  ctx.fillStyle = 'rgba(255,255,255,0.10)'; roundRect(gotX, gotY, bwGot, bh, 12); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1; roundRect(gotX, gotY, bwGot, bh, 12); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.fillText('Got it', gotX + bwGot/2, gotY + bh/2);
+  ctx.restore();
+
+  const toScreen = (lx, ly, lw, lh) => ({ x: cx + lx*scale, y: cy + oy + ly*scale,
+                                          w: lw*scale, h: lh*scale });
+  hitboxes.modal.push(Object.assign(toScreen(applyX, applyY, bwApply, bh), { action:'hintApply' }));
+  hitboxes.modal.push(Object.assign(toScreen(gotX, gotY, bwGot, bh), { action:'hintClose' }));
+}
+
+const HELP_RULES = [
+  'Put exactly one ★ in every row.',
+  'Put exactly one ★ in every column.',
+  'Put exactly one ★ in every colour region.',
+  'Two ★ may never touch — not even corner to corner.'
+];
+const HELP_NOTES = [
+  '✕ means "no ★ here" — it is just your own reminder.',
+  'Drag your finger across the board to ✕ lots of squares at once.',
+  'Placing a ★ crosses out everything it blocks for you. Tapping the ★ away puts those squares back.',
+  'Stuck? Tap Hint for a nudge you apply yourself.'
+];
+function drawHelp(now) {
+  hitboxes.modal = [];
+  ctx.fillStyle = 'rgba(4,4,20,0.82)'; ctx.fillRect(0, 0, W, H);
+
+  // Lay the card out in local coordinates, then scale it to fit short screens.
+  const cardW = Math.min(W - 28, 440);
+  const pad = 26, bodyF = '15px "Segoe UI",system-ui,sans-serif',
+        noteF = '14px "Segoe UI",system-ui,sans-serif';
+  const ruleLines = HELP_RULES.map(r => wrapLines(r, cardW - pad*2 - 22, bodyF));
+  const noteLines = HELP_NOTES.map(t => wrapLines(t, cardW - pad*2, noteF));
+  const bs = 34, gapx = 30, btnH = 44;
+  let contentH = 78;
+  for (const l of ruleLines) contentH += l.length * 20 + 10;
+  contentH += 6 + 24 + bs + 26;
+  for (const l of noteLines) contentH += l.length * 19 + 9;
+  const cardH = contentH + btnH + 18;
+  const scale = Math.min(1, (H - 30) / cardH);
+  const ox = (W - cardW * scale) / 2, oy = (H - cardH * scale) / 2;
+
+  ctx.save();
+  ctx.translate(ox, oy); ctx.scale(scale, scale);
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 30;
+  const grd = ctx.createLinearGradient(0, 0, 0, cardH);
+  grd.addColorStop(0, 'rgba(32,28,86,0.98)'); grd.addColorStop(1, 'rgba(16,14,52,0.98)');
+  ctx.fillStyle = grd; roundRect(0, 0, cardW, cardH, 20); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(162,155,254,0.5)'; ctx.lineWidth = 1.5;
+  roundRect(0, 0, cardW, cardH, 20); ctx.stroke();
+  ctx.restore();
+
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = COL.gold; ctx.font = 'bold 26px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText('How to Play', cardW/2, 44);
+
+  let y = 78;
+  ctx.textAlign = 'left';
+  ruleLines.forEach(lines => {
+    ctx.fillStyle = COL.glow; ctx.font = 'bold 15px system-ui,sans-serif';
+    ctx.fillText('•', pad, y);
+    ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = bodyF;
+    lines.forEach((ln, i) => ctx.fillText(ln, pad + 16, y + i * 20));
+    y += lines.length * 20 + 10;
+  });
+
+  y += 6;
+  ctx.fillStyle = COL.sub; ctx.font = 'bold 14px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText('TAPPING A SQUARE', pad, y); y += 24;
+  const drawBox = (x, kind) => {
+    ctx.fillStyle = 'rgba(75,60,150,0.85)';
+    roundRect(x, y, bs, bs, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(233,230,255,0.7)'; ctx.lineWidth = 2;
+    roundRect(x, y, bs, bs, 7); ctx.stroke();
+    if (kind === 'cross') drawCrossGlyph(x + bs/2, y + bs/2, bs*0.20, 1);
+    if (kind === 'star') drawStarGlyph(x + bs/2, y + bs/2, bs*0.34, 1, 0);
+  };
+  drawBox(pad, 'empty'); drawBox(pad + bs + gapx, 'cross'); drawBox(pad + (bs+gapx)*2, 'star');
+  ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = 'bold 20px system-ui,sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('→', pad + bs + gapx/2, y + bs/2 + 7);
+  ctx.fillText('→', pad + bs*2 + gapx*1.5, y + bs/2 + 7);
+  ctx.fillText('↺', pad + (bs+gapx)*2 + bs + gapx/2, y + bs/2 + 7);
+  y += bs + 26;
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.font = noteF;
+  noteLines.forEach(lines => {
+    lines.forEach((ln, i) => ctx.fillText(ln, pad, y + i * 19));
+    y += lines.length * 19 + 9;
+  });
+
+  const bw = 150;
+  const bx = (cardW - bw)/2, byy = cardH - btnH - 18;
+  const gr = ctx.createLinearGradient(bx, byy, bx + bw, byy + btnH);
+  gr.addColorStop(0, COL.accent); gr.addColorStop(1, COL.glow);
+  ctx.fillStyle = gr; roundRect(bx, byy, bw, btnH, 12); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = 'bold 17px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText('Got it!', bx + bw/2, byy + btnH/2);
+  ctx.restore();
+
+  hitboxes.modal.push({ x: ox + bx*scale, y: oy + byy*scale, w: bw*scale, h: btnH*scale, action:'helpClose' });
+  hitboxes.modal.push({ x:0, y:0, w:W, h:H, action:'helpClose' });
+}
+
+function drawWin(now) {
+  hitboxes.win = [];
+  const t = Math.min(1, (now - winAt) / 500);
+  ctx.fillStyle = 'rgba(4,4,20,' + (0.66 * t).toFixed(3) + ')';
+  ctx.fillRect(0, 0, W, H);
+  // panel behind the celebration so the solved board never fights the text
+  const panelW = Math.min(W - 28, 360), panelH = 300;
+  const panelX = (W - panelW)/2, panelY = H/2 - 122;
+  ctx.save();
+  ctx.globalAlpha = t;
+  ctx.fillStyle = 'rgba(16,14,52,0.88)';
+  roundRect(panelX, panelY, panelW, panelH, 22); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,211,42,0.35)'; ctx.lineWidth = 1.5;
+  roundRect(panelX, panelY, panelW, panelH, 22); ctx.stroke();
+  ctx.restore();
+  ctx.save();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.shadowColor = COL.gold; ctx.shadowBlur = 34;
+  ctx.fillStyle = COL.gold;
+  ctx.font = 'bold ' + Math.min(58, W * 0.115) + 'px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText('Solved!', W/2, H/2 - 84);
+  ctx.shadowBlur = 0;
+  // three stars
+  for (let i = 0; i < 3; i++) {
+    const s = Math.min(1, Math.max(0, (now - winAt - 250 - i*160) / 320));
+    if (s <= 0) continue;
+    const sc = s < 0.7 ? s/0.7 * 1.2 : 1.2 - (s-0.7)/0.3*0.2;
+    drawStarGlyph(W/2 + (i-1) * 54, H/2 - 22, 20, sc, 1 - s);
+  }
+  ctx.fillStyle = COL.sub; ctx.font = '16px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText(levelTitle() +
+    (hintsUsed ? '  ·  ' + hintsUsed + ' hint' + (hintsUsed > 1 ? 's' : '') : '  ·  no hints!'),
+    W/2, H/2 + 20);
+  ctx.restore();
+
+  const bw = Math.min(220, W - 80), bh = 52;
+  const bx = (W - bw)/2;
+  // "Next" advances inside the current group; at the end of a group it stops
+  // gracefully and sends the player back to that group's grid.
+  const hasNext = nextInGroup() >= 0;
+  const by1 = H/2 + 56;
+  const gr = ctx.createLinearGradient(bx, by1, bx + bw, by1 + bh);
+  gr.addColorStop(0, COL.accent); gr.addColorStop(1, COL.glow);
+  ctx.fillStyle = gr; roundRect(bx, by1, bw, bh, 13); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = 'bold 18px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText(hasNext ? 'Next Level' : 'Level Select', bx + bw/2, by1 + bh/2);
+  hitboxes.win.push({ x:bx, y:by1, w:bw, h:bh, action: hasNext ? 'next' : 'levels' });
+
+  const by2 = by1 + bh + 12;
+  ctx.fillStyle = 'rgba(255,255,255,0.10)'; roundRect(bx, by2, bw, 44, 12); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1; roundRect(bx, by2, bw, 44, 12); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.font = 'bold 15px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText(hasNext ? 'Level Select' : 'All Groups', bx + bw/2, by2 + 22);
+  hitboxes.win.push({ x:bx, y:by2, w:bw, h:44, action: hasNext ? 'levels' : 'groups' });
+}
+// Global index of the next level in the current group, or -1 at the end of it.
+function nextInGroup() {
+  const grp = GROUPS[level ? level._gi : -1];
+  if (!grp) return levelIdx + 1 < LEVELS.length ? levelIdx + 1 : -1;
+  const k = grp.idx.indexOf(levelIdx);
+  return (k >= 0 && k + 1 < grp.idx.length) ? grp.idx[k + 1] : -1;
+}
+
+function drawMenu(now) {
+  hitboxes.menu = [];
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  // fixed vertical stack, centred as a block — keeps landscape phones tidy
+  const titleSize = Math.min(70, W * 0.155, H * 0.16);
+  const bh = 72;
+  const blockH = titleSize + 30 + 34 + 26 + 20 + 30 + bh;
+  const startY = Math.max(52, (H - blockH) / 2);
+  const titleBase = startY + titleSize * 0.85;
+  const starsY = titleBase + 30;
+  const subBase = starsY + 34;
+  const rulesY = subBase + 26;
+  ctx.save();
+  ctx.shadowColor = COL.glow; ctx.shadowBlur = 28;
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold ' + titleSize + 'px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText('Stars', W/2, titleBase);
+  ctx.restore();
+  // decorative stars
+  for (let i = 0; i < 3; i++) {
+    const a = now * 0.001 + i * 2.1;
+    drawStarGlyph(W/2 + (i-1) * 62, starsY, 13 + Math.sin(a) * 2, 1, 0.3);
+  }
+  ctx.fillStyle = COL.sub; ctx.font = Math.min(20, W * 0.045) + 'px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText('Two Not Touch', W/2, subBase);
+  ctx.fillStyle = 'rgba(255,255,255,0.62)';
+  ctx.font = Math.min(15, W * 0.037) + 'px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText('One ★ in every row, column and colour', W/2, rulesY);
+  ctx.fillText('— and no two may touch.', W/2, rulesY + 20);
+
+  const by = rulesY + 20 + 30;
+  if (!levelsLoaded) {
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillText('Loading puzzles…', W/2, by + 30);
+    return;
+  }
+  const bw = Math.min(190, W * 0.38), gap = 18;
+  ['Caleb','Ezra'].forEach((name, i) => {
+    const bx = i === 0 ? W/2 - bw - gap/2 : W/2 + gap/2;
+    const gr = ctx.createLinearGradient(bx, by, bx + bw, by + bh);
+    if (i === 0) { gr.addColorStop(0, COL.accent); gr.addColorStop(1, COL.glow); }
+    else { gr.addColorStop(0, '#e17055'); gr.addColorStop(1, '#fdcb6e'); }
+    ctx.fillStyle = gr;
+    roundRect(bx, by, bw, bh, 16); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 22px "Segoe UI",system-ui,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(name, bx + bw/2, by + 32);
+    const done = totalSolved(name);
+    ctx.font = '13px "Segoe UI",system-ui,sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillText(done + ' / ' + LEVELS.length + ' solved', bx + bw/2, by + 54);
+    hitboxes.menu.push({ x:bx, y:by, w:bw, h:bh, action:'player', player:name });
+  });
+}
+
+// ------------------------------------------------- picker chrome + scrolling
+// Both picker screens share a compact header: title, progress line, and a back
+// pill on the RIGHT (the HTML "← Games" link owns the top-left corner).
+function selectChrome(title, sub, backLabel, backAction, list) {
+  const land = H < 520;
+  // The fixed HTML "<- Games" link is roughly x < 122, y < 47. On a short screen
+  // the header sits directly under it, so a wide centred line can be clipped by
+  // it: drop the progress line below the link (and shrink the title) instead.
+  const BACK_R = 122, BACK_B = 47;
+  const titleY = land ? 27 : 42, titleSize = land ? (W < 390 ? 18 : 20) : 24;
+  const subSize = land ? 13 : 15;
+  let subY = land ? 52 : 65;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = COL.gold;
+  ctx.font = 'bold ' + titleSize + 'px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText(title, W/2, titleY);
+  ctx.fillStyle = COL.sub;
+  ctx.font = subSize + 'px "Segoe UI",system-ui,sans-serif';
+  if (land && subY - subSize < BACK_B &&
+      W/2 - ctx.measureText(sub).width/2 < BACK_R) subY = BACK_B + subSize + 2;
+  ctx.fillText(sub, W/2, subY);
+  const b = { x: W - 112, y: land ? 6 : 12, w: 100, h: 42, action: backAction };
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  roundRect(b.x, b.y, b.w, b.h, 12); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 1;
+  roundRect(b.x, b.y, b.w, b.h, 12); ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = 'bold 14px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText(backLabel, b.x + b.w/2, b.y + b.h/2);
+  list.push(b);
+  return { top: subY + (land ? 10 : 16), bottom: H - 14 };
+}
+// Publishes the scroll range for drag/wheel clamping and returns the clamped offset.
+function scrollFor(key, contentH, availH) {
+  selMax[key] = Math.max(0, contentH - availH);
+  selScroll[key] = Math.max(0, Math.min(selMax[key], selScroll[key]));
+  return selScroll[key];
+}
+// A tile scrolled halfway under the header must not be tappable in its hidden
+// part, so every hitbox is clipped to the scroll viewport.
+function pushClipped(list, box, top, bot) {
+  const y0 = Math.max(box.y, top), y1 = Math.min(box.y + box.h, bot);
+  if (y1 - y0 < 14) return;
+  list.push(Object.assign({}, box, { y:y0, h:y1 - y0 }));
+}
+function drawScrollHint(top, bot, scroll, max) {
+  if (max <= 0.5) return;
+  const trackH = bot - top, x = W - 8;
+  ctx.fillStyle = 'rgba(255,255,255,0.07)';
+  roundRect(x, top, 4, trackH, 2); ctx.fill();
+  const thumbH = Math.max(28, trackH * trackH / (trackH + max));
+  ctx.fillStyle = 'rgba(162,155,254,0.6)';
+  roundRect(x, top + (trackH - thumbH) * (scroll / max), 4, thumbH, 2); ctx.fill();
+  // soft fades so a half-cut row reads as "there is more this way"
+  if (scroll > 1) {
+    const gt = ctx.createLinearGradient(0, top, 0, top + 22);
+    gt.addColorStop(0, 'rgba(10,10,46,0.9)'); gt.addColorStop(1, 'rgba(10,10,46,0)');
+    ctx.fillStyle = gt; ctx.fillRect(0, top, W, 22);
+  }
+  if (scroll < max - 1) {
+    const gb = ctx.createLinearGradient(0, bot - 22, 0, bot);
+    gb.addColorStop(0, 'rgba(10,10,46,0)'); gb.addColorStop(1, 'rgba(10,10,46,0.9)');
+    ctx.fillStyle = gb; ctx.fillRect(0, bot - 22, W, 22);
+  }
+}
+
+// ------------------------------------------------------------ group picker
+function drawGroupSelect(now) {
+  hitboxes.groups = [];
+  if (!GROUPS.length) return;
+  const { top, bottom } = selectChrome(player,
+    totalSolved(player) + ' / ' + LEVELS.length + ' puzzles solved',
+    'Players', 'menu', hitboxes.groups);
+  const availW = W - 28, availH = bottom - top, gap = 12;
+  // biggest card that fits BOTH axes; ties broken by area, so a phone gets one
+  // wide column and a landscape screen gets 3x3
+  let best = null;
+  for (let cols = 1; cols <= 4; cols++) {
+    const rows = Math.ceil(GROUPS.length / cols);
+    const cw = Math.min(340, (availW - (cols-1)*gap) / cols);
+    const ch = Math.min(112, (availH - (rows-1)*gap) / rows);
+    if (cw < 118 || ch < 56) continue;
+    if (!best || cw * ch > best.cw * best.ch) best = { cols, rows, cw, ch };
+  }
+  if (!best) {                    // tiny viewport: keep cards tappable and scroll
+    const cols = Math.max(1, Math.min(4, Math.floor((availW + gap) / 162)));
+    best = { cols, rows: Math.ceil(GROUPS.length / cols), ch: 66,
+             cw: Math.min(340, (availW - (cols-1)*gap) / cols) };
+  }
+  const { cols, rows, cw, ch } = best;
+  const contentH = rows * ch + (rows - 1) * gap;
+  const scroll = scrollFor('groupSelect', contentH, availH);
+  const totalW = cols * cw + (cols - 1) * gap;
+  const sx = (W - totalW) / 2;
+  const sy = top + (contentH < availH ? (availH - contentH) / 2 : 0) - scroll;
+
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, top, W, availH); ctx.clip();
+  for (let i = 0; i < GROUPS.length; i++) {
+    const grp = GROUPS[i];
+    const x = sx + (i % cols) * (cw + gap), y = sy + Math.floor(i / cols) * (ch + gap);
+    if (y > bottom || y + ch < top) continue;                 // culled
+    const total = grp.idx.length, done = groupProgress(player, grp);
+    const base = TIER_COLORS[grp.tier] || COL.accent;
+    const complete = done >= total;
+    if (complete) {
+      const gr = ctx.createLinearGradient(x, y, x + cw, y + ch);
+      gr.addColorStop(0, base); gr.addColorStop(1, 'rgba(255,255,255,0.18)');
+      ctx.fillStyle = gr;
+    } else ctx.fillStyle = 'rgba(255,255,255,0.07)';
+    roundRect(x, y, cw, ch, 15); ctx.fill();
+    ctx.strokeStyle = complete ? COL.gold : base;
+    ctx.lineWidth = 2; roundRect(x, y, cw, ch, 15); ctx.stroke();
+    // tier stripe down the left edge
+    ctx.fillStyle = base;
+    roundRect(x + 5, y + 10, 5, ch - 20, 3); ctx.fill();
+
+    // Label and "37 / 100" share a line only when both actually fit — on a 320px
+    // phone the two columns are narrow enough that they used to overlap.
+    const labelFont = 'bold ' + Math.round(Math.min(20, ch * 0.26)) + 'px "Segoe UI",system-ui,sans-serif';
+    const countFont = 'bold 13px "Segoe UI",system-ui,sans-serif';
+    const countStr = (complete ? '★ ' : '') + done + ' / ' + total;
+    ctx.font = labelFont; const lblW = ctx.measureText(grp.label).width;
+    ctx.font = countFont; const cntW = ctx.measureText(countStr).width;
+    const sameLine = lblW + cntW + 42 <= cw;
+    const labelY = y + Math.min(ch * 0.42, 34);
+    const bx = x + 20, bw = cw - 34, by = y + ch - 18;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#fff'; ctx.font = labelFont;
+    ctx.fillText(grp.label, x + 20, labelY);
+    ctx.font = countFont;
+    ctx.fillStyle = complete ? COL.gold : 'rgba(255,255,255,0.85)';
+    if (sameLine) { ctx.textAlign = 'right'; ctx.fillText(countStr, x + cw - 14, labelY); }
+    else ctx.fillText(countStr, x + 20, by - 9);
+    // progress bar
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; roundRect(bx, by, bw, 7, 4); ctx.fill();
+    if (done) {
+      ctx.fillStyle = complete ? COL.gold : COL.glow;
+      roundRect(bx, by, Math.max(7, bw * done / total), 7, 4); ctx.fill();
+    }
+    if (sameLine && ch >= 76) {
+      ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.font = '12px "Segoe UI",system-ui,sans-serif';
+      ctx.fillText(total === 1 ? 'Start here' : total + ' puzzles', x + 20, by - 10);
+    }
+    pushClipped(hitboxes.groups, { x, y, w:cw, h:ch, action:'group', gi:i }, top, bottom);
+  }
+  ctx.restore();
+  drawScrollHint(top, bottom, scroll, selMax.groupSelect);
+}
+
+// --------------------------------------------- level grid for one group
+function drawLevelSelect(now) {
+  hitboxes.levels = [];
+  const grp = curGroupObj();
+  if (!grp) return;
+  const pd = getPlayerData(player);
+  const total = grp.idx.length, done = groupProgress(player, grp);
+  const { top, bottom } = selectChrome(grp.label, done + ' / ' + total + ' solved',
+    'Groups', 'groups', hitboxes.levels);
+
+  // Tiles stay finger-sized (~56px+) and the grid scrolls when 100 of them cannot
+  // fit — shrinking them to fit 10 rows on a landscape phone would give 23px tiles.
+  const gap = 8, availW = W - 24, availH = bottom - top;
+  const cols = Math.max(4, Math.min(10, Math.floor((availW + gap) / (58 + gap))));
+  const bs = Math.max(40, Math.min(78, Math.floor((availW - (cols-1)*gap) / cols)));
+  const rows = Math.ceil(total / cols);
+  const contentH = rows * bs + (rows - 1) * gap;
+  if (pendingScrollTo >= 0) {         // reveal where the player left off
+    const row = Math.floor(pendingScrollTo / cols);
+    selScroll.levelSelect = Math.max(0, row * (bs + gap) - availH / 2 + bs);
+    pendingScrollTo = -1;
+  }
+  const scroll = scrollFor('levelSelect', contentH, availH);
+  const sx = (W - (cols * bs + (cols-1) * gap)) / 2;
+  const sy = top + (contentH < availH ? (availH - contentH) / 2 : 0) - scroll;
+
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, top, W, availH); ctx.clip();
+  for (let k = 0; k < total; k++) {
+    const y = sy + Math.floor(k / cols) * (bs + gap);
+    if (y > bottom || y + bs < top) continue;                 // culled
+    const x = sx + (k % cols) * (bs + gap);
+    const gi = grp.idx[k], lv = LEVELS[gi];
+    const solved = !!(pd.solved && pd.solved[lv.id]);
+    const base = TIER_COLORS[lv.tier] || COL.accent;
+    ctx.fillStyle = solved ? base : 'rgba(255,255,255,0.09)';
+    roundRect(x, y, bs, bs, 11); ctx.fill();
+    ctx.strokeStyle = solved ? 'rgba(255,255,255,0.5)' : base;
+    ctx.lineWidth = 2; roundRect(x, y, bs, bs, 11); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.font = 'bold ' + Math.floor(bs*0.35) + 'px "Segoe UI",system-ui,sans-serif';
+    ctx.fillText(k + 1, x + bs/2, y + bs*0.46);              // number within the group
+    ctx.font = Math.floor(bs*0.2) + 'px "Segoe UI",system-ui,sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillText(lv.size + '×' + lv.size, x + bs/2, y + bs*0.78);
+    if (solved) {
+      ctx.fillStyle = COL.gold;
+      drawStarGlyph(x + bs - 9, y + 9, bs*0.13, 1, 0);
+    }
+    pushClipped(hitboxes.levels, { x, y, w:bs, h:bs, action:'level', idx:gi }, top, bottom);
+  }
+  ctx.restore();
+  drawScrollHint(top, bottom, scroll, selMax.levelSelect);
+}
+
+function drawToast(now) {
+  if (!toast) return;
+  const age = now - toast.t0;
+  if (age > 1800) { toast = null; return; }
+  const a = age < 200 ? age/200 : age > 1400 ? Math.max(0, 1 - (age-1400)/400) : 1;
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.font = 'bold 14px "Segoe UI",system-ui,sans-serif';
+  const tw = ctx.measureText(toast.msg).width;
+  const w = tw + 32, h = 36;
+  const x = (W - w)/2, y = H - 150;
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  roundRect(x, y, w, h, 18); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1;
+  roundRect(x, y, w, h, 18); ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(toast.msg, W/2, y + h/2);
+  ctx.restore();
+}
+
+function draw() {
+  const now = performance.now();
+  drawBackground();
+  if (view === 'menu') { drawMenu(now); drawToast(now); return; }
+  if (view === 'groupSelect') { drawGroupSelect(now); drawToast(now); return; }
+  if (view === 'levelSelect') { drawLevelSelect(now); drawToast(now); return; }
+  const g = geom();
+  if (!g) return;
+  drawBoard(g, now);
+  drawHud(g, now);
+  drawBar(g, now);
+  drawParticles();
+  if (view === 'won') drawWin(now);
+  else if (helpOpen) drawHelp(now);
+  else if (hint) drawHintCard(g, now);
+  else hitboxes.modal = [];
+  drawToast(now);
+}
+
+// ==================================================================== input
+function inBox(b, x, y) { return x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h; }
+
+// Drag-to-paint: a stationary press keeps the empty->cross->star->empty cycle,
+// while a press that travels paints crosses onto the empty cells it crosses.
+// The whole gesture is ONE undo step and only ever writes player crosses.
+const DRAG_SLOP = 9;                       // px before a press becomes a drag
+let drag = null;                           // { id, x0, y0, moved, painting, pushed, start, seen, count }
+let selDrag = null;                        // picker scroll gesture { id, key, y0, s0, moved }
+const SCROLL_SLOP = 8;                     // px before a picker press becomes a scroll
+
+function onDown(x, y) {
+  ensureAudio();
+  if (view === 'menu') {
+    for (const b of hitboxes.menu) if (inBox(b, x, y)) {
+      player = b.player;
+      selScroll.groupSelect = 0;
+      // file:// fallback has a single tutorial level — skip both pickers
+      if (GROUPS.length === 1 && GROUPS[0].idx.length === 1) startLevel(GROUPS[0].idx[0]);
+      else showGroupSelect();
+      return;
+    }
+    return;
+  }
+  // The pickers scroll, so their taps resolve on pointerUP (a drag must not open
+  // a level). selDrag carries the gesture.
+  if (view === 'groupSelect' || view === 'levelSelect') {
+    selDrag = { key:view, y0:y, s0:selScroll[view], moved:false };
+    return;
+  }
+  if (view === 'won') {
+    for (const b of hitboxes.win) if (inBox(b, x, y)) {
+      if (b.action === 'next') { const nx = nextInGroup(); if (nx >= 0) startLevel(nx); else showLevelSelect(); }
+      else if (b.action === 'groups') showGroupSelect();
+      else showLevelSelect();
+      return;
+    }
+    return;
+  }
+  // playing
+  if (helpOpen) {
+    for (const b of hitboxes.modal) if (inBox(b, x, y)) { helpOpen = false; draw(); return; }
+    return;
+  }
+  if (hint) {
+    for (const b of hitboxes.modal) if (inBox(b, x, y)) {
+      if (b.action === 'hintApply') applyHint();
+      else { hint = null; draw(); }
+      return;
+    }
+  }
+  for (const b of hitboxes.bar) if (inBox(b, x, y)) {
+    if (b.action === 'reset') doReset();
+    else if (b.action === 'undo') doUndo();
+    else if (b.action === 'hint') requestHint();
+    else if (b.action === 'help') { helpOpen = true; hint = null; draw(); }
+    return;
+  }
+  for (const b of hitboxes.hud) if (inBox(b, x, y)) {
+    if (b.action === 'levels') { hint = null; showLevelSelect(); }
+    return;
+  }
+  const g = geom(); if (!g) return;
+  const cell = cellFromXY(g, x, y);
+  if (!cell) { if (hint) { hint = null; draw(); } return; }
+  if (hint) {
+    // guided: only the lit cells are actionable while a hint is up
+    if (applyHintCell(cell.r, cell.c)) return;
+    const litCell = hint.highlight.some(p => p.row === cell.r && p.col === cell.c) ||
+                    hint.striped.some(p => p.row === cell.r && p.col === cell.c);
+    if (!litCell) sfx.nope();
+    return;
+  }
+  // Start a board gesture. An empty start cell is crossed immediately (instant
+  // feedback, and it is the first step of the tap cycle either way); a cross or
+  // star waits for pointerup so a drag never toggles them.
+  drag = { x0:x, y0:y, lx:x, ly:y, moved:false, painting:false, pushed:false,
+           start:{ r:cell.r, c:cell.c }, seen:new Set([K(cell.r, cell.c)]),
+           count:0, lastSfx:0 };
+  if (st[I(cell.r, cell.c)] === 0) {
+    pushUndo(); drag.pushed = true; drag.painting = true;
+    paintCross(cell.r, cell.c);
+    drag.count = 1;
+    sfx.cross();
+    afterMutation(true);
+  }
+}
+
+// Paint one sampled point. Returns true if a cross was actually written.
+function dragPaintAt(g, x, y) {
+  const cell = cellFromXY(g, x, y); if (!cell) return false;
+  const key = K(cell.r, cell.c);
+  if (drag.seen.has(key)) return false;    // each cell is visited once per gesture
+  drag.seen.add(key);
+  if (!paintCross(cell.r, cell.c)) return false;  // stars/existing crosses untouched
+  drag.count++;
+  return true;
+}
+function onMove(x, y) {
+  if (selDrag) {
+    const dy = y - selDrag.y0;
+    if (!selDrag.moved) {
+      if (Math.abs(dy) < SCROLL_SLOP) return;
+      selDrag.moved = true;
+    }
+    selScroll[selDrag.key] = Math.max(0, Math.min(selMax[selDrag.key], selDrag.s0 - dy));
+    draw();
+    return;
+  }
+  if (!drag) return;
+  if (!drag.moved) {
+    if (Math.hypot(x - drag.x0, y - drag.y0) < DRAG_SLOP) return;
+    drag.moved = true;
+    if (!drag.pushed) { pushUndo(); drag.pushed = true; }
+    drag.painting = true;
+  }
+  const g = geom(); if (!g) return;
+  // pointermove samples are far apart on a fast flick, so walk the segment from
+  // the previous sample to this one instead of only marking the cell under it —
+  // otherwise a quick swipe leaves gaps in the line.
+  const dx = x - drag.lx, dy = y - drag.ly;
+  const dist = Math.hypot(dx, dy);
+  const steps = Math.max(1, Math.ceil(dist / Math.max(2, g.cell * 0.4)));
+  let painted = 0;
+  for (let k = 1; k <= steps; k++) {
+    const t = k / steps;
+    if (dragPaintAt(g, drag.lx + dx * t, drag.ly + dy * t)) painted++;
+  }
+  drag.lx = x; drag.ly = y;
+  if (!painted) return;
+  const now = performance.now();
+  if (now - drag.lastSfx > 30) {           // one tick per sample, not per cell
+    drag.lastSfx = now;
+    sfx.tick(430 + Math.min(8, drag.count) * 48);
+  }
+  afterMutation(true);
+}
+
+function onUp(x, y) {
+  if (selDrag) {
+    const d = selDrag; selDrag = null;
+    if (d.moved) return;                   // that was a scroll, not a choice
+    const list = d.key === 'groupSelect' ? hitboxes.groups : hitboxes.levels;
+    for (const b of list) if (inBox(b, x, y)) {
+      if (b.action === 'menu') { view = 'menu'; draw(); }
+      else if (b.action === 'groups') showGroupSelect();
+      else if (b.action === 'group') openGroup(b.gi);
+      else if (b.action === 'level') startLevel(b.idx);
+      return;
+    }
+    return;
+  }
+  if (!drag) return;
+  // the release point can be well past the last pointermove sample
+  if (drag.moved) onMove(x, y);
+  const d = drag; drag = null;
+  if (d.painting) {                        // already applied while dragging
+    if (d.pushed && d.count === 0) undoStack.pop();   // nothing painted: drop the snapshot
+    return;
+  }
+  // stationary press on a cross or a star -> continue the tap cycle
+  if (!d.moved) tapCell(d.start.r, d.start.c);
+}
+
+canvas.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  if (drag || selDrag) return;             // ignore extra fingers mid-gesture
+  onDown(e.clientX, e.clientY);
+  const act = drag || selDrag;
+  if (act) { act.id = e.pointerId; try { canvas.setPointerCapture(e.pointerId); } catch (_) {} }
+});
+canvas.addEventListener('pointermove', e => {
+  const act = drag || selDrag;
+  if (!act || e.pointerId !== act.id) return;
+  e.preventDefault();
+  onMove(e.clientX, e.clientY);
+});
+canvas.addEventListener('pointerup', e => {
+  const act = drag || selDrag;
+  if (!act || e.pointerId !== act.id) return;
+  e.preventDefault();
+  onUp(e.clientX, e.clientY);
+});
+canvas.addEventListener('pointercancel', e => {
+  if (selDrag && e.pointerId === selDrag.id) selDrag = null;
+  if (drag && e.pointerId === drag.id) {
+    if (drag.pushed && drag.count === 0) undoStack.pop();
+    drag = null;
+  }
+});
+// mouse wheel / trackpad for the scrollable pickers (phones use the drag above)
+canvas.addEventListener('wheel', e => {
+  if (view !== 'groupSelect' && view !== 'levelSelect') return;
+  if (!selMax[view]) return;
+  e.preventDefault();
+  selScroll[view] = Math.max(0, Math.min(selMax[view], selScroll[view] + e.deltaY));
+  draw();
+}, { passive:false });
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+addEventListener('keydown', e => {
+  if (view !== 'playing') return;
+  if (e.key === 'z' || e.key === 'Z') doUndo();
+  if (e.key === 'h' || e.key === 'H') requestHint();
+  if (e.key === 'Escape') { if (hint) hint = null; else if (helpOpen) helpOpen = false; draw(); }
+});
+
+// ============================================================== main loop
+function needsFrame(now) {
+  if (view === 'won') return true;
+  if (view === 'menu') return true;                 // decorative stars pulse
+  // the pickers are static (and can hold 100 tiles): they are redrawn on input,
+  // on scroll and on resize instead of 60 times a second
+  if (view === 'groupSelect' || view === 'levelSelect') return false;
+  if (view !== 'playing') return true;
+  if (particles.length) return true;
+  if (hint) return true;
+  if (conflictCells.size) return true;
+  // The cooldown used to leave a stale "cooling" button on screen: the loop
+  // stopped drawing the instant it expired, so the last painted frame still had
+  // the dim fill, the countdown number and the ring. Draw ONE more frame after
+  // zero and clear the deadline, which flips Hint visibly back to active.
+  if (hintCooldownUntil) {
+    if (now < hintCooldownUntil) return true;
+    hintCooldownUntil = 0;
+    return true;
+  }
+  if (errorFlash && now - errorFlash < 800) return true;
+  if (toast) return true;
+  for (let i = 0; i < anim.length; i++) {
+    const a = anim[i];
+    if (!a) continue;
+    const dur = a.kind === 'star' ? 250 : 150;
+    if (now - a.t0 - (a.delay || 0) < dur + 30) return true;
+  }
+  return false;
+}
+function loop() {
+  const now = performance.now();
+  if (particles.length) stepParticles();
+  if (needsFrame(now)) draw();
+  requestAnimationFrame(loop);
+}
+
+// ================================================================== boot
+ready = true;
+loadLevels();
+draw();
+loop();
+</script>
+</body>
+</html>

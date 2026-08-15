@@ -1,6 +1,6 @@
 # Games Index
 
-All 58 games in Garfield Boys' Arcade (59 directories — Archers has legacy 2D + current 3D).
+All 59 games in Garfield Boys' Arcade (60 directories — Archers has legacy 2D + current 3D).
 
 | Game | Directory | Description |
 |------|-----------|-------------|
@@ -62,6 +62,7 @@ All 58 games in Garfield Boys' Arcade (59 directories — Archers has legacy 2D 
 | Bomb Squad | games/bomb-squad/ | 3D bomb defusal puzzle — rotate, find components, defuse in order (Three.js, seeded generation) |
 | Streams | games/streams/ | Grid path puzzle — drag through every node visiting waypoints in order |
 | Linky | games/linky/ | Flow Free clone — drag colored pipes to connect dot pairs and cover the whole board; 50 provably-solvable levels, Caleb/Ezra progress, hints |
+| Stars | games/stars/ | Star Battle / "Two Not Touch" logic puzzle — 1 star per row, column and region, no two touching; tap to cycle empty→✕→★, drag to paint crosses, 801 levels in 9 groups (Tutorial · Easy A/B/C · Normal A/B · Hard A/B/C), guided hints, Caleb/Ezra progress |
 
 ## Naming quirks worth knowing
 
