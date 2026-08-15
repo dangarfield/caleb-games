@@ -67,6 +67,8 @@ let dragging = false;
 let nextWaypoint = 1;
 let hintCell = null;
 let hintTimer = 0;
+let hintCooldown = 0; // timestamp when hint becomes available again
+const HINT_COOLDOWN_MS = 30000;
 
 // === PERSISTENCE ===
 function loadArcadeData() {
@@ -294,17 +296,31 @@ function drawGame() {
   // HUD
   ctx.fillStyle = '#fff'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'left';
   ctx.fillText(`Level ${currentLevel+1}`, 70, 30);
-  // Hint button
+  // Hint button with cooldown ring
+  const hintX = W-110, hintY = 10, hintW = 45, hintH = 35;
   ctx.fillStyle = 'rgba(0,0,0,0.4)';
-  ctx.beginPath(); roundRect(ctx, W-110, 10, 45, 35, 8); ctx.fill();
+  ctx.beginPath(); roundRect(ctx, hintX, hintY, hintW, hintH, 8); ctx.fill();
   ctx.fillStyle = '#fff'; ctx.font = '20px sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText('💡', W-88, 34);
+  ctx.fillText('💡', hintX+hintW/2, hintY+24);
+  // Cooldown ring
+  const now = performance.now();
+  if (hintCooldown > now) {
+    const remaining = (hintCooldown - now) / HINT_COOLDOWN_MS;
+    const cx = hintX + hintW/2, cy = hintY + hintH/2;
+    const radius = Math.min(hintW, hintH)/2 + 2;
+    ctx.strokeStyle = '#ffd32a';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, -Math.PI/2, -Math.PI/2 + (1-remaining)*Math.PI*2);
+    ctx.stroke();
+  }
   // Reset button
   ctx.fillStyle = 'rgba(0,0,0,0.4)';
   ctx.beginPath(); roundRect(ctx, W-55, 10, 45, 35, 8); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.font = '20px sans-serif'; ctx.textAlign = 'center';
   ctx.fillText('↺', W-33, 34);
   window._hudBtns = [
-    {x:W-110,y:10,w:45,h:35,action:'hint'},
+    {x:hintX,y:hintY,w:hintW,h:hintH,action:'hint'},
     {x:W-55,y:10,w:45,h:35,action:'reset'},
   ];
 
@@ -524,6 +540,10 @@ function recalcWaypoints() {
 }
 
 function showHint() {
+  // Check cooldown
+  if (performance.now() < hintCooldown) return;
+  hintCooldown = performance.now() + HINT_COOLDOWN_MS;
+
   // Simple hint: if path is empty, highlight waypoint 1.
   // Otherwise, try to find a valid next cell (not a full solver, just direction)
   if (path.length === 0) {
@@ -574,9 +594,9 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// === ANIMATION LOOP (for hint pulsing) ===
+// === ANIMATION LOOP (for hint pulsing + cooldown ring) ===
 function loop() {
-  if (hintCell && performance.now() - hintTimer < 2000) draw();
+  if ((hintCell && performance.now() - hintTimer < 2000) || (hintCooldown > performance.now())) draw();
   requestAnimationFrame(loop);
 }
 loop();

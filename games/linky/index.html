@@ -93,7 +93,22 @@
     display:flex; flex-direction:column; align-items:center; gap:2px; }
   .ctrl:active { transform:scale(0.92); background:rgba(108,92,231,0.3); }
   .ctrl .ci { font-size:1.4rem; }
-  .ctrl.hint { background:linear-gradient(135deg,#ffb02a,#ffd32a); color:#4a2c00; border:none; }
+  .ctrl.hint { background:linear-gradient(135deg,#ffb02a,#ffd32a); color:#4a2c00; border:none; position:relative; }
+  .ctrl.hint.on-cooldown { opacity:0.5; pointer-events:none; }
+  .ctrl.hint.on-cooldown::after {
+    content:''; position:absolute; inset:-4px; border-radius:16px; padding:3px;
+    background: conic-gradient(#ffd32a var(--cd, 0%), rgba(255,211,42,0.15) 0%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    animation: hintSweep 30s linear forwards;
+  }
+  @keyframes hintSweep {
+    from { --cd: 0%; }
+    to { --cd: 100%; }
+  }
+  @property --cd {
+    syntax: '<percentage>'; initial-value: 0%; inherits: false;
+  }
 
   /* win buttons */
   #winButtons { position:fixed; left:0; right:0; bottom:8vh; z-index:25;
@@ -140,7 +155,7 @@
 
 <!-- in-game controls -->
 <div id="controls" class="hidden">
-  <button class="ctrl hint" onclick="doHint()"><span class="ci">💡</span>Hint</button>
+  <button class="ctrl hint" id="hintBtn" onclick="doHint()"><span class="ci">💡</span>Hint</button>
   <button class="ctrl" onclick="doUndo()"><span class="ci">↩️</span>Undo</button>
   <button class="ctrl" onclick="doClear()"><span class="ci">🧹</span>Clear</button>
   <button class="ctrl" onclick="openMap()"><span class="ci">🗺️</span>Levels</button>
@@ -388,6 +403,9 @@ function doClear() {
 }
 function doHint() {
   if (mode !== 'play') return;
+  const btn = document.getElementById('hintBtn');
+  if (btn.classList.contains('on-cooldown')) return;
+
   const sol = level.solution;
   let target = -1;
   for (let i = 0; i < paths.length; i++) {
@@ -407,6 +425,10 @@ function doHint() {
   }
   paths[target] = sol[target].map(c => [c[0], c[1]]);
   recomputeOwner(); sfxHint(); checkWin();
+
+  // Start 30s cooldown
+  btn.classList.add('on-cooldown');
+  setTimeout(() => { btn.classList.remove('on-cooldown'); }, 30000);
 }
 
 function checkWin() {
