@@ -104,6 +104,9 @@ function sfxMove() { playTone(400+path.length*20, 0.06, 'sine', 0.06); }
 function sfxWaypoint() { playTone(800,0.15,'triangle',0.1); setTimeout(()=>playTone(1000,0.1,'triangle',0.08),80); }
 function sfxWin() { [523,659,784,1047].forEach((f,i)=>setTimeout(()=>playTone(f,0.2,'triangle',0.1),i*100)); }
 function sfxUndo() { playTone(250,0.05,'square',0.04); }
+function sfxError() { playTone(150,0.2,'sawtooth',0.08); setTimeout(()=>playTone(120,0.15,'sawtooth',0.06),100); }
+
+let errorFlash = 0; // timestamp when error started
 
 // === GRID HELPERS ===
 function isWall(r1,c1,r2,c2) {
@@ -325,6 +328,21 @@ function drawGame() {
     {x:W-55,y:10,w:45,h:35,action:'reset'},
   ];
 
+  // Error flash (red border when grid full but wrong)
+  if (errorFlash && performance.now() - errorFlash < 1000) {
+    const t = (performance.now() - errorFlash) / 1000;
+    const alpha = (1 - t) * 0.7;
+    ctx.strokeStyle = `rgba(231,76,60,${alpha})`;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    roundRect(ctx, gridX-12, gridY-12, s*cellSize+24, s*cellSize+24, 14);
+    ctx.stroke();
+    // Shake offset
+    const shake = Math.sin(t * 30) * (1 - t) * 4;
+    canvas.style.transform = `translateX(${shake}px)`;
+    if (t >= 1) canvas.style.transform = '';
+  }
+
   // Win overlay
   if (state === 'won') {
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
@@ -525,13 +543,18 @@ function handlePointerMove(px, py) {
   hintCell = null;
   draw();
 
-  if (checkWin()) {
-    state = 'won';
-    sfxWin();
-    // Save progress
-    const pd = getPlayerData(currentPlayer);
-    if (currentLevel + 1 >= pd.highest) { pd.highest = currentLevel + 2; savePlayerData(currentPlayer, pd); }
-    draw();
+  // Check if grid is full
+  if (path.length === level.size * level.size) {
+    if (checkWin()) {
+      state = 'won';
+      sfxWin();
+      const pd = getPlayerData(currentPlayer);
+      if (currentLevel + 1 >= pd.highest) { pd.highest = currentLevel + 2; savePlayerData(currentPlayer, pd); }
+      draw();
+    } else {
+      // Grid full but wrong — flash red and shake
+      showError();
+    }
   }
 }
 
@@ -542,6 +565,12 @@ function recalcWaypoints() {
   for (const wp of level.waypoints.sort((a,b)=>a.n-b.n)) {
     if (inPath(wp.r, wp.c) && isWaypointReached(wp)) nextWaypoint = wp.n + 1;
   }
+}
+
+function showError() {
+  sfxError();
+  errorFlash = performance.now();
+  draw();
 }
 
 function showHint() {
@@ -599,9 +628,10 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// === ANIMATION LOOP (for hint pulsing + cooldown ring) ===
+// === ANIMATION LOOP (for hint pulsing + cooldown ring + error flash) ===
 function loop() {
-  if ((hintCell && performance.now() - hintTimer < 2000) || (hintCooldown > performance.now())) draw();
+  const now = performance.now();
+  if ((hintCell && now - hintTimer < 2000) || (hintCooldown > now) || (errorFlash && now - errorFlash < 1000)) draw();
   requestAnimationFrame(loop);
 }
 loop();
