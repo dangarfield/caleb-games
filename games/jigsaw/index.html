@@ -1,0 +1,1982 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Jigsaw - Garfield Boys' Arcade</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { width:100%; height:100%; }
+body { background:#0a0a2e; overflow:hidden; touch-action:none;
+  font-family:'Segoe UI',system-ui,sans-serif; color:#fff;
+  -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none; }
+/* sized (and vertically aligned) to match the canvas-drawn HUD pills; the
+   40px height keeps it a comfortable finger target on a tablet */
+#backBtn { position:fixed; top:12px; left:12px; z-index:9999;
+  display:inline-flex; align-items:center; height:40px;
+  background:rgba(0,0,0,0.55); color:#fff; text-decoration:none;
+  padding:0 18px; border-radius:20px;
+  font:bold 15px/1 'Segoe UI',system-ui,sans-serif;
+  border:1px solid rgba(255,255,255,0.18);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  transition:background 0.2s; }
+#backBtn:hover { background:rgba(0,0,0,0.75); }
+/* short viewports: the HUD shrinks its pills to 36px at y=6 — follow it */
+@media (max-height: 519px) {
+  #backBtn { top:6px; height:36px; font-size:14px; }
+}
+canvas { display:block; width:100%; height:100%; touch-action:none; }
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+<canvas id="c"></canvas>
+<script>
+/* =====================================================================
+   JIGSAW — Bonza-style tessellated jigsaw (Netflix "Jigsaw" / bonzaJigsaw)
+
+   RELATIVE ASSEMBLY. There is no board and no tray: there is a pannable,
+   zoomable *table*. Pieces are scattered on it, and you drag them
+   together. Two pieces join when they come to rest in their true
+   relative position — never onto an absolute slot.
+
+   The picture is cut on a tessellated LATTICE, not into classic jigsaw
+   pieces. Five lattices ship in the data:
+
+     classic     1 cell  per cluster : a square
+     slash       2 cells per cluster : half-square triangles
+     diamond     4 cells per cluster : quarter triangles, cluster is 2:1
+     skew_left   4 cells per cluster : quarter triangles
+     skew_right  4 cells per cluster : quarter triangles
+
+   A *cluster* is one square of the lattice. levels.json gives a
+   gridRows x gridCols array of piece ids; all cells sharing an id form
+   one piece (a polyomino of lattice cells). Pieces are dealt in
+   "portions" (waves of 3-9); the next wave arrives once everything
+   already dealt is joined into one blob.
+
+   THE ONE IDEA THAT MAKES THIS WORK
+   ---------------------------------
+   The lattice tiles the whole infinite plane, and a *legal* translation
+   of a piece is one that preserves every cell's `idx` (its shape):
+
+       classic  : any (dr, dc)
+       slash    : dc even
+       triangle : dc === 2*dr  (mod 4)
+
+   ...and the pixel shift of a legal (dr, dc) is exactly
+   (dc * pitch, dr * clusterH), where pitch = clusterW / cellsPerCluster.
+   (Validated in Python over all 312 levels.)
+
+   Those legal translations form a subgroup, so a *group* of joined
+   pieces is fully described by ONE legal translation (g.dr, g.dc):
+     - the plane cell it occupies is simply (r + dr, c + dc)
+     - distinct plane cells never overlap, so "does this fit?" is just a
+       set test on a Map keyed "R:C"
+     - two groups are in correct relative position iff their (dr, dc) are
+       EQUAL. So touching + equal offset => join; touching + different
+       offset => wrong neighbour => red edge + shake.
+
+   A piece needs NO image crop maths: clip to its polygons and draw the
+   whole source image as if the entire picture sat at its group's anchor.
+   A whole group is clipped as ONE path, so joined pieces show no seam —
+   shared cell edges cancel inside a single clip region.
+
+   Single file, Canvas 2D, no dependencies. The one network call is the
+   puzzle picture from the Netflix CDN (deliberate, user-approved); the
+   game degrades gracefully when it fails.
+   ===================================================================== */
+
+// ---------------------------------------------------------------- canvas
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W = 1, H = 1, DPR = 1;
+let ready = false;
+// The render loop idles when nothing is animating (see busy()), so ANY state change
+// outside an animation has to ask for one more frame. Missing this is why a zoom
+// button used to do nothing until the next touch.
+let dirty = true;
+function needFrame() { dirty = true; }
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = Math.max(1, innerWidth);
+  H = Math.max(1, innerHeight);
+  canvas.width = Math.round(W * DPR);
+  canvas.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  if (ready) { relayout(); draw(); }
+}
+addEventListener('resize', resize);
+addEventListener('orientationchange', resize);
+
+// ---------------------------------------------------------------- theme
+const COL = {
+  bg0:'#0a0a2e', bg1:'#141452', bg2:'#1a1a6e',
+  accent:'#6c5ce7', glow:'#a29bfe', sub:'#a0c4ff',
+  gold:'#ffd32a', danger:'#e74c3c', good:'#2ecc71',
+  board:'#0d0d33'
+};
+const TESS_COL = {
+  classic:'#6c5ce7', slash:'#00b894', diamond:'#e17055',
+  skew_left:'#0984e3', skew_right:'#d63031'
+};
+const TESS_LABEL = {
+  classic:'Squares', slash:'Triangles', diamond:'Diamonds',
+  skew_left:'Lean left', skew_right:'Lean right'
+};
+const MONTHS = ['January','February','March','April','May','June','July',
+                'August','September','October','November','December'];
+
+function roundRect(x, y, w, h, r) {
+  r = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r);
+  ctx.arcTo(x, y, x+w, y, r);
+  ctx.closePath();
+}
+function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+function easeInOut(t) { return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2) / 2; }
+// deterministic per-cell noise: the backdrop must not shimmer while panning
+function hash2(a, b) {
+  let h = (a * 374761393 + b * 668265263) | 0;
+  h = (h ^ (h >>> 13)) | 0;
+  h = (h * 1274126177) | 0;
+  h = (h ^ (h >>> 16)) | 0;
+  return (h >>> 0) / 4294967296;
+}
+
+// ---------------------------------------------------------------- audio
+let audioCtx = null;
+function ensureAudio() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  } catch (e) { audioCtx = null; }
+  return audioCtx;
+}
+function tone(freq, dur, type, vol, endFreq, delay) {
+  const ac = ensureAudio(); if (!ac) return;
+  const t0 = ac.currentTime + (delay || 0);
+  const osc = ac.createOscillator(), gain = ac.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.setValueAtTime(freq, t0);
+  if (endFreq) osc.frequency.exponentialRampToValueAtTime(Math.max(endFreq, 20), t0 + dur);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(vol || 0.1, t0 + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(gain); gain.connect(ac.destination);
+  osc.start(t0); osc.stop(t0 + dur + 0.02);
+}
+function noise(dur, vol, freq, delay) {
+  const ac = ensureAudio(); if (!ac) return;
+  const t0 = ac.currentTime + (delay || 0);
+  const len = Math.max(1, Math.floor(ac.sampleRate * dur));
+  const buf = ac.createBuffer(1, len, ac.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  const src = ac.createBufferSource(); src.buffer = buf;
+  const gain = ac.createGain();
+  gain.gain.setValueAtTime(vol || 0.06, t0);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  const filt = ac.createBiquadFilter();
+  filt.type = 'bandpass'; filt.frequency.value = freq || 900; filt.Q.value = 1.1;
+  src.connect(filt); filt.connect(gain); gain.connect(ac.destination);
+  src.start(t0); src.stop(t0 + dur + 0.02);
+}
+const sfx = {
+  lift() { tone(320, 0.07, 'sine', 0.05, 480); },
+  place() { noise(0.035, 0.035, 700); tone(150, 0.06, 'sine', 0.04, 100); },
+  // the "it fits" click: short wood knock + a bright chime on top
+  join(n) {
+    noise(0.05, 0.07, 1500);
+    const scale = [523, 587, 659, 784, 880, 988, 1046];
+    tone(scale[Math.min(scale.length - 1, n || 0)], 0.16, 'triangle', 0.09);
+    tone(180, 0.09, 'sine', 0.07, 90);
+  },
+  nope() { tone(200, 0.13, 'sawtooth', 0.05, 130); noise(0.07, 0.04, 400); },
+  wave() {
+    [523, 659, 784].forEach((f, i) => tone(f, 0.2, 'sine', 0.06, null, i * 0.07));
+    noise(0.25, 0.03, 600);
+  },
+  win() {
+    [523, 659, 784, 1046, 1318].forEach((f, i) =>
+      tone(f, 0.42, 'triangle', 0.09, null, i * 0.13));
+  },
+  tap() { tone(600, 0.05, 'sine', 0.045); }
+};
+
+// ---------------------------------------------------------------- storage
+function loadArcadeData() {
+  try { return JSON.parse(localStorage.getItem('calebArcadeData')) || {}; }
+  catch (e) { return {}; }
+}
+function saveArcadeData(d) {
+  try { localStorage.setItem('calebArcadeData', JSON.stringify(d)); }
+  catch (e) { /* private mode */ }
+}
+const pdCache = {};
+function gameData() {
+  const d = loadArcadeData();
+  if (!d.jigsaw) d.jigsaw = {};
+  return d;
+}
+function getPlayerData(name) {
+  if (!name) return { solved:{} };
+  if (pdCache[name]) return pdCache[name];
+  const d = gameData();
+  if (!d.jigsaw[name] || typeof d.jigsaw[name] !== 'object') d.jigsaw[name] = { solved:{} };
+  if (!d.jigsaw[name].solved) d.jigsaw[name].solved = {};
+  saveArcadeData(d);
+  pdCache[name] = d.jigsaw[name];
+  return pdCache[name];
+}
+function markSolved(name, id) {
+  if (!name) return;
+  const pd = getPlayerData(name);
+  if (pd.solved[id]) return;
+  pd.solved[id] = 1;
+  const d = gameData();
+  d.jigsaw[name] = pd;
+  saveArcadeData(d);
+  solvedCountCache = {};
+}
+let solvedCountCache = {};
+function totalSolved(name) {
+  if (!name) return 0;
+  if (solvedCountCache[name] != null) return solvedCountCache[name];
+  const pd = getPlayerData(name);
+  let n = 0;
+  for (const k in pd.solved) if (pd.solved[k]) n++;
+  return (solvedCountCache[name] = n);
+}
+function getPref(key, dflt) {
+  const d = gameData();
+  return d.jigsaw[key] === undefined ? dflt : d.jigsaw[key];
+}
+function setPref(key, val) {
+  const d = gameData();
+  d.jigsaw[key] = val;
+  saveArcadeData(d);
+}
+
+// ---------------------------------------------------------------- levels
+let LEVELS = [], levelsLoaded = false, levelsError = '';
+
+// A bare relative fetch('levels.json') breaks when the page is served WITHOUT a
+// trailing slash (/games/jigsaw): the browser treats "jigsaw" as the document
+// name and the request escapes to /games/levels.json. Try the dir-relative form
+// FIRST so the common cases never even log a failed request.
+function levelsUrls() {
+  const out = [];
+  let p = '';
+  try { p = (location && location.pathname) || ''; } catch (e) {}
+  if (p && !p.endsWith('/') && !/\.html?$/i.test(p)) out.push(p.replace(/\/+$/, '') + '/levels.json');
+  try { out.push(new URL('levels.json', document.baseURI).href); } catch (e) {}
+  out.push('levels.json');
+  const dir = p.replace(/[^/]*$/, '');
+  if (dir) out.push(dir + 'jigsaw/levels.json');
+  return out.filter((u, i) => out.indexOf(u) === i);
+}
+async function loadLevels() {
+  let lastErr = null;
+  for (const url of levelsUrls()) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (Array.isArray(data) && data.length) { LEVELS = data; break; }
+      throw new Error('empty level list');
+    } catch (e) { lastErr = e; }
+  }
+  levelsLoaded = true;
+  if (!LEVELS.length) {
+    levelsError = 'Puzzle list unavailable — needs a web server.';
+    console.warn('levels.json unavailable:', lastErr && lastErr.message);
+  } else {
+    buildSections();
+  }
+  draw();
+}
+
+// 312 dailies in one flat grid is a wall of tiles, so they are chunked into
+// month sections (the data is already in date order).
+let SECTIONS = [];
+function buildSections() {
+  SECTIONS = [];
+  let cur = null;
+  for (let i = 0; i < LEVELS.length; i++) {
+    const lv = LEVELS[i];
+    const parts = String(lv.date || '').split('-');
+    const key = parts[0] + '-' + parts[1];
+    const label = (MONTHS[(+parts[1] || 1) - 1] || '') + ' ' + parts[0];
+    if (!cur || cur.key !== key) { cur = { key, label, idx:[] }; SECTIONS.push(cur); }
+    cur.idx.push(i);
+    lv._day = +parts[2] || 0;
+  }
+}
+
+// ---------------------------------------------------------- lattice geometry
+const TILE = 40;
+// level-scoped lattice constants, set by buildLevel
+let cwU = TILE, chU = TILE, pitchU = TILE, cpc = 1, TRI = false, STEP = 1;
+
+function isTri(t) { return t === 'diamond' || t === 'skew_left' || t === 'skew_right'; }
+
+// idx of a cell anywhere on the INFINITE plane (negatives included)
+function planeIdx(R, C) {
+  if (cpc === 1) return 0;
+  if (TRI && (R & 1)) return (((C + 2) % 4) + 4) % 4;
+  return ((C % cpc) + cpc) % cpc;
+}
+// Cluster origin. Odd rows of the triangle family are staggered: the model
+// offset is 2 cells, the render offset half a cluster.
+function clusterOriginX(R, C) {
+  if (TRI && (R & 1)) return Math.floor((C - 2) / cpc) * cwU + cwU / 2;
+  return Math.floor(C / cpc) * cwU;
+}
+// Cell polygon in world units (flat [x,y,x,y,...]). Valid for any integers.
+function planeCellPoly(R, C) {
+  const ox = clusterOriginX(R, C), oy = R * chU, idx = planeIdx(R, C);
+  let v;
+  if (cpc === 1) {
+    v = [0,0, cwU,0, cwU,chU, 0,chU];
+  } else if (cpc === 2) {
+    v = idx === 0 ? [0,0, cwU,0, 0,chU] : [0,chU, cwU,0, cwU,chU];
+  } else {
+    const h = cwU / 2;
+    v = idx === 0 ? [0,0, h,0, 0,chU]           // top-left
+      : idx === 1 ? [0,chU, h,0, h,chU]         // bottom-right
+      : idx === 2 ? [h,0, cwU,chU, h,chU]       // bottom-left
+      :             [h,0, cwU,0, cwU,chU];      // top-right
+  }
+  const out = new Array(v.length);
+  for (let i = 0; i < v.length; i += 2) { out[i] = ox + v[i]; out[i+1] = oy + v[i+1]; }
+  return out;
+}
+// Lattice neighbours (transcribed from the bundle, symmetric closure verified).
+function nbrsOf(R, C) {
+  if (cpc === 1) return [R-1,C, R,C+1, R+1,C, R,C-1];
+  const i = planeIdx(R, C);
+  if (cpc === 2) {
+    return i === 0 ? [R-1,C+1, R,C+1, R,C-1]
+                   : [R,C-1, R,C+1, R+1,C-1];
+  }
+  if (i === 0) return [R-1,C, R,C+1, R,C-1];
+  if (i === 1) return [R,C-1, R,C+1, R+1,C];
+  if (i === 2) return [R,C+1, R+1,C, R,C-1];
+  return [R-1,C, R,C+1, R,C-1];
+}
+// The one edge two lattice neighbours share. Every vertex is an integer in world
+// units for all five tessellations, so exact comparison is safe.
+function sharedSeg(a, b) {
+  for (let i = 0; i < a.length; i += 2) {
+    const ax = a[i], ay = a[i+1];
+    const bx = a[(i+2) % a.length], by = a[(i+3) % a.length];
+    for (let j = 0; j < b.length; j += 2) {
+      const cx = b[j], cy = b[j+1];
+      const dx = b[(j+2) % b.length], dy = b[(j+3) % b.length];
+      if ((ax === cx && ay === cy && bx === dx && by === dy) ||
+          (ax === dx && ay === dy && bx === cx && by === cy)) return [ax, ay, bx, by];
+    }
+  }
+  return null;
+}
+// Boundary of a set of cell polygons: every edge used exactly once.
+function boundaryEdges(polys) {
+  const seen = new Map();
+  for (const poly of polys) {
+    for (let i = 0; i < poly.length; i += 2) {
+      const ax = poly[i], ay = poly[i+1];
+      const bx = poly[(i+2) % poly.length], by = poly[(i+3) % poly.length];
+      const k = (ax < bx || (ax === bx && ay < by))
+        ? ax+'_'+ay+'_'+bx+'_'+by : bx+'_'+by+'_'+ax+'_'+ay;
+      const e = seen.get(k);
+      if (e) e.n++; else seen.set(k, { n:1, s:[ax,ay,bx,by] });
+    }
+  }
+  const out = [];
+  seen.forEach(e => { if (e.n === 1) out.push(e.s); });
+  return out;
+}
+function bboxOf(polys) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const poly of polys) for (let i = 0; i < poly.length; i += 2) {
+    if (poly[i] < x0) x0 = poly[i];
+    if (poly[i] > x1) x1 = poly[i];
+    if (poly[i+1] < y0) y0 = poly[i+1];
+    if (poly[i+1] > y1) y1 = poly[i+1];
+  }
+  return { x0, y0, w: x1 - x0, h: y1 - y0 };
+}
+// A translation is legal only if it preserves every cell's idx (its shape).
+function legalDelta(dr, dc) {
+  if (STEP === 1) return true;
+  if (STEP === 2) return (((dc % 2) + 2) % 2) === 0;
+  return ((((dc - 2 * dr) % 4) + 4) % 4) === 0;
+}
+function nearestLegalDc(dr, want) {
+  if (STEP === 1) return Math.round(want);
+  const res = STEP === 4 ? (((2 * dr) % 4) + 4) % 4 : 0;
+  return res + STEP * Math.round((want - res) / STEP);
+}
+
+// ------------------------------------------------------------ level build
+let level = null;         // the raw record
+let pieces = [];          // all pieces, build order
+let pieceById = new Map();
+let groups = [];          // live groups on the table
+let occ = new Map();      // "R:C" -> group occupying that plane cell
+let boardU = 0;           // unscaled picture width/height (square)
+let gidSeq = 1;
+
+function buildLevel(lv) {
+  level = lv;
+  cwU = lv.tessellation === 'diamond' ? TILE * 2 : TILE;
+  chU = TILE;
+  cpc = lv.cellsPerCluster;
+  TRI = isTri(lv.tessellation);
+  pitchU = cwU / cpc;
+  STEP = cpc === 1 ? 1 : cpc === 2 ? 2 : 4;
+  boardU = lv.size * TILE;
+
+  const byId = new Map();
+  for (let r = 0; r < lv.gridRows; r++) {
+    const row = lv.grid[r];
+    for (let c = 0; c < lv.gridCols; c++) {
+      const id = row[c];
+      let p = byId.get(id);
+      if (!p) { p = { id, cells:[], polys:[] }; byId.set(id, p); }
+      p.cells.push(r, c);
+      p.polys.push(planeCellPoly(r, c));
+    }
+  }
+  pieces = [];
+  pieceById = byId;
+  byId.forEach(p => {
+    p.edges = boundaryEdges(p.polys);
+    const b = bboxOf(p.polys);
+    p.bx0 = b.x0; p.by0 = b.y0; p.bw = b.w; p.bh = b.h;
+    p.wave = -1;
+    p.group = null;
+    pieces.push(p);
+  });
+  for (let i = 0; i < lv.portions.length; i++)
+    for (const id of lv.portions[i]) { const p = byId.get(id); if (p) p.wave = i; }
+
+  groups = [];
+  occ = new Map();
+  gidSeq = 1;
+  badEdges = [];
+  dealtCount = 0;
+}
+
+// ------------------------------------------------------------------- groups
+function makeGroup(list, dr, dc) {
+  const g = { gid: gidSeq++, pieces: list.slice(), dr, dc, ax:0, ay:0,
+              tw:null, shake:0, pop:0, flash:0,
+              cache:null, bakedFor:0, cacheS:0, cacheW:0, cacheH:0 };
+  refreshGroup(g);
+  for (const p of list) p.group = g;
+  return g;
+}
+function refreshGroup(g) {
+  const cells = [], polys = [];
+  for (const p of g.pieces) {
+    for (let i = 0; i < p.cells.length; i++) cells.push(p.cells[i]);
+    for (const poly of p.polys) polys.push(poly);
+  }
+  g.cells = cells;
+  g.polys = polys;          // clipped as ONE path so joins have no seam
+  g.edges = boundaryEdges(polys);
+  const b = bboxOf(polys);
+  g.bx0 = b.x0; g.by0 = b.y0; g.bw = b.w; g.bh = b.h;
+  g.bakedFor = 0;
+}
+function cellKey(R, C) { return R + ':' + C; }
+function occAdd(g) {
+  for (let i = 0; i < g.cells.length; i += 2)
+    occ.set(cellKey(g.cells[i] + g.dr, g.cells[i+1] + g.dc), g);
+}
+function occDel(g) {
+  for (let i = 0; i < g.cells.length; i += 2) {
+    const k = cellKey(g.cells[i] + g.dr, g.cells[i+1] + g.dc);
+    if (occ.get(k) === g) occ.delete(k);
+  }
+}
+// world anchor of a group (where the whole picture's origin sits for it)
+function gAnchorX(g) { return g.dc * pitchU + g.ax; }
+function gAnchorY(g) { return g.dr * chU + g.ay; }
+function groupBox(g) {
+  const gx = gAnchorX(g), gy = gAnchorY(g);
+  return { x0: gx + g.bx0, y0: gy + g.by0,
+           x1: gx + g.bx0 + g.bw, y1: gy + g.by0 + g.bh };
+}
+function contentBounds() {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const g of groups) {
+    const b = groupBox(g);
+    if (b.x0 < x0) x0 = b.x0; if (b.y0 < y0) y0 = b.y0;
+    if (b.x1 > x1) x1 = b.x1; if (b.y1 > y1) y1 = b.y1;
+  }
+  if (!isFinite(x0)) return { x0:0, y0:0, x1:boardU, y1:boardU };
+  return { x0, y0, x1, y1 };
+}
+function assemblySize() {
+  let m = 0;
+  for (const g of groups) if (g.pieces.length > m) m = g.pieces.length;
+  return m;
+}
+
+// Does g fit at (dr, dc)? Distinct plane cells never overlap geometrically, so
+// this is a pure set test.
+function groupFitsAt(g, dr, dc) {
+  const cells = g.cells;
+  for (let i = 0; i < cells.length; i += 2) {
+    const o = occ.get(cellKey(cells[i] + dr, cells[i+1] + dc));
+    if (o && o !== g) return false;
+  }
+  return true;
+}
+// How many correct joins would g make at (dr, dc)? A touching group with the
+// SAME offset is, by construction, in the true relative position.
+function countJoins(g, dr, dc) {
+  let n = 0;
+  const cells = g.cells;
+  for (let i = 0; i < cells.length; i += 2) {
+    const R = cells[i] + dr, C = cells[i+1] + dc;
+    const nb = nbrsOf(R, C);
+    for (let j = 0; j < nb.length; j += 2) {
+      const q = occ.get(cellKey(nb[j], nb[j+1]));
+      if (q && q !== g && q.dr === dr && q.dc === dc) n++;
+    }
+  }
+  return n;
+}
+// Groups that touch g and share its offset (transitively).
+function joinCluster(g) {
+  const out = [g], seen = new Set([g.gid]);
+  for (let k = 0; k < out.length; k++) {
+    const a = out[k];
+    for (let i = 0; i < a.cells.length; i += 2) {
+      const R = a.cells[i] + a.dr, C = a.cells[i+1] + a.dc;
+      const nb = nbrsOf(R, C);
+      for (let j = 0; j < nb.length; j += 2) {
+        const q = occ.get(cellKey(nb[j], nb[j+1]));
+        if (q && !seen.has(q.gid) && q.dr === g.dr && q.dc === g.dc) {
+          seen.add(q.gid); out.push(q);
+        }
+      }
+    }
+  }
+  return out;
+}
+function mergeCluster(list) {
+  // keep the biggest so the assembly's identity survives a weld
+  let keep = list[0];
+  for (const q of list) if (q.pieces.length > keep.pieces.length) keep = q;
+  for (const q of list) {
+    if (q === keep) continue;
+    occDel(q);
+    for (const p of q.pieces) { keep.pieces.push(p); p.group = keep; }
+    const gi = groups.indexOf(q);
+    if (gi >= 0) groups.splice(gi, 1);
+    q.cache = null;
+  }
+  refreshGroup(keep);
+  occAdd(keep);
+  return keep;
+}
+// Every wrongly-touching edge on the table: a shared lattice edge between two
+// groups whose offsets differ.
+let badEdges = [];
+function recomputeBadEdges() {
+  badEdges = [];
+  const done = new Set();
+  for (const g of groups) {
+    for (let i = 0; i < g.cells.length; i += 2) {
+      const R = g.cells[i] + g.dr, C = g.cells[i+1] + g.dc;
+      const nb = nbrsOf(R, C);
+      for (let j = 0; j < nb.length; j += 2) {
+        const R2 = nb[j], C2 = nb[j+1];
+        const q = occ.get(cellKey(R2, C2));
+        if (!q || q === g) continue;
+        if (q.dr === g.dr && q.dc === g.dc) continue;   // correct, already joined
+        const k = R < R2 || (R === R2 && C < C2)
+          ? R+':'+C+'|'+R2+':'+C2 : R2+':'+C2+'|'+R+':'+C;
+        if (done.has(k)) continue;
+        done.add(k);
+        const seg = sharedSeg(planeCellPoly(R, C), planeCellPoly(R2, C2));
+        // anchored on the settled group so it sits on the final seam
+        if (seg) badEdges.push({ s: seg, q: (g.tw ? q : g) });
+      }
+    }
+  }
+}
+function groupHasBadEdge(g) {
+  for (let i = 0; i < g.cells.length; i += 2) {
+    const R = g.cells[i] + g.dr, C = g.cells[i+1] + g.dc;
+    const nb = nbrsOf(R, C);
+    for (let j = 0; j < nb.length; j += 2) {
+      const q = occ.get(cellKey(nb[j], nb[j+1]));
+      if (q && q !== g && (q.dr !== g.dr || q.dc !== g.dc)) return true;
+    }
+  }
+  return false;
+}
+
+// ------------------------------------------------------------------- images
+const imgCache = new Map();     // url -> drawable
+const IMG_CACHE_MAX = 6;
+
+// The CDN serves these as application/octet-stream with NO CORS header, so a
+// cross-origin fetch() is blocked. An <img> still decodes them (browsers sniff
+// image bytes) — the canvas becomes tainted, which is harmless here because we
+// only ever draw, never read pixels. fetch->blob->createImageBitmap is kept as
+// the fallback for hosts that do send permissive headers.
+function loadViaImg(url) {
+  return new Promise((resolve, reject) => {
+    const im = new Image();
+    im.decoding = 'async';
+    let done = false;
+    const to = setTimeout(() => { if (!done) { done = true; reject(new Error('timeout')); } }, 15000);
+    im.onload = () => {
+      if (done) return; done = true; clearTimeout(to);
+      if (!im.naturalWidth) reject(new Error('empty image'));
+      else resolve(im);
+    };
+    im.onerror = () => { if (!done) { done = true; clearTimeout(to); reject(new Error('img error')); } };
+    im.src = url;
+  });
+}
+async function loadViaFetch(url) {
+  const res = await fetch(url, { mode:'cors' });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const blob = await res.blob();
+  if (window.createImageBitmap) return await createImageBitmap(blob);
+  const obj = URL.createObjectURL(blob);
+  try { return await loadViaImg(obj); }
+  finally { setTimeout(() => URL.revokeObjectURL(obj), 30000); }
+}
+async function loadPicture(url) {
+  if (imgCache.has(url)) return imgCache.get(url);
+  let img = null, err = null;
+  try { img = await loadViaImg(url); }
+  catch (e) { err = e; }
+  if (!img) {
+    try { img = await loadViaFetch(url); }
+    catch (e2) { throw (err || e2); }
+  }
+  imgCache.set(url, img);
+  while (imgCache.size > IMG_CACHE_MAX) imgCache.delete(imgCache.keys().next().value);
+  return img;
+}
+
+// -------------------------------------------------------------------- state
+let view = 'menu';        // menu | levels | loading | imgError | playing | won
+let player = null;
+let levelIdx = -1;
+let picture = null;
+let loadToken = 0;
+let loadErrMsg = '';
+let waveIdx = -1;
+let dealtCount = 0;
+let pendingDeal = 0;
+let pendingWin = 0;
+let confetti = [];
+let toast = null;
+let hitboxes = { play:[], win:[], levels:[], menu:[], err:[] };
+let selScroll = { levels:0 }, selMax = { levels:0 }, pendingScrollTo = -1;
+
+// -------------------------------------------------------------------- camera
+// screen = (world - cam) * cam.s + viewCentre.  The table is unbounded; only the
+// scale range and a generous pan clamp keep the player oriented.
+const cam = { x:0, y:0, s:1 };
+let camTween = null;
+let vRect = { x:0, y:0, w:1, h:1 };   // the play area (below the HUD)
+let sMin = 0.2, sMax = 3, sFit = 1;
+
+function hudMetrics() {
+  const short = H < 520;
+  const btnY = short ? 6 : 12, bh = short ? 36 : 40;
+  const lw = 78, gap = 8;
+  const leftLim = 128, rightLim = W - 12 - lw - gap;
+  const wide = (rightLim - leftLim) >= 116;
+  const cw = wide ? clamp(rightLim - leftLim, 116, 220) : Math.min(210, W - 36);
+  const cx = wide ? (leftLim + rightLim) / 2 : W / 2;
+  const cy = wide ? btnY : btnY + bh + 6;
+  const showTitle = !short;
+  const titleY = cy + bh + 15;
+  const top = (showTitle ? titleY + 10 : cy + bh + 8);
+  return { short, btnY, bh, lw, gap, cw, cx, cy, titleY, showTitle, top };
+}
+const ZOOM_BTN = 46;
+function zoomRow() {
+  const n = 3, s = ZOOM_BTN, g = 8;
+  const w = n * s + (n - 1) * g;
+  return { x: W - 12 - w, y: H - 12 - s, w, h: s, s, g };
+}
+function relayout() {
+  if (!level) return;
+  const top = hudMetrics().top;
+  const zr = zoomRow();
+  let bot = zr.y - 8;
+  if (bot - top < 170) bot = H - 12;
+  vRect = { x:10, y:top, w: Math.max(60, W - 20), h: Math.max(80, bot - top) };
+  // scale range: zoom out far enough to see the scatter, in far enough to see
+  // the seams; never so far in that a cluster fills the screen
+  sFit = Math.min(vRect.w / boardU, vRect.h / boardU);
+  sMin = sFit * 0.34;
+  sMax = sFit * 1.9;
+  cam.s = clamp(cam.s, sMin, sMax);
+  for (const g of groups) g.bakedFor = 0;
+  lat.cv = null;
+  // a rotation changes both the aspect and the usable scale range; re-framing is
+  // the only way to guarantee nothing is stranded off-screen
+  if (groups.length && (view === 'playing' || view === 'won')) fitAll(0);
+  else clampCam();
+}
+function vcx() { return vRect.x + vRect.w / 2; }
+function vcy() { return vRect.y + vRect.h / 2; }
+function w2sx(wx) { return (wx - cam.x) * cam.s + vcx(); }
+function w2sy(wy) { return (wy - cam.y) * cam.s + vcy(); }
+function s2wx(sx) { return (sx - vcx()) / cam.s + cam.x; }
+function s2wy(sy) { return (sy - vcy()) / cam.s + cam.y; }
+// keep a camera position within a generous margin of whatever is on the table
+function clampPt(x, y, s) {
+  const b = contentBounds();
+  const padX = (vRect.w / s) * 0.42, padY = (vRect.h / s) * 0.42;
+  return { x: clamp(x, b.x0 - padX, b.x1 + padX),
+           y: clamp(y, b.y0 - padY, b.y1 + padY) };
+}
+function clampCam() {
+  const p = clampPt(cam.x, cam.y, cam.s);
+  cam.x = p.x; cam.y = p.y;
+  needFrame();
+}
+// Auto-framing never zooms out past this: pieces must stay a readable size even
+// if that means a bit of the table hangs off the edge (the player can pan).
+function sFloor() { return Math.max(sMin, sFit * 0.72); }
+// `must`, if given, is a box that has to stay on screen — used so a fresh wave is
+// always visible even when the whole table no longer fits at a readable scale.
+function fitBox(b, dur, must) {
+  const m = TILE * 0.9;
+  const bw = Math.max(TILE, b.x1 - b.x0) + m * 2;
+  const bh = Math.max(TILE, b.y1 - b.y0) + m * 2;
+  const s = clamp(Math.min(vRect.w / bw, vRect.h / bh), sFloor(), sMax);
+  let tx = (b.x0 + b.x1) / 2, ty = (b.y0 + b.y1) / 2;
+  if (must) {
+    const vw = vRect.w / s, vh = vRect.h / s;
+    if (must.x1 - must.x0 + m <= vw)
+      tx = clamp(tx, must.x1 + m / 2 - vw / 2, must.x0 - m / 2 + vw / 2);
+    else tx = (must.x0 + must.x1) / 2;
+    if (must.y1 - must.y0 + m <= vh)
+      ty = clamp(ty, must.y1 + m / 2 - vh / 2, must.y0 - m / 2 + vh / 2);
+    else ty = (must.y0 + must.y1) / 2;
+  }
+  if (!dur) { cam.x = tx; cam.y = ty; cam.s = s; camTween = null; clampCam(); return; }
+  const t = clampPt(tx, ty, s);
+  camTween = { t0: performance.now(), dur, x0:cam.x, y0:cam.y, s0:cam.s,
+               x1:t.x, y1:t.y, s1:s };
+  needFrame();
+}
+function fitAll(dur, must) { fitBox(contentBounds(), dur, must); }
+// Zoom about a screen point. With `dur` it glides there (how the buttons and keys
+// feel); without, it snaps (wheel and pinch, which need to track the input).
+function zoomBy(k, ax, ay, dur) {
+  const cxs = ax == null ? vcx() : ax, cys = ay == null ? vcy() : ay;
+  const wx = s2wx(cxs), wy = s2wy(cys);
+  const ns = clamp(cam.s * k, sMin, sMax);
+  if (ns === cam.s) return;
+  const nx = wx - (cxs - vcx()) / ns, ny = wy - (cys - vcy()) / ns;
+  if (!dur) {
+    cam.s = ns; cam.x = nx; cam.y = ny;
+    camTween = null;
+    clampCam();
+    return;
+  }
+  const t = clampPt(nx, ny, ns);
+  camTween = { t0: performance.now(), dur, x0:cam.x, y0:cam.y, s0:cam.s,
+               x1:t.x, y1:t.y, s1:ns };
+  needFrame();
+}
+
+// -------------------------------------------------------- procedural backdrop
+// The faint tiled table top: procedural, deterministic per cell (so panning does
+// not shimmer), baked into an offscreen canvas covering a padded world rect.
+let lat = { cv:null, s:0, wx:0, wy:0, ww:0, wh:0 };
+const LAT_PAL = (function () {
+  const base = [0x0d, 0x0d, 0x33], lite = [0x0d + 0x0a, 0x0d + 0x0a, 0x33 + 0x14];
+  const out = [];
+  for (let i = 0; i < 6; i++) {
+    const t = i / 5;
+    out.push('rgb(' + Math.round(base[0] + (lite[0]-base[0]) * t) + ',' +
+                      Math.round(base[1] + (lite[1]-base[1]) * t) + ',' +
+                      Math.round(base[2] + (lite[2]-base[2]) * t) + ')');
+  }
+  return out;
+})();
+function buildLattice(wx0, wy0, wx1, wy1, s) {
+  const padX = (wx1 - wx0) * 0.24, padY = (wy1 - wy0) * 0.24;
+  const ax = wx0 - padX, ay = wy0 - padY, bx = wx1 + padX, by = wy1 + padY;
+  const ww = Math.max(1, bx - ax), wh = Math.max(1, by - ay);
+  // The cached rect must always CONTAIN the viewport or drawLattice would rebuild
+  // every frame, so cap the resolution rather than the world extent.
+  const CAP = 2400;
+  const ppu = Math.min(s * DPR, CAP / ww, CAP / wh);
+  if (!lat.cv) lat.cv = document.createElement('canvas');
+  const cv = lat.cv;
+  cv.width = Math.max(1, Math.round(ww * ppu));
+  cv.height = Math.max(1, Math.round(wh * ppu));
+  const g = cv.getContext('2d');
+  g.setTransform(ppu, 0, 0, ppu, -ax * ppu, -ay * ppu);
+  g.fillStyle = COL.board;
+  g.fillRect(ax, ay, ww, wh);
+  lat.s = s; lat.wx = ax; lat.wy = ay; lat.ww = ww; lat.wh = wh;
+
+  const r0 = Math.floor(ay / chU) - 1, r1 = Math.ceil(by / chU) + 1;
+  const c0 = Math.floor(ax / pitchU) - cpc - 1, c1 = Math.ceil(bx / pitchU) + cpc + 1;
+  const nCells = (r1 - r0) * (c1 - c0);
+  const cellPx = pitchU * ppu;
+  // below ~2.5px a triangle is a smudge; fall back to whole clusters, and to a
+  // flat fill when even those vanish
+  const coarse = cellPx < 2.5 || nCells > 20000;
+  if (coarse && cwU * ppu < 4) return;
+  if (coarse) {
+    for (let R = r0; R <= r1; R++) {
+      const q0 = Math.floor(ax / cwU) - 2, q1 = Math.ceil(bx / cwU) + 2;
+      for (let q = q0; q <= q1; q++) {
+        const h1 = hash2(R * 7919 + 13, q);
+        if (h1 < 0.32) continue;
+        g.fillStyle = LAT_PAL[1 + ((h1 * 1000) | 0) % 5];
+        const ox = q * cwU + (TRI && (R & 1) ? cwU / 2 : 0);
+        g.fillRect(ox + 0.5, R * chU + 0.5, cwU - 1, chU - 1);
+      }
+    }
+    return;
+  }
+  for (let R = r0; R <= r1; R++) {
+    for (let C = c0; C <= c1; C++) {
+      const h1 = hash2(R, C);
+      if (h1 < 0.30) continue;
+      const poly = planeCellPoly(R, C);
+      if (poly[0] > bx + cwU || poly[0] < ax - cwU * 2) continue;
+      g.fillStyle = LAT_PAL[1 + ((hash2(C, R) * 1000) | 0) % 5];
+      g.beginPath();
+      g.moveTo(poly[0], poly[1]);
+      for (let i = 2; i < poly.length; i += 2) g.lineTo(poly[i], poly[i+1]);
+      g.closePath(); g.fill();
+    }
+  }
+}
+function drawLattice() {
+  const s = cam.s;
+  const wx0 = s2wx(0), wy0 = s2wy(0), wx1 = s2wx(W), wy1 = s2wy(H);
+  // the bitmap is drawn at world scale, so a stale `lat.s` only costs sharpness —
+  // rebuild when the viewport leaves the cached rect or it has gone soft
+  const ok = lat.cv && s <= lat.s * 1.6 &&
+    wx0 >= lat.wx - 0.01 && wy0 >= lat.wy - 0.01 &&
+    wx1 <= lat.wx + lat.ww + 0.01 && wy1 <= lat.wy + lat.wh + 0.01;
+  if (!ok) buildLattice(wx0, wy0, wx1, wy1, s);
+  if (!lat.cv) return;
+  ctx.globalAlpha = 0.85;
+  ctx.drawImage(lat.cv, w2sx(lat.wx), w2sy(lat.wy), lat.ww * s, lat.wh * s);
+  ctx.globalAlpha = 1;
+}
+
+// ------------------------------------------------------------- game control
+function startLevel(idx) {
+  const lv = LEVELS[idx];
+  if (!lv) return;
+  levelIdx = idx;
+  buildLevel(lv);
+  picture = null;
+  confetti = []; waveIdx = -1;
+  pendingDeal = 0; pendingWin = 0;
+  gesture = null; ptrs.clear();
+  lat.cv = null;
+  view = 'loading';
+  const token = ++loadToken;
+  draw();
+  loadPicture(lv.imageUrl).then(img => {
+    if (token !== loadToken) return;
+    picture = img;
+    view = 'playing';
+    cam.s = 1; cam.x = boardU / 2; cam.y = boardU / 2;
+    relayout();
+    dealPortion(0, true);
+    draw();
+  }).catch(e => {
+    if (token !== loadToken) return;
+    loadErrMsg = (e && e.message) || 'unknown error';
+    view = 'imgError';
+    draw();
+  });
+}
+
+// Scatter a wave on the table: a golden-angle spiral packed tightly around a
+// spawn point, each piece kept a small set distance clear of everything already
+// there. Deliberately tight — a wide scatter forces the fit-tween to zoom way
+// out and the pieces end up too small to read.
+const SCATTER_GAP = TILE * 0.3;
+function boxClear(b, gap, skip) {
+  for (const g of groups) {
+    if (g === skip) continue;
+    const o = groupBox(g);
+    if (b.x0 < o.x1 + gap && b.x1 > o.x0 - gap &&
+        b.y0 < o.y1 + gap && b.y1 > o.y0 - gap) return false;
+  }
+  return true;
+}
+function placeScattered(p, cx, cy, r0, phase) {
+  const GA = 2.39996323;
+  // small radial step: the overlap test does the spacing work, so a fine spiral
+  // finds the closest legal slot instead of flinging pieces outward
+  for (let k = 0; k < 1600; k++) {
+    const r = r0 + TILE * 0.45 * Math.sqrt(k);
+    const a = k * GA + phase;
+    const tx = cx + Math.cos(a) * r - p.bw / 2;
+    const ty = cy + Math.sin(a) * r - p.bh / 2;
+    const dr = Math.round((ty - p.by0) / chU);
+    const dc = nearestLegalDc(dr, (tx - p.bx0) / pitchU);
+    const gx = dc * pitchU, gy = dr * chU;
+    const b = { x0: gx + p.bx0, y0: gy + p.by0,
+                x1: gx + p.bx0 + p.bw, y1: gy + p.by0 + p.bh };
+    if (!boxClear(b, SCATTER_GAP)) continue;
+    if (!groupFitsAt({ cells: p.cells }, dr, dc)) continue;
+    const g = makeGroup([p], dr, dc);
+    groups.push(g);
+    occAdd(g);
+    g.pop = performance.now();
+    return g;
+  }
+  // pathological fallback: park it on a clear row below everything. Second pass
+  // drops the gap requirement so a piece can never go undealt.
+  const cb = contentBounds();
+  for (let pass = 0; pass < 2; pass++) {
+    for (let n = 1; n < 500; n++) {
+      const dr = Math.round((cb.y1 + TILE * 1.4 * n - p.by0) / chU);
+      const dc = nearestLegalDc(dr, (cx - p.bx0) / pitchU);
+      const gx = dc * pitchU, gy = dr * chU;
+      const b = { x0: gx + p.bx0, y0: gy + p.by0,
+                  x1: gx + p.bx0 + p.bw, y1: gy + p.by0 + p.bh };
+      if (pass === 0 && !boxClear(b, SCATTER_GAP)) continue;
+      if (!groupFitsAt({ cells: p.cells }, dr, dc)) continue;
+      const g = makeGroup([p], dr, dc);
+      groups.push(g); occAdd(g);
+      g.pop = performance.now();
+      return g;
+    }
+  }
+  return null;
+}
+function dealPortion(i, silent) {
+  waveIdx = i;
+  const ids = (level.portions[i] || []).slice();
+  // shuffled so the mother piece is not always the first one out
+  for (let k = ids.length - 1; k > 0; k--) {
+    const j = Math.floor(Math.random() * (k + 1));
+    const t = ids[k]; ids[k] = ids[j]; ids[j] = t;
+  }
+  const list = ids.map(id => pieceById.get(id)).filter(Boolean);
+  const prior = groups.slice();      // the assembly, before this wave lands
+  const first = prior.length === 0;
+  // Spawn point per piece. Wave 1 spirals out from the picture centre. Later waves
+  // spawn in a BAND hugging one edge of the assembly: right against the edge (a
+  // ring around it doubles the framed extent, and a blob centred a blob-radius out
+  // makes the player pan to reach the pieces), and spread ALONG that edge so a
+  // 10-piece wave beside a small assembly widens instead of stacking far out.
+  let spawnAt;
+  if (first) {
+    spawnAt = () => ({ x: boardU / 2, y: boardU / 2 });
+  } else {
+    const b = contentBounds();
+    const vertical = vRect.h >= vRect.w;       // portrait: below/above; else beside
+    const sign = (i % 2) ? -1 : 1;
+    const off = TILE * 0.6;
+    const bw = b.x1 - b.x0, bh = b.y1 - b.y0;
+    const mx = (b.x0 + b.x1) / 2, my = (b.y0 + b.y1) / 2;
+    const edgeX = mx + sign * (bw / 2 + off), edgeY = my + sign * (bh / 2 + off);
+    let area = 0;
+    for (const p of list) area += p.bw * p.bh;
+    // ...but no wider than the view has room for at the zoom floor, or the wave
+    // spreads past what the fit-tween is allowed to frame.
+    const room = ((vertical ? vRect.w : vRect.h) / sFloor()) * 0.78;
+    const span = Math.min(Math.max(vertical ? bw : bh, Math.sqrt(area) * 1.5),
+                          Math.max(room, TILE * 4));
+    const n = list.length;
+    spawnAt = k => {
+      const along = ((n === 1 ? 0.5 : (k + 0.5) / n) - 0.5) * span;
+      return vertical ? { x: mx + along, y: edgeY } : { x: edgeX, y: my + along };
+    };
+  }
+  const phase = Math.random() * Math.PI * 2;
+  const fresh = [];
+  list.forEach((p, k) => {
+    const at = spawnAt(k);
+    const g = placeScattered(p, at.x, at.y, 0, phase);
+    if (g) fresh.push(g);
+  });
+  dealtCount += list.length;
+  settleJoins();
+  // The tween must hold the ASSEMBLY and the NEW WAVE together: `must` is the
+  // union of both, so when the zoom floor stops the view fitting everything it
+  // centres on that union instead of chasing the new pieces alone.
+  let must = null;
+  const addBox = g => {
+    if (groups.indexOf(g) < 0) return;         // welded into another group
+    const o = groupBox(g);
+    must = must ? { x0: Math.min(must.x0, o.x0), y0: Math.min(must.y0, o.y0),
+                    x1: Math.max(must.x1, o.x1), y1: Math.max(must.y1, o.y1) } : o;
+  };
+  for (const g of prior) addBox(g);
+  for (const g of fresh) addBox(g);
+  fitAll(silent ? 0 : 620, must);
+  if (!silent) sfx.wave();
+  else clampCam();
+  checkProgress();
+}
+
+// Join every touching same-offset pair on the table (used after a drop and,
+// defensively, after a scatter). Returns the number of pieces that got welded.
+function settleJoins() {
+  let welded = 0, merged = null;
+  const now = performance.now();
+  for (let pass = 0; pass < 400; pass++) {
+    let did = false;
+    for (const g of groups.slice()) {
+      if (groups.indexOf(g) < 0) continue;
+      const cl = joinCluster(g);
+      if (cl.length < 2) continue;
+      let big = cl[0];
+      for (const q of cl) if (q.pieces.length > big.pieces.length) big = q;
+      for (const q of cl) if (q !== big) welded += q.pieces.length;
+      merged = mergeCluster(cl);
+      did = true;
+      break;
+    }
+    if (!did) break;
+  }
+  if (merged) {
+    merged.ax = 0; merged.ay = 0; merged.tw = null;
+    merged.pop = now;
+    // celebrate on the merged silhouette, never on the internal seam
+    merged.flash = now;
+  }
+  return { welded, merged };
+}
+
+function checkProgress() {
+  if (groups.length !== 1) return;
+  if (groups[0].pieces.length >= level.pieceCount) {
+    pendingWin = performance.now() + 520;
+  } else if (waveIdx + 1 < level.portions.length) {
+    pendingDeal = performance.now() + 520;
+  }
+}
+function winNow() {
+  view = 'won';
+  markSolved(player, level.id);
+  sfx.win();
+  fitAll(520);   // the finished picture, whole, centred
+  const cx = W / 2, cy = H / 2;
+  for (let i = 0; i < 130; i++) {
+    const a = Math.random() * Math.PI * 2, sp = 2 + Math.random() * 7;
+    confetti.push({ x:cx, y:cy, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp - 3,
+      r: 3 + Math.random() * 4, rot: Math.random() * 6, vr: (Math.random()-0.5) * 0.4,
+      c: [COL.gold, COL.glow, COL.accent, '#fff', COL.good][i % 5], life: 1 });
+  }
+}
+function burstAt(sx, sy) {
+  for (let i = 0; i < 12; i++) {
+    const a = Math.random() * Math.PI * 2, sp = 1 + Math.random() * 3.4;
+    confetti.push({ x:sx, y:sy, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp - 1.4,
+      r: 2 + Math.random() * 2.6, rot:0, vr:0, c: i % 2 ? COL.glow : COL.gold, life: 0.7 });
+  }
+}
+function nextLevelIdx() {
+  return levelIdx + 1 < LEVELS.length ? levelIdx + 1 : -1;
+}
+function showLevels() {
+  view = 'levels';
+  loadToken++;
+  const pd = getPlayerData(player);
+  pendingScrollTo = -1;
+  for (let i = 0; i < LEVELS.length; i++)
+    if (!pd.solved[LEVELS[i].id]) { pendingScrollTo = i; break; }
+  draw();
+}
+
+// ------------------------------------------------------- placement / dropping
+const RINGS = 5;
+function findPlacement(g, dxu, dyu) {
+  const drN = Math.round(dyu / chU);
+  const cands = [];
+  for (let dr = drN - RINGS; dr <= drN + RINGS; dr++) {
+    const res = STEP === 4 ? (((2 * dr) % 4) + 4) % 4 : 0;
+    const k0 = Math.round((dxu / pitchU - res) / STEP);
+    for (let k = k0 - RINGS; k <= k0 + RINGS; k++) {
+      const dc = res + STEP * k;
+      const ex = dc * pitchU - dxu, ey = dr * chU - dyu;
+      cands.push({ dr, dc, cost: ex * ex + ey * ey });
+    }
+  }
+  cands.sort((a, b) => a.cost - b.cost);
+  // Kid-friendly assist: within ~0.8 of a cluster, a placement that actually
+  // JOINS wins over one that is merely a hair closer.
+  const assist = Math.max(TILE * 0.8, 26 / cam.s);
+  const aCost = assist * assist;
+  let plain = null, snapped = null;
+  for (const cd of cands) {
+    if (plain && cd.cost > aCost) break;
+    if (!groupFitsAt(g, cd.dr, cd.dc)) continue;
+    if (!plain) plain = cd;
+    if (!snapped && cd.cost <= aCost && countJoins(g, cd.dr, cd.dc) > 0) snapped = cd;
+    if (plain && snapped) break;
+  }
+  return snapped || plain;
+}
+function dropGroup(g) {
+  const dxu = gAnchorX(g), dyu = gAnchorY(g);
+  const pl = findPlacement(g, dxu, dyu);
+  if (!pl) { tweenSettle(g, 220); recomputeBadEdges(); return; }
+  occDel(g);
+  g.dr = pl.dr; g.dc = pl.dc;
+  occAdd(g);
+  // keep the visual position, then let it settle onto the lattice
+  g.ax = dxu - g.dc * pitchU;
+  g.ay = dyu - g.dr * chU;
+  const res = settleJoins();
+  if (res.welded > 0) {
+    const m = res.merged;
+    sfx.join(Math.min(6, m.pieces.length - 1));
+    const bx = groupBox(m);
+    burstAt(w2sx((bx.x0 + bx.x1) / 2), w2sy((bx.y0 + bx.y1) / 2));
+    recomputeBadEdges();
+    checkProgress();
+    return;
+  }
+  tweenSettle(g, 150);
+  recomputeBadEdges();
+  if (groupHasBadEdge(g)) { g.shake = performance.now(); sfx.nope(); }
+  else sfx.place();
+}
+function tweenSettle(g, dur) {
+  if (Math.abs(g.ax) < 0.01 && Math.abs(g.ay) < 0.01) { g.ax = 0; g.ay = 0; g.tw = null; return; }
+  g.tw = { t0: performance.now(), dur: dur || 180, ax0: g.ax, ay0: g.ay };
+}
+
+// ------------------------------------------------------------------ stepping
+function stepAnims(now) {
+  if (camTween) {
+    const t = clamp((now - camTween.t0) / camTween.dur, 0, 1), e = easeInOut(t);
+    cam.x = camTween.x0 + (camTween.x1 - camTween.x0) * e;
+    cam.y = camTween.y0 + (camTween.y1 - camTween.y0) * e;
+    cam.s = camTween.s0 + (camTween.s1 - camTween.s0) * e;
+    if (t >= 1) camTween = null;
+  }
+  for (const g of groups) {
+    if (g.tw) {
+      const t = clamp((now - g.tw.t0) / g.tw.dur, 0, 1), e = easeOut(t);
+      g.ax = g.tw.ax0 * (1 - e);
+      g.ay = g.tw.ay0 * (1 - e);
+      if (t >= 1) { g.ax = 0; g.ay = 0; g.tw = null; }
+    }
+    if (g.shake && now - g.shake > 420) g.shake = 0;
+    if (g.flash && now - g.flash > 420) g.flash = 0;
+  }
+  if (pendingDeal && now >= pendingDeal) { pendingDeal = 0; dealPortion(waveIdx + 1); }
+  if (pendingWin && now >= pendingWin) { pendingWin = 0; winNow(); }
+  for (let i = confetti.length - 1; i >= 0; i--) {
+    const c = confetti[i];
+    c.vy += 0.22; c.x += c.vx; c.y += c.vy; c.rot += c.vr; c.life -= 0.008;
+    if (c.life <= 0 || c.y > H + 40) confetti.splice(i, 1);
+  }
+  if (toast && now - toast.t0 > 1900) toast = null;
+}
+
+// ---------------------------------------------------------------- rendering
+function pathInto(c2, polys, ax, ay, s) {
+  c2.beginPath();
+  for (const poly of polys) {
+    c2.moveTo(ax + poly[0] * s, ay + poly[1] * s);
+    for (let i = 2; i < poly.length; i += 2) c2.lineTo(ax + poly[i] * s, ay + poly[i+1] * s);
+    c2.closePath();
+  }
+}
+function strokeInto(c2, edges, ax, ay, s) {
+  c2.beginPath();
+  for (const e of edges) {
+    c2.moveTo(ax + e[0] * s, ay + e[1] * s);
+    c2.lineTo(ax + e[2] * s, ay + e[3] * s);
+  }
+  c2.stroke();
+}
+function pieceColor(p) {
+  const i = pieces.indexOf(p);
+  return 'hsl(' + ((i * 47) % 360) + ',45%,42%)';
+}
+const CACHE_PAD = 3;
+// A group is baked once per zoom level: a 60-piece assembly is 60 clipped
+// full-image draws, far too much to repeat every frame.
+function bakeGroup(g, s) {
+  g.bakedFor = s;
+  const cw2 = g.bw * s + CACHE_PAD * 2, ch2 = g.bh * s + CACHE_PAD * 2;
+  const pw = Math.ceil(cw2 * DPR), ph = Math.ceil(ch2 * DPR);
+  if (pw < 1 || ph < 1 || pw > 2600 || ph > 2600) { g.cache = null; g.cacheS = 0; return false; }
+  if (!g.cache) g.cache = document.createElement('canvas');
+  const cv = g.cache;
+  cv.width = pw; cv.height = ph;
+  const c2 = cv.getContext('2d');
+  c2.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const ax = CACHE_PAD - g.bx0 * s, ay = CACHE_PAD - g.by0 * s;
+  // ONE clip region for the whole group. Clipping per piece would antialias
+  // every internal cell edge twice and leave a hairline seam between joined
+  // pieces; as a single path the shared edges cancel and the picture is
+  // continuous across the group.
+  if (picture) {
+    c2.save();
+    pathInto(c2, g.polys, ax, ay, s);
+    c2.clip();
+    c2.drawImage(picture, ax, ay, boardU * s, boardU * s);
+    c2.restore();
+  } else {
+    for (const p of g.pieces) {
+      pathInto(c2, p.polys, ax, ay, s);
+      c2.fillStyle = pieceColor(p); c2.fill();
+    }
+  }
+  c2.lineJoin = 'round'; c2.lineCap = 'round';
+  // the group silhouette, dark then light so it reads on any picture
+  c2.strokeStyle = 'rgba(0,0,0,0.55)'; c2.lineWidth = 2.6;
+  strokeInto(c2, g.edges, ax, ay, s);
+  c2.strokeStyle = 'rgba(255,255,255,0.5)'; c2.lineWidth = 1.3;
+  strokeInto(c2, g.edges, ax, ay, s);
+  g.cacheS = s; g.cacheW = cw2; g.cacheH = ch2;
+  return true;
+}
+function zoomBusy() {
+  return !!camTween || (gesture && gesture.type === 'pinch');
+}
+function drawGroup(g, now, lifted) {
+  const s = cam.s;
+  let sx0 = w2sx(gAnchorX(g)), sy0 = w2sy(gAnchorY(g));
+  if (g.shake) sx0 += Math.sin((now - g.shake) / 210 * Math.PI * 4) * 6;
+  const bx = sx0 + g.bx0 * s, by = sy0 + g.by0 * s;
+  const bw = g.bw * s, bh = g.bh * s;
+  if (bx > W + 60 || by > H + 60 || bx + bw < -60 || by + bh < -60) return;
+
+  let pop = 1;
+  if (g.pop && now - g.pop < 300) pop = 1 + Math.sin((now - g.pop) / 300 * Math.PI) * 0.04;
+
+  ctx.save();
+  if (pop !== 1) {
+    const cx = bx + bw / 2, cy = by + bh / 2;
+    ctx.translate(cx, cy); ctx.scale(pop, pop); ctx.translate(-cx, -cy);
+  }
+  // rebake on zoom change, but not mid-pinch (a 60-piece assembly is far too
+  // heavy to re-clip every frame) — the stale bitmap is stretched instead
+  if (g.bakedFor !== s && !(zoomBusy() && g.bakedFor)) bakeGroup(g, s);
+  if (lifted) {
+    ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 20; ctx.shadowOffsetY = 7;
+  } else {
+    ctx.shadowColor = 'rgba(0,0,0,0.42)'; ctx.shadowBlur = 7; ctx.shadowOffsetY = 3;
+  }
+  if (g.cache && g.cacheS > 0) {
+    const k = s / g.cacheS;   // stretched mid-pinch, crisp again the moment it ends
+    ctx.drawImage(g.cache, bx - CACHE_PAD * k, by - CACHE_PAD * k,
+                  g.cacheW * k, g.cacheH * k);
+  } else {
+    // live path: only reached for a group too big to bake at this zoom.
+    // Same single-path clip as bakeGroup, so no seams between joined pieces.
+    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+    if (picture) {
+      ctx.save();
+      pathInto(ctx, g.polys, sx0, sy0, s);
+      ctx.clip();
+      ctx.drawImage(picture, sx0, sy0, boardU * s, boardU * s);
+      ctx.restore();
+    } else {
+      for (const p of g.pieces) {
+        pathInto(ctx, p.polys, sx0, sy0, s);
+        ctx.fillStyle = pieceColor(p); ctx.fill();
+      }
+    }
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 2.6;
+    strokeInto(ctx, g.edges, sx0, sy0, s);
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.3;
+    strokeInto(ctx, g.edges, sx0, sy0, s);
+  }
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+  // a fresh weld flashes the MERGED silhouette (never an internal seam)
+  if (g.flash) {
+    const t = (now - g.flash) / 420;
+    if (t >= 1) g.flash = 0;
+    else {
+      ctx.globalAlpha = (1 - t) * 0.95;
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.4; ctx.lineJoin = 'round';
+      strokeInto(ctx, g.edges, sx0, sy0, s);
+      ctx.globalAlpha = 1;
+    }
+  }
+  ctx.restore();
+}
+function drawBadEdges(now) {
+  if (!badEdges.length) return;
+  const s = cam.s;
+  const pulse = 0.6 + 0.4 * Math.sin(now / 220);
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = COL.danger;
+  ctx.shadowColor = COL.danger;
+  ctx.shadowBlur = 10;
+  ctx.globalAlpha = 0.55 + 0.45 * pulse;
+  ctx.lineWidth = Math.max(2.5, Math.min(6, 4 * s / Math.max(0.2, sFit)));
+  ctx.beginPath();
+  for (const be of badEdges) {
+    const ox = be.q ? be.q.ax : 0, oy = be.q ? be.q.ay : 0;
+    ctx.moveTo(w2sx(be.s[0] + ox), w2sy(be.s[1] + oy));
+    ctx.lineTo(w2sx(be.s[2] + ox), w2sy(be.s[3] + oy));
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+function drawBackground() {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, COL.bg0); g.addColorStop(0.55, COL.bg1); g.addColorStop(1, COL.bg2);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+}
+function drawTable(now) {
+  drawLattice();
+  const held = gesture && gesture.type === 'group' ? gesture.g : null;
+  for (const g of groups) if (g !== held) drawGroup(g, now, false);
+  if (held) drawGroup(held, now, true);
+  drawBadEdges(now);
+}
+function pill(x, y, w, h, label, on, action, list, font) {
+  ctx.save();
+  if (on) {
+    const g = ctx.createLinearGradient(x, y, x + w, y + h);
+    g.addColorStop(0, COL.accent); g.addColorStop(1, COL.glow);
+    ctx.fillStyle = g;
+  } else ctx.fillStyle = 'rgba(0,0,0,0.42)';
+  roundRect(x, y, w, h, Math.min(14, h/2)); ctx.fill();
+  ctx.strokeStyle = on ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.2)';
+  ctx.lineWidth = 1; roundRect(x, y, w, h, Math.min(14, h/2)); ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = font || 'bold 14px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText(label, x + w/2, y + h/2 + 0.5);
+  ctx.restore();
+  if (list) list.push({ x, y, w, h, action });
+}
+function drawHud(now) {
+  hitboxes.play = [];
+  const m = hudMetrics();
+  pill(W - m.lw - 12, m.btnY, m.lw, m.bh, 'Levels', false, 'levels', hitboxes.play);
+  // centre pill: pieces joined + one dot per wave
+  const px = m.cx - m.cw/2;
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  roundRect(px, m.cy, m.cw, m.bh, 14); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1;
+  roundRect(px, m.cy, m.cw, m.bh, 14); ctx.stroke();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 17px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText(assemblySize() + ' / ' + level.pieceCount, m.cx, m.cy + m.bh/2 - 6);
+  const n = level.portions.length;
+  const dr = Math.max(1.6, Math.min(4, (m.cw - 24) / (n * 2.6) / 2));
+  const step = dr * 2.6, wStart = m.cx - (n - 1) * step / 2;
+  for (let i = 0; i < n; i++) {
+    ctx.beginPath();
+    ctx.arc(wStart + i * step, m.cy + m.bh - 11, dr, 0, Math.PI * 2);
+    ctx.fillStyle = i < waveIdx ? COL.gold : i === waveIdx ? COL.glow : 'rgba(255,255,255,0.25)';
+    ctx.fill();
+  }
+  if (m.showTitle) {
+    ctx.fillStyle = COL.sub; ctx.font = '13px "Segoe UI",system-ui,sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText((level.title || 'Puzzle') + '  ·  ' + (TESS_LABEL[level.tessellation] || ''),
+                 W/2, m.titleY);
+  }
+  // zoom / fit cluster, bottom-right, well clear of the HUD
+  const zr = zoomRow();
+  const bf = 'bold 22px "Segoe UI",system-ui,sans-serif';
+  pill(zr.x, zr.y, zr.s, zr.s, '⤢', false, 'fit', hitboxes.play,
+       'bold 19px "Segoe UI",system-ui,sans-serif');
+  pill(zr.x + zr.s + zr.g, zr.y, zr.s, zr.s, '−', false, 'zoomout', hitboxes.play, bf);
+  pill(zr.x + (zr.s + zr.g) * 2, zr.y, zr.s, zr.s, '+', false, 'zoomin', hitboxes.play, bf);
+}
+function drawConfetti() {
+  for (const c of confetti) {
+    ctx.save();
+    ctx.globalAlpha = clamp(c.life, 0, 1);
+    ctx.translate(c.x, c.y); ctx.rotate(c.rot);
+    ctx.fillStyle = c.c;
+    ctx.fillRect(-c.r, -c.r * 0.6, c.r * 2, c.r * 1.2);
+    ctx.restore();
+  }
+}
+function drawWin(now) {
+  hitboxes.win = [];
+  ctx.fillStyle = 'rgba(4,4,20,0.68)';
+  ctx.fillRect(0, 0, W, H);
+  // One centred block, sized so it can never overflow: on a short landscape
+  // screen the hero picture shrinks and, if there is really no room, drops out
+  // (the finished puzzle is still on screen behind the dim).
+  const titleSize = Math.round(Math.min(44, W * 0.11, H * 0.09));
+  const hasNext = nextLevelIdx() >= 0;
+  const btnH = Math.min(50, Math.max(38, H * 0.075)), btn2H = btnH * 0.84;
+  const metaH = 46;
+  const chrome = titleSize + 12 + metaH + 14 + btnH + 10 + btn2H;
+  let bp = Math.min(W - 48, H - chrome - 34, Math.min(W, H) * 0.62);
+  if (bp < 110) bp = 0;
+  const blockH = chrome + (bp ? bp + 14 : 0);
+  let y = clamp((H - blockH) / 2, 8, Math.max(8, H - blockH - 8));
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.save();
+  ctx.shadowColor = COL.gold; ctx.shadowBlur = 26;
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold ' + titleSize + 'px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText('Complete!', W/2, y + titleSize * 0.86);
+  ctx.restore();
+  y += titleSize + 12;
+  if (bp) {
+    const bx = (W - bp) / 2;
+    ctx.save();
+    ctx.shadowColor = 'rgba(255,211,42,0.45)'; ctx.shadowBlur = 28;
+    ctx.fillStyle = COL.board;
+    roundRect(bx, y, bp, bp, 10); ctx.fill();
+    ctx.restore();
+    ctx.save();
+    roundRect(bx, y, bp, bp, 10); ctx.clip();
+    if (picture) ctx.drawImage(picture, bx, y, bp, bp);
+    ctx.restore();
+    ctx.strokeStyle = COL.gold; ctx.lineWidth = 3;
+    roundRect(bx, y, bp, bp, 10); ctx.stroke();
+    y += bp + 14;
+  }
+  ctx.fillStyle = COL.gold; ctx.font = 'bold 19px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText(level.title || 'Puzzle', W/2, y + 16);
+  ctx.fillStyle = COL.sub; ctx.font = '13px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText(level.pieceCount + ' pieces  ·  ' + (TESS_LABEL[level.tessellation] || '') +
+               '  ·  ' + (level.date || ''), W/2, y + 38);
+  y += metaH + 14;
+  const bw = Math.min(240, W * 0.72), bx2 = (W - bw) / 2;
+  pill(bx2, y, bw, btnH, hasNext ? 'Next Puzzle' : 'Level Select', true,
+       hasNext ? 'next' : 'levels', hitboxes.win,
+       'bold 19px "Segoe UI",system-ui,sans-serif');
+  pill(bx2, y + btnH + 10, bw, btn2H, 'Level Select', false, 'levels', hitboxes.win);
+}
+function drawMenu(now) {
+  hitboxes.menu = [];
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  const titleSize = Math.min(72, W * 0.16, H * 0.16);
+  const bh = 74;
+  const blockH = titleSize + 34 + 30 + 26 + 34 + bh;
+  const startY = Math.max(56, (H - blockH) / 2);
+  const titleBase = startY + titleSize * 0.85;
+  ctx.save();
+  ctx.shadowColor = COL.glow; ctx.shadowBlur = 30;
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold ' + titleSize + 'px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText('Jigsaw', W/2, titleBase);
+  ctx.restore();
+  const subY = titleBase + 34;
+  ctx.fillStyle = COL.sub;
+  ctx.font = Math.min(20, W * 0.045) + 'px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText('A picture, cut into odd little tiles', W/2, subY);
+  ctx.fillStyle = 'rgba(255,255,255,0.62)';
+  ctx.font = Math.min(15, W * 0.037) + 'px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText('Drag pieces together — matching ones click and stay stuck.', W/2, subY + 26);
+  ctx.fillText('Pinch or use + / − to zoom, drag the table to move around.', W/2, subY + 46);
+  const by = subY + 46 + 34;
+  if (!levelsLoaded) {
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillText('Loading puzzles…', W/2, by + 30);
+    return;
+  }
+  if (!LEVELS.length) {
+    ctx.fillStyle = COL.danger;
+    ctx.font = 'bold 15px "Segoe UI",system-ui,sans-serif';
+    ctx.fillText(levelsError, W/2, by + 30);
+    return;
+  }
+  const bw = Math.min(190, W * 0.4), gap = 18;
+  ['Caleb','Ezra'].forEach((name, i) => {
+    const bx = i === 0 ? W/2 - bw - gap/2 : W/2 + gap/2;
+    const g = ctx.createLinearGradient(bx, by, bx + bw, by + bh);
+    if (i === 0) { g.addColorStop(0, COL.accent); g.addColorStop(1, COL.glow); }
+    else { g.addColorStop(0, '#e17055'); g.addColorStop(1, '#fdcb6e'); }
+    ctx.fillStyle = g;
+    roundRect(bx, by, bw, bh, 16); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 22px "Segoe UI",system-ui,sans-serif';
+    ctx.fillText(name, bx + bw/2, by + 34);
+    ctx.font = '13px "Segoe UI",system-ui,sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillText(totalSolved(name) + ' / ' + LEVELS.length + ' done', bx + bw/2, by + 56);
+    hitboxes.menu.push({ x:bx, y:by, w:bw, h:bh, action:'player', player:name });
+  });
+}
+function selectChrome(title, sub, backLabel, backAction, list) {
+  const short = H < 520;
+  const titleY = short ? 27 : 42, titleSize = short ? (W < 390 ? 18 : 20) : 24;
+  const subSize = short ? 13 : 15;
+  let subY = short ? 52 : 66;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = COL.gold;
+  ctx.font = 'bold ' + titleSize + 'px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText(title, W/2, titleY);
+  ctx.fillStyle = COL.sub;
+  ctx.font = subSize + 'px "Segoe UI",system-ui,sans-serif';
+  const BACK_R = 122, BACK_B = 47;
+  if (short && subY - subSize < BACK_B && W/2 - ctx.measureText(sub).width/2 < BACK_R)
+    subY = BACK_B + subSize + 2;
+  ctx.fillText(sub, W/2, subY);
+  pill(W - 112, short ? 6 : 12, 100, 42, backLabel, false, backAction, list);
+  return { top: subY + (short ? 10 : 16), bottom: H - 12 };
+}
+function scrollFor(key, contentH, availH) {
+  selMax[key] = Math.max(0, contentH - availH);
+  selScroll[key] = clamp(selScroll[key], 0, selMax[key]);
+  return selScroll[key];
+}
+function pushClipped(list, box, top, bot) {
+  const y0 = Math.max(box.y, top), y1 = Math.min(box.y + box.h, bot);
+  if (y1 - y0 < 14) return;
+  list.push(Object.assign({}, box, { y:y0, h:y1 - y0 }));
+}
+function drawScrollHint(top, bot, scroll, max) {
+  if (max <= 0.5) return;
+  const trackH = bot - top, x = W - 8;
+  ctx.fillStyle = 'rgba(255,255,255,0.07)';
+  roundRect(x, top, 4, trackH, 2); ctx.fill();
+  const thumbH = Math.max(28, trackH * trackH / (trackH + max));
+  ctx.fillStyle = 'rgba(162,155,254,0.6)';
+  roundRect(x, top + (trackH - thumbH) * (scroll / max), 4, thumbH, 2); ctx.fill();
+  if (scroll > 1) {
+    const g = ctx.createLinearGradient(0, top, 0, top + 22);
+    g.addColorStop(0, 'rgba(10,10,46,0.9)'); g.addColorStop(1, 'rgba(10,10,46,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, top, W, 22);
+  }
+  if (scroll < max - 1) {
+    const g = ctx.createLinearGradient(0, bot - 22, 0, bot);
+    g.addColorStop(0, 'rgba(10,10,46,0)'); g.addColorStop(1, 'rgba(10,10,46,0.9)');
+    ctx.fillStyle = g; ctx.fillRect(0, bot - 22, W, 22);
+  }
+}
+function drawLevelSelect() {
+  hitboxes.levels = [];
+  const pd = getPlayerData(player);
+  const { top, bottom } = selectChrome(player || 'Puzzles',
+    totalSolved(player) + ' / ' + LEVELS.length + ' pictures done',
+    'Players', 'menu', hitboxes.levels);
+  const gap = 8, availW = W - 24, availH = bottom - top;
+  const cols = Math.max(4, Math.min(10, Math.floor((availW + gap) / (62 + gap))));
+  const bs = Math.max(44, Math.min(76, Math.floor((availW - (cols-1)*gap) / cols)));
+  const headH = 30;
+  const rowsOf = [];
+  let contentH = 0;
+  for (const sec of SECTIONS) {
+    const rows = Math.ceil(sec.idx.length / cols);
+    rowsOf.push({ sec, rows, y: contentH });
+    contentH += headH + rows * bs + (rows - 1) * gap + 14;
+  }
+  if (pendingScrollTo >= 0) {
+    let target = 0;
+    for (const rw of rowsOf) {
+      const k = rw.sec.idx.indexOf(pendingScrollTo);
+      if (k >= 0) { target = rw.y + headH + Math.floor(k / cols) * (bs + gap); break; }
+    }
+    selScroll.levels = Math.max(0, target - availH / 2);
+    pendingScrollTo = -1;
+  }
+  const scroll = scrollFor('levels', contentH, availH);
+  const sx = (W - (cols * bs + (cols-1) * gap)) / 2;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, top, W, availH); ctx.clip();
+  for (const rw of rowsOf) {
+    const ry = top + rw.y - scroll;
+    if (ry > bottom || ry + headH + rw.rows * (bs + gap) < top) continue;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.font = 'bold 14px "Segoe UI",system-ui,sans-serif';
+    ctx.fillText(rw.sec.label, sx, ry + headH/2 + 2);
+    for (let k = 0; k < rw.sec.idx.length; k++) {
+      const gi = rw.sec.idx[k], lv = LEVELS[gi];
+      const x = sx + (k % cols) * (bs + gap);
+      const y = ry + headH + Math.floor(k / cols) * (bs + gap);
+      if (y > bottom || y + bs < top) continue;
+      const solved = !!pd.solved[lv.id];
+      const base = TESS_COL[lv.tessellation] || COL.accent;
+      ctx.fillStyle = solved ? base : 'rgba(255,255,255,0.08)';
+      roundRect(x, y, bs, bs, 11); ctx.fill();
+      ctx.strokeStyle = solved ? COL.gold : base;
+      ctx.lineWidth = solved ? 2 : 1.4;
+      roundRect(x, y, bs, bs, 11); ctx.stroke();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold ' + Math.floor(bs * 0.36) + 'px "Segoe UI",system-ui,sans-serif';
+      ctx.fillText(lv._day, x + bs/2, y + bs * 0.47);
+      ctx.font = Math.floor(bs * 0.2) + 'px "Segoe UI",system-ui,sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,0.62)';
+      ctx.fillText(lv.pieceCount + ' pc', x + bs/2, y + bs * 0.76);
+      if (solved) {
+        ctx.fillStyle = COL.gold;
+        ctx.font = 'bold ' + Math.floor(bs * 0.24) + 'px "Segoe UI",system-ui,sans-serif';
+        ctx.fillText('✓', x + bs - bs * 0.18, y + bs * 0.26);
+      }
+      pushClipped(hitboxes.levels, { x, y, w:bs, h:bs, action:'level', idx:gi }, top, bottom);
+    }
+  }
+  ctx.restore();
+  drawScrollHint(top, bottom, scroll, selMax.levels);
+}
+function drawLoading(now) {
+  const lv = LEVELS[levelIdx];
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 22px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText(lv ? (lv.title || 'Puzzle') : 'Puzzle', W/2, H/2 - 44);
+  ctx.fillStyle = COL.sub; ctx.font = '15px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText('Getting the picture…', W/2, H/2 - 18);
+  const r = 20, cx = W/2, cy = H/2 + 28;
+  ctx.save();
+  ctx.translate(cx, cy); ctx.rotate(now / 260);
+  ctx.strokeStyle = COL.glow; ctx.lineWidth = 4; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 1.35); ctx.stroke();
+  ctx.restore();
+}
+function drawImgError() {
+  hitboxes.err = [];
+  const lv = LEVELS[levelIdx];
+  const bw = Math.min(340, W - 40), bx = (W - bw)/2;
+  const bhh = 226, by = Math.max(60, (H - bhh)/2);
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  roundRect(bx, by, bw, bhh, 16); ctx.fill();
+  ctx.strokeStyle = 'rgba(231,76,60,0.55)'; ctx.lineWidth = 2;
+  roundRect(bx, by, bw, bhh, 16); ctx.stroke();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.font = '34px "Segoe UI",system-ui,sans-serif';
+  ctx.fillStyle = '#fff';
+  ctx.fillText('🧩', W/2, by + 48);
+  ctx.fillStyle = COL.danger; ctx.font = 'bold 18px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText('Picture not available', W/2, by + 82);
+  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  ctx.font = '14px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText('This puzzle needs the internet to', W/2, by + 108);
+  ctx.fillText('download its picture.', W/2, by + 128);
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.font = '11px "Segoe UI",system-ui,sans-serif';
+  ctx.fillText(String(loadErrMsg).slice(0, 46), W/2, by + 148);
+  const pw = bw - 48;
+  pill(bx + 24, by + 164, pw, 44, 'Try Again', true, 'retry', hitboxes.err,
+       'bold 17px "Segoe UI",system-ui,sans-serif');
+  pill(W - 112, H < 520 ? 6 : 12, 100, 42, 'Levels', false, 'levels', hitboxes.err);
+  if (lv) {
+    ctx.fillStyle = COL.sub; ctx.font = '13px "Segoe UI",system-ui,sans-serif';
+    ctx.fillText(lv.title || '', W/2, by - 14);
+  }
+}
+function drawToast() {
+  if (!toast) return;
+  const age = performance.now() - toast.t0;
+  const a = age < 200 ? age/200 : age > 1500 ? Math.max(0, 1 - (age-1500)/400) : 1;
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.font = 'bold 14px "Segoe UI",system-ui,sans-serif';
+  const tw = ctx.measureText(toast.msg).width, w = tw + 32, h = 36;
+  const x = (W - w)/2, y = Math.max(70, H * 0.22);
+  ctx.fillStyle = 'rgba(0,0,0,0.75)';
+  roundRect(x, y, w, h, 18); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(toast.msg, W/2, y + h/2);
+  ctx.restore();
+}
+
+function draw() {
+  const now = performance.now();
+  drawBackground();
+  if (view === 'menu') { drawMenu(now); drawToast(); return; }
+  if (view === 'levels') { drawLevelSelect(); drawToast(); return; }
+  if (view === 'loading') { drawLoading(now); drawToast(); return; }
+  if (view === 'imgError') { drawImgError(); drawToast(); return; }
+  if (!level) return;
+  drawTable(now);
+  if (view !== 'won') drawHud(now);
+  drawConfetti();
+  if (view === 'won') drawWin(now);
+  drawToast();
+}
+
+// ------------------------------------------------------------------- input
+function inBox(b, x, y) { return b && x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h; }
+function ptInPoly(poly, x, y) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 2; i < poly.length; j = i, i += 2) {
+    const xi = poly[i], yi = poly[i+1], xj = poly[j], yj = poly[j+1];
+    if (((yi > y) !== (yj > y)) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+// Groups never overlap geometrically, so an exact polygon test is unambiguous;
+// a padded pass afterwards keeps slivers grabbable on a touch screen.
+function hitGroup(sx, sy) {
+  const wx = s2wx(sx), wy = s2wy(sy);
+  for (const g of groups) {
+    const lx = wx - gAnchorX(g), ly = wy - gAnchorY(g);
+    if (lx < g.bx0 || ly < g.by0 || lx > g.bx0 + g.bw || ly > g.by0 + g.bh) continue;
+    for (const p of g.pieces) {
+      if (lx < p.bx0 || ly < p.by0 || lx > p.bx0 + p.bw || ly > p.by0 + p.bh) continue;
+      for (const poly of p.polys) if (ptInPoly(poly, lx, ly)) return g;
+    }
+  }
+  const pad = 12 / cam.s;
+  let best = null, bestD = Infinity;
+  for (const g of groups) {
+    const lx = wx - gAnchorX(g), ly = wy - gAnchorY(g);
+    if (lx < g.bx0 - pad || ly < g.by0 - pad ||
+        lx > g.bx0 + g.bw + pad || ly > g.by0 + g.bh + pad) continue;
+    const d = Math.hypot(lx - (g.bx0 + g.bw/2), ly - (g.by0 + g.bh/2));
+    if (d < bestD) { bestD = d; best = g; }
+  }
+  return best;
+}
+const ptrs = new Map();
+let gesture = null;
+let selDrag = null;
+const SCROLL_SLOP = 8;
+
+function startPinch() {
+  const ids = Array.from(ptrs.keys());
+  if (ids.length < 2) return;
+  const a = ptrs.get(ids[0]), b = ptrs.get(ids[1]);
+  const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+  gesture = { type:'pinch', a:ids[0], b:ids[1],
+              d0: Math.max(12, Math.hypot(a.x - b.x, a.y - b.y)),
+              s0: cam.s, wx: s2wx(mx), wy: s2wy(my) };
+  camTween = null;
+}
+function endGroupDrag(revert) {
+  const g = gesture.g;
+  if (revert) { tweenSettle(g, 200); recomputeBadEdges(); }
+  else dropGroup(g);
+  gesture = null;
+}
+
+function onDown(x, y, e) {
+  ensureAudio();
+  if (view === 'menu') {
+    for (const b of hitboxes.menu) if (inBox(b, x, y)) {
+      player = b.player;
+      setPref('lastPlayer', b.player);
+      sfx.tap();
+      selScroll.levels = 0;
+      showLevels();
+      return;
+    }
+    return;
+  }
+  if (view === 'levels') { selDrag = { y0:y, s0:selScroll.levels, moved:false }; return; }
+  if (view === 'imgError') {
+    for (const b of hitboxes.err) if (inBox(b, x, y)) {
+      sfx.tap();
+      if (b.action === 'retry') { imgCache.delete(LEVELS[levelIdx].imageUrl); startLevel(levelIdx); }
+      else showLevels();
+      return;
+    }
+    return;
+  }
+  if (view === 'loading') return;
+  if (view === 'won') {
+    for (const b of hitboxes.win) if (inBox(b, x, y)) {
+      sfx.tap();
+      if (b.action === 'next') { const n = nextLevelIdx(); if (n >= 0) startLevel(n); else showLevels(); }
+      else showLevels();
+      return;
+    }
+    return;
+  }
+  // playing
+  if (ptrs.size >= 2) {
+    if (gesture && gesture.type === 'group') endGroupDrag(true);
+    startPinch();
+    return;
+  }
+  for (const b of hitboxes.play) if (inBox(b, x, y)) {
+    sfx.tap();
+    if (b.action === 'levels') showLevels();
+    else if (b.action === 'fit') fitAll(420);
+    else if (b.action === 'zoomin') zoomBy(1.35, null, null, 200);
+    else if (b.action === 'zoomout') zoomBy(1 / 1.35, null, null, 200);
+    return;
+  }
+  const g = hitGroup(x, y);
+  if (g) {
+    g.tw = null; g.shake = 0;
+    const lift = (e && e.pointerType === 'touch') ? 18 / cam.s : 0;
+    gesture = { type:'group', g, id: e ? e.pointerId : 0,
+                wx0: s2wx(x), wy0: s2wy(y),
+                ax0: g.ax, ay0: g.ay, lift, moved:false };
+    g.ay -= lift;   // held pieces ride above the finger; the drop uses this too
+    // topmost while held
+    const gi = groups.indexOf(g);
+    if (gi >= 0) { groups.splice(gi, 1); groups.push(g); }
+    sfx.lift();
+    return;
+  }
+  gesture = { type:'pan', id: e ? e.pointerId : 0, sx:x, sy:y, cx0:cam.x, cy0:cam.y };
+  camTween = null;
+}
+function onMove(x, y) {
+  if (selDrag) {
+    const dy = y - selDrag.y0;
+    if (!selDrag.moved) { if (Math.abs(dy) < SCROLL_SLOP) return; selDrag.moved = true; }
+    selScroll.levels = clamp(selDrag.s0 - dy, 0, selMax.levels);
+    draw();
+    return;
+  }
+  if (!gesture) return;
+  if (gesture.type === 'pinch') {
+    const a = ptrs.get(gesture.a), b = ptrs.get(gesture.b);
+    if (!a || !b) return;
+    const d = Math.max(12, Math.hypot(a.x - b.x, a.y - b.y));
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    cam.s = clamp(gesture.s0 * (d / gesture.d0), sMin, sMax);
+    cam.x = gesture.wx - (mx - vcx()) / cam.s;
+    cam.y = gesture.wy - (my - vcy()) / cam.s;
+    clampCam();
+    return;
+  }
+  if (gesture.type === 'pan') {
+    cam.x = gesture.cx0 - (x - gesture.sx) / cam.s;
+    cam.y = gesture.cy0 - (y - gesture.sy) / cam.s;
+    clampCam();
+    return;
+  }
+  const g = gesture.g;
+  gesture.moved = true;
+  g.ax = gesture.ax0 + (s2wx(x) - gesture.wx0);
+  g.ay = gesture.ay0 + (s2wy(y) - gesture.wy0) - gesture.lift;
+}
+function onUp(x, y) {
+  if (selDrag) {
+    const d = selDrag; selDrag = null;
+    if (d.moved) return;
+    for (const b of hitboxes.levels) if (inBox(b, x, y)) {
+      sfx.tap();
+      if (b.action === 'menu') { view = 'menu'; draw(); }
+      else if (b.action === 'level') startLevel(b.idx);
+      return;
+    }
+    return;
+  }
+  if (!gesture) return;
+  if (gesture.type === 'group') { endGroupDrag(false); return; }
+  gesture = null;
+}
+
+canvas.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  needFrame();
+  ptrs.set(e.pointerId, { x:e.clientX, y:e.clientY });
+  if (selDrag) return;
+  if (gesture && gesture.type !== 'group' && ptrs.size < 2) return;
+  onDown(e.clientX, e.clientY, e);
+  try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+});
+canvas.addEventListener('pointermove', e => {
+  const p = ptrs.get(e.pointerId);
+  if (p) { p.x = e.clientX; p.y = e.clientY; }
+  needFrame();
+  if (!gesture && !selDrag) return;
+  if (gesture && gesture.type === 'pinch') {
+    if (e.pointerId !== gesture.a && e.pointerId !== gesture.b) return;
+  } else if (gesture && gesture.id != null && e.pointerId !== gesture.id) return;
+  e.preventDefault();
+  onMove(e.clientX, e.clientY);
+});
+function releasePtr(e, cancelled) {
+  ptrs.delete(e.pointerId);
+  if (selDrag) { if (cancelled) selDrag = null; else onUp(e.clientX, e.clientY); return; }
+  if (!gesture) return;
+  if (gesture.type === 'pinch') {
+    if (e.pointerId === gesture.a || e.pointerId === gesture.b) gesture = null;
+    return;
+  }
+  if (gesture.id != null && e.pointerId !== gesture.id) return;
+  if (cancelled && gesture.type === 'group') endGroupDrag(true);
+  else onUp(e.clientX, e.clientY);
+}
+canvas.addEventListener('pointerup', e => { e.preventDefault(); needFrame(); releasePtr(e, false); });
+canvas.addEventListener('pointercancel', e => { needFrame(); releasePtr(e, true); });
+canvas.addEventListener('wheel', e => {
+  if (view === 'levels') {
+    if (!selMax.levels) return;
+    e.preventDefault();
+    selScroll.levels = clamp(selScroll.levels + e.deltaY, 0, selMax.levels);
+    needFrame();
+    return;
+  }
+  if (view !== 'playing') return;
+  e.preventDefault();
+  zoomBy(Math.exp(-e.deltaY * 0.0018), e.clientX, e.clientY);
+  needFrame();
+}, { passive:false });
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+addEventListener('keydown', e => {
+  if (view === 'playing') {
+    if (e.key === '+' || e.key === '=') zoomBy(1.35, null, null, 200);
+    else if (e.key === '-' || e.key === '_') zoomBy(1 / 1.35, null, null, 200);
+    else if (e.key === 'f' || e.key === 'F') fitAll(420);
+  }
+  if (e.key === 'Escape' && (view === 'playing' || view === 'won' || view === 'imgError')) showLevels();
+});
+
+// ---------------------------------------------------------------- main loop
+function busy() {
+  if (view === 'loading') return true;
+  if (view === 'menu' || view === 'levels' || view === 'imgError') return false;
+  if (gesture || camTween || confetti.length || pendingDeal || pendingWin) return true;
+  if (badEdges.length) return true;
+  if (toast) return true;
+  if (view === 'won') return true;
+  for (const g of groups)
+    if (g.tw || g.shake || g.flash || (g.pop && performance.now() - g.pop < 320)) return true;
+  return false;
+}
+function loop() {
+  const now = performance.now();
+  if (view === 'playing' || view === 'won') stepAnims(now);
+  else if (toast || confetti.length) stepAnims(now);
+  if (busy() || dirty) { dirty = false; draw(); }
+  requestAnimationFrame(loop);
+}
+
+// -------------------------------------------------------------------- boot
+const lastP = getPref('lastPlayer', null);
+if (lastP === 'Caleb' || lastP === 'Ezra') player = lastP;
+ready = true;
+resize();
+loadLevels();
+draw();
+loop();
+
+// ------------------------------------------------------------- debug handles
+// Everything above is a top-level declaration in a classic script, so it already
+// lives in the global lexical environment and a test harness can reach it by
+// name. This is only the small bit of sugar worth naming.
+window.__jig = {
+  state: () => ({ view, levelIdx, waveIdx, groups: groups.length,
+                  assembly: assemblySize(), pieces: level ? level.pieceCount : 0,
+                  dealt: dealtCount, bad: badEdges.length, s: cam.s,
+                  tess: level ? level.tessellation : null }),
+  levels: () => LEVELS,
+  setPlayer: n => { player = n; },
+  start: i => startLevel(i)
+};
+</script>
+</body>
+</html>
