@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<!--
+  Triple Triad — Garfield Boys' Arcade edition
+
+  A derivative work of "Triple Triad (HTML5)" by Jeffrey Han (@itdelatrisu),
+  Copyright (C) 2014 Jeffrey Han.
+  https://github.com/itdelatrisu/triple-triad-html5
+
+  This program is free software: you can redistribute it and/or modify it under
+  the terms of the GNU General Public License as published by the Free Software
+  Foundation, either version 3 of the License, or (at your option) any later
+  version.  This program is distributed WITHOUT ANY WARRANTY; without even the
+  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See
+  the GNU General Public License for more details — the full text ships next to
+  this file as ./LICENSE.
+
+  Rendering, audio, UI and the progression system were rewritten for this arcade
+  (Canvas 2D + Web Audio); the original's jaws and howler dependencies are gone.
+
+  Assets: card art from the FFVIII mods Tripod v1.1 and SeeD Reborn v3.2 by
+  MCINDUS, with additional card sprites by UltimeciaFFB and icons by chrfb;
+  sound effects extracted by TekkamanChronos; music (streamed, not bundled) and
+  the Triple Triad concept are property of Square Enix.  Unofficial fan project.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a2e">
+<meta name="description" content="Triple Triad — collect cards and beat ten rivals in the Final Fantasy VIII card game.">
+<title>Triple Triad</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #0a0a2e;
+    touch-action: none;
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  #game {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    display: block;
+    touch-action: none;
+  }
+  .back {
+    position: absolute;
+    top: calc(10px + env(safe-area-inset-top));
+    left: calc(12px + env(safe-area-inset-left));
+    z-index: 10;
+    display: flex; align-items: center; gap: 6px;
+    min-height: 42px;
+    padding: 10px 16px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.11);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    color: #fff;
+    font-size: 14px; font-weight: 700;
+    text-decoration: none;
+    backdrop-filter: blur(4px);
+    touch-action: manipulation;
+  }
+  .back:active { background: rgba(255, 255, 255, 0.2); }
+  #boot {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: #a29bfe; font-size: 15px; letter-spacing: 0.08em;
+  }
+</style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <a class="back" href="../../index.html" aria-label="Back to the arcade">&larr; Games</a>
+  <div id="boot">SHUFFLING&hellip;</div>
+
+  <script src="js/data.js"></script>
+  <script src="js/rules.js"></script>
+  <script src="js/assets.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/match.js"></script>
+  <script src="js/screens.js"></script>
+  <script src="js/game.js"></script>
+  <script>
+    (function () {
+      var boot = document.getElementById('boot');
+      if (boot && boot.parentNode) boot.parentNode.removeChild(boot);
+      window.TT.boot();
+    })();
+  </script>
+</body>
+</html>
