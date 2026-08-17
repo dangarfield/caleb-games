@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Sea Glass - Garfield Boys' Arcade</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+/* Every screen puts its buttons in the SAME fixed strip at the bottom, and every
+   scrollable list is padded to end above it. --navh is that strip's height. */
+:root { --navh:66px; }
+html, body { width:100%; height:100%; }
+body { background:#0a0a2e; overflow:hidden; touch-action:none;
+  font-family:'Segoe UI',system-ui,sans-serif; color:#fff;
+  -webkit-user-select:none; user-select:none; }
+canvas#view { display:block; width:100%; height:100%; position:fixed; inset:0; z-index:0;
+  touch-action:none; }
+.hidden { display:none !important; }
+
+/* ---------- back button (href MUST be ../../index.html) ---------- */
+#backBtn { position:fixed; top:12px; left:12px; z-index:9999;
+  background:rgba(10,10,46,0.62); color:#fff; text-decoration:none;
+  padding:8px 18px; border-radius:20px;
+  font:bold 15px/1.4 'Segoe UI',system-ui,sans-serif;
+  border:1px solid rgba(162,155,254,0.35);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  transition:background 0.2s; }
+#backBtn:hover { background:rgba(10,10,46,0.85); }
+
+/* ---------- shared panel / button language (arcade brand) ---------- */
+.screen { position:fixed; inset:0; z-index:30; display:flex; flex-direction:column;
+  align-items:center; overflow-y:auto; overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;
+  background:linear-gradient(180deg,#0a0a2e 0%,#141452 55%,#1a1a6e 100%);
+  padding:56px 14px calc(var(--navh) + 20px); }
+.screen.translucent { background:linear-gradient(180deg,rgba(10,10,46,0.93),rgba(26,26,110,0.93)); }
+.screen h1 { font-size:clamp(1.9rem,7vw,3.4rem); margin-bottom:4px; letter-spacing:1px;
+  text-shadow:0 0 32px rgba(162,155,254,0.7); }
+.screen .sub { font-size:clamp(0.95rem,3vw,1.25rem); color:#a0c4ff; margin-bottom:16px;
+  text-align:center; }
+.screen .sect-title { font-size:0.78rem; letter-spacing:1.6px; text-transform:uppercase;
+  color:rgba(162,155,254,0.85); margin:16px 0 8px; align-self:flex-start;
+  width:100%; max-width:860px; }
+
+.btn { padding:13px 26px; font-size:1.05rem; border:none; border-radius:14px;
+  background:linear-gradient(135deg,#6c5ce7,#a29bfe); color:#fff; cursor:pointer;
+  font-weight:700; box-shadow:0 4px 18px rgba(108,92,231,0.42);
+  transition:transform 0.12s; min-height:48px; }
+.btn:active { transform:scale(0.95); }
+.btn.ghost { background:rgba(108,92,231,0.16); border:1px solid rgba(162,155,254,0.4);
+  box-shadow:none; }
+.btn.gold { background:linear-gradient(135deg,#ffb800,#ffd32a); color:#2a1c00;
+  box-shadow:0 4px 18px rgba(255,211,42,0.35); }
+.btn.small { padding:9px 16px; font-size:0.9rem; min-height:42px; border-radius:11px; }
+.btn:disabled { opacity:0.42; }
+.row { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; }
+
+/* ---------- the one fixed bottom button strip, shared by every screen ---------- */
+.navbar { position:fixed; left:0; right:0; bottom:0; z-index:40;
+  display:flex; gap:8px; align-items:center; justify-content:center;
+  padding:10px 10px calc(10px + env(safe-area-inset-bottom,0px));
+  background:linear-gradient(180deg,rgba(10,10,46,0),rgba(10,10,46,0.9) 55%);
+  pointer-events:auto; }
+/* Buttons shrink before they wrap: a second row would move the strip, and the
+   whole point is that it never moves. */
+.navbar .btn { white-space:nowrap; padding-left:14px; padding-right:14px;
+  min-width:0; overflow:hidden; text-overflow:ellipsis; }
+
+/* Cooldown ring inside a pill button (Comb further). */
+.cdbtn { display:inline-flex; align-items:center; gap:7px; }
+.cdbtn .cdring { display:none; width:17px; height:17px; border-radius:50%; flex:0 0 auto;
+  background:conic-gradient(rgba(42,28,0,0.8) var(--p,0deg), rgba(255,255,255,0.6) 0deg);
+  box-shadow:inset 0 0 0 2px rgba(42,28,0,0.3); }
+.cdbtn.cooling .cdring { display:block; }
+.cdbtn.cooling { filter:saturate(0.5) brightness(0.86); }
+/* Nothing left on this section: the cooldown is dropped (see main.js) and the
+   button says so, because "wait 22s" on an empty patch of beach reads as the game
+   being broken rather than as a rule. */
+.cdbtn.allfound:not(.cooling) { animation:allfound 1.15s ease-in-out infinite; }
+@keyframes allfound {
+  0%,100% { box-shadow:0 4px 18px rgba(255,211,42,0.35); transform:none; }
+  50% { box-shadow:0 0 0 4px rgba(255,211,42,0.35), 0 4px 22px rgba(255,211,42,0.7);
+        transform:scale(1.045); }
+}
+
+/* Zoom is pinch (touch) or wheel (mouse) only — no on-screen zoom buttons: they
+   were one more thing sitting over the beach the player had to look past. */
+
+.panel { background:rgba(10,10,46,0.62); border:1px solid rgba(162,155,254,0.25);
+  border-radius:18px; padding:14px 16px; backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px); width:100%; max-width:860px; }
+
+/* ---------- player select ---------- */
+#screen-player .players { display:flex; gap:16px; flex-wrap:wrap; justify-content:center;
+  margin:10px 0 20px; }
+.player-card { width:180px; padding:20px 16px; border-radius:22px; cursor:pointer;
+  background:linear-gradient(160deg,rgba(108,92,231,0.35),rgba(20,20,82,0.75));
+  border:2px solid rgba(162,155,254,0.4); text-align:center;
+  transition:transform 0.14s, border-color 0.2s; }
+.player-card:active { transform:scale(0.96); }
+.player-card .pname { font-size:1.6rem; font-weight:800; margin:6px 0 4px; }
+.player-card .pstat { font-size:0.85rem; color:#a0c4ff; line-height:1.6; }
+.player-card .pav { font-size:2.6rem; }
+
+/* ---------- beach select ---------- */
+.beach-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr));
+  gap:12px; width:100%; max-width:860px; }
+.beach-card { border-radius:18px; padding:14px; cursor:pointer; position:relative;
+  border:1px solid rgba(255,255,255,0.16); overflow:hidden;
+  transition:transform 0.14s; min-height:150px; }
+.beach-card:active { transform:scale(0.975); }
+/* The lock strip is absolutely positioned across the bottom, so a locked card
+   has to reserve that height or the strip sits on top of the shards line. */
+.beach-card.locked { cursor:default; filter:saturate(0.35) brightness(0.62);
+  padding-bottom:42px; }
+.beach-card .bname { font-size:1.18rem; font-weight:800; text-shadow:0 1px 6px rgba(0,0,0,0.6); }
+.beach-card .bblurb { font-size:0.8rem; color:rgba(255,255,255,0.82); margin:3px 0 8px;
+  line-height:1.4; text-shadow:0 1px 4px rgba(0,0,0,0.6); }
+.beach-card .prow { display:flex; align-items:center; gap:5px; margin-top:6px; flex-wrap:wrap; }
+.beach-card .plabel { font-size:0.62rem; letter-spacing:1px; text-transform:uppercase;
+  color:rgba(255,255,255,0.72); width:100%; margin-bottom:1px; }
+.swatch { width:15px; height:15px; border-radius:50%; border:1px solid rgba(255,255,255,0.45);
+  box-shadow:0 1px 3px rgba(0,0,0,0.4); }
+.swatch.glass { border-radius:4px; }
+.swatch.rare { box-shadow:0 0 8px #ffd32a, 0 1px 3px rgba(0,0,0,0.4); }
+.swatch.uncommon { box-shadow:0 0 7px #4fc3f7, 0 1px 3px rgba(0,0,0,0.4); }
+/* swatch + spawn chance, so "rare" is a number and not just a colour of star */
+.gchip { display:inline-flex; align-items:center; gap:3px; font-size:0.6rem; font-weight:700;
+  color:rgba(255,255,255,0.9); background:rgba(0,0,0,0.28); border-radius:8px;
+  padding:2px 5px 2px 3px; }
+.gchip .swatch { width:12px; height:12px; }
+.beach-card .cerbar { margin-top:9px; font-size:0.72rem; color:#ffd32a; font-weight:700;
+  text-shadow:0 1px 4px rgba(0,0,0,0.7); }
+.beach-card .lockmsg { position:absolute; inset:auto 0 0 0; padding:7px 12px;
+  background:rgba(0,0,0,0.62); font-size:0.74rem; font-weight:700; color:#ffd32a; }
+
+/* ---------- beachcombing HUD ---------- */
+#hud { position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:12;
+  background:rgba(10,10,46,0.58); border-radius:16px; padding:7px 16px;
+  border:1px solid rgba(162,155,254,0.3); backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px); display:flex; gap:14px; align-items:center;
+  pointer-events:none; white-space:nowrap; max-width:calc(100vw - 150px); }
+#hud .cell { text-align:center; }
+#hud .num { font-size:1.25rem; font-weight:800; color:#ffd32a; line-height:1.1; }
+#hud .lab { font-size:0.6rem; letter-spacing:1px; text-transform:uppercase;
+  color:rgba(255,255,255,0.62); }
+/* On a phone the centred pill reaches under the back button (its left edge lands
+   at ~75px against a back button that ends at ~118px), which hid the first
+   number. Below 520px the pill drops onto its own row underneath instead. */
+@media (max-width:520px) {
+  #hud { top:56px; left:10px; right:10px; transform:none; max-width:none;
+    justify-content:center; gap:9px; padding:5px 8px; }
+  #hud .num { font-size:1.05rem; }
+  #hud .lab { font-size:0.52rem; letter-spacing:0.3px; }
+}
+
+#moveBar { position:fixed; right:12px; top:50%; transform:translateY(-50%); z-index:12;
+  display:flex; flex-direction:column; gap:12px; }
+.move-btn { width:62px; height:62px; border-radius:50%; border:2px solid rgba(162,155,254,0.5);
+  background:rgba(10,10,46,0.66); color:#fff; font-size:1.5rem; cursor:pointer;
+  position:relative; display:flex; align-items:center; justify-content:center;
+  backdrop-filter:blur(6px); -webkit-overflow-scrolling:touch; overflow:hidden;
+  box-shadow:0 3px 14px rgba(0,0,0,0.35); }
+.move-btn.on { border-color:#ffd32a; box-shadow:0 0 18px rgba(255,211,42,0.6); }
+.move-btn .cd { position:absolute; inset:-2px; border-radius:50%; pointer-events:none;
+  background:conic-gradient(rgba(4,4,24,0.72) var(--p,0deg), rgba(0,0,0,0) 0deg); }
+.move-btn .mn { position:absolute; bottom:2px; left:0; right:0; font-size:0.5rem;
+  letter-spacing:0.6px; text-transform:uppercase; color:rgba(255,255,255,0.72); }
+.move-btn.locked { opacity:0.3; }
+
+#tips { position:fixed; bottom:calc(var(--navh) + 10px); left:50%; transform:translateX(-50%); z-index:11;
+  font-size:0.78rem; color:rgba(255,255,255,0.9); background:rgba(10,10,46,0.5);
+  padding:6px 14px; border-radius:12px; pointer-events:none; text-align:center;
+  border:1px solid rgba(162,155,254,0.22); transition:opacity 0.5s; }
+/* The "you found everything here" note, so it reads as a reward and not a hint. */
+#tips.win { background:rgba(48,32,0,0.62); border-color:rgba(255,211,42,0.7);
+  color:#ffe58a; font-weight:700; }
+
+/* find toasts */
+#toasts { position:fixed; top:74px; right:12px; z-index:14; display:flex;
+  flex-direction:column; gap:7px; align-items:flex-end; pointer-events:none; }
+.toast { background:rgba(10,10,46,0.78); border:1px solid rgba(162,155,254,0.4);
+  border-radius:13px; padding:7px 13px; font-size:0.86rem; display:flex; gap:9px;
+  align-items:center; animation:tin 0.28s ease-out; backdrop-filter:blur(6px);
+  max-width:70vw; }
+.toast .tname { font-weight:700; }
+.toast .trar { font-size:0.66rem; font-weight:800; letter-spacing:0.8px;
+  text-transform:uppercase; }
+@keyframes tin { from { opacity:0; transform:translateX(30px) scale(0.9); }
+  to { opacity:1; transform:none; } }
+.toast.out { opacity:0; transform:translateX(30px); transition:all 0.4s; }
+
+/* unlock banner */
+#unlockBanner { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+  z-index:60; background:linear-gradient(150deg,rgba(20,20,82,0.96),rgba(108,92,231,0.9));
+  border:2px solid #ffd32a; border-radius:20px; padding:20px 28px; text-align:center;
+  box-shadow:0 0 50px rgba(255,211,42,0.45); max-width:88vw;
+  animation:pop 0.4s cubic-bezier(.2,1.5,.4,1); }
+@keyframes pop { from { transform:translate(-50%,-50%) scale(0.5); opacity:0; }
+  to { transform:translate(-50%,-50%) scale(1); opacity:1; } }
+#unlockBanner .ub-kicker { font-size:0.7rem; letter-spacing:2.4px; text-transform:uppercase;
+  color:#ffd32a; }
+#unlockBanner .ub-title { font-size:1.5rem; font-weight:800; margin:5px 0; }
+#unlockBanner .ub-desc { font-size:0.9rem; color:#dcd6ff; line-height:1.5; }
+#unlockBanner .ub-icon { font-size:2.6rem; }
+
+/* ---------- assemble ceramic overlay ---------- */
+#assemble { position:fixed; inset:0; z-index:50; display:flex; flex-direction:column;
+  align-items:center; justify-content:flex-end; padding-bottom:8vh;
+  background:radial-gradient(ellipse at 50% 42%,rgba(10,10,46,0.15) 0%,rgba(6,6,26,0.93) 62%);
+  pointer-events:auto; }
+#assemble .as-kicker { font-size:0.72rem; letter-spacing:2.6px; text-transform:uppercase;
+  color:#a29bfe; }
+#assemble .as-title { font-size:clamp(1.5rem,6vw,2.5rem); font-weight:800; color:#ffd32a;
+  text-shadow:0 0 30px rgba(255,211,42,0.6); margin:6px 0 4px; text-align:center; }
+#assemble .as-sub { font-size:0.9rem; color:#dcd6ff; margin-bottom:16px; text-align:center;
+  padding:0 20px; }
+
+/* ---------- collection ---------- */
+#collectionUI { position:fixed; inset:0; z-index:20; pointer-events:none; }
+/* Sits ON TOP of the shared bottom strip. It is a fixed, static panel: no scroll,
+   no drag, no grip handle — every colour always fits, so there is nothing to
+   scroll to and nothing for a stray swipe to move. */
+#collectionUI .bottomsheet { position:fixed; bottom:var(--navh); left:0; right:0;
+  pointer-events:auto; background:linear-gradient(180deg,rgba(10,10,46,0.05),rgba(10,10,46,0.92) 26%);
+  padding:14px 12px 8px; overflow:hidden; touch-action:none; }
+#collectionUI .sheethint { text-align:center; font-size:0.72rem;
+  color:rgba(255,255,255,0.45); margin-top:8px; }
+.totals { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:10px; }
+.totchip { background:rgba(108,92,231,0.22); border:1px solid rgba(162,155,254,0.35);
+  border-radius:12px; padding:6px 12px; text-align:center; min-width:78px; }
+.totchip .tv { font-size:1.15rem; font-weight:800; color:#ffd32a; }
+.totchip .tl { font-size:0.58rem; letter-spacing:1px; text-transform:uppercase;
+  color:rgba(255,255,255,0.62); }
+.colorlist { display:grid; grid-template-columns:repeat(auto-fill,minmax(152px,1fr));
+  gap:6px; max-width:900px; margin:0 auto; }
+.colorrow { display:flex; align-items:center; gap:7px; background:rgba(255,255,255,0.05);
+  border-radius:10px; padding:5px 8px; font-size:0.78rem; }
+/* Exactly two lines, always: the name on line one and rarity + chance on line
+   two. The column is wide enough for the longest name ("Sunset Orange") at this
+   size, and nowrap + a fixed two-line box means it can never spill or clip. */
+.colorrow .cname { flex:1; min-width:0; display:block; line-height:1.25;
+  height:2.5em; overflow:hidden; }
+.colorrow .cn1 { display:block; white-space:nowrap; font-size:0.74rem; }
+.colorrow .cn2 { display:block; white-space:nowrap; }
+.colorrow .ccount { font-weight:800; color:#ffd32a; flex:0 0 auto; }
+.colorrow.zero { opacity:0.34; }
+.colorrow .cpct { font-size:0.58rem; color:rgba(255,255,255,0.5); }
+/* On a phone the totals sheet is a third of the screen, which leaves the jars
+   almost nothing. Two tight columns claw back about a hundred pixels for them. */
+@media (max-width:480px) {
+  .colorlist { grid-template-columns:repeat(2,1fr); gap:4px; }
+  .colorrow { padding:3px 6px; gap:5px; }
+  .colorrow .cn1 { font-size:0.7rem; }
+  .totals { gap:5px; margin-bottom:7px; }
+  .totchip { padding:4px 9px; min-width:64px; }
+  .totchip .tv { font-size:1rem; }
+  #collectionUI .bottomsheet { padding:10px 8px 6px; }
+  #collectionUI .sheethint { margin-top:5px; font-size:0.66rem; }
+}
+
+/* ---------- milestones ---------- */
+.mile { display:flex; gap:11px; align-items:center; background:rgba(255,255,255,0.05);
+  border:1px solid rgba(162,155,254,0.16); border-radius:14px; padding:10px 12px;
+  margin-bottom:8px; }
+.mile.done { border-color:rgba(255,211,42,0.55); background:rgba(255,211,42,0.09); }
+.mile .mi { font-size:1.6rem; width:38px; text-align:center; }
+.mile .mbody { flex:1; min-width:0; }
+.mile .mt { font-weight:700; font-size:0.94rem; }
+.mile .md { font-size:0.76rem; color:#a0c4ff; line-height:1.4; }
+.mile .bar { height:6px; border-radius:4px; background:rgba(255,255,255,0.12);
+  margin-top:6px; overflow:hidden; }
+.mile .bar i { display:block; height:100%; border-radius:4px;
+  background:linear-gradient(90deg,#6c5ce7,#a29bfe); }
+.mile.done .bar i { background:linear-gradient(90deg,#ffb800,#ffd32a); }
+.mile .mp { font-size:0.68rem; color:rgba(255,255,255,0.55); margin-top:3px; }
+
+#perfTag { position:fixed; bottom:3px; left:6px; z-index:45; font-size:9px;
+  color:rgba(255,255,255,0.35); font-family:monospace; pointer-events:none; }
+
+#loading { position:fixed; inset:0; z-index:70; display:flex; align-items:center;
+  justify-content:center; background:rgba(10,10,46,0.86); font-size:1.1rem;
+  color:#a29bfe; letter-spacing:2px; }
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+<canvas id="view"></canvas>
+
+<!-- ============ player select ============ -->
+<div class="screen" id="screen-player">
+  <h1>Sea Glass</h1>
+  <div class="sub">Comb the beach &bull; uncover the sea glass</div>
+  <div class="players" id="playerCards"></div>
+  <div class="panel" style="max-width:520px;text-align:center;font-size:0.86rem;line-height:1.7;color:rgba(255,255,255,0.78)">
+    <strong style="color:#a29bfe">Swipe</strong> the pebbles to push them aside &bull;
+    <strong style="color:#a29bfe">Tap</strong> a piece of sea glass to add it to your collection<br>
+    Find all 10 ceramic shards on a beach to rebuild something special.
+  </div>
+</div>
+
+<!-- ============ beach select ============ -->
+<div class="screen hidden" id="screen-beach">
+  <h1 style="font-size:clamp(1.5rem,5.5vw,2.4rem)">Where to today?</h1>
+  <div class="sub" id="beachSubtitle">Pick a beach</div>
+  <div class="beach-grid" id="beachGrid"></div>
+  <div class="navbar">
+    <button class="btn ghost small" id="btnToCollection">&#129379; Collection</button>
+    <button class="btn ghost small" id="btnToUnlocks">&#11088; Milestones</button>
+  </div>
+</div>
+
+<!-- ============ beachcombing HUD ============ -->
+<div id="hud" class="hidden">
+  <div class="cell"><div class="num" id="hudSession">0</div><div class="lab">This visit</div></div>
+  <div class="cell"><div class="num" id="hudLeft">0</div><div class="lab">Left here</div></div>
+  <div class="cell"><div class="num" id="hudTotal">0</div><div class="lab">Collection</div></div>
+  <div class="cell"><div class="num" id="hudCeramic">0/10</div><div class="lab">Shards</div></div>
+</div>
+
+<div id="moveBar" class="hidden">
+  <button class="move-btn" id="mvRadar" data-move="radar">&#128225;<span class="cd"></span><span class="mn">Radar</span></button>
+  <button class="move-btn" id="mvTorch" data-move="torch">&#128161;<span class="cd"></span><span class="mn">Shine</span></button>
+  <button class="move-btn" id="mvWave" data-move="wave">&#127754;<span class="cd"></span><span class="mn">Wash</span></button>
+</div>
+
+<div id="bottomBar" class="navbar hidden">
+  <button class="btn gold small cdbtn" id="btnComb"><span class="cdring"></span><span class="lbl">Comb further &rarr;</span></button>
+  <button class="btn ghost small" id="btnCollection">&#129379; Collection</button>
+  <button class="btn ghost small" id="btnBeaches">&#127958; Beaches</button>
+  <button class="btn ghost small" id="btnMilestones">&#11088; Milestones</button>
+</div>
+
+<div id="tips" class="hidden"></div>
+<div id="toasts"></div>
+
+<!-- ============ collection ============ -->
+<div id="collectionUI" class="hidden">
+  <div class="bottomsheet">
+    <div class="totals" id="colTotals"></div>
+    <div class="colorlist" id="colColors"></div>
+    <div class="sheethint">Drag across the jars to tip them &bull; the glass really tumbles</div>
+  </div>
+  <div class="navbar">
+    <button class="btn ghost small" id="btnColBack">&larr; Back</button>
+    <button class="btn ghost small" id="btnPour">Pour together</button>
+    <button class="btn ghost small" id="btnShake">&#129380; Shake</button>
+    <button class="btn ghost small" id="btnBottleStyle">Style: Jam Jar</button>
+    <button class="btn ghost small" id="btnColBeaches">&#127958; Beaches</button>
+    <button class="btn ghost small" id="btnColMilestones">&#11088; Milestones</button>
+  </div>
+</div>
+
+<!-- ============ milestones ============ -->
+<div class="screen translucent hidden" id="screen-unlocks">
+  <h1 style="font-size:clamp(1.4rem,5vw,2.2rem)">Milestones</h1>
+  <div class="sub" id="unlockSub">Keep combing to unlock more</div>
+  <div class="panel" id="mileList"></div>
+  <div class="navbar">
+    <button class="btn" id="btnUnlocksBack">&larr; Back</button>
+  </div>
+</div>
+
+<!-- ============ assemble ceramic ============ -->
+<div id="assemble" class="hidden">
+  <div class="as-kicker">Ten shards, one whole thing</div>
+  <div class="as-title" id="asTitle">The Willow Plate</div>
+  <div class="as-sub" id="asSub">Rebuilt from every shard you found on this beach.</div>
+  <button class="btn gold" id="btnAssembleDone">Lovely</button>
+</div>
+
+<div id="unlockBanner" class="hidden"></div>
+<div id="perfTag" class="hidden"></div>
+<div id="loading">combing the beach&hellip;</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/",
+    "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/+esm"
+  }
+}
+</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
