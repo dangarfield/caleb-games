@@ -1,6 +1,6 @@
 # Games Index
 
-All 61 games in Garfield Boys' Arcade (62 directories — Archers has legacy 2D + current 3D).
+All 62 games in Garfield Boys' Arcade (63 directories — Archers has legacy 2D + current 3D).
 
 | Game | Directory | Description |
 |------|-----------|-------------|
@@ -65,6 +65,7 @@ All 61 games in Garfield Boys' Arcade (62 directories — Archers has legacy 2D 
 | Stars | games/stars/ | Star Battle / "Two Not Touch" logic puzzle — 1 star per row, column and region, no two touching; tap to cycle empty→✕→★, drag to paint crosses, 801 levels in 9 groups (Tutorial · Easy A/B/C · Normal A/B · Hard A/B/C), guided hints, Caleb/Ezra progress |
 | Jigsaw | games/jigsaw/ | Bonza-style tessellated jigsaw (Netflix "Jigsaw") — assemble polyomino pieces on a pannable/zoomable table by fitting them to each other (no picture to peek at); 5 lattice types, 312 daily puzzles in date order, Caleb/Ezra progress |
 | Triple Triad | games/triple-triad/ | FFVIII card game (ported from itdelatrisu, GPL v3) with card-collecting progression — 110 cards, 10 tiered FF8-character rivals + tutorial, per-opponent rules, deck builder + auto-select + card viewer, win cards to unlock rivals (5 wins to advance), Caleb/Ezra progress |
+| Stone Skip | games/stone-skip/ | Cute 3D lake stone-skipping (Three.js) — pick a flat rock, 3-beat timed throw (slow-mo → power tap → release flick for angle+aim), skip physics, 48 achievements (incl. 0-point collection badges) + Skip Points shop with 24 unlocks (special stones, 12 throw spots [6 base + 6 unlockable], day/night themes, arm strength, cosmetics, fish), map/overview view, Caleb/Ezra progress |
 
 ## Naming quirks worth knowing
 

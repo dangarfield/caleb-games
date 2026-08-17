@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0a2e">
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<title>Stone Skip - Garfield Boys' Arcade</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html, body { width:100%; height:100%; overflow:hidden; }
+body {
+  background:#0a0a2e;
+  touch-action:none;
+  font-family:system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color:#fff;
+  user-select:none; -webkit-user-select:none;
+}
+canvas { display:block; }
+
+#view { position:fixed; inset:0; z-index:1; }
+#hudCanvas { position:fixed; inset:0; z-index:5; pointer-events:none; }
+
+/* ---- back button: href must be exactly ../../index.html ---- */
+#backBtn {
+  position:fixed; top:12px; left:12px; z-index:60;
+  background:rgba(10,10,46,0.62); color:#fff; text-decoration:none;
+  padding:10px 18px; border-radius:22px;
+  font:700 15px/1.2 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  border:1px solid rgba(162,155,254,0.5);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  min-height:44px; display:flex; align-items:center;
+}
+#backBtn:active { background:rgba(108,92,231,0.8); }
+
+/* Six buttons do not fit down the side of a landscape phone, so the rail
+   wraps into extra columns (wrap-reverse = new columns grow leftwards) inside a
+   height bounded by the bottom control strip. pointer-events:none keeps the
+   empty part of the strip from swallowing taps meant for the lake. */
+#sideBtns {
+  position:fixed; right:10px; top:64px; bottom:96px; z-index:60;
+  display:flex; flex-direction:column; flex-wrap:wrap-reverse;
+  align-content:flex-start; gap:10px;
+  pointer-events:none;
+}
+.iconBtn {
+  width:54px; height:54px; border-radius:16px;
+  background:rgba(10,10,46,0.62); border:1px solid rgba(162,155,254,0.45);
+  color:#fff; font-size:24px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  pointer-events:auto; flex:0 0 auto;
+}
+.iconBtn:active { background:rgba(108,92,231,0.85); transform:scale(0.94); }
+/* a rail button that is currently switched on (the 🗺️ map view) */
+.iconBtn.on {
+  background:rgba(255,211,42,0.22); border-color:#ffd32a;
+  box-shadow:0 0 14px rgba(255,211,42,0.45);
+}
+
+/* ---- overlays ---- */
+#throwBtn {
+  position:fixed; left:50%; bottom:26px; transform:translateX(-50%);
+  z-index:60; width:min(360px, 78vw); min-height:54px;
+  border:none; border-radius:16px; cursor:pointer;
+  font:800 1.05rem/1.1 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  letter-spacing:1px; color:#2a1a00;
+  background:linear-gradient(135deg, #ffd32a, #f0932b);
+  box-shadow:0 6px 20px rgba(255,211,42,0.35);
+  animation:breathe 1.9s ease-in-out infinite;
+}
+#throwBtn:active { transform:translateX(-50%) scale(0.97); }
+@keyframes breathe {
+  0%,100% { box-shadow:0 6px 20px rgba(255,211,42,0.28); }
+  50% { box-shadow:0 6px 28px rgba(255,211,42,0.62); }
+}
+/* Only shown when the aim has been dragged off the spot's lane (see
+   camera-rig.aimOffsetDeg). It lives under the stats pill, clear of the icon
+   rail, so it never competes with the WIND UP button for the same thumb. */
+#centreBtn {
+  position:fixed; left:50%; top:62px; transform:translateX(-50%);
+  z-index:60; min-height:46px; padding:11px 20px;
+  border:1px solid rgba(255,211,42,0.75); border-radius:23px; cursor:pointer;
+  font:800 0.92rem/1 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  letter-spacing:0.4px; color:#ffd32a;
+  background:rgba(10,10,46,0.78);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  box-shadow:0 4px 16px rgba(0,0,0,0.4);
+}
+#centreBtn:active { transform:translateX(-50%) scale(0.96); background:rgba(108,92,231,0.85); }
+
+#ov {
+  position:fixed; inset:0; z-index:80;
+  background:rgba(6,6,32,0.52);
+  backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
+  display:flex; align-items:center; justify-content:center;
+  padding:16px; overflow:auto;
+}
+.hidden, #ov.hidden { display:none !important; }
+.panel {
+  width:100%; max-width:440px;
+  background:linear-gradient(160deg, #141452, #1a1a6e);
+  border:2px solid rgba(162,155,254,0.45);
+  border-radius:22px; padding:22px 20px;
+  box-shadow:0 18px 50px rgba(0,0,0,0.55);
+  text-align:center;
+}
+.panel.hidden { display:none !important; }
+.panel h1 {
+  font-size:clamp(1.8rem, 7vw, 2.6rem);
+  letter-spacing:1px;
+  background:linear-gradient(90deg, #ffd32a, #a29bfe);
+  -webkit-background-clip:text; background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
+.panel h2 { font-size:1.25rem; color:#ffd32a; margin-bottom:10px; }
+.panel .sub { color:#a0c4ff; font-size:0.98rem; margin:6px 0 16px; line-height:1.45; }
+.panel .tiny { color:rgba(255,255,255,0.6); font-size:0.82rem; margin-top:14px; line-height:1.4; }
+
+.btn {
+  display:block; width:100%; margin-top:12px;
+  padding:15px 18px; min-height:52px;
+  border:none; border-radius:14px; cursor:pointer;
+  font:700 1.05rem system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background:linear-gradient(135deg, #6c5ce7, #a29bfe); color:#fff;
+  box-shadow:0 5px 16px rgba(108,92,231,0.42);
+}
+.btn.gold { background:linear-gradient(135deg, #ffd32a, #f0932b); color:#2a1a00; }
+.btn:active { transform:scale(0.97); }
+
+.players { display:flex; gap:12px; margin-top:14px; }
+.btn-player {
+  flex:1; padding:16px 8px; border:2px solid rgba(162,155,254,0.5);
+  border-radius:16px; background:rgba(10,10,46,0.5); color:#fff;
+  cursor:pointer; font:700 1.1rem system-ui, sans-serif;
+}
+.btn-player .av { font-size:2rem; display:block; }
+.btn-player .st { font-size:0.72rem; color:#a0c4ff; font-weight:600; display:block; margin-top:6px; line-height:1.35; }
+.btn-player:active { border-color:#ffd32a; background:rgba(108,92,231,0.45); }
+
+.beats { text-align:left; margin:6px 0 4px; }
+.beat {
+  display:flex; gap:12px; align-items:center;
+  background:rgba(10,10,46,0.45); border:1px solid rgba(162,155,254,0.28);
+  border-radius:14px; padding:11px 13px; margin-bottom:9px;
+}
+.beat .n {
+  width:32px; height:32px; flex:0 0 32px; border-radius:50%;
+  background:#6c5ce7; color:#fff; font:800 16px system-ui, sans-serif;
+  display:flex; align-items:center; justify-content:center;
+}
+.beat .tx { font-size:0.9rem; line-height:1.35; }
+.beat .tx b { color:#ffd32a; }
+
+.list { text-align:left; max-height:52vh; overflow:auto; margin-top:8px; }
+.row {
+  display:flex; gap:11px; align-items:center;
+  background:rgba(10,10,46,0.45); border:1px solid rgba(162,155,254,0.25);
+  border-radius:13px; padding:10px 12px; margin-bottom:8px;
+  cursor:pointer; min-height:52px;
+}
+.row:active { background:rgba(108,92,231,0.5); }
+.row.done { border-color:rgba(46,204,113,0.65); background:rgba(46,204,113,0.14); }
+.row .ic { font-size:1.5rem; flex:0 0 30px; text-align:center; }
+.row .nm { font:700 0.95rem system-ui, sans-serif; }
+.row .ds { font-size:0.78rem; color:#a0c4ff; line-height:1.3; }
+/* running count on a counting achievement: "247 / 500" */
+.row .ds .cnt {
+  display:inline-block; margin-left:4px; padding:0 5px; border-radius:6px;
+  background:rgba(255,211,42,0.16); color:#ffd32a; font-weight:800; white-space:nowrap;
+}
+.row .tk { margin-left:auto; font-size:1.2rem; color:#2ecc71; text-align:right; white-space:nowrap; }
+/* an earned achievement keeps its reward on show, as a trophy rather than a price */
+.row .tk small { display:block; font:800 0.62rem system-ui, sans-serif; color:#ffd32a; }
+.row .go { margin-left:auto; font-size:0.72rem; color:#ffd32a; font-weight:700; text-align:right; }
+.row .tx { margin-left:auto; }
+/* shop / achievements */
+.grp {
+  font:800 0.76rem system-ui, sans-serif; color:#a29bfe;
+  letter-spacing:1.4px; text-transform:uppercase;
+  margin:14px 4px 7px; text-align:left;
+}
+.grp:first-child { margin-top:2px; }
+.row .pr { margin-left:auto; font:800 0.92rem system-ui, sans-serif; color:#ffd32a; white-space:nowrap; }
+.row .pr small { display:block; font-size:0.62rem; font-weight:700; color:#a0c4ff; letter-spacing:0.5px; }
+/* a collection badge pays no points, so it says BADGE instead of "+0 ✨" */
+.row .pr.bdg { color:#a29bfe; font-size:1.1rem; }
+.row.cant { opacity:0.62; }
+.row.cant .pr { color:#e74c3c; }
+.row.locked .nm::after { content:' 🔒'; font-size:0.8rem; }
+.row.equipped { border-color:#ffd32a; background:rgba(255,211,42,0.16); }
+.row.equipped .tk { color:#ffd32a; }
+.pointsBadge {
+  display:inline-block; background:rgba(255,211,42,0.16);
+  border:1px solid rgba(255,211,42,0.5); color:#ffd32a;
+  border-radius:14px; padding:5px 14px; font:800 1rem system-ui, sans-serif;
+}
+
+#loading { color:#a0c4ff; font:700 1.1rem system-ui, sans-serif; text-align:center; }
+#loading .bar {
+  width:200px; height:8px; margin:14px auto 0; border-radius:4px;
+  background:rgba(255,255,255,0.15); overflow:hidden;
+}
+#loading .bar i {
+  display:block; height:100%; width:30%; border-radius:4px;
+  background:linear-gradient(90deg,#6c5ce7,#ffd32a);
+  animation:slide 1.1s ease-in-out infinite;
+}
+@keyframes slide { 0%{margin-left:-30%} 100%{margin-left:100%} }
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">← Games</a>
+
+<div id="view"></div>
+<canvas id="hudCanvas"></canvas>
+
+<!-- One button, and only while a stone is in hand: there is no auto-pick. -->
+<button id="throwBtn" class="hidden">🪨 WIND UP</button>
+<button id="centreBtn" class="hidden">⟲ CENTRE AIM</button>
+
+<!-- 🗺️ leads the rail: it is the one button that answers "where am I?", and it
+     lights up (.on) while the map is open, so it doubles as the way back down —
+     there is deliberately no separate close-map control to overlap the HUD. -->
+<div id="sideBtns">
+  <button class="iconBtn" id="mapBtn" title="Map of the lake">🗺️</button>
+  <button class="iconBtn" id="spotsBtn" title="Throwing spots">📍</button>
+  <button class="iconBtn" id="shopBtn" title="Shop">🛒</button>
+  <button class="iconBtn" id="achBtn" title="Achievements">🏅</button>
+  <button class="iconBtn" id="bagBtn" title="Your things">🎒</button>
+  <button class="iconBtn" id="helpBtn" title="How to throw">❓</button>
+</div>
+
+<div id="ov">
+  <div id="loading">
+    Building the lake…
+    <div class="bar"><i></i></div>
+  </div>
+
+  <div class="panel hidden" id="playerPanel">
+    <h1>STONE SKIP</h1>
+    <div class="sub">Pick a flat stone. Time your throw.<br>How many skips can you get?</div>
+    <div class="players" id="playerBtns"></div>
+    <div class="tiny">Tap a name to play. Your best skips and achievements are saved.</div>
+  </div>
+
+  <div class="panel hidden" id="tutorialPanel">
+    <h2>Three taps to throw</h2>
+    <div class="beats">
+      <div class="beat"><div class="n">1</div><div class="tx"><b>Tap WIND UP</b> (or anywhere on the lake) — everything goes slow-mo and your arm draws back.</div></div>
+      <div class="beat"><div class="n">2</div><div class="tx"><b>Tap for POWER</b> — the longer you wait, the further back the stone goes. Stop it on the <b>white middle</b> of the gold band.</div></div>
+      <div class="beat"><div class="n">3</div><div class="tx"><b>Flick forward to THROW</b> — wait for <b>FLICK NOW!</b> and touch down on the white centre line, then flick up. Dead centre is a perfect throw.</div></div>
+    </div>
+    <div class="sub">First, <b>tap a stone</b> on the ground to pick it up — flat, smooth ones skip best.
+      Tap a purple marker to walk there. Skips earn ✨ Skip Points to spend in the 🛒 shop,
+      and every 🏅 achievement pays too.</div>
+    <button class="btn gold" id="tutStart">Let's skip stones!</button>
+  </div>
+
+  <div class="panel hidden" id="spotsPanel">
+    <h2>📍 Throwing spots</h2>
+    <div class="sub">Walk to a different part of the lake.</div>
+    <div class="list" id="spotList"></div>
+    <button class="btn" id="spotClose">Close</button>
+  </div>
+
+  <div class="panel hidden" id="shopPanel">
+    <h2>🛒 Skip Shop</h2>
+    <div class="sub"><span class="pointsBadge" id="shopPoints">✨ 0</span><br>
+      Earn Skip Points from skips, distance and achievements.</div>
+    <div class="list" id="shopList"></div>
+    <div class="tiny" id="shopMsg"></div>
+    <button class="btn" id="shopClose">Close</button>
+  </div>
+
+  <div class="panel hidden" id="achPanel">
+    <h2>🏅 Achievements</h2>
+    <div class="sub" id="achCount"></div>
+    <div class="list" id="achList"></div>
+    <button class="btn" id="achClose">Close</button>
+  </div>
+
+  <div class="panel hidden" id="bagPanel">
+    <h2>🎒 Your things</h2>
+    <div class="sub">Tap to use. Special stones wash up on the beach by themselves.</div>
+    <div class="list" id="bagList"></div>
+    <button class="btn" id="bagClose">Close</button>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
