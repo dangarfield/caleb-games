@@ -96,11 +96,11 @@ function makeGlass(colourId, rnd) {
   // Deliberately chunky relative to the stones. Slimmer, more realistic shards
   // sift straight down through the gaps in a sphere pile and can never be seen
   // or tapped — big enough to sit ON the shingle is worth more than accurate.
-  // Halved (user: beach glass 50% smaller). The collider radius keeps its 0.03
+  // 75% of the original beach size (user). The collider radius keeps its 0.03
   // floor in shardBody(), so smaller shards still can't sift out of reach / sight.
-  const hx = 0.041 * scale * (0.9 + rnd() * 0.35);
-  const hz = 0.0345 * scale * (0.9 + rnd() * 0.35);
-  const hy = 0.011 * scale * (0.85 + rnd() * 0.4);
+  const hx = 0.0615 * scale * (0.9 + rnd() * 0.35);
+  const hz = 0.05175 * scale * (0.9 + rnd() * 0.35);
+  const hy = 0.0165 * scale * (0.85 + rnd() * 0.4);
 
   const mesh = new THREE.Mesh(
     glassGeoms[Math.floor(rnd() * glassGeoms.length)],
@@ -121,9 +121,9 @@ function makeGlass(colourId, rnd) {
 }
 
 function makeCeramic(beach, shardIndex, rnd) {
-  const hx = 0.0475 + rnd() * 0.015;
+  const hx = 0.07125 + rnd() * 0.0225;
   const hz = hx * (0.82 + rnd() * 0.3);
-  const hy = 0.011 + rnd() * 0.0035;
+  const hy = 0.0165 + rnd() * 0.00525;
   const mesh = new THREE.Mesh(
     ceramicGeoms[shardIndex % ceramicGeoms.length],
     ceramicMaterial(beach.ceramic.base, beach.ceramic.accent)
