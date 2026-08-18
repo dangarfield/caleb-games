@@ -31,8 +31,15 @@ it approachable for ~7-year-olds. Fills a genuine gap — the arcade had trivia
 - **Natural Earth projection** (`geoNaturalEarth1`) — a smooth, low-distortion
   world projection; the camera scales/translates it each frame for pan/zoom.
 - **Pan & zoom camera** — touch pinch-to-zoom + one-finger drag-pan; desktop
-  mouse-wheel zoom + click-drag pan. Zoom clamped 1×–14×, pan clamped so the map
-  never drifts off screen.
+  mouse-wheel zoom + click-drag pan. Zoom clamped 1×–12×. Pan is clamped against
+  the land's on-screen bounding box: when the land is larger than the viewport the
+  viewport is kept inside it, and when smaller it is re-centred — so the map can
+  never be dragged off the viewable area (only sea shows at the very edges).
+- **On-screen keyboard** — a canvas-adjacent QWERTY keyboard (letters + space,
+  backspace, Enter) sits under the input box, for tablets/touch. The text input is
+  `inputmode="none"` so the OS keyboard never covers the map; a physical/Bluetooth
+  keyboard still types normally (same auto-match + Enter-to-submit path). The bottom
+  toast and hint clue float above the keyboard panel (measured height).
 - **Forgiving matching** — input is normalised (lowercase, accents/punctuation/
   spaces stripped), then matched against canonical names, a curated alias table
   (Russia→Russian Federation, USA/UK/DRC/UAE/Swaziland→eSwatini, Burma→Myanmar,
@@ -102,9 +109,12 @@ it approachable for ~7-year-olds. Fills a genuine gap — the arcade had trivia
   length-scaled Levenshtein tolerance and an early-exit bound, chosen to accept
   kid-level typos ("Germny", "Austrailia") while rejecting genuine wrong answers
   and letter-transpositions of the wrong country.
-- **HTML `<input>` for typing, everything else canvas** — the mobile keyboard
-  needs a real input element; it's styled to the dark theme and floated over the
-  canvas. HUD, map, hint state and summary are all canvas-drawn per convention.
+- **HTML `<input>` + DOM keyboard, everything else canvas** — typing uses a real
+  input element (styled to the dark theme) plus a DOM QWERTY keyboard in the same
+  bottom panel; HUD, map, hint state and summary are all canvas-drawn per
+  convention. The custom keyboard writes into the input's value and reuses the
+  physical-keyboard auto-match, so both input paths share one code path
+  (`typeChar`/`backspace`/`onGuessInput`/`submitGuess`).
 - **DPR-aware canvas** — capped at 2× device-pixel-ratio for crisp borders
   without over-rendering on high-density tablets.
 - **Bounding-box culling + affine geo-cache** — per-country projected bbox/centroid
@@ -129,6 +139,13 @@ it approachable for ~7-year-olds. Fills a genuine gap — the arcade had trivia
   polygon arc near Funafuti so the count is the full 195.
 - **Persistence changed index→name** as part of the data swap, so the reordered
   country set can't corrupt existing saves; legacy numeric entries are skipped.
+- **On-screen keyboard + pan clamp (2026-08-18).** Added a DOM QWERTY keyboard
+  (tablet-first; input set `inputmode="none"` to keep the OS keyboard off the map)
+  that funnels through the same auto-match path as physical typing. Rewrote
+  `clampCam` to clamp against the land's on-screen bbox (derived from raw scale-1
+  bounds via `uWorld`, so no per-frame re-walk) — the map can't be dragged off the
+  viewport. Toast/hint clue reposition above the keyboard panel via a measured
+  `panelH`.
 - **Reveal tween + tap-to-hint (2026-08-17).** Added an ease-out land→green colour
   flood with a fading glow ring on each correct guess (`revealAt[]` timestamps,
   `lerpColor`), and made tapping an unfound country fire a targeted `giveHint(idx)`

@@ -12,7 +12,14 @@ canvas { display:block; width:100%; height:100%; }
 .hidden { display:none !important; }
 #backBtn { position:fixed; top:12px; left:12px; z-index:9999; background:rgba(0,0,0,0.55); color:#fff; text-decoration:none; padding:6px 18px; border-radius:20px; font:bold 15px/1.4 'Segoe UI',system-ui,sans-serif; border:1px solid rgba(255,255,255,0.18); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); transition:background 0.2s; }
 #backBtn:hover { background:rgba(0,0,0,0.75); }
-#inputBar { position:fixed; left:50%; transform:translateX(-50%); bottom:18px; z-index:50; display:flex; gap:10px; align-items:center; width:min(520px,92vw); }
+#typePanel { position:fixed; left:50%; transform:translateX(-50%); bottom:10px; z-index:50; width:min(640px,98vw); display:flex; flex-direction:column; gap:8px; }
+#inputBar { display:flex; gap:10px; align-items:center; width:100%; }
+#keyboard { display:flex; flex-direction:column; gap:6px; }
+#keyboard .krow { display:flex; gap:6px; justify-content:center; }
+#keyboard .key { flex:1 1 0; min-width:0; padding:12px 2px; font-size:clamp(14px,3.6vw,18px); font-weight:700; color:#fff; background:rgba(0,0,0,0.55); border:1px solid rgba(255,255,255,0.16); border-radius:10px; cursor:pointer; user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); box-shadow:0 3px 12px rgba(0,0,0,0.35); }
+#keyboard .key:active { background:rgba(108,92,231,0.75); transform:translateY(1px); }
+#keyboard .key.wide { flex:1.7 1 0; font-size:clamp(12px,3vw,15px); }
+#keyboard .key.action { background:linear-gradient(135deg,#6c5ce7,#a29bfe); border-color:transparent; }
 #guess { flex:1 1 auto; padding:13px 16px; font-size:16px; border-radius:14px; border:2px solid rgba(255,255,255,0.18); background:rgba(0,0,0,0.55); color:#fff; outline:none; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); box-shadow:0 4px 20px rgba(0,0,0,0.4); transition:border-color 0.2s; }
 #guess::placeholder { color:rgba(160,196,255,0.6); }
 #guess:focus { border-color:#a29bfe; }
@@ -36,9 +43,12 @@ canvas { display:block; width:100%; height:100%; }
 <body>
 <a id="backBtn" href="../../index.html">&larr; Games</a>
 <canvas id="c"></canvas>
-<div id="inputBar" class="hidden">
-  <input id="guess" type="text" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" placeholder="Type a country…" enterkeyhint="go">
-  <button id="hintBtn">Hint</button>
+<div id="typePanel" class="hidden">
+  <div id="inputBar">
+    <input id="guess" type="text" inputmode="none" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Type a country…" enterkeyhint="go">
+    <button id="hintBtn">Hint</button>
+  </div>
+  <div id="keyboard"></div>
 </div>
 <div id="overlay">
   <h1>Where in the World</h1>
@@ -114,6 +124,7 @@ function resize(){
   canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   fitProjection();
+  if(typeof updatePanelMetrics==='function') updatePanelMetrics();
 }
 
 /* ---------- d3-geo projection ---------- */
@@ -135,10 +146,16 @@ function applyCam(){
 }
 function clampCam(){
   cam.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, cam.zoom));
-  // limit pan so map stays partly on screen
-  const maxPan = Math.max(W, H) * cam.zoom;
-  cam.x = Math.max(-maxPan, Math.min(maxPan, cam.x));
-  cam.y = Math.max(-maxPan, Math.min(maxPan, cam.y));
+  if(!unitsReady) precomputeUnits();
+  // land's on-screen bbox at the current zoom+pan (from raw scale-1 bounds; no re-walk)
+  const s=baseScale*cam.zoom, tx=baseT[0]*cam.zoom+cam.x, ty=baseT[1]*cam.zoom+cam.y;
+  const x0=s*uWorld[0][0]+tx, y0=s*uWorld[0][1]+ty, x1=s*uWorld[1][0]+tx, y1=s*uWorld[1][1]+ty;
+  const mw=x1-x0, mh=y1-y0;
+  let dx=0, dy=0;
+  // if land is wider/taller than the viewport, keep the viewport INSIDE it; else centre it
+  if(mw>=W){ if(x0>0)dx=-x0; else if(x1<W)dx=W-x1; } else { dx=(W-(x0+x1))/2; }
+  if(mh>=H){ if(y0>0)dy=-y0; else if(y1<H)dy=H-y1; } else { dy=(H-(y0+y1))/2; }
+  cam.x+=dx; cam.y+=dy;
   applyCam();
 }
 
@@ -299,11 +316,13 @@ const DOT_R=3.5;
    (which costs ~30ms and would kill the framerate while dragging). */
 let geoKey='', bboxes=new Array(TOTAL), centroids=new Array(TOTAL), tiny=new Array(TOTAL);
 const uBounds=new Array(TOTAL), uCentroid=new Array(TOTAL);
+let uWorld=null;   // raw (scale-1) screen bounds of ALL land, for pan clamping
 let unitsReady=false;
 function precomputeUnits(){
   const s=projection.scale(), t=projection.translate();
   projection.scale(1).translate([0,0]);
   for(let i=0;i<TOTAL;i++){ uBounds[i]=path.bounds(FEATURES[i]); uCentroid[i]=path.centroid(FEATURES[i]); }
+  uWorld=path.bounds(LAND);
   projection.scale(s).translate(t);
   unitsReady=true;
 }
@@ -441,7 +460,7 @@ function drawResetConfirm(){
 }
 function drawHintClue(){
   if(hintIdx<0||!hintInfo) return;
-  const cx=W/2, y=H-96;
+  const cx=W/2, y=H-panelH-44;
   const cap = hintInfo.capital?('Capital: '+hintInfo.capital):'Find this country!';
   const fact = hintInfo.fact||'';
   ctx.font='bold 16px Segoe UI,system-ui,sans-serif'; const w1=ctx.measureText(cap).width;
@@ -471,7 +490,7 @@ function drawToast(now){
   if(!toast)return; const dt=now-toast.t; if(dt>1600){toast=null;return;}
   let a=1; if(dt<150)a=dt/150; else if(dt>1300)a=(1600-dt)/300;
   ctx.save(); ctx.globalAlpha=Math.max(0,a); ctx.font='bold 18px Segoe UI,system-ui,sans-serif';
-  const tw=ctx.measureText(toast.text).width,w=tw+32,h=42,x=(W-w)/2,y=H-150;
+  const tw=ctx.measureText(toast.text).width,w=tw+32,h=42,x=(W-w)/2,y=H-panelH-108;
   ctx.fillStyle='rgba(0,0,0,0.72)'; roundRect(x,y,w,h,12); ctx.fill();
   ctx.strokeStyle=toast.color; ctx.lineWidth=2; roundRect(x,y,w,h,12); ctx.stroke();
   ctx.fillStyle=toast.color; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(toast.text,W/2,y+h/2+1); ctx.restore();
@@ -544,7 +563,7 @@ function submitGuess(){
   saveProgress();
   if(foundCount===TOTAL) winGame();
 }
-function winGame(){ endTime=performance.now(); elapsed=endTime-startTime; saveProgress(); sfxWin(); initConfetti(); STATE='summary'; inputBar.classList.add('hidden'); }
+function winGame(){ endTime=performance.now(); elapsed=endTime-startTime; saveProgress(); sfxWin(); initConfetti(); STATE='summary'; typePanel.classList.add('hidden'); updatePanelMetrics(); }
 function doResetProgress(){
   const d=gameData(),rec=playerRec(d,PLAYER); rec.found=[]; saveArcadeData(d);
   found.fill(false); revealAt.fill(-1); foundCount=0; revealed=false; hintIdx=-1; hintInfo=null; hintCooldownUntil=0;
@@ -560,9 +579,45 @@ function drawConfetti(){ for(const p of confetti){ p.x+=p.vx;p.y+=p.vy;p.r+=p.vr
 const hintBtn=document.getElementById('hintBtn');
 const guessEl=document.getElementById('guess');
 const inputBar=document.getElementById('inputBar');
+const typePanel=document.getElementById('typePanel');
+const keyboardEl=document.getElementById('keyboard');
 hintBtn.addEventListener('click',useHint);
+
+/* input: shared auto-match (used by physical typing AND the on-screen keyboard) */
+function onGuessInput(){
+  if(STATE!=='play')return;
+  const q=norm(guessEl.value); if(q.length<3)return;
+  let idx=-1; if(canonMap[q]!==undefined)idx=canonMap[q]; else if(aliasMap[q]!==undefined)idx=aliasMap[q];
+  if(idx>=0&&!found[idx])submitGuess();
+}
 guessEl.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();submitGuess();} });
-guessEl.addEventListener('input',()=>{ if(STATE!=='play')return; const q=norm(guessEl.value); if(q.length<3)return; let idx=-1; if(canonMap[q]!==undefined)idx=canonMap[q]; else if(aliasMap[q]!==undefined)idx=aliasMap[q]; if(idx>=0&&!found[idx])submitGuess(); });
+guessEl.addEventListener('input',onGuessInput);
+
+/* ---------- on-screen keyboard (tablet-friendly; physical keys still work) ---------- */
+function typeChar(ch){ if(STATE!=='play')return; guessEl.value+=ch; onGuessInput(); }
+function backspace(){ if(STATE!=='play')return; guessEl.value=guessEl.value.slice(0,-1); }
+function makeKey(label,cls,fn){
+  const b=document.createElement('button'); b.type='button'; b.className=cls; b.textContent=label;
+  // pointerdown = snappy + preventDefault keeps focus off the button (no native keyboard flicker)
+  b.addEventListener('pointerdown',e=>{ e.preventDefault(); fn(); });
+  return b;
+}
+function buildKeyboard(){
+  ['QWERTYUIOP','ASDFGHJKL','ZXCVBNM'].forEach(row=>{
+    const r=document.createElement('div'); r.className='krow';
+    for(const ch of row) r.appendChild(makeKey(ch,'key',()=>typeChar(ch.toLowerCase())));
+    keyboardEl.appendChild(r);
+  });
+  const r=document.createElement('div'); r.className='krow';
+  r.appendChild(makeKey('⌫','key wide',backspace));
+  r.appendChild(makeKey('space','key wide',()=>typeChar(' ')));
+  r.appendChild(makeKey('Enter','key wide action',submitGuess));
+  keyboardEl.appendChild(r);
+}
+buildKeyboard();
+/* height of the bottom typing panel, so canvas toast/hint sit above it */
+let panelH=0;
+function updatePanelMetrics(){ panelH = typePanel.classList.contains('hidden') ? 0 : (typePanel.offsetHeight+16); }
 
 /* ---------- pointer: hit-test, pan, zoom, hover, press-hold ---------- */
 const NEAR_PX=14;   // forgiving tap slop
@@ -636,7 +691,7 @@ canvas.addEventListener('wheel',e=>{ if(STATE!=='play')return; e.preventDefault(
 
 /* ---------- Game flow ---------- */
 function resetRun(){ found.fill(false); revealAt.fill(-1); foundCount=0; revealed=false; hintIdx=-1; hintInfo=null; hintCooldownUntil=0; cam.zoom=1; cam.x=0; cam.y=0; clampCam(); }
-function startGame(){ STATE='play'; startTime=performance.now(); elapsed=0; document.getElementById('overlay').classList.add('hidden'); inputBar.classList.remove('hidden'); ensureAudio(); setTimeout(()=>guessEl.focus(),100); }
+function startGame(){ STATE='play'; startTime=performance.now(); elapsed=0; document.getElementById('overlay').classList.add('hidden'); typePanel.classList.remove('hidden'); updatePanelMetrics(); ensureAudio(); setTimeout(()=>{guessEl.focus(); updatePanelMetrics();},100); }
 function updateProgressPreview(p){ const s=playerSummary(p); document.getElementById('playerProgress').textContent=s?s:''; }
 function startAsPlayer(p){
   PLAYER=p;
