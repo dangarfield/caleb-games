@@ -624,8 +624,7 @@ export function build(save, mode, styleId) {
       // radius a big jar full of glass looked like a jar full of sand. At the old
       // fraction (0.15) only four pieces fitted across a jar, which read as
       // boulders in a bucket; this is about eight across, which reads as glass.
-      // Halved from (0.085 + rnd*0.03) — user wanted the glass pieces 50% smaller.
-      const radius = jar.innerR * (0.0425 + Math.random() * 0.015);
+      const radius = jar.innerR * (0.085 + Math.random() * 0.03);
       // Spawn spread across the jar floor in layers. Stacking them in one tall
       // column meant a 26-piece jar started as a 4-unit spike that then blew
       // itself apart against the containment ceiling.
