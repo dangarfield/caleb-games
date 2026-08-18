@@ -1,10 +1,16 @@
 // The collection: your sea glass actually tumbling inside jars.
 //
-// Its own scene and its own tiny cannon world. Two tricks make it cheap:
-//   * jar walls are NOT physics bodies — containment is a hand-written radial
-//     clamp in the post-step, so a dozen jars cost nothing
+// Its own scene and its own tiny physics world, on the SAME backend the beach runs
+// (Rapier on High, js/lphys.js on Low — see js/phys.js), just a small N that falls
+// asleep fast. The glass is genuinely 3D: real spheres, stacked, tumbling. Three
+// tricks make it cheap:
+//   * the jar SILHOUETTE is not physics geometry — containment is a hand-written
+//     radial clamp applied inside the step, so a dozen tapering jars cost nothing
+//     (the Rapier backend adds one static floor box per jar, and nothing else)
 //   * every piece is drawn from one InstancedMesh per colour, so a jar of 20
 //     bits of green glass is still a single draw call
+//   * nothing is simulated or uploaded once the heap has settled: the world walks
+//     an awake list, and a parked jar's list is empty
 // Tipping rotates the whole shelf group visually and counter-rotates gravity, so
 // the contents always fall towards real down.
 //
@@ -15,19 +21,25 @@
 // background is dark, which is what makes the glass pop.
 
 import * as THREE from 'three';
-import * as CANNON from 'cannon-es';
+import { makeWorld, activeEngine, Body, MODE_SPIN } from './phys.js';
 import * as audio from './audio.js';
 import { GLASS, GLASS_IDS, BOTTLES, BOTTLE_BY_ID, BEACH_BY_ID } from './data.js';
 import {
   makeEnvironment, shardGeometry, glassMaterial, ceramicMaterial, ceramicItemGeometry,
 } from './env.js';
+import { profile } from './quality.js';
 
 // More, smaller pieces than before: at the old size each shard was a boulder next
 // to its jar. Shrinking them costs fill, so the budget goes up to compensate —
 // still cheap, because they are spheres that sleep and are drawn one instanced
 // mesh per colour.
+//
+// CAPACITY is the fixed instanced-mesh allocation; the Low profile just fills
+// fewer slots (110 bodies / 12 per jar instead of 240 / 24), so the second physics
+// world costs about half as much to settle when the screen opens.
 const MAX_PIECES = 240;
 const PER_JAR_CAP = 24;
+const CAPACITY = PER_JAR_CAP + 8;
 const G = 9.82;
 
 export const scene = new THREE.Scene();
@@ -36,16 +48,106 @@ export const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 120);
 const group = new THREE.Group();        // tips when you drag
 scene.add(group);
 
-const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -G, 0) });
-world.broadphase = new CANNON.SAPBroadphase(world);
-world.solver.iterations = 7;
-world.allowSleep = true;
-const pieceMat = new CANNON.Material('glass');
-// Glass in a jar does not bounce and it does not slide: near-zero restitution and
-// real friction are what let a heap actually come to rest instead of shivering.
-world.addContactMaterial(new CANNON.ContactMaterial(pieceMat, pieceMat, {
-  friction: 0.55, restitution: 0.03,
-}));
+// The jar world runs on the SAME backend the beach does — Rapier on High, lphys on
+// Low (js/phys.js) — because the quality profile picks the engine once, for the whole
+// game, and a player who has chosen High should get real rigid-body glass in the jars
+// too. Step rate and relaxation passes follow the profile just like the beach.
+//
+// The jar SILHOUETTE is a hand-written position clamp on both backends (clampJars):
+// it is a curved, tapering neck, and neither backend does anything but balls and
+// boxes. What the Rapier backend adds is a real static floor per jar (see
+// jarStatics), because a heap resting on a clamp cannot be allowed to fall asleep.
+//
+// Glass in a jar does not bounce and it does not slide. On lphys that comes for free:
+// the separation pass and the wall clamp only ever adjust POSITIONS, and the velocity
+// is then derived from where the piece actually ended up, so a piece pressed against
+// the glass simply has no velocity into it and a settled heap cannot pump itself back
+// into motion. On Rapier it is the friction and restitution the world is built with.
+let world = makeJarWorld();
+
+function makeJarWorld() {
+  const w = makeWorld({
+    engine: activeEngine(),
+    capacity: MAX_PIECES + 8,
+    gravity: -G,
+    stepHz: profile().collectionStepHz,
+    maxSubsteps: 2,
+    passes: profile().collectionRelaxPasses,
+    damping: 0.88,          // heavy: glass settling in a jar, not marbles on a table
+    spinDamping: 0.9,
+    maxSpeed: 6,
+    // A shake wakes the whole jar deliberately, so there is no incremental cap here
+    // the way there is on the beach; the ceiling is simply the world.
+    maxAwake: MAX_PIECES + 8,
+    wakeFrames: 900,
+    sleepSpeed: 0.1,
+    sleepSpin: 1.0,
+    sleepFrames: 8,
+    cell: 0.12,
+    // Rapier only, ignored by lphys.
+    solverIterations: profile().solverIterations,
+    lengthUnit: profile().lengthUnit,
+    friction: 0.6,          // glass on glass slides more than stone on stone
+    restitution: 0.05,
+  });
+  w.clampFn = clampJars;
+  return w;
+}
+
+/**
+ * Adopt the backend that is now in force, if it is not the one we have.
+ *
+ * This module is evaluated before main.js has finished awaiting Rapier's wasm, so the
+ * world it builds at import time is always lphys; main.js calls this once boot is
+ * done, and again whenever the quality toggle is flipped. It compares against the
+ * RESOLVED engine, not the profile's wish, so a failed Rapier load does not leave
+ * this rebuilding the same lphys world on every call. Returns true if the world was
+ * rebuilt.
+ */
+export function ensureEngine() {
+  if (world.engine === activeEngine()) return false;
+  rebuildWorld();
+  return true;
+}
+
+/**
+ * The engine changed under us (quality toggle). Build a fresh world on the new
+ * backend; the shelf is rebuilt from the save, exactly as it is on every open.
+ */
+export function rebuildWorld() {
+  clearScene();
+  // Same order as the beach (physics.js createWorld): stand the new world up, swap the
+  // binding, and only THEN release the old one. On Rapier `dispose()` frees wasm, so a
+  // piece handle that outlives the swap must find a dead world, never a freed one.
+  const old = world;
+  world = makeJarWorld();
+  old.dispose();
+  built = false;
+  if (lastSave) build(lastSave, currentMode, currentStyle);
+}
+
+/** Which physics backend the jars are running on ('rapier' | 'lphys'). */
+export function engine() { return world.engine; }
+
+/**
+ * A real floor inside each jar, for the backend that has static colliders. A no-op
+ * on lphys, where clampJars is the whole containment.
+ *
+ * The top surface sits a whisker ABOVE the clamp's own floor (jar.cy + r), so the
+ * solver — not the clamp — is what holds a settled heap up. If the clamp got there
+ * first it would nudge every resting piece every step and the jar would never sleep.
+ */
+const JAR_FLOOR_LIFT = 0.006;
+function jarStatics() {
+  if (!world.hardWalls) return;
+  for (const jar of jars) {
+    const r = jar.innerR * 1.05;
+    world.addStaticBox(jar.cx, jar.cy + JAR_FLOOR_LIFT - 0.06, jar.cz, r, 0.06, r);
+  }
+}
+
+/** piece record by particle index, so the clamp can find its jar. */
+const pieceByIndex = new Array(MAX_PIECES + 8).fill(null);
 
 // --- lighting -------------------------------------------------------------
 scene.add(new THREE.HemisphereLight(0xcfe4ff, 0x2a2450, 0.55));
@@ -222,7 +324,7 @@ const pieces = [];        // { colourId, mi, ii, body, radius, jar }
     mat.roughness = 0.3;
     mat.envMapIntensity = 2.2;
     mat.emissiveIntensity = 0.2;
-    const im = new THREE.InstancedMesh(geo, mat, PER_JAR_CAP + 8);
+    const im = new THREE.InstancedMesh(geo, mat, CAPACITY);
     im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     im.frustumCulled = false;
     im.count = 0;
@@ -252,16 +354,19 @@ export function setTiltTarget(nx, nz) {
 export function releaseTilt() { tilt.tx = 0; tilt.tz = 0; }
 
 function wakeAll() {
-  for (const p of pieces) { p.body.wakeUp(); p.calm = 0; }
+  world.wakeAll(900);
+  for (const p of pieces) p.calm = 0;
   awake = pieces.length;
   sinceDisturb = 0;
 }
 
 // --- settling -------------------------------------------------------------
-// The jar walls and floor are a hand-written clamp, not bodies. A clamp that
-// reflects velocity feeds a little energy back in every single step, so the heap
-// used to shiver forever. Two things fix it: the clamp only bounces a genuine
-// impact (below), and anything that has effectively stopped is parked outright.
+// The jar walls and floor are a hand-written clamp, not bodies, and lphys puts each
+// piece to sleep on its own once it has been calm for a few steps. This is the
+// backstop on top of that, for the same reason the beach has one: a piece wedged
+// between two others can jiggle indefinitely, and one awake piece keeps the whole
+// world's step alive. Once everything is parked, `awake` hits zero and the world is
+// not stepped at all.
 const CALM_SPEED = 0.12;
 const CALM_SPIN = 1.2;
 const CALM_TIME = 0.35;
@@ -277,15 +382,11 @@ let sinceDisturb = 1e9;
 let needSync = false;
 
 function parkAllPieces() {
-  for (const p of pieces) {
-    p.body.velocity.setZero();
-    p.body.angularVelocity.setZero();
-    p.body.sleep();
-    p.calm = 0;
-    p.parked = false;
-  }
+  world.sleepAll();     // zeroes velocity + spin and empties the awake list
+  for (const p of pieces) { p.calm = 0; p.rested = false; }
   awake = 0;
   needSync = true;
+  world.resetClock();
 }
 
 /** Park whatever has stopped. Returns how many pieces are still simulating. */
@@ -293,16 +394,14 @@ function settlePieces(dt) {
   sinceDisturb += dt;
   let n = 0;
   for (const p of pieces) {
-    if (p.body.sleepState === CANNON.Body.SLEEPING) continue;
+    if (p.body.frozen) continue;
     n++;
     const v = p.body.velocity, w = p.body.angularVelocity;
     const speed = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
     const spin = Math.sqrt(w.x * w.x + w.y * w.y + w.z * w.z);
     if (speed < CALM_SPEED && spin < CALM_SPIN) {
       p.calm = (p.calm || 0) + dt;
-      if (p.calm > CALM_TIME) {
-        v.setZero(); w.setZero(); p.body.sleep(); n--;
-      }
+      if (p.calm > CALM_TIME) { p.body.sleep(); n--; }
     } else {
       p.calm = 0;
     }
@@ -315,15 +414,16 @@ function settlePieces(dt) {
 export function shake() {
   audio.whoosh(true);
   wakeAll();
+  // Straight into the SoA: a shake is one pass over a couple of hundred slots and
+  // allocates nothing.
   for (const p of pieces) {
-    p.body.velocity.set(
-      (Math.random() - 0.5) * 2.6,
-      1.4 + Math.random() * 2.0,
-      (Math.random() - 0.5) * 2.6
-    );
-    p.body.angularVelocity.set(
-      (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10
-    );
+    const i = p.body.i;
+    world.vx[i] = (Math.random() - 0.5) * 2.6;
+    world.vy[i] = 1.4 + Math.random() * 2.0;
+    world.vz[i] = (Math.random() - 0.5) * 2.6;
+    world.wx[i] = (Math.random() - 0.5) * 10;
+    world.wy[i] = (Math.random() - 0.5) * 10;
+    world.wz[i] = (Math.random() - 0.5) * 10;
   }
   for (let i = 0; i < 5; i++) {
     setTimeout(() => audio.pebbleClink(0.02 + Math.random() * 0.02), 90 + i * 110);
@@ -350,7 +450,10 @@ function clearScene() {
   while (contacts.children.length) contacts.remove(contacts.children.pop());
   while (planks.children.length) planks.remove(planks.children.pop());
   while (posts.children.length) posts.remove(posts.children.pop());
-  for (const p of pieces) world.removeBody(p.body);
+  // Every piece goes at once, so the whole world is reset rather than freeing
+  // slots one at a time — the jars are rebuilt from the save on every open.
+  world.clear();
+  pieceByIndex.fill(null);
   pieces.length = 0;
   for (const id of GLASS_IDS) pieceMeshes[id].count = 0;
   while (ceramicItems.children.length) {
@@ -498,10 +601,19 @@ export function build(save, mode, styleId) {
     posts.add(p);
   }
 
+  // The jars exist now, so the backend that wants real floors can have them (no-op
+  // on lphys). Must happen BEFORE the pieces are spawned, or the first settle drops
+  // them through nothing.
+  jarStatics();
+
   // -- pieces -------------------------------------------------------------
-  const cap = Math.max(6, Math.min(PER_JAR_CAP, Math.floor(MAX_PIECES / Math.max(1, owned.length))));
+  const q = profile();
+  const budget = Math.min(MAX_PIECES, q.collectionMaxPieces);
+  const perJar = Math.min(PER_JAR_CAP, q.collectionPerJarCap);
+  const cap = Math.max(6, Math.min(perJar, Math.floor(budget / Math.max(1, owned.length))));
   const cursor = {};
   for (const id of GLASS_IDS) cursor[id] = 0;
+  let maxRadius = 0.02;
 
   owned.forEach((id, idx) => {
     const jarIdx = currentMode === 'mixed' ? 0 : idx;
@@ -512,18 +624,8 @@ export function build(save, mode, styleId) {
       // radius a big jar full of glass looked like a jar full of sand. At the old
       // fraction (0.15) only four pieces fitted across a jar, which read as
       // boulders in a bucket; this is about eight across, which reads as glass.
-      const radius = jar.innerR * (0.085 + Math.random() * 0.03);
-      const body = new CANNON.Body({
-        mass: 0.05,
-        shape: new CANNON.Sphere(radius),
-        material: pieceMat,
-        // Heavy damping: this is glass settling in a jar, not marbles on a table.
-        linearDamping: 0.42,
-        angularDamping: 0.72,
-        allowSleep: true,
-        sleepSpeedLimit: 0.09,
-        sleepTimeLimit: 0.35,
-      });
+      // Halved from (0.085 + rnd*0.03) — user wanted the glass pieces 50% smaller.
+      const radius = jar.innerR * (0.0425 + Math.random() * 0.015);
       // Spawn spread across the jar floor in layers. Stacking them in one tall
       // column meant a 26-piece jar started as a 4-unit spike that then blew
       // itself apart against the containment ceiling.
@@ -531,19 +633,30 @@ export function build(save, mode, styleId) {
       const layer = Math.floor(jar.fillN / perLayer);
       const a = Math.random() * Math.PI * 2;
       const rr = Math.sqrt(Math.random()) * Math.max(0.01, jar.innerR - radius - 0.01);
-      body.position.set(
-        jar.cx + Math.cos(a) * rr,
-        jar.cy + radius + 0.02 + layer * radius * 2.15,
-        jar.cz + Math.sin(a) * rr
-      );
-      body.quaternion.setFromEuler(Math.random() * 6.3, Math.random() * 6.3, Math.random() * 6.3);
-      world.addBody(body);
+      const idx = world.add({
+        x: jar.cx + Math.cos(a) * rr,
+        y: jar.cy + radius + 0.02 + layer * radius * 2.15,
+        z: jar.cz + Math.sin(a) * rr,
+        r: radius,
+        mass: 0.05,
+        mode: MODE_SPIN,        // glass tumbles as it falls; it does not roll
+      });
+      if (idx < 0) break;
+      world.setEuler(idx, Math.random() * 6.3, Math.random() * 6.3, Math.random() * 6.3);
+      if (radius > maxRadius) maxRadius = radius;
       jar.fillN++;
       const ii = cursor[id]++;
-      pieces.push({ colourId: id, mi: id, ii, body, radius, jar: jars.indexOf(jar) });
+      const rec = {
+        colourId: id, mi: id, ii, body: new Body(world, idx), radius,
+        jar: jars.indexOf(jar),
+      };
+      pieceByIndex[idx] = rec;
+      pieces.push(rec);
     }
   });
   for (const id of GLASS_IDS) pieceMeshes[id].count = cursor[id];
+  // The spatial hash's cell has to be at least the largest piece's diameter.
+  world.setCellFromMaxRadius(maxRadius);
 
   // -- rebuilt ceramics on a riser behind the jars -------------------------
   // Everything you have put back together, slowly turning on its own little
@@ -569,8 +682,13 @@ export function build(save, mode, styleId) {
   for (const id of GLASS_IDS) pieceMeshes[id].visible = pieceMeshes[id].count > 0;
 
   // Settle the heaps before the screen is ever shown, then park them: the jars
-  // should be at rest the moment the player looks at them.
-  for (let i = 0; i < 140; i++) stepWorld(1 / 60);
+  // should be at rest the moment the player looks at them. This is the collection
+  // view's own "entering a beach" hitch, so the Low profile settles for fewer
+  // steps over fewer bodies — and parkAllPieces() freezes whatever is left, so a
+  // shorter settle can never leave the jars twitching.
+  const settleSteps = Math.min(140, q.collectionSettleSteps);
+  world.wakeAll(settleSteps + 60);
+  for (let i = 0; i < settleSteps && world.awakeCount(); i++) world.stepOnce();
   parkAllPieces();
   frameCamera();
 }
@@ -598,8 +716,13 @@ export function setMode(save, mode) {
   // Lift everything so the rebuild reads as a pour rather than a teleport.
   wakeAll();
   for (const p of pieces) {
-    p.body.position.y += 0.7 + Math.random() * 0.7;
-    p.body.velocity.set((Math.random() - 0.5) * 0.4, -0.4, (Math.random() - 0.5) * 0.4);
+    const i = p.body.i;
+    // `place` so the lift is a teleport and not a velocity: the pour is meant to
+    // start from a standstill above the jar and fall.
+    world.place(i, world.px[i], world.py[i] + 0.7 + Math.random() * 0.7, world.pz[i]);
+    world.vx[i] = (Math.random() - 0.5) * 0.4;
+    world.vy[i] = -0.4;
+    world.vz[i] = (Math.random() - 0.5) * 0.4;
   }
   audio.whoosh(false);
   for (let i = 0; i < 6; i++) {
@@ -611,55 +734,50 @@ export function mode() { return currentMode; }
 export function style() { return currentStyle; }
 export function isBuilt() { return built; }
 
-// --- containment + step --------------------------------------------------
-function containPieces() {
-  for (const p of pieces) {
+// --- containment ---------------------------------------------------------
+/**
+ * The jar walls, floor and neck, as a POSITION clamp run inside the step over the
+ * awake set only (both backends call this after their solve).
+ *
+ * It touches no velocities at all, and that is the point: lphys derives the
+ * velocity from how far the piece actually moved this step — and the Rapier wrapper
+ * cancels the velocity along whatever axis the clamp moved, for the same reason — so
+ * a piece stopped by
+ * the glass comes out of the step with no velocity into the glass — no reflection
+ * coefficient to tune, and no chance of the clamp quietly feeding energy back into
+ * a heap that is trying to settle (which is exactly what used to keep it shivering).
+ */
+function clampJars(w) {
+  const list = w.awakeList, n = w.nAwake;
+  const px = w.px, py = w.py, pz = w.pz, moved = w.moved;
+  for (let k = 0; k < n; k++) {
+    const i = list[k];
+    const p = pieceByIndex[i];
+    if (!p) continue;
     const jar = jars[p.jar] || jars[0];
     if (!jar) continue;
-    const b = p.body;
-    const dx = b.position.x - jar.cx;
-    const dz = b.position.z - jar.cz;
-    const d = Math.hypot(dx, dz);
-    // The wall follows the jar's silhouette, so glass funnels into the neck.
-    // All heights are relative to the jar's own shelf, not the world floor.
-    const t = (b.position.y - jar.cy) / jar.h;
+    const r = p.radius;
+    let hit = false;
+    const dx = px[i] - jar.cx, dz = pz[i] - jar.cz;
+    const d = Math.sqrt(dx * dx + dz * dz);
+    // The wall follows the jar's silhouette, so glass funnels into the neck. All
+    // heights are relative to the jar's own shelf, not the world floor.
+    const t = (py[i] - jar.cy) / jar.h;
     const taper = t > 0.72
       ? 1 - (1 - jar.neck) * Math.min(1, (t - 0.72) / 0.28)
       : 1;
-    const maxD = Math.max(0.005, jar.innerR * taper - p.radius);
+    const maxD = Math.max(0.005, jar.innerR * taper - r);
     if (d > maxD) {
-      const nx = dx / (d || 1), nz = dz / (d || 1);
-      b.position.x = jar.cx + nx * maxD;
-      b.position.z = jar.cz + nz * maxD;
-      const vn = b.velocity.x * nx + b.velocity.z * nz;
-      if (vn > 0) {
-        // Reflect a real knock; absorb a resting nudge. Reflecting everything put
-        // energy back in on every step, which is what kept the heap alive.
-        const k = vn > 0.3 ? 1.15 : 1.0;
-        b.velocity.x -= vn * k * nx;
-        b.velocity.z -= vn * k * nz;
-      }
+      const inv = 1 / (d || 1);
+      px[i] = jar.cx + dx * inv * maxD;
+      pz[i] = jar.cz + dz * inv * maxD;
+      hit = true;
     }
-    if (b.position.y < jar.cy + p.radius) {
-      b.position.y = jar.cy + p.radius;
-      // A dropped piece bounces once; a resting piece is simply stopped, so
-      // gravity cannot keep pumping it against the floor for ever.
-      b.velocity.y = b.velocity.y < -0.35 ? -b.velocity.y * 0.18 : 0;
-      b.velocity.x *= 0.7;
-      b.velocity.z *= 0.7;
-      b.angularVelocity.scale(0.82, b.angularVelocity);
-    }
+    if (py[i] < jar.cy + r) { py[i] = jar.cy + r; hit = true; }
     const ceiling = jar.cy + jar.h * 1.5;
-    if (b.position.y > ceiling) {
-      b.position.y = ceiling;
-      if (b.velocity.y > 0) b.velocity.y = 0;
-    }
+    if (py[i] > ceiling) { py[i] = ceiling; hit = true; }
+    if (hit) moved[i] = 1;
   }
-}
-
-function stepWorld(dt) {
-  world.step(1 / 60, dt, 3);
-  containPieces();
 }
 
 // --- camera --------------------------------------------------------------
@@ -783,23 +901,27 @@ export function update(dt) {
     _euler.set(tilt.x, 0, tilt.z);
     _rot.setFromEuler(_euler).invert();
     _grav.set(0, -G, 0).applyQuaternion(_rot);
-    world.gravity.set(_grav.x, _grav.y, _grav.z);
+    world.setGravity(_grav.x, _grav.y, _grav.z);
 
-    stepWorld(Math.min(dt, 1 / 30));
+    // The wall clamp runs inside the step (world.clampFn), so this is the whole
+    // simulation for the frame.
+    world.step(Math.min(dt, 1 / 30));
     settlePieces(Math.min(dt, 1 / 30));
   } else if (!needSync) {
     return;
   }
+  const force = needSync;
   needSync = false;
 
-  // sync instances
+  // Sync instances — only the pieces the world says moved, exactly as the beach
+  // does, so a settled shelf uploads nothing.
   const touched = {};
   for (const p of pieces) {
-    const awake = p.body.sleepState !== CANNON.Body.SLEEPING;
-    if (!awake && p.parked) continue;
-    p.parked = !awake;
-    _v.set(p.body.position.x, p.body.position.y, p.body.position.z);
-    _q.set(p.body.quaternion.x, p.body.quaternion.y, p.body.quaternion.z, p.body.quaternion.w);
+    const i = p.body.i;
+    if (!force && !world.moved[i]) continue;
+    world.moved[i] = 0;
+    _v.set(world.px[i], world.py[i], world.pz[i]);
+    _q.set(world.qx[i], world.qy[i], world.qz[i], world.qw[i]);
     // Flat and wide: a shard, not a pebble. The collider stays a sphere.
     _s.set(p.radius * 1.9, p.radius * 0.62, p.radius * 1.45);
     _m.compose(_v, _q, _s);
@@ -811,11 +933,55 @@ export function update(dt) {
 
 export function bodyCount() { return pieces.length; }
 
+/**
+ * Live quality flip. Only the step rate and the relaxation passes have to change —
+ * the piece budget is read on every build(), and the collection is rebuilt every
+ * time it is opened.
+ */
+export function applyQuality() {
+  const q = profile();
+  world.setStepHz(q.collectionStepHz);
+  world.passes = q.collectionRelaxPasses;
+  world.resetClock();
+}
+
+export function relaxPasses() { return world.passes; }
+export function stepHz() { return world.stepHz(); }
+
+/**
+ * Where the glass actually IS: the height of the highest piece (so a shake can be
+ * seen to lift the heap) and how many pieces have escaped their jar. `outOfJar`
+ * must be 0 — the jar has no colliders, so if the clamp and the step rate ever
+ * disagreed the glass would simply leave.
+ */
+export function heapStats() {
+  let top = -9, outOfJar = 0;
+  for (const p of pieces) {
+    const jar = jars[p.jar] || jars[0];
+    if (p.body.position.y > top) top = p.body.position.y;
+    if (!jar) continue;
+    const dx = p.body.position.x - jar.cx, dz = p.body.position.z - jar.cz;
+    if (Math.hypot(dx, dz) > jar.innerR + 0.01) outOfJar++;
+    if (p.body.position.y < jar.cy - p.radius) outOfJar++;
+  }
+  return { top: +(top === -9 ? 0 : top).toFixed(3), outOfJar };
+}
+
+/**
+ * The per-colour InstancedMeshes, for the same "no idle uploads" probe the beach
+ * gets: with the jars settled nothing here should have `needsUpdate` written.
+ */
+export function debugMeshes() { return Object.values(pieceMeshes); }
+
 export function debugInfo() {
   const band = measureBand();
+  const heap = heapStats();
   return {
     mode: currentMode, style: currentStyle, jars: jars.length, pieces: pieces.length,
-    awake, sinceDisturb: +Math.min(sinceDisturb, 99).toFixed(2),
+    stepHz: stepHz(), relaxPasses: world.passes,
+    topY: heap.top, outOfJar: heap.outOfJar,
+    awake, worldAwake: world.awakeCount(),
+    sinceDisturb: +Math.min(sinceDisturb, 99).toFixed(2),
     camDist: +camDist.toFixed(2), limY: +limY.toFixed(3),
     box: { hw: +box.hw.toFixed(2), zmin: +box.zmin.toFixed(2), zmax: +box.zmax.toFixed(2), top: +box.top.toFixed(2) },
     band: { top: Math.round(band.top), bottom: Math.round(band.bottom) },

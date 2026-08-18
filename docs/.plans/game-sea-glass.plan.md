@@ -172,8 +172,153 @@ STATUS (two builder agents died on API timeouts mid-pass; orchestrator finished)
 - Items 3 (nicer water) + 4 (tighter portrait camera) — NOT verified done; the
   agents may not have reached them. RE-CHECK before final ship; low severity.
 
-## Checklist
-- [x] 1. Frame — concept given (sea glass beachcombing, 3D physics), audience + touch + perf risk captured
+## PHASE 5 — low-spec tablet performance (user)
+User hits real stutter on a low-spec tablet — **worst on ENTERING a beach and
+SWIPING** (both physics/CPU-bound: section build runs a big synchronous prewarm;
+a swipe wakes the whole pile). Collection view untested but likely worse (2nd
+physics world). Diagnosis note: this harness can't give a trustworthy FPS (rAF
+capped at 120, software GL), but devicePixelRatio=2 and PBR+shadows+~240 bodies
+are the structural drivers. Auto-detect a **Low** quality profile AND a **manual
+in-game toggle** (persist choice per-device/save). Apply on Low:
+- **Cheaper pebble shading** — drop PBR/env `MeshStandardMaterial` on pebbles →
+  flat/lambert (unlit or MeshLambert). KEEP sea glass shiny/translucent.
+- **Lower pixelRatio** — cap ~1.0–1.25 on Low (currently ~1.65; device is dpr 2).
+- **Shadows OFF** on Low (or a cheap blob).
+- **PHYSICS (the actual symptom — beach entry + swipe):** on Low, reduce the
+  pebble body cap (~240 → ~120–150), and cut the section-build prewarm cost
+  (fewer warm-up steps / spread across frames / lighter settle) so entering a
+  beach doesn't hitch. Re-tune find burial for the smaller pile so swiping still
+  matters. Clamp solver iterations lower on Low. Consider capping how many bodies
+  a single swipe can wake.
+- **Auto-detect:** pick Low by default on likely-weak devices (e.g. low
+  hardwareConcurrency / deviceMemory / small+dpr heuristics) — but always expose
+  a **Quality: Low/High toggle** in-game so the user can force it. Persist it.
+- Keep High as the current look for capable devices.
+
+## PHASE 6 — default to Low on tablets (user)
+- Auto-detect should default to **Low on any tablet/touch device** (not just weak
+  ones). Detect touch/tablet (pointer:coarse / touch capability / mobile-ish UA)
+  → Low by default. Desktop/mouse (fine pointer, no touch) → High by default.
+  Keep the manual toggle + persistence: a saved choice still wins over auto.
+
+## PHASE 7 — 30Hz step + Rapier port (user)
+User accepted the honest trade-offs and wants BOTH:
+- **30Hz physics step on Low** (High stays 60Hz). `FIXED_STEP` currently `1/60`,
+  `MAX_SUBSTEPS 3`. CAVEAT: a deep sphere pile can jitter/sink at 30Hz — mitigate
+  with more substeps at the lower rate, stronger settle/sleep, and (Rapier)
+  higher solver/CCD as needed. Tune so the pile stays stable.
+- **Port physics from cannon-es → Rapier.js (Rust/Wasm)** via importmap CDN
+  (`@dimforge/rapier3d-compat` from jsdelivr; async `RAPIER.init()` before world
+  use). Both physics worlds (beach pile + collection bottles). Keep everything
+  behaviourally equivalent: primitive colliders only (ball/cuboid — already the
+  case), sleep, the swipe-wake cap, the frame-sliced build, raycast tap-collect,
+  bottle tilt/shake/pour. Preserve the Low/High quality profile hooks
+  (solverIterations→Rapier equivalent, body caps, step rate). This is a LARGE,
+  timeout-prone rewrite — do it methodically, keep it working, verify both worlds.
+
+## PHASE 8 — keep 240 stones on ALL profiles (user)
+- Pebble count must stay **240 on Low as well as High** (`pebblePerMesh: 80` on
+  both — don't drop Low to 45/135). Density is not up for trade. Keep every OTHER
+  Low lever (Lambert pebbles, pixelRatio ~1.15, shadows off, 30Hz step, lower
+  solver iterations, swipe-wake cap, Rapier, and especially the FRAME-SLICED
+  section build so entry doesn't hitch at 240 on Low). Re-tune burial back for the
+  full 240 pile (revert any Low-135 burial tweak). The collection piece cap can
+  stay lower on Low if you like — this is specifically the beach pebble pile.
+
+## PHASE 9 — shrink colliders, rectangular static rim, match bg texture (user)
+1. **Shrink pebble collision spheres further** (visual stays the same size → more
+   overlap/interpenetration, which the user is fine with). Fewer solver contacts
+   per step = CPU win. Keep the pile stable (don't shrink so far stones fall
+   through gaps / the floor).
+2. **Bring back the static-stone barrier/rim around the top of the pit** (it
+   existed before) BUT **simplify its collider to a single rectangular edge** —
+   i.e. a fixed cuboid rim/frame (the containment wall) instead of a ring of many
+   static stone bodies. Cheapest possible containment; stones can press against a
+   simple box edge rather than dynamic pile spilling out.
+3. **The prerendered background-stone texture looks too different from the movable
+   stones** — reconcile them: make the shingle-bed / static backdrop texture match
+   the palette + look of the actual dynamic pebbles for the current beach (same
+   colours/size feel) so the fixed surround and the movable pile read as one beach,
+   not two materials.
+
+## PHASE 11 — restore pebble density to ≥250 (user)
+- The lphys rewrite dropped real pebbles to 120 (High) / 84 (Low). User wants
+  **≥250 pebbles on BOTH profiles**. Now cheap because awake-set means idle
+  pebbles cost ~0 (frozen: no sim, no matrix upload) — total count only affects
+  section-build time + GPU fill, not steady state. Bump loose-pebble count so both
+  profiles have ≥250 (e.g. 3 meshes × ~84 = 252). Keep the frame-sliced build so
+  entry doesn't hitch; re-tune burial for the fuller pile. Verify awake returns to
+  0 and idle matrix uploads stay 0 at 250+.
+
+## PHASE 12 — move the special-move buttons off the right edge (user)
+- The special-move buttons (`#moveBar` — Radar / Shine / Wash) currently sit as a
+  vertical column on the RIGHT and get in the way in PORTRAIT. Move them to a
+  horizontal ROW along the BOTTOM, sitting ABOVE the fixed bottom nav links
+  (Comb/Collection/Beaches/Milestones) — i.e. stacked just above `--navh`. At
+  minimum fix portrait; landscape can keep the side column if that reads better,
+  or match — builder's call, but portrait must not overlap the beach/edge.
+  STATUS: builder died on API timeout after doing PHASE 11 (pebbles = 252 on both
+  profiles, CAPACITY 96) but before moveBar. Orchestrator finished moveBar
+  directly: `#moveBar` now a bottom-centred horizontal row at
+  `bottom:calc(var(--navh)+10px+safe-area)`; `#tips` bumped above it. PHASE 11
+  (252 pebbles) verified in code + syntax-clean; awake-set/idle-upload not re-run
+  live (harness limits) — trust the awake-set design + tablet test.
+
+## PHASE 13 — dual physics engine: Rapier on High, lphys on Low (user)
+- User wants **Rapier rigid-body physics on the HIGH profile** and the current
+  **lphys (custom awake-set) on LOW**, BOTH at ~500 pebbles. So the quality
+  profile now selects the physics BACKEND, not just tuning knobs.
+- Rapier code was fully removed (rapier.js + rphys.js deleted, not in git) — must
+  be RECONSTRUCTED and re-added to the importmap (`@dimforge/rapier3d-compat`),
+  alongside lphys. Both physics worlds (beach + collection jar) must work under
+  either backend, chosen at build/init time by the profile.
+- Both profiles ~500 loose pebbles (per-mesh 167 × 3 = 501; CAPACITY 168 already).
+- Live quality toggle should switch engines cleanly (rebuild the section/world on
+  switch is acceptable — a full live hot-swap of engine mid-pile isn't required).
+- NOTE: no QA execution requested by user — make the changes, keep it syntactically
+  + structurally sound, don't run the browser verification harness.
+- HONEST RISK (told to user): large build, doubles physics surface; 500 Rapier
+  bodies is heavy — that's why we left Rapier. Proceeding per explicit user ask.
+- STATUS: BUILT (not run — user forbade the browser/QA pass, so there are NO
+  runtime or FPS results for this phase; the tablet test is the real check).
+  What landed:
+  * `js/phys.js` — the backend selector: `initEngine(want)` (awaits the wasm once,
+    behind the loading screen), `activeEngine()`, `engineInfo()`, and
+    `makeWorld(opts)`, which returns an lphys or a Rapier world wearing the SAME
+    surface. `Body` is re-exported from lphys and shared verbatim.
+  * `js/rapier.js` — lazy, failure-tolerant loader (dynamic import, so Low never
+    downloads the wasm; falls back to lphys if the CDN or the wasm fails).
+  * `js/rphys.js` — the reconstructed Rapier backend: same SoA arrays, same awake
+    set, same method names as lphys, plus mirror/shadow arrays so game-side writes
+    to the SoA get pushed into Rapier. Parking a stone makes it a FIXED body rather
+    than calling `rb.sleep()` — sleeping a body in a dense pile makes it integrate
+    without resolving and it sinks through the floor.
+  * Containment is chosen by CAPABILITY, not engine name: `world.hardWalls` picks
+    real static boxes (`buildStatics`, `jarStatics`) + an escape-only clamp on
+    Rapier, and the position clamp on lphys.
+  * `quality.js`: `high.engine = 'rapier'`, `low.engine = 'lphys'`, plus
+    `?engine=`/`?e=` to pin one; `pebblePerMesh` stays 167 (×3 = 501) on both.
+  * The quality toggle is async and does a clean rebuild when the engine changes.
+
+## PHASE 14 — BUG: Rapier (High) crashes on comb/rebuild (user-reported, orchestrator-reproduced)
+- REPRODUCED live on High (`?q=high`, engine confirmed rapier): combing to a new
+  section / rebuilding throws, repeatedly:
+  `Uncaught Error: recursive use of an object detected which would lead to unsafe
+  aliasing in rust`, then `RuntimeError: unreachable`. The rAF loop keeps running
+  (frames advance) but the physics world is dead after — nothing moves, taps do
+  nothing. Matches user: "completed picking up all stones, clicked comb → couldn't
+  click anything, nothing moved."
+- Cause: Rapier `-compat` RE-ENTRANCY / use-after-free on the rebuild path. Classic
+  triggers: calling into the world (step/query/createRigidBody/removeRigidBody)
+  while already inside a Rapier callback (`forEachActiveRigidBody`), or
+  `world.free()` + recreate while a build generator / pump is mid-step, or the
+  section-build generator stepping the world re-entrantly during `createWorld()`.
+  Must be fixed on the Rapier backend (`js/rphys.js`) + the comb/rebuild sequencing
+  in `main.js` (`combFurther`→`buildSection`→`sectionBuilder` generator + `pumpBuild`
+  + `createWorld`). Ensure no world call happens inside a Rapier iteration callback,
+  and that a rebuild fully tears down / rebuilds the world OUTSIDE any step.
+- COMMIT IS HELD until this is fixed + re-validated on High (and spot-checked Low).
+
 - [x] 2. Scout — SKIPPED (concept given)
 - [x] 3. Spec → this plan; physics/goal/scope confirmed with user (all features V1; radar+torch moves; rarity; 10-shard ceramics)
 - [x] 4. Build — game-builder: games/sea-glass/index.html + js/ (14 modules), root index.html card added

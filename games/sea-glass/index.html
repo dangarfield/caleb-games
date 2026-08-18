@@ -155,8 +155,11 @@ canvas#view { display:block; width:100%; height:100%; position:fixed; inset:0; z
   #hud .lab { font-size:0.52rem; letter-spacing:0.3px; }
 }
 
-#moveBar { position:fixed; right:12px; top:50%; transform:translateY(-50%); z-index:12;
-  display:flex; flex-direction:column; gap:12px; }
+/* A horizontal row centred along the bottom, sitting ABOVE the fixed nav links
+   (--navh) + its own safe-area inset, so it never overlaps the beach in portrait. */
+#moveBar { position:fixed; left:0; right:0; z-index:12;
+  bottom:calc(var(--navh) + 10px + env(safe-area-inset-bottom,0px));
+  display:flex; flex-direction:row; gap:14px; justify-content:center; }
 .move-btn { width:62px; height:62px; border-radius:50%; border:2px solid rgba(162,155,254,0.5);
   background:rgba(10,10,46,0.66); color:#fff; font-size:1.5rem; cursor:pointer;
   position:relative; display:flex; align-items:center; justify-content:center;
@@ -169,7 +172,7 @@ canvas#view { display:block; width:100%; height:100%; position:fixed; inset:0; z
   letter-spacing:0.6px; text-transform:uppercase; color:rgba(255,255,255,0.72); }
 .move-btn.locked { opacity:0.3; }
 
-#tips { position:fixed; bottom:calc(var(--navh) + 10px); left:50%; transform:translateX(-50%); z-index:11;
+#tips { position:fixed; bottom:calc(var(--navh) + 84px + env(safe-area-inset-bottom,0px)); left:50%; transform:translateX(-50%); z-index:11;
   font-size:0.78rem; color:rgba(255,255,255,0.9); background:rgba(10,10,46,0.5);
   padding:6px 14px; border-radius:12px; pointer-events:none; text-align:center;
   border:1px solid rgba(162,155,254,0.22); transition:opacity 0.5s; }
@@ -308,6 +311,9 @@ canvas#view { display:block; width:100%; height:100%; position:fixed; inset:0; z
   <div class="navbar">
     <button class="btn ghost small" id="btnToCollection">&#129379; Collection</button>
     <button class="btn ghost small" id="btnToUnlocks">&#11088; Milestones</button>
+    <!-- Device performance profile. Auto-detected on first run, flipped by hand
+         here, remembered per device (calebArcadeData.seaGlass.quality). -->
+    <button class="btn ghost small" id="btnQuality">Quality: <strong>High</strong></button>
   </div>
 </div>
 
@@ -374,12 +380,19 @@ canvas#view { display:block; width:100%; height:100%; position:fixed; inset:0; z
 <div id="perfTag" class="hidden"></div>
 <div id="loading">combing the beach&hellip;</div>
 
+<!--
+  Two physics backends live in this game and the quality profile picks one
+  (js/phys.js): Rapier rigid bodies on High, the game's own position-based
+  relaxation (js/lphys.js) on Low. Rapier is mapped here but imported DYNAMICALLY
+  from js/rapier.js, so the Low profile never downloads the wasm at all — and if the
+  CDN is unreachable the loader falls back to lphys instead of failing to boot.
+-->
 <script type="importmap">
 {
   "imports": {
     "three": "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js",
     "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/",
-    "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/+esm"
+    "@dimforge/rapier3d-compat": "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.20.0/dist/rapier.mjs"
   }
 }
 </script>

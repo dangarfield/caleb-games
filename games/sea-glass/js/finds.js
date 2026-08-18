@@ -1,14 +1,49 @@
 // The things worth finding: sea glass and ceramic shards. Individual meshes
-// (there are only ever ~6-10 per section, so per-piece materials are cheap) on
-// flat box colliders, most of them buried under the pebble layer.
+// (there are only ever ~6-10 per section, so per-piece materials are cheap) in
+// the same physics world as the pebbles — whichever backend the quality profile
+// picked (Rapier on High, lphys on Low) — most of them buried under the loose layer.
 
 import * as THREE from 'three';
-import * as CANNON from 'cannon-es';
 import { GLASS, CERAMIC_GRAMS, pickGlassColour } from './data.js';
 import { shardGeometry, ceramicShardGeometry, glassMaterial, ceramicMaterial, glowTexture } from './env.js';
 import { PIT } from './scene-beach.js';
-import { world, stoneMaterial } from './physics.js';
+import { world, setRestY, TAG_FIND, MODE_SPIN } from './physics.js';
+// The one handle type, shared by both physics backends (js/phys.js): it only ever
+// touches the SoA arrays and the world's own methods, which lphys and the Rapier
+// wrapper agree on. So a find does not know or care which engine it is falling in.
+import { Body } from './phys.js';
 import { pileTopY, localTopY, shelteredSpots, roomAt } from './pebbles.js';
+
+/**
+ * A piece's collider.
+ *
+ * Every collider in either backend is a ball, and for a flat shard the radius is chosen
+ * DELIBERATELY SMALL — about 1.5x its half-thickness rather than its outline. A
+ * find is not shaped like a stone and it must not behave like one:
+ *
+ *   * a stone has to be able to come to rest ON TOP of a piece, because at this
+ *     camera pitch that is the only thing that genuinely hides it. Give the piece a
+ *     sphere as wide as its outline and the separation pass holds every stone a
+ *     full radius away, so nothing can ever cover it.
+ *   * the piece still cannot sift down out of reach, because its height is not
+ *     decided by the pile: its rest height is its own half-thickness (setRestY), so
+ *     it always ends up lying on the sand, exactly where the comb's sift can lift
+ *     it again.
+ *
+ * `place()` puts it where it belongs immediately afterwards, before anything steps.
+ */
+function shardBody(mass, hx, hy, hz) {
+  const i = world.add({
+    r: Math.max(hy * 1.5, 0.03),
+    mass,
+    mode: MODE_SPIN,          // a shard tumbles; it does not roll like a pebble
+    tag: TAG_FIND,
+  });
+  if (i < 0) return null;
+  // Rests on the sand on its own thickness, not on its collision radius.
+  setRestY(i, hy);
+  return new Body(world, i);
+}
 
 export const finds = [];         // live, uncollected pieces
 const flying = [];               // collected pieces mid-animation
@@ -36,9 +71,18 @@ export function initFinds(scene) {
   }
 }
 
+/**
+ * Live quality flip. There is nothing per-piece left to re-tune: the step rate,
+ * the relaxation passes and the awake cap are all properties of the world (see
+ * physics.js applyPhysicsQuality), and a position-based scheme has no contact skin
+ * or CCD margin to scale. Kept as the one place to hang anything per-find that a
+ * future profile needs.
+ */
+export function applyFindsQuality() { }
+
 export function clearFinds() {
   for (const f of finds) {
-    world.removeBody(f.body);
+    world.remove(f.body.i);
     sceneRef.remove(f.mesh);
     f.mesh.material.dispose();
   }
@@ -63,16 +107,8 @@ function makeGlass(colourId, rnd) {
   mesh.scale.set(hx * 1.06, hy * 1.06, hz * 1.06);
   mesh.castShadow = true;
 
-  const body = new CANNON.Body({
-    mass: 0.16,
-    shape: new CANNON.Box(new CANNON.Vec3(hx, hy, hz)),
-    material: stoneMaterial,
-    linearDamping: 0.3,
-    angularDamping: 0.7,
-    allowSleep: true,
-    sleepSpeedLimit: 0.14,
-    sleepTimeLimit: 0.4,
-  });
+  const body = shardBody(0.16, hx, hy, hz);
+  if (!body) { mesh.material.dispose(); return null; }
 
   return {
     kind: 'glass', colourId: colourId, mesh, body,
@@ -93,16 +129,8 @@ function makeCeramic(beach, shardIndex, rnd) {
   mesh.scale.set(hx * 1.06, hy * 1.3, hz * 1.06);
   mesh.castShadow = true;
 
-  const body = new CANNON.Body({
-    mass: 0.2,
-    shape: new CANNON.Box(new CANNON.Vec3(hx, hy, hz)),
-    material: stoneMaterial,
-    linearDamping: 0.3,
-    angularDamping: 0.7,
-    allowSleep: true,
-    sleepSpeedLimit: 0.14,
-    sleepTimeLimit: 0.4,
-  });
+  const body = shardBody(0.2, hx, hy, hz);
+  if (!body) { mesh.material.dispose(); return null; }
 
   return {
     kind: 'ceramic', shardIndex, mesh, body,
@@ -113,9 +141,10 @@ function makeCeramic(beach, shardIndex, rnd) {
 }
 
 function place(f, x, z, y, rnd) {
-  f.body.position.set(x, y, z);
+  // `place` (not position.set) so the previous position goes with it and no
+  // velocity is inferred from the jump on the next step.
+  f.body.place(x, y, z);
   f.body.quaternion.setFromEuler((rnd() - 0.5) * 0.6, rnd() * 6.283, (rnd() - 0.5) * 0.6);
-  world.addBody(f.body);
   sceneRef.add(f.mesh);
   syncOne(f);
   finds.push(f);
@@ -134,12 +163,15 @@ export function spawnFinds(beach, save, rnd) {
 
   for (let i = 0; i < count; i++) {
     const f = makeGlass(pickGlassColour(beach, rnd), rnd);
+    if (!f) break;                       // world full: ship the section as it is
     f.depth = pickDepth(f.rarity, rnd);
     applyDepthMass(f);
+    // Straight onto the sand at its own thickness, so the stones generated next
+    // land on top of it rather than under it.
     place(f,
       (rnd() * 2 - 1) * (PIT.hw - inset),
       (rnd() * 2 - 1) * (PIT.hd - inset),
-      f.radius + 0.01, rnd);
+      f.halfY + 0.004, rnd);
   }
 
   // Ceramic shards: only ones this player has not found on this beach.
@@ -154,12 +186,13 @@ export function spawnFinds(beach, save, rnd) {
     for (let i = 0; i < n && remaining.length; i++) {
       const pick = remaining.splice(Math.floor(rnd() * remaining.length), 1)[0];
       const f = makeCeramic(beach, pick, rnd);
+      if (!f) break;
       f.depth = pickDepth('uncommon', rnd);
       applyDepthMass(f);
       place(f,
         (rnd() * 2 - 1) * (PIT.hw - inset),
         (rnd() * 2 - 1) * (PIT.hd - inset),
-        f.radius + 0.01, rnd);
+        f.halfY + 0.004, rnd);
     }
   }
 
@@ -209,29 +242,56 @@ function pickDepth(rarity, rnd) {
 }
 
 /**
+ * How far below the surface of the stones a piece may ever be put.
+ *
+ * One stroke of the comb parts roughly the top course. On the fine beaches the
+ * whole loose layer IS about one course, so "on the sand" was always within reach
+ * and `deep` could simply mean "where it spawned". On the coarse-cobble beaches a
+ * 252-stone bed is 40cm deep, and a piece lying on the sand under it took 14 full
+ * strokes to uncover barely half a section (measured on stormPoint). So the tiers
+ * are now expressed against the LOCAL SURFACE with a hard floor on the depth:
+ * hidden, but never further down than a player can rake.
+ */
+const RAKE_REACH = 0.16;
+
+/**
  * Move each piece to its depth tier now that the pile exists. Uses the LOCAL
  * stone height, not the pile average — dropping a shard to the average height on
- * a lumpy pile just buries it again in the nearest hollow. `deep` pieces are
- * already on the sand where they were spawned, so they are left alone.
+ * a lumpy pile just buries it again in the nearest hollow.
  */
 export function placeFindsByDepth() {
   for (const f of finds) {
-    if (f.depth === 'deep') continue;
     const local = localTopY(f.body.position.x, f.body.position.z, 0.22);
+    if (f.depth === 'deep') {
+      // Only ever LIFTED, never pushed down: on a thin pile a deep piece stays on
+      // the sand exactly as before, and this does nothing at all.
+      const ny = Math.max(f.halfY, local - RAKE_REACH);
+      if (ny > f.body.position.y + 0.004) {
+        f.body.place(f.body.position.x, ny, f.body.position.z);
+        f.body.velocity.setZero();
+        f.body.angularVelocity.setZero();
+        f.body.wakeUp();
+      }
+      continue;
+    }
     const top = Math.max(pileTopY(), local);
     // Burial depth is a FRACTION of the local pile, not a fixed 0.22: on the
     // fine-shingle beaches the pile is barely 0.2 deep, so a fixed drop clamped
     // straight onto the sand and left the piece sitting in the open.
-    const under = Math.max(0.1, local * 0.62);
+    const under = Math.min(RAKE_REACH, Math.max(0.1, local * 0.62));
     if (f.depth === 'shallow' && local < 0.2) {
       // A thin pile has no "one course down" to move to, and the stones were
       // already aimed at where this piece is lying (see generatePebbles' cover
       // slots) — moving it now would just walk it out from under them.
       continue;
     }
-    f.body.position.y = f.depth === 'top'
-      ? top + f.radius + 0.02
-      : Math.max(f.radius + 0.01, local - under);
+    // Heights are measured with the piece's THICKNESS, not its outline: a shard
+    // laid on the pile at `top + radius` floats a visible centimetre above it,
+    // because the outline is four times the thickness.
+    const ny = f.depth === 'top'
+      ? top + f.halfY + 0.008
+      : Math.max(f.halfY, local - under);
+    f.body.place(f.body.position.x, ny, f.body.position.z);
     // Lie flat-ish so it reads as a glinting facet from above.
     f.body.quaternion.setFromEuler((Math.random() - 0.5) * 0.5,
       Math.random() * 6.283, (Math.random() - 0.5) * 0.5);
@@ -239,6 +299,67 @@ export function placeFindsByDepth() {
     f.body.angularVelocity.setZero();
     f.body.wakeUp();
   }
+}
+
+/**
+ * Enforce the rake reach AFTER the pile has settled.
+ *
+ * `placeFindsByDepth` caps how deep a piece is PUT, but two things happen to it
+ * afterwards and both dig it back down: `hideExposedFinds` drops a piece into a
+ * sheltered void, which on a cobble beach is down on the sand, and a few hundred
+ * settling steps let a small collider sift through the gaps between big stones. On
+ * stormPoint that left `deep` pieces 34cm under a 52cm surface — twice the reach
+ * the burial comment promises, and measurably unrakeable (a full 14-stroke sweep
+ * recovered 38% of a section).
+ *
+ * So this is the last word on depth: with the pile parked, anything further down
+ * than RAKE_REACH is walked back UP to the lowest free slot that is still hidden
+ * from the camera. A piece that cannot be lifted without coming into plain sight is
+ * left where it is — burial wins that tie, since an exposed piece is a worse bug
+ * than a deep one. The piece is left asleep and nothing steps afterwards, so it
+ * cannot sift down again.
+ *
+ * Returns how many pieces were raised.
+ */
+const LIFT_STEP = 0.03;
+
+export function liftToRakeReach(camera, pebbleMeshes) {
+  let lifted = 0;
+  for (const f of finds) {
+    if (f.depth === 'top') continue;
+    const x = f.body.position.x, z = f.body.position.z;
+    const y0 = f.body.position.y;
+    const local = localTopY(x, z, 0.22);
+    const floor = Math.max(f.halfY, local - RAKE_REACH);
+    if (y0 >= floor - 0.004) continue;
+    let placed = false;
+    // Two goes at finding room. The first asks for the piece's whole OUTLINE to be
+    // clear, which is what looks right; a dense cobble bed often has no such gap, so
+    // the second asks only for its COLLIDER to be clear, which is what actually
+    // matters (a thin shard whose corner tucks under a stone reads as buried, not as
+    // broken, and nothing will pop it out when the player rakes there).
+    for (const hr of [f.radius, f.radius * 0.45]) {
+      for (let y = floor; y < local && !placed; y += LIFT_STEP) {
+        if (!roomAt(x, y, z, hr, f.halfY)) continue;
+        f.body.place(x, y, z);
+        f.body.velocity.setZero();
+        f.body.angularVelocity.setZero();
+        f.body.sleep();
+        syncOne(f);
+        placed = !isExposed(f, camera, pebbleMeshes);
+      }
+      if (placed) break;
+    }
+    if (placed) { lifted++; world.moved[f.body.i] = 0; continue; }
+    // Nothing worked: put it back exactly where it was.
+    f.body.place(x, y0, z);
+    f.body.velocity.setZero();
+    f.body.angularVelocity.setZero();
+    f.body.sleep();
+    syncOne(f);
+    world.moved[f.body.i] = 0;
+  }
+  return lifted;
 }
 
 /**
@@ -271,11 +392,12 @@ export function hideExposedFinds(camera, pebbleMeshes) {
       if (clash) continue;
       const y = f.halfY + 0.006;
       if (!roomAt(sp.x, y, sp.z, f.radius, f.halfY)) continue;
-      f.body.position.set(sp.x, y, sp.z);
+      f.body.place(sp.x, y, sp.z);
       f.body.velocity.setZero();
       f.body.angularVelocity.setZero();
       f.body.quaternion.setFromEuler((Math.random() - 0.5) * 0.4,
         Math.random() * 6.283, (Math.random() - 0.5) * 0.4);
+      f.body.wakeUp();   // teleported into a hollow: it must not stay parked
       syncOne(f);
       if (!isExposed(f, camera, pebbleMeshes)) { hidden = true; break; }
     }
@@ -286,10 +408,9 @@ export function hideExposedFinds(camera, pebbleMeshes) {
 
 export function settleFinds() {
   for (const f of finds) {
-    f.body.velocity.setZero();
-    f.body.angularVelocity.setZero();
     f.body.sleep();
     syncOne(f);
+    world.moved[f.body.i] = 0;
   }
 }
 
@@ -299,34 +420,46 @@ function syncOne(f) {
     f.body.quaternion.z, f.body.quaternion.w);
 }
 
+/**
+ * Copy transforms to the meshes — same contract as the pebbles: only the pieces
+ * the world says actually moved, and the flag is cleared here. A settled section
+ * writes nothing at all.
+ */
 export function syncFinds() {
   for (const f of finds) {
-    if (f.body.sleepState === CANNON.Body.SLEEPING && f.synced) continue;
-    f.synced = f.body.sleepState === CANNON.Body.SLEEPING;
+    if (!world.moved[f.body.i]) continue;
+    world.moved[f.body.i] = 0;
     syncOne(f);
   }
 }
 
-/** Same forced-settle trick as the pebbles — a jiggling shard never sleeps. */
+/**
+ * Backstop on top of lphys's own sleep test, in the same spirit as the pebbles':
+ * a shard wedged between two stones can jiggle indefinitely, and one permanently
+ * awake particle keeps the whole world's step alive.
+ */
 export function settleFindsTick(dt) {
+  let awake = 0;
   for (const f of finds) {
-    if (f.body.sleepState === CANNON.Body.SLEEPING) { f.calm = 0; continue; }
+    if (f.body.frozen) { f.calm = 0; continue; }
+    awake++;
     const v = f.body.velocity, w = f.body.angularVelocity;
     const speed = Math.hypot(v.x, v.y, v.z);
     const spin = Math.hypot(w.x, w.y, w.z);
     if (speed < 0.28 && spin < 2.0) {
       f.calm = (f.calm || 0) + dt;
-      if (f.calm > 0.55) { v.setZero(); w.setZero(); f.body.sleep(); }
+      if (f.calm > 0.55) { f.body.sleep(); awake--; }
     } else {
       f.calm = 0;
     }
   }
+  return awake;
 }
 
 export function wakeFindsNear(x, z, radius) {
   for (const f of finds) {
     const dx = f.body.position.x - x, dz = f.body.position.z - z;
-    if (dx * dx + dz * dz < radius * radius) { f.body.wakeUp(); f.synced = false; }
+    if (dx * dx + dz * dz < radius * radius) { f.body.wakeUp(); f.calm = 0; }
   }
 }
 
@@ -361,9 +494,8 @@ export function swipeFinds(ax, az, bx, bz, radius, strength) {
     const fall = 1 - d / reach;
     const k = strength * fall * f.body.mass;
     f.body.wakeUp();
-    f.synced = false;
     f.calm = 0;
-    f.body.applyImpulse(new CANNON.Vec3(ux * k * 0.5, k * 1.6, uz * k * 0.5));
+    f.body.applyImpulse(ux * k * 0.5, k * 1.6, uz * k * 0.5);
     f.body.angularVelocity.x += (Math.random() - 0.5) * 5 * fall;
     f.body.angularVelocity.z += (Math.random() - 0.5) * 5 * fall;
     const v = f.body.velocity;
@@ -371,12 +503,15 @@ export function swipeFinds(ax, az, bx, bz, radius, strength) {
     if (s > 2.2) { const m = 2.2 / s; v.x *= m; v.y *= m; v.z *= m; }
 
     // The sift. Only while the comb is genuinely over the piece.
-    if (fall < 0.25) continue;
-    const surface = localTopY(px, pz, 0.2) + f.radius * 0.35;
-    const buried = surface - f.body.position.y;
-    if (buried > 0.01) {
-      f.body.position.y += Math.min(SIFT_PER_PASS * fall, buried);
+    if (fall >= 0.25) {
+      const surface = localTopY(px, pz, 0.2) + f.radius * 0.35;
+      const buried = surface - f.body.position.y;
+      if (buried > 0.01) {
+        f.body.position.y += Math.min(SIFT_PER_PASS * fall, buried);
+      }
     }
+    // Velocity, spin and the sift were all written into the mirrors directly.
+    f.body.markDirty();
   }
 }
 
@@ -392,12 +527,12 @@ export function containFinds() {
     const outX = Math.abs(p.x) > PIT.hw - 0.05;
     const outZ = Math.abs(p.z) > PIT.hd - 0.05;
     if (p.y < lim && !outX && !outZ && p.y > -0.2) continue;
-    p.x = Math.max(-PIT.hw + 0.2, Math.min(PIT.hw - 0.2, p.x));
-    p.z = Math.max(-PIT.hd + 0.2, Math.min(PIT.hd - 0.2, p.z));
-    p.y = localTopY(p.x, p.z, 0.2) + f.radius + 0.02;
+    const nx = Math.max(-PIT.hw + 0.2, Math.min(PIT.hw - 0.2, p.x));
+    const nz = Math.max(-PIT.hd + 0.2, Math.min(PIT.hd - 0.2, p.z));
+    f.body.place(nx, localTopY(nx, nz, 0.2) + f.halfY + 0.01, nz);
     f.body.velocity.setZero();
     f.body.angularVelocity.setZero();
-    f.synced = false;
+    f.body.wakeUp();     // it has been teleported; also marks the write dirty
     f.calm = 0;
   }
 }
@@ -455,6 +590,48 @@ export function pickDebug(ndc, camera, pebbleMeshes) {
 }
 
 /** Is this piece visible from the camera, or is a stone in the way? */
+/**
+ * The other half of the burial contract: the ONE piece that is meant to be in plain
+ * sight has to actually be in plain sight.
+ *
+ * `placeFindsByDepth` lifts it onto the pile early in the build, but several
+ * hundred physics steps run after that — stones roll, the pile flattens, and on a
+ * 252-stone bed a cobble lands on the poor thing often enough to matter (three of
+ * six beaches opened with nothing visible at all before this). So the last thing
+ * the build does is walk the piece around the surface until the actual sight-line
+ * raycast agrees it can be seen. Called with the pile already parked, and it leaves
+ * the piece asleep, so nothing moves afterwards to hide it again.
+ *
+ * Returns how many `top` pieces are still hidden (0 in practice).
+ */
+export function exposeTopFinds(camera, pebbleMeshes, rnd) {
+  const r = rnd || Math.random;
+  let stuck = 0;
+  for (const f of finds) {
+    if (f.depth !== 'top') continue;
+    if (isExposed(f, camera, pebbleMeshes)) continue;
+    let ok = false;
+    // Candidate 1 is straight up from where it already lies, so a piece that just
+    // needs lifting a centimetre is not teleported across the beach for no reason.
+    for (let attempt = 0; attempt < 14 && !ok; attempt++) {
+      const x = attempt === 0 ? f.body.position.x
+        : (r() * 2 - 1) * (PIT.hw - 0.26);
+      const z = attempt === 0 ? f.body.position.z
+        : (r() * 2 - 1) * (PIT.hd - 0.26);
+      const y = localTopY(x, z, 0.2) + f.halfY + 0.012;
+      f.body.place(x, y, z);
+      // Flat, face up: this piece is the section's invitation to tap.
+      f.body.quaternion.setFromEuler((r() - 0.5) * 0.22, r() * 6.283, (r() - 0.5) * 0.22);
+      f.body.sleep();
+      syncOne(f);
+      ok = isExposed(f, camera, pebbleMeshes);
+    }
+    if (!ok) stuck++;
+    world.moved[f.body.i] = 0;
+  }
+  return stuck;
+}
+
 export function isExposed(f, camera, pebbleMeshes) {
   // matrixWorld is only refreshed by the renderer, so a piece moved this frame
   // would still be ray-tested at its previous transform. Force it current.
@@ -473,7 +650,7 @@ export function isExposed(f, camera, pebbleMeshes) {
 export function removeFind(f) {
   const i = finds.indexOf(f);
   if (i >= 0) finds.splice(i, 1);
-  world.removeBody(f.body);
+  world.remove(f.body.i);
 }
 
 /** Detach the mesh and fly it to a screen-space target (the HUD tally). */

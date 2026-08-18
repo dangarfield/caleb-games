@@ -282,6 +282,16 @@ export function setBottleStyleLabel(styleId) {
   el('btnBottleStyle').textContent = (window.innerWidth >= WIDE ? 'Style: ' : '') + b.name;
 }
 
+/**
+ * The Quality toggle on the beach-select strip. A device setting, so it says what
+ * it IS rather than what pressing it does — and it lives on the one screen every
+ * player passes through on the way to a beach.
+ */
+export function setQualityLabel(name) {
+  el('btnQuality').innerHTML =
+    (window.innerWidth >= 420 ? 'Quality: ' : '') + '<strong>' + name + '</strong>';
+}
+
 export function setPourLabel(mode) {
   const wide = window.innerWidth >= WIDE;
   el('btnPour').textContent = mode === 'mixed'

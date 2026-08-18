@@ -89,6 +89,25 @@ export function lastPlayer() {
   return root().seaGlass.lastPlayer || null;
 }
 
+/**
+ * Device-wide settings (currently just the quality level) live NEXT TO the player
+ * saves at calebArcadeData.seaGlass.<key>, not inside a player — the tablet is
+ * slow for Caleb and Ezra alike.
+ *
+ * They deliberately go through the same cached root object as the saves: writing
+ * localStorage behind storage.js's back would be silently undone by the next
+ * savePlayer, which rewrites the whole cached tree.
+ */
+export function readSetting(k, dflt) {
+  const v = root().seaGlass[k];
+  return v === undefined ? dflt : v;
+}
+export function writeSetting(k, v) {
+  const r = root();
+  r.seaGlass[k] = v;
+  writeAll(r);
+}
+
 export function playerSummary(playerId) {
   const sg = root().seaGlass;
   if (!sg[playerId]) return { pieces: 0, weight: 0, ceramics: 0 };

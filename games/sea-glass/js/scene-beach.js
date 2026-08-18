@@ -3,17 +3,35 @@
 // beach swap just re-tints the materials and swaps the environment map.
 
 import * as THREE from 'three';
-import { makeEnvironment, sandTexture, shingleTexture, glowTexture, pebbleGeometry, perf } from './env.js';
+import {
+  makeEnvironment, sandTexture, shingleTexture, stoneBedTexture, glowTexture,
+  pebbleGeometry, perf, STONE_VARIANT_SCALE, stoneTint,
+} from './env.js';
 
 // The combing pit, in world units. Everything else is sized off this.
 // Nearly square on purpose: seen from a 62-degree pitch the depth foreshortens to
 // about 0.88, so a squarish pit projects to roughly a 4:3 rectangle and fills a
 // landscape tablet with very little wasted sand. (A wider pit left big empty
 // bands top and bottom once the width was fitted.)
-// wallH is deliberately far taller than anything can be thrown: at 0.9 the top of
-// an invisible wall was a reachable LEDGE, and a raked shard could end up parked
-// on it, hovering in mid-air outside the pit.
-export const PIT = { w: 3.3, d: 2.9, hw: 1.65, hd: 1.45, wallH: 1.8 };
+export const PIT = { w: 3.3, d: 2.9, hw: 1.65, hd: 1.45 };
+
+/**
+ * The rim around the pit: geometry shared by the collider (physics.js builds one
+ * fixed body with four cuboids from this) and the visible bank (below).
+ *
+ * `t` is how far the frame sticks OUTWARDS from the pit edge, so the inner faces
+ * land exactly on ±PIT.hw / ±PIT.hd and the dig area is untouched. `h` is the
+ * collider's height — far taller than anything can be thrown, because a rim only
+ * as tall as the visible bank would be a reachable ledge for a raked shard to park
+ * on (at 0.9 that ledge was real, and shards ended up hovering on it outside the
+ * pit). `visH` is the height of the bank you can actually see, and it is DELIBERATELY
+ * tiny. At 0.135 the bank was 55px tall at the near edge on a portrait tablet: it
+ * hid the whole front row of the pile, its top face projected up-screen into the far
+ * pit, and its smooth lit side faces read as a wooden picture frame around the
+ * shingle. At 0.055 it is a kerb — the border stones bedded along it are what the
+ * eye reads as the edge, and almost nothing is occluded.
+ */
+export const RIM = { t: 0.26, h: 1.8, visH: 0.055 };
 
 export const scene = new THREE.Scene();
 export const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 400);
@@ -228,8 +246,10 @@ const foamMat = new THREE.MeshBasicMaterial({
 });
 const FOAM_Z = SEA_Z + 0.2;
 // The wash must never reach the pit: foam is a flat plane at y=0.02, so if its
-// leading edge crosses the border stones it paints white between the pebbles.
-const FOAM_FRONT_MAX = -(PIT.hd + 0.17);
+// leading edge crosses the pit edge it paints white between the pebbles. It now
+// stops at the seaward foot of the rim bank, which is a believable place for a
+// wave to die and hides the plane's edge behind solid geometry.
+const FOAM_FRONT_MAX = -(PIT.hd + RIM.t);
 const FOAM_BASE_DEPTH = 0.9;
 const foam = new THREE.Mesh(new THREE.PlaneGeometry(WATER_W, FOAM_BASE_DEPTH), foamMat);
 foam.rotation.x = -Math.PI / 2;
@@ -356,12 +376,73 @@ wetBand.rotation.x = -Math.PI / 2;
 wetBand.position.set(0, 0.006, SEA_Z + 0.35);
 scene.add(wetBand);
 
+// --- the rim bank: what the containment collider looks like -----------------
+// The barrier around the pit is ONE fixed body with four cuboid colliders
+// (physics.js). This is its visible half: a low bank of bedded shingle around the
+// pit edge — one static mesh, one draw call, no bodies at all.
+//
+// The geometry is built by hand rather than from four scaled boxes for one reason:
+// UVs. A unit box stretched to 3.8 x 0.14 x 0.26 stretches its texture with it, and
+// the bank came out as smeared toffee. Here every face carries WORLD-space UVs (the
+// two axes it lies in, divided by RIM_TILE), so the shingle is the same size on the
+// top as on the sides and the same size as the shingle on the pit floor.
+const RIM_TILE = 1.0;    // world units per repeat of the bank's texture
+
+function rimFrameGeometry(t, h) {
+  const pos = [], nor = [], uv = [], idx = [];
+  // Four boxes that TILE the frame rather than overlap it: the long sides run the
+  // full outer width, the short sides fill the gap between them.
+  const boxes = [
+    [-(PIT.hw + t), -(PIT.hd + t), PIT.hw + t, -PIT.hd],
+    [-(PIT.hw + t), PIT.hd, PIT.hw + t, PIT.hd + t],
+    [-(PIT.hw + t), -PIT.hd, -PIT.hw, PIT.hd],
+    [PIT.hw, -PIT.hd, PIT.hw + t, PIT.hd],
+  ];
+  // One quad. `u`/`v` pick which world axes become texture coordinates, so the
+  // shingle never stretches with the face.
+  const quad = (verts, n, ui, vi) => {
+    const base = pos.length / 3;
+    for (const p of verts) {
+      pos.push(p[0], p[1], p[2]);
+      nor.push(n[0], n[1], n[2]);
+      uv.push(p[ui] / RIM_TILE, p[vi] / RIM_TILE);
+    }
+    idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  };
+  for (const [x0, z0, x1, z1] of boxes) {
+    // Top (the face the loose border stones bed into), then the four sides. No
+    // bottom: it is flat on the sand and never seen.
+    quad([[x0, h, z0], [x0, h, z1], [x1, h, z1], [x1, h, z0]], [0, 1, 0], 0, 2);
+    quad([[x0, 0, z1], [x1, 0, z1], [x1, h, z1], [x0, h, z1]], [0, 0, 1], 0, 1);
+    quad([[x1, 0, z0], [x0, 0, z0], [x0, h, z0], [x1, h, z0]], [0, 0, -1], 0, 1);
+    quad([[x1, 0, z1], [x1, 0, z0], [x1, h, z0], [x1, h, z1]], [1, 0, 0], 2, 1);
+    quad([[x0, 0, z0], [x0, 0, z1], [x0, h, z1], [x0, h, z0]], [-1, 0, 0], 2, 1);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  return g;
+}
+
+const rimMat = new THREE.MeshStandardMaterial({
+  color: 0xffffff, roughness: 0.86, metalness: 0.0, envMapIntensity: 0.6,
+});
+const rimBank = new THREE.Mesh(rimFrameGeometry(RIM.t, RIM.visH), rimMat);
+rimBank.position.y = -0.008;      // just into the sand, so no seam at the base
+rimBank.castShadow = true;
+rimBank.receiveShadow = true;
+scene.add(rimBank);
+
 // --- pit border stones (static dressing, no bodies) ------------------------
 const borderGeo = pebbleGeometry(0);
 const borderMat = new THREE.MeshStandardMaterial({
   color: 0xffffff, roughness: 0.82, metalness: 0.0, envMapIntensity: 0.7,
 });
-const BORDER_N = 52;
+// Dense enough to read as a continuous bedded kerb along the bank rather than a
+// dotted line — one instanced mesh either way, so the extra stones are free.
+const BORDER_N = 84;
 const border = new THREE.InstancedMesh(borderGeo, borderMat, BORDER_N);
 border.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 border.castShadow = true;
@@ -520,11 +601,15 @@ function themeBeach(beach) {
   sandMat.map = sandTexture(beach.sandColor);
   sandMat.map.repeat.set(14, 14);
   sandMat.needsUpdate = true;
-  const darker = new THREE.Color(beach.sandColor).multiplyScalar(0.82);
-  const avgR = (beach.stoneSize[0] + beach.stoneSize[1]) / 2;
-  pitMat.map = shingleTexture(beach.id, darker.getHex(), beach.sandColor,
-    beach.stones, avgR, PIT_FLOOR_W, PIT_FLOOR_D);
+  // The painted bed under the pile and the bank around it are both drawn from this
+  // beach's OWN palette and stone-size band, by the same painter that the dynamic
+  // pebbles get their tints from (env.js). That is what keeps the fixed surround
+  // and the movable pile reading as one continuous beach instead of two materials.
+  pitMat.map = shingleTexture(beach.id, beach.sandColor,
+    beach.stones, beach.stoneSize, PIT_FLOOR_W, PIT_FLOOR_D);
   pitMat.needsUpdate = true;
+  rimMat.map = stoneBedTexture(beach.id, beach.stones, beach.stoneSize, RIM_TILE, RIM_TILE);
+  rimMat.needsUpdate = true;
   // 0.72 against the near-grey grain map lands damp sand at ~0.57 of the dry
   // beach's brightness, which is about what wet sand actually looks like.
   wetMat.color.copy(new THREE.Color(beach.sandColor).multiplyScalar(0.72));
@@ -573,10 +658,19 @@ export function redress(beach) {
   dressSig.sandRot = +sandMat.map.rotation.toFixed(3);
 }
 
-/** The ring of stones around the pit: jitter, size band and gaps all vary. */
+/**
+ * Loose stones bedded along the top of the rim bank: jitter, size band and gaps
+ * all vary per section.
+ *
+ * These are DRESSING and always were — the containment is the rim collider under
+ * them. They used to lie on the sand with up to 0.38 of jitter, which on a
+ * fine-shingle beach scattered them into a dotted line that read as spilt gravel
+ * rather than an edge. Now they sit ON the bank, and the jitter is capped to the
+ * bank's own width so every one of them is actually resting on something.
+ */
 function dressBorder(beach) {
-  const halfW = PIT.hw + 0.16, halfD = PIT.hd + 0.16;
-  const jag = rr(0.16, 0.38);            // how ragged the ring is
+  const halfW = PIT.hw + RIM.t / 2, halfD = PIT.hd + RIM.t / 2;
+  const jag = Math.min(rr(0.06, 0.16), RIM.t * 0.42);   // how ragged the ring is
   const sizeMul = rr(0.86, 1.18);
   // One or two washed-out gaps in the ring, which is what stops it reading as a
   // deliberate border and starts it reading as shingle.
@@ -584,27 +678,38 @@ function dressBorder(beach) {
   for (let g = 0, n = (Math.random() * 3) | 0; g < n; g++) {
     gaps.push({ at: Math.random(), w: rr(0.04, 0.11) });
   }
+  // Walk the RING's own perimeter, not the pit's — they differ by the bank's width,
+  // and using the pit's put the stones a little short of each corner.
+  const W = halfW * 2, D = halfD * 2;
   for (let i = 0; i < BORDER_N; i++) {
     const t = i / BORDER_N;
-    const per = t * (PIT.w + PIT.d) * 2;
+    const per = t * (W + D) * 2;
     let x, z;
-    if (per < PIT.w) { x = -halfW + per; z = -halfD; }
-    else if (per < PIT.w + PIT.d) { x = halfW; z = -halfD + (per - PIT.w); }
-    else if (per < PIT.w * 2 + PIT.d) { x = halfW - (per - PIT.w - PIT.d); z = halfD; }
-    else { x = -halfW; z = halfD - (per - PIT.w * 2 - PIT.d); }
+    if (per < W) { x = -halfW + per; z = -halfD; }
+    else if (per < W + D) { x = halfW; z = -halfD + (per - W); }
+    else if (per < W * 2 + D) { x = halfW - (per - W - D); z = halfD; }
+    else { x = -halfW; z = halfD - (per - W * 2 - D); }
     let inGap = false;
     for (const g of gaps) if (Math.abs(t - g.at) < g.w) inGap = true;
     // Kept close to the pile's own stone size. Big border cobbles overlapped each
     // other so heavily that the intersections read as a ring of broken shells.
     const r = beach.stoneSize[1] * (0.7 + Math.random() * 0.55) * sizeMul;
-    _v.set(x + (Math.random() - 0.5) * jag * 2, r * 0.44, z + (Math.random() - 0.5) * jag * 2);
+    // On top of the bank, sunk into it by a third of the stone, so the ring reads
+    // as stones bedded into the berm rather than balanced on a kerb.
+    _v.set(x + (Math.random() - 0.5) * jag * 2,
+      RIM.visH + r * 0.30,
+      z + (Math.random() - 0.5) * jag * 2);
     _e.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
     _q.setFromEuler(_e);
     const s = inGap ? 0 : 1;
-    _sc.set(r * 1.24 * s, r * 0.7 * s, r * 1.18 * s);
+    // Same footprint and the same tint rules as a dynamic pebble of variant 0 —
+    // this mesh IS pebbleGeometry(0), so anything else would be a stone that looks
+    // subtly unlike every stone next to it.
+    const v0 = STONE_VARIANT_SCALE[0];
+    _sc.set(r * v0.x * s, r * v0.y * s, r * v0.z * s);
     _m.compose(_v, _q, _sc);
     border.setMatrixAt(i, _m);
-    _col.setHex(beach.stones[i % beach.stones.length]).multiplyScalar(0.66 + Math.random() * 0.32);
+    stoneTint(_col, beach.stones[i % beach.stones.length], 0, Math.random, 1);
     border.setColorAt(i, _col);
   }
   border.instanceMatrix.needsUpdate = true;
@@ -659,10 +764,12 @@ function dressScatter(beach) {
     _v.set(x, r * 0.4, z);
     _e.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
     _q.setFromEuler(_e);
-    _sc.set(r * 1.2, r * 0.66, r * 1.1);
+    // This mesh is pebbleGeometry(1), so it takes variant 1's shape and tint.
+    const v1 = STONE_VARIANT_SCALE[1];
+    _sc.set(r * v1.x, r * v1.y, r * v1.z);
     _m.compose(_v, _q, _sc);
     scatter.setMatrixAt(i, _m);
-    _col.setHex(pick(beach.stones)).multiplyScalar(0.7 + Math.random() * 0.34);
+    stoneTint(_col, pick(beach.stones), 1, Math.random, 1);
     scatter.setColorAt(i, _col);
   }
   scatter.instanceMatrix.needsUpdate = true;
@@ -947,6 +1054,7 @@ export function setShadowsEnabled(on) {
   sun.castShadow = on;
   border.castShadow = on;
   scatter.castShadow = on;
+  rimBank.castShadow = on;
 }
 
 export function markerPool() { return markers; }
@@ -956,6 +1064,7 @@ export function debugCounts() {
   const ndcY = (z) => +_fp.set(0, 0, z).project(camera).y.toFixed(3);
   return {
     border: BORDER_N, scatter: SCATTER_N, pixelRatio: perf.pixelRatio,
+    rim: { t: RIM.t, visH: RIM.visH, tris: rimBank.geometry.index.count / 3 },
     camDist: +camDist.toFixed(2), fitDist: +fitDist.toFixed(2), zoom: +zoom.toFixed(2),
     dressStyle, washScale: +washScale.toFixed(2), wash: +wash.toFixed(2),
     dress: { ...dressSig },
