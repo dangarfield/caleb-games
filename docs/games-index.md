@@ -1,6 +1,6 @@
 # Games Index
 
-All 64 games in Garfield Boys' Arcade (65 directories — Archers has legacy 2D + current 3D).
+All 63 games in Garfield Boys' Arcade (64 directories — Archers has legacy 2D + current 3D).
 
 | Game | Directory | Description |
 |------|-----------|-------------|
@@ -50,12 +50,8 @@ All 64 games in Garfield Boys' Arcade (65 directories — Archers has legacy 2D 
 | Happy Glass | games/happyglass/ | Liquid-pouring puzzle with SVG metaball effect |
 | Resin Animals | games/resincritters/ | Match-2 collapse puzzle (directory name is `resincritters`, doc is game-resin-animals.md) |
 | Monster Jump | games/monster-jump/ | Drive Mad / Fancade WASM physics platformer |
-| Monster Smash | games/monster-smash/ | Tap-to-smash monsters |
 | Race Maker | games/race-maker/ | Build a Scalextric-style track piece-by-piece, then race it with corner braking and AI drivers (Three.js + Kenney Racing Kit) |
 | Adsumudi | games/adsumudi/ | Hexagonal mental-math card game — combine 5 numbers with + − × ÷ to reach the target |
-| Forest Friends | games/forest-friends/ | 3D survival game — survive 99 nights, rescue kids, tame wolves, fish/farm/cook, explore 4 biomes (Three.js) |
-| Grid Quest | games/grid-quest/ | Ordnance Survey map puzzle game — 100 map quizzes + 100 route challenges with real OpenTopoMap tiles via Leaflet |
-| Shapez | games/shapez/ | Factory automation — extract, belt, cut, rotate, paint, stack & deliver shapes to the hub |
 | Librarian | games/librarian/ | 3D first-person book-sorting game — sort scattered books back onto enchanted library shelves (Three.js) |
 | Spin Smash | games/spin-smash/ | Beyblade-style arena battler — knock tops off the edge, roguelike perk progression, 3 arenas with hazards |
 | Pokemon FireRed | games/pokemon-firered/ | GBA emulator (EmulatorJS) — classic Pokemon adventure with save states |
@@ -68,6 +64,9 @@ All 64 games in Garfield Boys' Arcade (65 directories — Archers has legacy 2D 
 | Stone Skip | games/stone-skip/ | Cute 3D lake stone-skipping (Three.js) — pick a flat rock, 3-beat timed throw (slow-mo → power tap → release flick for angle+aim), skip physics, 48 achievements (incl. 0-point collection badges) + Skip Points shop with 24 unlocks (special stones, 12 throw spots [6 base + 6 unlockable], day/night themes, arm strength, cosmetics, fish), map/overview view, Caleb/Ezra progress |
 | Where in the World | games/worldtype/ | Type the countries of the world onto an accurate map — fuzzy spelling + aliases, pinch-zoom/drag-pan, hint system (195 UN countries), tap-to-hint, animated colour reveal |
 | Sea Glass | games/sea-glass/ | Cozy 3D physics beachcombing (Three.js; two physics backends — Rapier on High, its own awake-set relaxation on Low) — swipe a ~501-pebble layer to uncover sea glass, tap to collect; 6 beaches with different compositions, colour rarity, 10-shard ceramics that rebuild, bottle-physics Collection (mix/separate), Radar + Torch moves, milestone unlocks, Caleb/Ezra progress |
+| Traffic Jam | games/traffic-jam/ | Rush Hour sliding-block puzzle — slide cars out of the way so the red car can escape; 12 verified levels, live-BFS hints, Caleb/Ezra progress |
+| Garfimon | games/garfimon/ | Pokemon-style card battler — collect from 151 cards across 9 energy types, then battle with HP/attack; Caleb/Ezra collections (note: saves under its own `garfimonState_<player>` keys, not `calebArcadeData`) |
+| Domino Rally | games/dominoes/ | 3D domino-run builder + toppler (Three.js + Rapier) — drag to draw straight lines or free curves, orbit/pan/select camera tools, a 360° rotation dial on whatever you last placed, 17 trick items in 5 families (obstacles, movers, noise-makers, gadgets, structures; 16 in the tray, Soft Sand is challenge-only) including four impulse-fired launchers (Rocket, Fire Jump, Loop the Loop, Slalom Tower) and a Springboard that comes loaded with the domino it flings, command-pattern undo AND redo, named saves, 22 achievements that unlock tools/tables/skins, 7 teaching challenges, per-device Low/High quality tiering with an adaptive governor, Caleb/Ezra progress |
 
 ## Naming quirks worth knowing
 

@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a2e">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Domino Rally</title>
+
+<!--
+  Domino Rally. A 3D domino-run builder for a tablet.
+
+  Two CDN dependencies, both by importmap, both a deliberate documented deviation from
+  the arcade's Canvas-2D default (precedent: games/archers-3d for three, games/sea-glass
+  for rapier):
+    three  0.170.0  - the same pin as archers-3d
+    rapier 0.20.0   - the SIMD compat build; note dist/rapier.mjs, the 0.20 entry point.
+                      js/rapier.js falls back to unpkg and to the non-SIMD build.
+
+  Icons are NOT a third dependency: lucide (ISC) for the controls and game-icons.net
+  (CC BY 3.0) for the tricks and badges are inlined into js/icons.js by
+  research/geticons.cjs, so they cost no request and cannot arrive late. Credit is in the
+  About line of Settings.
+-->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+    "rapier": "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-simd-compat@0.20.0/dist/rapier.mjs"
+  }
+}
+</script>
+
+<style>
+  :root {
+    --base: #0a0a2e;
+    --mid: #141452;
+    --hi: #1a1a6e;
+    --accent: #6c5ce7;
+    --glow: #a29bfe;
+    --sub: #a0c4ff;
+    --gold: #ffd32a;
+    --danger: #e74c3c;
+    --pane: rgba(10, 10, 46, 0.92);
+    --edge: rgba(162, 155, 254, 0.30);
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    --safe-t: env(safe-area-inset-top, 0px);
+    /* lucide `lock`, inlined as a mask so the padlock badge on a locked tile matches the
+       rest of the icons. See the .locked::after rule. */
+    --lockmask: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect width="18" height="11" x="3" y="11" rx="2" ry="2" /%3E%3Cpath d="M7 11V7a5 5 0 0 1 10 0v4" /%3E%3C/svg%3E');
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+    background: linear-gradient(160deg, #0a0a2e 0%, #141452 55%, #1a1a6e 100%);
+    color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    /* Touch-first: the canvas owns every gesture, the browser owns none of them. */
+    touch-action: none;
+    -webkit-user-select: none; user-select: none;
+    overscroll-behavior: none;
+  }
+  #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+  /* ---------------- icons ----------------
+     Every icon is an inline <svg> from js/icons.js: lucide line icons on the controls,
+     game-icons filled icons on the content (tricks, badges, challenges). Two things follow
+     from that, and both used to be workarounds:
+       * SIZE comes from the font-size of the .ic span, so every existing "shrink the bar"
+         media query below still sizes the icons without knowing they are not text.
+       * COLOUR is currentColor, so a selected tile going white, a locked tile going dim and
+         a gold toast all come free. Emoji ignored `color`, which is why the locked state
+         used to need a grayscale/brightness filter to fake being dark.
+     Filled shapes ship with their own padding, so they get slightly more room than the line
+     ones in order to read at the same weight at 19 px. */
+  .ic { display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
+  .ic svg { display: block; width: 1em; height: 1em; }
+  .ic svg.f { width: 1.12em; height: 1.12em; }
+
+  /* ---------------- chrome ---------------- */
+  /* z-index 95 — ABOVE the .screen overlays (50) and above #boot (90). The way back to the
+     arcade is the one control that must never be covered by anything: at 30 it sat under
+     every overlay, so the player picker needed its own duplicate link to not be a one-way
+     door, and a physics load that never finished left the child stuck behind #boot with no
+     way out at all. The .screen padding-top below is the other half of this — see it. */
+  .back {
+    position: fixed; top: calc(8px + var(--safe-t)); left: 8px; z-index: 95;
+    display: flex; align-items: center; gap: 6px;
+    min-height: 46px; padding: 0 16px;
+    border-radius: 23px; border: 1px solid var(--edge);
+    background: var(--pane); color: var(--sub);
+    font-size: 15px; font-weight: 700; text-decoration: none;
+    backdrop-filter: blur(6px);
+  }
+  .back:active { background: var(--accent); color: #fff; }
+
+  #hud {
+    position: fixed; top: calc(9px + var(--safe-t)); left: 50%; transform: translateX(-50%);
+    z-index: 25; display: flex; align-items: center; gap: 14px;
+    padding: 8px 20px; border-radius: 22px;
+    border: 1px solid var(--edge);
+    background: var(--pane); backdrop-filter: blur(6px);
+    font-size: 15px; font-weight: 700; white-space: nowrap;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.35);
+  }
+  #hud .k { color: var(--sub); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+  #hud .v { color: #fff; font-variant-numeric: tabular-nums; }
+  #hud .v.gold { color: var(--gold); }
+  #hud .v.warn { color: var(--danger); }
+  #hud .sep { width: 1px; height: 22px; background: var(--edge); }
+
+  #camrow { position: fixed; top: calc(9px + var(--safe-t)); right: 8px; z-index: 26; display: flex; gap: 6px; }
+
+  .btn {
+    min-height: 46px; min-width: 46px; padding: 0 14px;
+    border-radius: 14px; border: 1px solid var(--edge);
+    background: rgba(20, 20, 82, 0.88); color: #fff;
+    font-size: 15px; font-weight: 700; font-family: inherit; text-decoration: none;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    cursor: pointer; backdrop-filter: blur(6px);
+  }
+  .btn:active { transform: scale(0.95); }
+  .btn[disabled] { opacity: 0.32; }
+  .btn.pri { background: linear-gradient(145deg, #7d6cf0, #4b3fbf); border-color: var(--glow); }
+  .btn.gold { background: linear-gradient(145deg, #ffd32a, #d99b00); color: #241a00; border-color: #ffe98a; }
+  .btn.dgr { background: linear-gradient(145deg, #e74c3c, #a52a1c); border-color: #ff8f80; }
+  .btn.sm { min-height: 38px; min-width: 38px; padding: 0 10px; font-size: 13px; border-radius: 11px; }
+  .btn .sup { font-size: 11px; opacity: .75; font-weight: 600; }
+
+  /* ---------------- the bottom dock ----------------
+     ONE centred bar holds everything a builder touches, left to right in the order a
+     child needs it: the tool tiles, the two progress panes, undo/redo/style, then First
+     and GO, with hairline vertical breaks between the groups. The Tricks tray stacks above
+     it in the same click-through column.
+     Nothing lives in a screen corner any more, and that is deliberate: GO used to be
+     fixed bottom-right at z-index 25 with the palette centred at 24, so on any viewport
+     below ~674 CSS px - i.e. every phone and every portrait tablet, the primary device -
+     GO sat on top of the Start tool and a child could not choose which domino goes first.
+     Controls that share one flex row cannot overlap at all, whatever the width.
+     Two properties of this layout matter and must not be casually changed:
+       * it WRAPS, it never scrolls. `touch-action: none` on the body is inherited, so a
+         horizontally-scrolling bar cannot be dragged by a finger at all. Wrapping keeps
+         every control reachable with no gesture on any width. Groups wrap internally too.
+       * the dock is click-through (`pointer-events: none`, `auto` on its children) so the
+         gaps between the pills are still table you can draw on. */
+  /* THE DOCK MUST NOT GROW OFF THE TOP OF THE SCREEN. It is bottom-anchored with no `top`,
+     so its height was content-driven and unbounded: on a short screen the column (tray +
+     rotbar + wrapped bar) grew straight past y=0 and took the TRAY with it, because the tray
+     is the topmost child. Tiles in the first families — Wall, Ball Run, Rocket, Loop the Loop
+     — went off-screen, and `touch-action: none` is inherited from the body, so they could not
+     be scrolled back into reach either. They were simply gone.
+     Clamped to the viewport, with the tray as the one element allowed to give. */
+  #dock {
+    position: fixed; left: 8px; right: 8px; bottom: calc(10px + var(--safe-b));
+    /* 64px is the top-chrome band the back button, the title and the camera row sit in
+       (same figure as the goal chip's `top` below), so the dock stops clear of them. */
+    max-height: calc(100dvh - 74px - var(--safe-b) - var(--safe-t));
+    z-index: 25; display: flex; flex-direction: column; align-items: center; gap: 6px;
+    pointer-events: none;
+  }
+  #dock > * { pointer-events: auto; }
+  /* The bar and the dial keep their full size; the tray shrinks and scrolls instead. */
+  #rotbar, #bar { flex: 0 0 auto; }
+  #bar {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+    gap: 6px; padding: 7px 9px; max-width: 100%;
+    border-radius: 20px; border: 1px solid var(--edge);
+    background: var(--pane); backdrop-filter: blur(8px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  }
+  .grp { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+  /* The vertical break between groups. `align-self: stretch` so it spans whatever row it
+     lands in when the bar wraps, and `flex: 0 0 1px` so it is never stretched or squashed
+     into something a thumb could hit. */
+  .vsep {
+    flex: 0 0 2px; width: 2px; align-self: stretch; min-height: 46px;
+    margin: 0 3px; border-radius: 1px;
+    background: rgba(162, 155, 254, 0.42);
+  }
+
+  /* ---------------- the rotation dial ----------------
+     Directly above the bar, in the same click-through column, hidden until there is
+     something to turn. `display: none` rather than opacity so it costs nothing and, more
+     importantly, so it is not an invisible pill swallowing taps meant for the table.
+     The whole pill is the drag surface, not just the knob: a child who grabs 6 px above the
+     track still gets the drag, which is the difference between a control that works with a
+     fingertip and one that only works with a mouse. */
+  #rotbar { display: none; align-items: center; gap: 10px;
+    padding: 9px 14px; border-radius: 18px; border: 1px solid var(--edge);
+    background: var(--pane); backdrop-filter: blur(8px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    touch-action: none; user-select: none; -webkit-user-select: none;
+  }
+  #rotbar.show { display: flex; }
+  /* The 15 px the knob overhangs the start of the track, plus a little air: at 0 degrees the
+     knob used to sit on top of the word and the label read "TUR". */
+  #rotbar .rotlbl { font-size: 11px; font-weight: 800; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--sub); opacity: .8; margin-right: 10px; }
+  #rotVal { font-size: 14px; font-weight: 800; color: var(--gold);
+    font-variant-numeric: tabular-nums; min-width: 44px; text-align: right; }
+  /* The track is 10 px of paint inside a 44 px tall hit area (the pill's own padding plus
+     the knob), which is the arcade's minimum tap target. */
+  #rotTrack {
+    position: relative; width: min(46vw, 260px); height: 10px; border-radius: 5px;
+    background: linear-gradient(90deg, #4b3fbf, #7d6cf0, #4b3fbf);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+  }
+  #rotKnob {
+    position: absolute; top: 50%; left: 0; width: 30px; height: 30px; margin: -15px 0 0 0;
+    transform: translateX(-50%); border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #fff, var(--glow) 60%, #6c5ce7);
+    border: 2px solid rgba(255, 255, 255, 0.85);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+  }
+
+  .tool {
+    position: relative;
+    min-width: 58px; min-height: 58px; border-radius: 15px;
+    border: 1px solid transparent; background: rgba(255, 255, 255, 0.06);
+    color: var(--sub); font-family: inherit; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+    padding: 4px 6px;
+  }
+  .tool .ic { font-size: 21px; line-height: 1; }
+  .tool .nm { font-size: 10.5px; font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
+  .tool .ct { opacity: .7; font-variant-numeric: tabular-nums; }
+  .tool.on {
+    background: linear-gradient(145deg, #7d6cf0, #4b3fbf); color: #fff;
+    border-color: var(--glow); box-shadow: 0 0 0 2px rgba(162, 155, 254, 0.35);
+  }
+  .tool:active { transform: scale(0.95); }
+  /* The utility tiles (progress panes, undo/redo/style) are the same height as the
+     tools so the bar reads as one row, but only as wide as their own label needs. */
+  .tool.aux { min-width: 50px; }
+  .tool[disabled] { opacity: .34; }
+
+  /* Locked = BLACKED OUT, not hidden and not merely faded. A child should be able to see
+     that there are more tricks coming and roughly how many, which is the whole point of an
+     achievement ladder — so the tile stays in place, goes dark, and wears a padlock.
+     The icon needs no help now: it is drawn in currentColor, so dimming the tile's `color`
+     dims the picture with it. */
+  .tool.locked, .trayitem.locked {
+    background: rgba(0, 0, 0, 0.55);
+    border-color: rgba(0, 0, 0, 0.45);
+    color: rgba(160, 196, 255, 0.34);
+    box-shadow: none;
+  }
+  .tool.locked .ic, .trayitem.locked .ic { opacity: .62; }
+  /* The padlock is a masked shape rather than the emoji padlock: ::after cannot hold an
+     <svg>, and one stray emoji in a bar of drawn icons is exactly the mismatch this change
+     was made to get rid of. */
+  .tool.locked::after, .trayitem.locked::after {
+    content: ''; position: absolute; top: 3px; right: 4px; width: 11px; height: 11px;
+    background: rgba(200, 220, 255, 0.72);
+    -webkit-mask: var(--lockmask) center / contain no-repeat;
+    mask: var(--lockmask) center / contain no-repeat;
+  }
+
+  #tray {
+    display: none; flex-wrap: wrap; justify-content: center; gap: 5px; padding: 6px;
+    max-width: 100%;
+    /* The one place a finger may scroll. `pan-y` is needed explicitly because the body's
+       `touch-action: none` is inherited, and `min-height: 0` is what lets a flex child
+       actually shrink below its content height instead of forcing the column taller. */
+    min-height: 0; flex: 0 1 auto; overflow-y: auto;
+    touch-action: pan-y; overscroll-behavior: contain;
+    border-radius: 16px; border: 1px solid var(--edge);
+    background: var(--pane); backdrop-filter: blur(8px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  }
+  #tray.show { display: flex; }
+  .trayitem {
+    position: relative;
+    min-width: 52px; min-height: 50px; border-radius: 13px;
+    border: 1px solid transparent; background: rgba(255, 255, 255, 0.06);
+    color: var(--sub); font-family: inherit; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .trayitem .ic { font-size: 19px; }
+  .trayitem .nm { font-size: 9.5px; font-weight: 700; }
+  .trayitem.on { background: linear-gradient(145deg, #7d6cf0, #4b3fbf); color: #fff; border-color: var(--glow); }
+
+  /* GO sits in the bar as its last item, so it is sized to match a tool tile's height. */
+  #go {
+    min-width: 96px; min-height: 58px; font-size: 21px; letter-spacing: .04em;
+    border-radius: 16px;
+  }
+  #runbar {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(12px + var(--safe-b)); z-index: 26;
+    display: none; gap: 8px;
+  }
+  #runbar.show { display: flex; }
+
+  /* ---------------- toasts ---------------- */
+  #toasts {
+    position: fixed; top: calc(64px + var(--safe-t)); left: 50%; transform: translateX(-50%);
+    z-index: 40; display: flex; flex-direction: column; gap: 7px; align-items: center;
+    pointer-events: none; width: min(92vw, 430px);
+  }
+  .toast {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 10px 15px; border-radius: 15px;
+    border: 1px solid var(--edge); background: rgba(20, 20, 82, 0.95);
+    box-shadow: 0 8px 26px rgba(0, 0, 0, 0.45);
+    animation: tin .22s ease-out;
+  }
+  .toast.gold { border-color: var(--gold); background: rgba(60, 44, 8, 0.95); }
+  .toast .ic { font-size: 24px; }
+  .toast .tt { font-size: 15px; font-weight: 800; }
+  .toast .ts { font-size: 12.5px; color: var(--sub); }
+  @keyframes tin { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
+  .fade { animation: tout .3s ease-in forwards; }
+  @keyframes tout { to { opacity: 0; transform: translateY(-8px); } }
+
+  /* ---------------- overlays ---------------- */
+  /* padding-top clears the back button, which now draws OVER these. 8 px of gap + a 46 px
+     button + 8 px of air = 62 px. Without it a 560 px-wide pane on a 500 px tablet screen
+     would slide right under the button and put "Games" on top of a heading. */
+  .screen {
+    position: fixed; inset: 0; z-index: 50; display: none;
+    align-items: center; justify-content: center;
+    padding: calc(62px + var(--safe-t)) 14px 14px;
+    background: rgba(4, 4, 20, 0.78); backdrop-filter: blur(4px);
+    overflow: auto;
+  }
+  .screen.show { display: flex; }
+  .pane {
+    width: min(560px, 100%); max-height: calc(100vh - 76px - var(--safe-t)); overflow: auto;
+    padding: 20px; border-radius: 22px;
+    border: 1px solid var(--edge);
+    background: linear-gradient(160deg, #10103a, #191960);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  }
+  .pane h1 { margin: 0 0 4px; font-size: 26px; letter-spacing: .01em; }
+  .pane h2 { margin: 0 0 12px; font-size: 19px; }
+  .pane .lead { margin: 0 0 16px; color: var(--sub); font-size: 14px; line-height: 1.45; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row.end { justify-content: flex-end; }
+  .row.tight { gap: 5px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .sect { margin: 16px 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .09em; color: var(--glow); font-weight: 800; }
+  .note { font-size: 12.5px; color: var(--sub); line-height: 1.45; }
+  .note.warn { color: var(--gold); }
+  .note.gold { color: var(--gold); font-weight: 700; }
+
+  .pcard {
+    flex: 1 1 0; min-width: 140px; padding: 18px 14px; border-radius: 18px;
+    border: 1px solid var(--edge); background: rgba(255, 255, 255, 0.05);
+    cursor: pointer; text-align: center; font-family: inherit; color: #fff;
+  }
+  .pcard .big { font-size: 34px; }
+  .pcard .nm { font-size: 20px; font-weight: 800; margin-top: 4px; }
+  .pcard .sub { font-size: 12px; color: var(--sub); margin-top: 5px; }
+  .pcard:active { background: var(--accent); }
+
+  .achlist { display: flex; flex-direction: column; gap: 6px; }
+  .ach {
+    display: flex; align-items: center; gap: 11px; padding: 9px 11px;
+    border-radius: 13px; background: rgba(255, 255, 255, 0.05);
+    border: 1px solid transparent;
+  }
+  .ach.got { background: rgba(255, 211, 42, 0.13); border-color: rgba(255, 211, 42, 0.4); }
+  .ach .ic { font-size: 22px; width: 28px; text-align: center; filter: grayscale(1) opacity(.5); }
+  .ach.got .ic { filter: none; }
+  .ach .nm { font-size: 14.5px; font-weight: 800; }
+  .ach .ds { font-size: 12px; color: var(--sub); }
+  .ach .gv { font-size: 11.5px; color: var(--glow); }
+  .bar { height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.13); margin-top: 5px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--glow); }
+
+  .slot {
+    display: flex; align-items: center; gap: 9px; padding: 9px 11px;
+    border-radius: 13px; background: rgba(255, 255, 255, 0.05); margin-bottom: 6px;
+  }
+  .slot .nm { flex: 1; font-size: 14.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .slot .mt { font-size: 11.5px; color: var(--sub); }
+  input.txt {
+    flex: 1; min-height: 46px; padding: 0 13px; border-radius: 13px;
+    border: 1px solid var(--edge); background: rgba(0, 0, 0, 0.35);
+    color: #fff; font-size: 16px; font-family: inherit;
+  }
+
+  .swatches { display: flex; gap: 7px; flex-wrap: wrap; }
+  .sw {
+    width: 46px; height: 46px; border-radius: 13px; cursor: pointer;
+    border: 2px solid transparent; padding: 0;
+  }
+  .sw.on { border-color: #fff; box-shadow: 0 0 0 2px var(--glow); }
+
+  .chcard {
+    display: flex; align-items: center; gap: 12px; width: 100%; padding: 13px;
+    border-radius: 16px; border: 1px solid var(--edge);
+    background: rgba(255, 255, 255, 0.05); color: #fff;
+    font-family: inherit; text-align: left; cursor: pointer; margin-bottom: 8px;
+  }
+  .chcard .ic { font-size: 27px; }
+  .chcard .nm { font-size: 16px; font-weight: 800; }
+  .chcard .ds { font-size: 12.5px; color: var(--sub); }
+  .chcard.done { border-color: var(--gold); background: rgba(255, 211, 42, 0.12); }
+
+  /* Top-left, under the back button. It used to be bottom-left, which the full-width
+     bottom bar now covers on any portrait width. */
+  #perf {
+    position: fixed; left: 8px; top: calc(62px + var(--safe-t)); z-index: 22;
+    display: none; padding: 6px 10px; border-radius: 11px;
+    background: rgba(0, 0, 0, 0.6); border: 1px solid var(--edge);
+    font-size: 11px; font-family: ui-monospace, Menlo, monospace; color: var(--sub);
+    white-space: pre; line-height: 1.35;
+  }
+  #perf.show { display: block; }
+
+  /* Top-centre column: the re-readable goal chip above, the transient hint below.
+     Same trick as #dock — two stacked pills in one flex column can never cover each
+     other, whatever length the text is. */
+  #topdock {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    top: calc(62px + var(--safe-t)); z-index: 21;
+    width: min(94vw, 420px); pointer-events: none;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+  }
+
+  #goal {
+    display: none; pointer-events: auto; cursor: pointer; max-width: 100%;
+    padding: 6px 13px; border-radius: 15px;
+    background: rgba(60, 44, 8, 0.94); border: 1px solid var(--gold);
+    color: #fff; font-family: inherit; font-size: 12.5px; font-weight: 700;
+    text-align: center; line-height: 1.3;
+  }
+  #goal.show { display: block; }
+  #goal:active { background: var(--accent); }
+  /* The challenge's own icon, inline with the wrapping text. */
+  #goal .ic { font-size: 15px; margin-right: 5px; vertical-align: -2px; color: var(--gold); }
+
+  /* WRAPS. It used to be white-space: nowrap with an ellipsis, which cut the challenge
+     hints off mid-word — the one text in the game a child most needs to read. */
+  #hint {
+    max-width: 100%; padding: 7px 15px; border-radius: 16px;
+    background: rgba(10, 10, 46, 0.86); border: 1px solid var(--edge);
+    color: var(--sub); font-size: 13px; font-weight: 600;
+    text-align: center; line-height: 1.35; overflow-wrap: break-word;
+    opacity: 0; transition: opacity .2s;
+  }
+  #hint.show { opacity: 1; }
+
+  #boot {
+    position: fixed; inset: 0; z-index: 90; display: flex;
+    align-items: center; justify-content: center; flex-direction: column; gap: 14px;
+    background: linear-gradient(160deg, #0a0a2e, #1a1a6e);
+    text-align: center; padding: 22px;
+  }
+  #boot h1 { margin: 0; font-size: 34px; letter-spacing: .02em; }
+  #boot p { margin: 0; color: var(--sub); font-size: 14px; }
+  #boot .spin {
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 3px solid rgba(162, 155, 254, 0.25); border-top-color: var(--glow);
+    animation: sp 0.9s linear infinite;
+  }
+  @keyframes sp { to { transform: rotate(360deg); } }
+
+  /* One compact tier for phones and small tablets. The numbers are picked so the bar wraps
+     to TWO rows at 500 CSS px, which is the portrait width of the tablet this game is for.
+     Every target stays at or above 44 px, so nothing here trades a child's aim for the
+     saving. Landscape tablets and desktops are wide enough for a single row and keep the
+     full-size tiles. */
+  @media (max-width: 640px) {
+    .tool { min-width: 48px; min-height: 52px; }
+    .tool .ic { font-size: 19px; }
+    .tool .nm { font-size: 9.5px; }
+    .tool.aux { min-width: 44px; }
+    .vsep { min-height: 40px; margin: 0 1px; }
+    #bar { gap: 4px; padding: 6px 7px; }
+    #go { min-width: 76px; min-height: 52px; font-size: 19px; border-radius: 14px; }
+  }
+  /* The TOP row is the one place left where three separately-positioned elements share a
+     line — back button, centre HUD, camera buttons — so it is the one place that can still
+     overlap. Measured (headless Chrome, software raster): the HUD clipped the left edge of
+     Fit by 10 px at 500 x 753, the primary device's portrait width, and by 32 px at 430.
+     Centre-point probing had reported all three as clear, because the collision is at an
+     edge; ddock2 now intersects the rectangles instead. This tier buys back the clearance. */
+  @media (max-width: 560px) {
+    .back { min-height: 42px; padding: 0 11px; font-size: 14px; gap: 4px; }
+    #hud { gap: 9px; padding: 6px 12px; font-size: 14px; }
+    #hud .k { font-size: 10px; letter-spacing: .04em; }
+    #hud .sep { height: 18px; }
+    #camrow { gap: 4px; }
+    #camrow .btn.sm { min-height: 42px; padding: 0 8px; font-size: 12px; }
+  }
+  /* Narrow phones. Fifteen controls at a 44 px minimum cannot fit two rows in 430 px of
+     glass — three is the arithmetic floor, not a tuning failure — so this tier buys back
+     the fourth row rather than chasing a target size no thumb can use. */
+  @media (max-width: 480px) {
+    .tool { min-width: 44px; min-height: 48px; padding: 3px 4px; }
+    .tool .ic { font-size: 17px; }
+    .tool .nm { font-size: 9px; }
+    .tool.aux { min-width: 40px; }
+    .vsep { min-height: 36px; }
+    #bar { gap: 3px; padding: 5px 5px; border-radius: 16px; }
+    #go { min-width: 66px; min-height: 48px; font-size: 18px; }
+    /* The dial keeps its 30 px knob — it is a drag target, and shrinking the one control a
+       child holds onto to save 8 px of a row they are not short of is the wrong trade. Only
+       the track and the labels give ground. */
+    #rotbar { gap: 7px; padding: 7px 10px; }
+    #rotTrack { width: min(42vw, 170px); }
+    #rotVal { font-size: 13px; min-width: 38px; }
+    /* Same top-row squeeze again: 560 px of clearance was not enough at 430, where the HUD
+       still clipped Fit by 12 px. */
+    #hud { font-size: 13px; gap: 7px; padding: 5px 9px; }
+    #hud .k { font-size: 9px; letter-spacing: 0; }
+    .back { padding: 0 8px; font-size: 13px; }
+    #camrow .btn.sm { padding: 0 6px; font-size: 11px; min-width: 34px; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="view"></canvas>
+
+<a class="back" href="../../index.html"><span class="ic" data-icon="arrow-left"></span> Games</a>
+
+<div id="hud">
+  <span><span class="k">Dominoes</span> <span class="v" id="hudDom">0/60</span></span>
+  <span class="sep"></span>
+  <span><span class="k">Fell</span> <span class="v gold" id="hudFell">0</span></span>
+</div>
+
+<div id="camrow">
+  <button class="btn sm" id="btnFit" title="See the whole table">Fit</button>
+  <button class="btn sm" id="btnTop" title="Look from above">Top</button>
+  <button class="btn sm" id="btnMenu" title="Menu"><span class="ic" data-icon="menu"></span></button>
+</div>
+
+<div id="topdock">
+  <button id="goal" type="button"></button>
+  <div id="hint"></div>
+</div>
+<div id="toasts"></div>
+<div id="perf"></div>
+
+<!-- Everything a builder touches, in one centred dock. The four groups are separated by
+     vertical breaks: tools | challenges + badges | undo/redo/style | First + GO.
+     The rotation dial sits directly above the bar and only appears when there is something
+     for it to turn (a selection, or a one-domino / trick placement). -->
+<div id="dock">
+  <div id="tray"></div>
+  <div id="rotbar">
+    <span class="rotlbl">Turn</span>
+    <div id="rotTrack"><span id="rotKnob"></span></div>
+    <span id="rotVal">0&deg;</span>
+  </div>
+  <div id="bar">
+    <div class="grp" id="palette"></div>
+    <span class="vsep"></span>
+    <div class="grp">
+      <button class="tool aux" id="btnChal"><span class="ic" data-icon="target"></span><span class="nm">Challenges</span></button>
+      <button class="tool aux" id="btnAchv"><span class="ic" data-icon="trophy"></span><span class="nm">Badges</span></button>
+    </div>
+    <span class="vsep"></span>
+    <div class="grp">
+      <button class="tool aux" id="btnUndo"><span class="ic" data-icon="undo-2"></span><span class="nm">Undo <span class="ct" id="undoN"></span></span></button>
+      <button class="tool aux" id="btnRedo"><span class="ic" data-icon="redo-2"></span><span class="nm">Redo <span class="ct" id="redoN"></span></span></button>
+      <button class="tool aux" id="btnStyle"><span class="ic" data-icon="palette"></span><span class="nm">Style</span></button>
+    </div>
+    <span class="vsep"></span>
+    <!-- The First tile is inserted here by buildPalette, so it wraps together with GO. -->
+    <div class="grp" id="gogrp">
+      <button class="btn gold" id="go">GO</button>
+    </div>
+  </div>
+</div>
+
+<div id="runbar">
+  <button class="btn pri" id="btnBuild"><span class="ic" data-icon="undo-2"></span> Back to building</button>
+  <button class="btn gold" id="btnAgain">Again</button>
+</div>
+
+<!-- ============ player select ============ -->
+<div class="screen" id="scPlayers">
+  <div class="pane">
+    <h1>Domino Rally</h1>
+    <p class="lead">Draw lines of dominoes, drop in tricks, then knock them all down.
+      Who is playing?</p>
+    <div class="row" id="playerRow"></div>
+    <div class="sect">This tablet</div>
+    <p class="note" id="qualityNote"></p>
+    <!-- There used to be a duplicate "back to the arcade" link here, because the fixed one
+         sat UNDER this overlay and the picker would otherwise have been a one-way door. The
+         fixed one is at z-index 95 now, so it is visible on this screen too and the copy is
+         gone: one way back, in the same place on every screen. -->
+  </div>
+</div>
+
+<!-- ============ menu ============ -->
+<div class="screen" id="scMenu">
+  <div class="pane">
+    <h1 id="menuWho">Menu</h1>
+    <p class="lead" id="menuStats"></p>
+    <div class="grid2">
+      <button class="btn pri" id="mnResume">Keep building</button>
+      <button class="btn" id="mnNew">Clear the table</button>
+      <button class="btn" id="mnChal">Challenges</button>
+      <button class="btn" id="mnAchv">Achievements</button>
+      <button class="btn" id="mnSaves">Save &amp; load</button>
+      <button class="btn" id="mnHelp">How to play</button>
+      <button class="btn" id="mnSet">Settings</button>
+      <button class="btn" id="mnSwitch">Switch player</button>
+    </div>
+    <!-- ===================== DEBUG: UNLOCK ALL =====================
+         Temporary, and meant to be deleted. To remove it, delete this block, the
+         `mnUnlock` entry in ui.js's `ids` list and its click listener, `onUnlockAll` in
+         ui.js's api call, and `unlockEverything` + its api entry in main.js. Nothing else
+         refers to it. -->
+    <div class="sect">Debug</div>
+    <div class="grid2">
+      <button class="btn" id="mnUnlock">Unlock everything</button>
+    </div>
+    <p class="note">Turns on every badge, table, surface, skin and trick at once. One way
+      &mdash; there is no re-locking it.</p>
+    <!-- =================== end DEBUG: UNLOCK ALL =================== -->
+  </div>
+</div>
+
+<!-- ============ achievements ============ -->
+<div class="screen" id="scAchv">
+  <div class="pane">
+    <h2 id="achvTitle">Achievements</h2>
+    <p class="lead">Every one of these unlocks something. There is nothing to buy.</p>
+    <div class="achlist" id="achvList"></div>
+    <div class="row end" style="margin-top:14px"><button class="btn pri" data-close>Done</button></div>
+  </div>
+</div>
+
+<!-- ============ challenges ============ -->
+<div class="screen" id="scChal">
+  <div class="pane">
+    <h2>Challenges</h2>
+    <p class="lead">Seven little puzzles, each one teaching a trick &mdash; and finishing one
+      keeps that trick for good. You cannot lose them, so try as often as you like.</p>
+    <div id="chalList"></div>
+    <div class="row end"><button class="btn pri" data-close>Back</button></div>
+  </div>
+</div>
+
+<!-- ============ saves ============ -->
+<div class="screen" id="scSaves">
+  <div class="pane">
+    <h2>Save &amp; load</h2>
+    <div class="row" style="margin-bottom:12px">
+      <input class="txt" id="saveName" maxlength="30" placeholder="Name this creation">
+      <button class="btn pri" id="btnSave">Save</button>
+    </div>
+    <p class="note" id="saveNote"></p>
+    <div class="sect">Your creations</div>
+    <div id="saveList"></div>
+    <div class="row end" style="margin-top:12px"><button class="btn pri" data-close>Done</button></div>
+  </div>
+</div>
+
+<!-- ============ style ============ -->
+<div class="screen" id="scStyle">
+  <div class="pane">
+    <h2>Style</h2>
+    <div class="sect">Colour</div>
+    <div class="swatches" id="colourRow"></div>
+    <div class="sect">Spacing <span class="note" id="spacingNote"></span></div>
+    <div class="row tight" id="spacingRow"></div>
+    <div class="sect">Pattern</div>
+    <div class="row tight" id="skinRow"></div>
+    <div class="sect">Table</div>
+    <div class="row tight" id="tableRow"></div>
+    <div class="sect">Surface</div>
+    <div class="row tight" id="surfRow"></div>
+    <div class="row end" style="margin-top:14px"><button class="btn pri" data-close>Done</button></div>
+  </div>
+</div>
+
+<!-- ============ settings ============ -->
+<div class="screen" id="scSet">
+  <div class="pane">
+    <h2>Settings</h2>
+    <div class="sect">Graphics</div>
+    <p class="note" id="setQuality"></p>
+    <div class="row" style="margin-top:8px">
+      <button class="btn" id="btnQuality">Switch quality</button>
+      <button class="btn" id="btnPerf">Show frame counter</button>
+    </div>
+    <div class="sect">Sound</div>
+    <div class="row"><button class="btn" id="btnSound">Sound: on</button></div>
+    <div class="sect">About</div>
+    <p class="note" id="setAbout"></p>
+    <div class="row end" style="margin-top:14px"><button class="btn pri" data-close>Done</button></div>
+  </div>
+</div>
+
+<!-- ============ help ============ -->
+<div class="screen" id="scHelp">
+  <div class="pane">
+    <h2>How to play</h2>
+    <p class="note">
+      <b>Two fingers always move the camera.</b> Spin with two fingers, pinch to zoom
+      in and out. That never draws anything, whatever tool you have picked.<br><br>
+      <b>One finger does whatever the tool says.</b> Pick <b>Line</b> and drag: dominoes
+      follow your finger. Pick <b>Look</b> and one finger spins the camera; pick
+      <b>Move</b> and one finger slides the whole table around.<br><br>
+      The glowing shapes on the table show what your finger is about to do, before it
+      happens. <b>Rub Out</b>, next to <b>Select</b>, drags over anything you want gone, and
+      <b>Undo</b> takes back a whole line at a time.<br><br>
+      <b>Turning things round.</b> Whatever you just put down gets a <b>blue ring</b> under
+      it — drag the <b>Turn</b> slider above the buttons to spin it any way you like. Tap
+      <b>Select</b> and then any domino or trick to move the blue ring onto that one instead.
+      The ring lets go as soon as you pick something new to put down, so the slider is always
+      turning the thing you are holding.<br><br>
+      <b>Tricks</b> opens the toy drawer. Pick one and the drawer shuts again so you can see
+      the whole table — turn it with the slider first if you like, then tap where you want it.<br><br>
+      The gold ring marks the domino that falls first. Use <b>First</b> to move it, then
+      hit <b>GO</b>.
+    </p>
+    <div class="row end" style="margin-top:14px"><button class="btn pri" data-close>Got it</button></div>
+  </div>
+</div>
+
+<!-- ============ result ============ -->
+<div class="screen" id="scResult">
+  <div class="pane">
+    <h1 id="resTitle">Nice one!</h1>
+    <p class="lead" id="resLine"></p>
+    <div id="resExtra"></div>
+    <div class="row end" style="margin-top:16px">
+      <button class="btn" id="resBuild">Back to building</button>
+      <button class="btn gold" id="resAgain">Again</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ boot ============ -->
+<div id="boot">
+  <h1>Domino Rally</h1>
+  <div class="spin"></div>
+  <p id="bootMsg">Setting up the table&hellip;</p>
+</div>
+
+<script type="module" src="./js/main.js"></script>
+<noscript><p style="padding:20px">This game needs JavaScript.</p></noscript>
+</body>
+</html>

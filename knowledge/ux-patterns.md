@@ -27,7 +27,7 @@ Victory variant: `#ffd32a` glow title + confetti particles.
 ## Landing-page card (root index.html)
 
 After building the game, add a card to `index.html`:
-- Anchor `href="games/<name>"` (no trailing `/index.html` — matches existing cards).
+- Anchor `href="games/<name>"` (no trailing `/index.html` — matches existing cards), unless you reference js or css files, then a trailing slash is required
 - CSS class `.card-<name>` with a themed gradient background.
 - Icon (emoji or inline SVG), title, and a brief description.
 - Add a matching row to `docs/games-index.md` and bump the count in its header.
