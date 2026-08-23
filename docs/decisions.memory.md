@@ -6,6 +6,26 @@ Review periodically — memory drifts. Newest at the top.
 
 ---
 
+## 2026-08-23 — One 5 MB quota, 64 games: a save path needs a prune ladder
+Follow-on from the entry below, and the actual cause of the child's report. `localStorage` is
+ONE quota for the whole origin — about 5 MB of characters, not per key and not per game — and
+`calebArcadeData` is a single key holding all 64 games, so every game's save rewrites the whole
+blob. When the origin fills up, **no game can save anything**, and each one fails for reasons
+that have nothing to do with it. Three rules for any game in here:
+
+1. **Retry by dropping what you can regenerate.** A refused write should give up its own
+   autosave/scratch data — other players' first — and try again, before it tells the child no.
+   What the child explicitly named and saved is never dropped to make room.
+2. **Say which failure it is, with the number.** A quota failure on a nearly-empty origin is
+   private browsing, not a full disk, and the two need different sentences. Count sizes in
+   CHARACTERS: browsers quote the limit that way ("5 MB" ≈ 5 million characters), so halving to
+   UTF-16 bytes prints 10 MB against a 5 MB limit.
+3. **Probe at boot.** A browser that will not store anything should say so before an hour of
+   work, not after.
+The hub's ⚙ panel now shows total usage plus a size per game, because "clear an old game to make
+room" is only actionable if you can see which one is big. Domino Rally implements all of this in
+`games/dominoes/js/storage.js`; the other games still swallow their write errors.
+
 ## 2026-08-23 — A save path must never swallow a write failure
 Reported by the child on Domino Rally: "save and load doesn't persist between browser
 refreshes." Every arcade game writes to the one shared `calebArcadeData` key, and this class of

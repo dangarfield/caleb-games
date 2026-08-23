@@ -166,7 +166,7 @@ carried on" are different claims, and Loop the Loop passed the first for a long 
 the second — the ball orbited to within 0.0 mm of the wanted radius and came out 56 mm to the side
 of the child's line.
 
-Last full sweep, all green: `dfix` 30/30, `dtricks` 33/33, `dsave` 13/13, `drot` 48 passed /
+Last full sweep, all green: `dfix` 30/30, `dtricks` 33/33, `dsave` 21/21, `drot` 48 passed /
 0 failed, `dmove` 24/24, `dlock`
 clean at 768×1024 / 1024×768 / 1024×600 / 430×800 —
 **headless desktop Chrome under swiftshader software rasterisation at `?q=low`. The target
@@ -424,6 +424,32 @@ fixed at 1/60 s, so they are device-independent) and the wall-clock ones as mean
   `frustumCulled = false`. A full 500-domino table with items on it measures 3 draw calls.
 
 ## Memory
+
+- **"The browser refused to store it" — and it was telling the truth.** The verification added
+  above started firing for real, which turned the vague first report into a measurable one: the
+  write was being refused, not lost. The cause is arcade-wide arithmetic, not a dominoes bug.
+  localStorage is ONE quota (~5 MB of characters) for the whole origin, `calebArcadeData` is one
+  key holding all 64 games, and every dominoes save rewrites that whole blob — so when the origin
+  is at its limit, nothing this game does can save, including a creation the child just built.
+  Three changes. **(1) A prune ladder.** A refused write is retried after dropping data the game
+  can regenerate — the *other* player's autosaved table first, then this player's — and a named
+  creation is never dropped to make room, because that is the child's work. Measured: at a cap set
+  300 characters above the current blob, a named save that could not fit lands after one rung, and
+  the creation list is untouched. **(2) Numbers instead of a shrug.** 'full' and 'off' are now
+  told apart (a quota failure with a nearly-empty origin is private browsing, not a full disk) and
+  the message names the real figure: *"Storage is full — all the games together have used 5.0 MB
+  (this one: 2 KB). Tap ⚙ on the Games page to clear an old game."* Sizes are counted in
+  CHARACTERS, because that is the unit the browser quotes its own 5 MB limit in — halving them to
+  UTF-16 bytes would print 10 MB against a 5 MB limit and read like a bug in the message. **(3)
+  Said at boot, not after an hour.** `storage.probe()` runs on load, so a browser that cannot
+  store anything says so before the child builds. The Saves panel also carries a permanent usage
+  line, which is what makes the next report answerable without a console. `research/dsave.cjs`
+  covers all of it at 21 checks, including a genuinely full origin (junk keys at three
+  granularities until the browser says no) and the second save after that, which has nothing left
+  to prune and so must produce the message rather than a chime.
+- **The arcade hub's ⚙ panel now sizes every game.** It is where the message sends you, and
+  "clear an old game to make room" is not actionable without seeing which one is big. Total across
+  all keys at the top, a size tag per game.
 
 - **A save did not survive a browser refresh** (reported by the child). Not reproducible here:
   every flow round-trips — clean profile, boot without `?q=low`, save → GO → refresh, Load after

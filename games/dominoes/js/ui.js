@@ -28,7 +28,7 @@ function cache() {
     'mnResume', 'mnNew', 'mnChal', 'mnAchv', 'mnSaves', 'mnHelp', 'mnSet', 'mnSwitch',
     'mnUnlock',                       // DEBUG: unlock all — see index.html #scMenu
     'scAchv', 'achvTitle', 'achvList', 'scChal', 'chalList',
-    'scSaves', 'saveName', 'btnSave', 'saveNote', 'saveList',
+    'scSaves', 'saveName', 'btnSave', 'saveNote', 'saveList', 'saveUsage',
     'scStyle', 'colourRow', 'spacingRow', 'spacingNote', 'skinRow', 'tableRow', 'surfRow',
     'scSet', 'setQuality', 'btnQuality', 'btnPerf', 'btnSound', 'setAbout',
     'scHelp', 'scResult', 'resTitle', 'resLine', 'resExtra', 'resBuild', 'resAgain'];
@@ -526,6 +526,10 @@ export function renderSaves() {
   el.saveNote.textContent = pendingHint || (names.length + ' of ' + s.slots + ' slots used' +
     (names.length >= s.slots ? ' — saving now replaces the oldest name you type over.' : ''));
   pendingHint = '';
+  // Small, permanent, and the reason a "it would not save" report is answerable next time:
+  // the one shared localStorage quota is 64 games wide, so the interesting number is not
+  // ours, it is the total.
+  if (el.saveUsage) el.saveUsage.textContent = api.storageText();
   el.saveList.innerHTML = '';
   if (!names.length) {
     el.saveList.innerHTML = '<p class="note">Nothing saved yet. Build something and give it a name.</p>';

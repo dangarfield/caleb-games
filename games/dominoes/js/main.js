@@ -103,6 +103,14 @@ const api = {
     };
   },
   summary: (id) => storage.playerSummary(id),
+  // The Saves panel shows this. A child does not care, but it is the one number that makes
+  // "it would not save" diagnosable without a console — and it is measured, not guessed.
+  storageText: () => {
+    const u = storage.usage();
+    if (!u) return 'This browser will not let the game save anything.';
+    return 'Storage: ' + fmtKB(u.mine) + ' for Domino Rally, ' + fmtKB(u.total) +
+      ' for all the games together' + (storage.prunedToFit() ? ' (room was tight)' : '');
+  },
   qualityText,
   aboutText,
   onPickPlayer: pickPlayer,
@@ -177,6 +185,16 @@ function bootUp() {
   ui.init(api);
   ui.boot('Setting up the table…');
   audio.setMuted(!!storage.readSetting('muted', false));
+
+  // Say it UP FRONT if this browser will not store anything. Finding out after an hour of
+  // building is the worst possible moment, and it is the moment the game used to pick.
+  const storeState = storage.probe();
+  if (storeState !== 'ok') {
+    warnedNoStorage = true;
+    setTimeout(() => ui.toast('triangle-alert',
+      storeState === 'full' ? 'The browser’s storage is full' : 'This browser cannot save',
+      storageWhy(storeState), true), 1400);
+  }
 
   window.addEventListener('resize', onResize);
   window.addEventListener('orientationchange', () => setTimeout(onResize, 140));
@@ -510,9 +528,31 @@ function persistNow() {
   // mystery rather than a message.
   if (!storage.savePlayer(playerId, save) && !warnedNoStorage) {
     warnedNoStorage = true;
-    ui.toast('triangle-alert', 'This browser is not keeping your table',
-      'Storage may be full, or private browsing is on', true);
+    ui.toast('triangle-alert', 'This browser is not keeping your table', storageWhy(), true);
   }
+}
+
+/**
+ * WHY a write was refused, in one line, with the number that makes it actionable. "The
+ * browser refused" is not a fix a child (or a parent) can act on; "the games have used
+ * 4.9 MB" points straight at the ⚙ panel on the Games page, which is where space is
+ * freed. Two completely different sentences, because a full quota and a browser with
+ * storage switched off need different things done to them.
+ */
+function storageWhy(kind) {
+  const u = storage.usage();
+  if ((kind || storage.failKind()) === 'full' && u) {
+    return 'Storage is full — all the games together have used ' + fmtKB(u.total) +
+      ' (this one: ' + fmtKB(u.mine) + '). Tap ⚙ on the Games page to clear an old game.';
+  }
+  return 'This browser will not save anything — private browsing may be on.';
+}
+// Counted in CHARACTERS, not bytes, because that is the unit the browser's own limit is
+// quoted in: "5 MB" of localStorage is ~5 million characters. Halving it to "real" UTF-16
+// bytes would print 10 MB against a 5 MB limit and read like a bug in the message.
+function fmtKB(chars) {
+  const kb = chars / 1024;
+  return kb >= 1024 ? (kb / 1024).toFixed(1) + ' MB' : Math.round(kb) + ' KB';
 }
 
 // ==========================================================================
@@ -534,10 +574,8 @@ function saveCreation(name) {
   if (!storage.savePlayer(playerId, save)) {
     if (had) save.creations[name] = prev; else delete save.creations[name];
     save.stats.saveCount -= 1;
-    ui.setSaveHint('This browser would not let the game save. Its storage may be full, ' +
-      'or private browsing is on.');
-    ui.toast('triangle-alert', 'Could not save “' + name + '”',
-      'The browser refused to store it', true);
+    ui.setSaveHint(storageWhy());
+    ui.toast('triangle-alert', 'Could not save “' + name + '”', storageWhy(), true);
     return;
   }
   audio.chime(880);

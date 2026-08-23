@@ -1308,10 +1308,33 @@
       'rps-custom-sets': 'RPS — Custom Icon Sets',
       'cameraIndex': 'Camera Index',
     };
+    // localStorage is ONE quota (~5 MB of UTF-16 characters) for the whole site, shared by
+    // every game, and when it fills up NOTHING can save — Domino Rally reported exactly that.
+    // So this panel shows what each game is using: without the sizes, "clear an old game to
+    // make room" is advice you cannot act on.
+    // In CHARACTERS, the unit the browser quotes its own limit in: "5 MB" of localStorage is
+    // ~5 million characters, so counting characters is what makes this comparable to it.
+    function fmtSize(chars) {
+      var kb = chars / 1024;
+      return kb >= 1024 ? (kb / 1024).toFixed(1) + ' MB' : Math.max(1, Math.round(kb)) + ' KB';
+    }
+    function sizeTag(chars) {
+      return '<span style="margin-left:8px;font-size:0.7rem;color:rgba(255,255,255,0.4);">' +
+        fmtSize(chars) + '</span>';
+    }
     function renderSettings() {
       var content = document.getElementById('settingsContent');
       if (localStorage.length === 0) { content.innerHTML = '<div class="no-data">No saved data found.</div>'; return; }
-      var html = '';
+      var used = 0;
+      for (var u = 0; u < localStorage.length; u++) {
+        var uk = localStorage.key(u);
+        used += uk.length + (localStorage.getItem(uk) || '').length;
+      }
+      var html = '<div style="margin-bottom:10px;padding:8px 10px;border-radius:8px;' +
+        'background:rgba(108,92,231,0.18);font-size:0.8rem;color:rgba(255,255,255,0.75);">' +
+        'All games are using <b>' + fmtSize(used) + '</b> of about 5 MB — the browser\'s limit ' +
+        'for the whole arcade. When it is full, no game can save; clear one below to make room.' +
+        '</div>';
       // Collect all keys sorted, with calebArcadeData first
       var allKeys = [];
       for (var i = 0; i < localStorage.length; i++) allKeys.push(localStorage.key(i));
@@ -1336,6 +1359,7 @@
             html += '<div class="data-section" id="' + subId + '">';
             html += '<div class="data-section-header" onclick="document.getElementById(\'' + subId + '\').classList.toggle(\'expanded\')">';
             html += '<span class="data-section-title">' + escHtml(sk) + '</span>';
+            html += sizeTag(JSON.stringify(val[sk] === undefined ? null : val[sk]).length);
             html += '<div class="data-section-actions">';
             html += '<button class="data-clear-btn" onclick="event.stopPropagation();confirmClearSubKey(\'' + escHtml(sk).replace(/'/g,"\\'") + '\', this)">Clear</button>';
             html += '</div></div>';
@@ -1347,6 +1371,7 @@
           html += '<div class="data-section-header" onclick="toggleSection(\'' + safeId + '\')">';
           html += '<span class="data-section-title">' + escHtml(label) + '</span>';
           html += '<span style="margin-left:8px;font-size:0.7rem;color:rgba(255,255,255,0.3);">' + escHtml(key) + '</span>';
+          html += sizeTag(key.length + (raw || '').length);
           html += '<div class="data-section-actions">';
           html += '<button class="data-clear-btn" onclick="event.stopPropagation();confirmClearKey(\'' + safeKey + '\', this)">Clear</button>';
           html += '</div></div>';
