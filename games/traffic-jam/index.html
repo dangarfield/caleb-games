@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<title>Traffic Jam - Garfield Boys' Arcade</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body { width:100%; height:100%; }
+body { background:linear-gradient(180deg,#0a0a2e 0%,#141452 55%,#1a1a6e 100%);
+  overflow:hidden; touch-action:none; font-family:'Segoe UI',system-ui,sans-serif; }
+canvas { display:block; width:100%; height:100%; }
+.hidden { display:none !important; }
+
+#backBtn { position:fixed; top:12px; left:12px; z-index:9999;
+  background:rgba(0,0,0,0.55); color:#fff; text-decoration:none;
+  padding:6px 18px; border-radius:20px;
+  font:bold 15px/1.4 'Segoe UI',system-ui,sans-serif;
+  border:1px solid rgba(255,255,255,0.18);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  transition:background 0.2s; }
+#backBtn:hover { background:rgba(0,0,0,0.75); }
+
+.overlay { position:fixed; inset:0; z-index:20; display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  background:rgba(4,4,24,0.82); color:#fff; text-align:center; padding:1rem; }
+.overlay h1 { font-size:clamp(2rem,8vw,3.6rem); margin-bottom:0.4rem;
+  text-shadow:0 0 24px rgba(108,92,231,0.7); }
+.overlay .sub { font-size:clamp(1rem,3vw,1.4rem); color:#a0c4ff; margin-bottom:1.2rem; }
+.overlay .info { font-size:clamp(0.85rem,2.5vw,1.05rem); color:rgba(255,255,255,0.72);
+  margin-bottom:1.6rem; max-width:480px; line-height:1.5; }
+.btn { padding:14px 40px; font-size:1.25rem; border:none; border-radius:12px;
+  background:linear-gradient(135deg,#6c5ce7,#a29bfe); color:#fff; cursor:pointer;
+  font-weight:700; box-shadow:0 4px 20px rgba(108,92,231,0.4); transition:transform 0.15s; margin:6px; }
+.btn:hover { transform:scale(1.05); } .btn:active { transform:scale(0.95); }
+.btn.secondary { background:linear-gradient(135deg,#2d2a72,#4a3fa0); box-shadow:none; font-size:1.05rem; padding:11px 26px; }
+
+.players { display:flex; gap:16px; margin-bottom:1.4rem; }
+.pcard { padding:18px 30px; border-radius:16px; cursor:pointer; font-size:1.3rem; font-weight:700;
+  border:2px solid rgba(255,255,255,0.18); background:rgba(255,255,255,0.06); transition:transform .15s,border-color .15s; }
+.pcard:hover { transform:scale(1.05); border-color:#a29bfe; }
+.pcard .em { font-size:2.4rem; display:block; margin-bottom:6px; }
+
+#levelSelect { position:fixed; inset:0; z-index:25; background:rgba(4,4,24,0.94); color:#fff;
+  display:flex; flex-direction:column; align-items:center; padding:64px 16px 24px; overflow-y:auto; }
+#levelSelect h2 { font-size:clamp(1.4rem,5vw,2rem); margin-bottom:1.2rem; }
+.lvgrid { display:grid; grid-template-columns:repeat(4,minmax(64px,1fr)); gap:14px; width:100%; max-width:420px; }
+.lvtile { aspect-ratio:1; border-radius:14px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  font-size:1.5rem; font-weight:800; cursor:pointer; border:2px solid rgba(255,255,255,0.15);
+  background:linear-gradient(145deg,#2d2a72,#4a3fa0); transition:transform .12s; }
+.lvtile:hover { transform:scale(1.06); }
+.lvtile.solved { background:linear-gradient(145deg,#1b8f5a,#2ecc71); border-color:#2ecc71; }
+.lvtile .star { font-size:0.85rem; margin-top:2px; color:#ffd32a; }
+.lvtile.locked { opacity:0.4; pointer-events:none; }
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+<canvas id="c"></canvas>
+
+<div id="overlay" class="overlay">
+  <h1>Traffic Jam</h1>
+  <div class="sub">Get the red car out!</div>
+  <div class="info">Slide the cars and trucks out of the way, then slide the <b>red car</b> off the road through the gap on the right. Cars only move in the direction they point. Drag a car to move it.</div>
+  <div class="players" id="playerCards"></div>
+  <div class="sub" style="font-size:1rem;margin:0;">Choose a player to start</div>
+</div>
+
+<div id="levelSelect" class="hidden">
+  <h2 id="lsTitle">Pick a Level</h2>
+  <div class="lvgrid" id="lvgrid"></div>
+  <button class="btn secondary" id="lsSwitch" style="margin-top:22px;">Switch Player</button>
+</div>
+
+<script>
+// ---------- Canvas ----------
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, DPR;
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W * DPR; canvas.height = H * DPR;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  computeLayout();
+}
+window.addEventListener('resize', resize);
+
+// ---------- Audio ----------
+let audioCtx = null;
+function ensureAudio(){ if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+  if(audioCtx.state==='suspended') audioCtx.resume(); return audioCtx; }
+function playTone(freq,duration,type,vol,endFreq){ const c=ensureAudio();
+  const o=c.createOscillator(),g=c.createGain(); o.type=type||'sine';
+  o.frequency.setValueAtTime(freq,c.currentTime);
+  if(endFreq) o.frequency.exponentialRampToValueAtTime(Math.max(endFreq,20),c.currentTime+duration);
+  g.gain.setValueAtTime(vol||0.1,c.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+duration);
+  o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime+duration); }
+function sfxSlide(){ playTone(220,0.09,'sine',0.06,320); }
+function sfxBump(){ playTone(150,0.10,'square',0.05,90); }
+function sfxWin(){ [523,659,784,1046].forEach((f,i)=>setTimeout(()=>playTone(f,0.22,'triangle',0.10),i*130)); }
+function sfxSelect(){ playTone(660,0.08,'sine',0.06,880); }
+
+// ---------- Persistence ----------
+function loadArcadeData(){ try { return JSON.parse(localStorage.getItem('calebArcadeData'))||{}; } catch(e){ return {}; } }
+function saveArcadeData(d){ localStorage.setItem('calebArcadeData', JSON.stringify(d)); }
+function getGameData(){ const d=loadArcadeData(); d.trafficJam=d.trafficJam||{}; return d; }
+function playerRec(){ const d=getGameData(); d.trafficJam[player]=d.trafficJam[player]||{best:{}}; return d; }
+function saveBest(levelIdx,moves){ const d=playerRec(); const b=d.trafficJam[player].best;
+  if(b[levelIdx]==null || moves<b[levelIdx]) b[levelIdx]=moves; saveArcadeData(d); }
+function getBest(levelIdx){ const d=playerRec(); return d.trafficJam[player].best[levelIdx]; }
+
+// ---------- Level data (embedded, all verified solvable) ----------
+// vehicle = [id, orient 'h'/'v', len, row, col]  (row,col = top-left cell)
+const N = 6, EXIT_ROW = 2;
+const LEVELS = [{"v": [["X", "h", 2, 2, 0], ["A", "h", 2, 4, 0], ["B", "h", 2, 0, 3], ["C", "h", 3, 5, 0], ["D", "h", 2, 3, 1], ["E", "v", 2, 4, 5], ["F", "v", 2, 1, 5]], "min": 2}, {"v": [["X", "h", 2, 2, 0], ["A", "v", 3, 3, 2], ["B", "v", 2, 4, 0], ["C", "v", 2, 3, 3], ["D", "h", 3, 0, 2], ["E", "v", 3, 2, 4]], "min": 2}, {"v": [["X", "h", 2, 2, 1], ["A", "v", 2, 0, 3], ["B", "v", 2, 1, 0], ["C", "h", 3, 3, 1], ["D", "v", 2, 4, 2], ["E", "v", 2, 1, 4], ["F", "v", 3, 0, 5], ["G", "v", 2, 4, 4]], "min": 3}, {"v": [["X", "h", 2, 2, 0], ["A", "h", 2, 1, 0], ["B", "v", 2, 2, 2], ["C", "h", 2, 5, 2], ["D", "v", 2, 0, 5], ["E", "v", 2, 3, 1], ["F", "v", 3, 1, 4], ["G", "v", 2, 0, 3]], "min": 3}, {"v": [["X", "h", 2, 2, 2], ["A", "v", 2, 2, 5], ["B", "h", 2, 5, 4], ["C", "v", 3, 1, 4], ["D", "h", 3, 4, 1], ["E", "h", 2, 0, 1], ["F", "v", 2, 0, 3]], "min": 4}, {"v": [["X", "h", 2, 2, 1], ["A", "h", 2, 5, 1], ["B", "v", 3, 2, 4], ["C", "h", 3, 1, 3], ["D", "h", 2, 4, 2], ["E", "h", 2, 5, 4], ["F", "h", 2, 1, 1]], "min": 4}, {"v": [["X", "h", 2, 2, 2], ["A", "h", 2, 4, 3], ["B", "v", 3, 0, 4], ["C", "v", 2, 1, 5], ["D", "h", 2, 4, 0], ["E", "h", 2, 3, 4]], "min": 5}, {"v": [["X", "h", 2, 2, 0], ["A", "h", 3, 5, 2], ["B", "v", 3, 0, 3], ["C", "h", 2, 3, 3], ["D", "h", 2, 1, 1], ["E", "h", 2, 0, 0], ["F", "v", 2, 1, 4]], "min": 5}, {"v": [["X", "h", 2, 2, 2], ["A", "h", 2, 3, 3], ["B", "h", 2, 4, 1], ["C", "h", 2, 2, 0], ["D", "h", 2, 1, 0], ["E", "h", 2, 4, 3], ["F", "v", 3, 0, 4], ["G", "v", 2, 2, 5]], "min": 6}, {"v": [["X", "h", 2, 2, 0], ["A", "h", 2, 4, 3], ["B", "v", 3, 0, 3], ["C", "v", 3, 0, 4], ["D", "v", 2, 3, 2], ["E", "h", 2, 5, 3], ["F", "h", 2, 0, 1], ["G", "h", 3, 1, 0]], "min": 7}, {"v": [["X", "h", 2, 2, 1], ["A", "h", 2, 0, 2], ["B", "h", 2, 5, 2], ["C", "v", 3, 2, 0], ["D", "v", 2, 2, 3], ["E", "v", 3, 0, 4], ["F", "h", 3, 4, 2], ["G", "v", 2, 4, 1], ["H", "v", 2, 0, 1]], "min": 8}, {"v": [["X", "h", 2, 2, 2], ["A", "v", 2, 2, 5], ["B", "h", 2, 0, 0], ["C", "h", 2, 2, 0], ["D", "v", 2, 4, 2], ["E", "v", 3, 1, 4], ["F", "h", 3, 3, 1], ["G", "h", 2, 5, 3], ["H", "v", 2, 4, 5]], "min": 9}];
+
+// ---------- Colours for vehicles ----------
+const CAR_COLORS = ['#ffd32a','#26de81','#4b7bec','#fd9644','#a55eea','#2bcbba','#fc5c65','#778ca3','#eb3b5a','#20bf6b','#0fb9b1'];
+function colorFor(id){ if(id==='X') return null; const idx=id.charCodeAt(0)-65; return CAR_COLORS[idx%CAR_COLORS.length]; }
+
+// ---------- Game state ----------
+let player=null;
+let levelIdx=0;
+let vehicles=[];    // live copies {id,orient,len,r,c}
+let moveCount=0;
+let undoStack=[];
+let gameState='menu'; // menu | select | play | won
+let winAnim=0, confetti=[];
+
+// layout
+let cell, boardX, boardY, boardPx;
+function computeLayout(){
+  const pad = 24;
+  const topReserve = 96;   // HUD
+  const botReserve = 84;   // buttons
+  const availW = W - pad*2;
+  const availH = H - topReserve - botReserve;
+  boardPx = Math.min(availW, availH);
+  boardPx = Math.max(180, boardPx);
+  cell = boardPx / N;
+  boardX = (W - boardPx)/2;
+  boardY = topReserve + (availH - boardPx)/2;
+}
+
+// ---------- Model helpers ----------
+function cellsOf(v){ const out=[]; for(let i=0;i<v.len;i++){ if(v.orient==='h') out.push([v.r,v.c+i]); else out.push([v.r+i,v.c]); } return out; }
+function buildOcc(list,ignoreId){ const occ={}; for(const v of list){ if(v.id===ignoreId) continue; for(const [r,c] of cellsOf(v)) occ[r+','+c]=v.id; } return occ; }
+function cloneVehicles(list){ return list.map(v=>({id:v.id,orient:v.orient,len:v.len,r:v.r,c:v.c})); }
+function isWin(list){ const x=list.find(v=>v.id==='X'); return x.c + x.len - 1 === N-1; }
+
+function loadLevel(idx){
+  levelIdx=idx;
+  vehicles = LEVELS[idx].v.map(a=>({id:a[0],orient:a[1],len:a[2],r:a[3],c:a[4]}));
+  moveCount=0; undoStack=[]; gameState='play'; winAnim=0; confetti=[];
+  selected=null; hintCells=null;
+  document.getElementById('overlay').classList.add('hidden');
+  document.getElementById('levelSelect').classList.add('hidden');
+}
+
+// ---------- Solver (BFS) for hints ----------
+function stateKey(list){ return list.map(v=>v.id+v.r+','+v.c).sort().join('|'); }
+function neighborsOf(list){
+  const occ = buildOcc(list);
+  const res=[];
+  for(let idx=0; idx<list.length; idx++){
+    const v=list[idx];
+    if(v.orient==='h'){
+      for(let c=v.c-1;c>=0 && !occ[v.r+','+c]; c--){ const nv={...v,c}; res.push([idx,nv]); }
+      for(let c=v.c+v.len;c<N && !occ[v.r+','+c]; c++){ const nv={...v,c:c-v.len+1}; res.push([idx,nv]); }
+    } else {
+      for(let r=v.r-1;r>=0 && !occ[r+','+v.c]; r--){ const nv={...v,r}; res.push([idx,nv]); }
+      for(let r=v.r+v.len;r<N && !occ[r+','+v.c]; r++){ const nv={...v,r:r-v.len+1}; res.push([idx,nv]); }
+    }
+  }
+  return res;
+}
+function solveFrom(list){
+  const start=stateKey(list);
+  const seen={}; seen[start]=null;
+  const q=[cloneVehicles(list)];
+  let head=0;
+  while(head<q.length){
+    const cur=q[head++];
+    if(isWin(cur)){
+      // reconstruct first move
+      let k=stateKey(cur); const path=[];
+      while(seen[k]){ path.push(seen[k].mv); k=seen[k].prev; }
+      path.reverse(); return path;
+    }
+    const ck=stateKey(cur);
+    for(const [idx,nv] of neighborsOf(cur)){
+      const ncur=cloneVehicles(cur); ncur[idx]=nv;
+      const k=stateKey(ncur);
+      if(!(k in seen)){ seen[k]={prev:ck, mv:{id:nv.id,r:nv.r,c:nv.c}}; q.push(ncur); }
+    }
+    if(q.length>60000) break;
+  }
+  return null;
+}
+let hintCells=null;
+function doHint(){
+  if(gameState!=='play') return;
+  const sol = solveFrom(vehicles);
+  if(!sol || sol.length===0) return;
+  const mv=sol[0];
+  const v=vehicles.find(x=>x.id===mv.id);
+  // highlight the target cells the vehicle should move to
+  const target={...v,r:mv.r,c:mv.c};
+  hintCells = cellsOf(target);
+  hintId = mv.id;
+  hintExpire = performance.now()+1600;
+  sfxSelect();
+}
+let hintId=null, hintExpire=0;
+
+// ---------- Interaction ----------
+let selected=null;      // vehicle being dragged
+let dragStart=null;     // {x,y, r0,c0}
+let pointerId=null;
+
+function cellAt(px,py){
+  const c=Math.floor((px-boardX)/cell), r=Math.floor((py-boardY)/cell);
+  return [r,c];
+}
+function vehicleAt(px,py){
+  const [r,c]=cellAt(px,py);
+  for(const v of vehicles){ for(const [vr,vc] of cellsOf(v)){ if(vr===r && vc===c) return v; } }
+  return null;
+}
+function maxSlide(v,dir){
+  // dir: for h, -1 left / +1 right ; for v, -1 up / +1 down. returns max cells can move
+  const occ=buildOcc(vehicles,v.id);
+  let steps=0;
+  if(v.orient==='h'){
+    if(dir<0){ let c=v.c-1; while(c>=0 && !occ[v.r+','+c]){ steps++; c--; } }
+    else { let c=v.c+v.len; while(c<N && !occ[v.r+','+c]){ steps++; c++; } }
+  } else {
+    if(dir<0){ let r=v.r-1; while(r>=0 && !occ[r+','+v.c]){ steps++; r--; } }
+    else { let r=v.r+v.len; while(r<N && !occ[r+','+v.c]){ steps++; r++; } }
+  }
+  return steps;
+}
+
+function onDown(px,py,pid){
+  if(gameState==='won'){ return; }
+  if(gameState!=='play') return;
+  const v=vehicleAt(px,py);
+  if(v){ selected=v; pointerId=pid; dragStart={x:px,y:py,r0:v.r,c0:v.c}; hintCells=null; }
+}
+function onMove(px,py){
+  if(!selected || gameState!=='play') return;
+  const v=selected;
+  if(v.orient==='h'){
+    const deltaCells=Math.round((px-dragStart.x)/cell);
+    const lo=-maxSlide(v,-1), hi=maxSlide(v,1);
+    let nc=dragStart.c0+Math.max(lo,Math.min(hi,deltaCells));
+    if(nc!==v.c){ v.c=nc; }
+  } else {
+    const deltaCells=Math.round((py-dragStart.y)/cell);
+    const lo=-maxSlide(v,-1), hi=maxSlide(v,1);
+    let nr=dragStart.r0+Math.max(lo,Math.min(hi,deltaCells));
+    if(nr!==v.r){ v.r=nr; }
+  }
+}
+function onUp(){
+  if(!selected) return;
+  const v=selected;
+  const moved = (v.r!==dragStart.r0 || v.c!==dragStart.c0);
+  if(moved){
+    undoStack.push({id:v.id, r:dragStart.r0, c:dragStart.c0});
+    moveCount++;
+    sfxSlide();
+    if(isWin(vehicles)) triggerWin();
+  }
+  selected=null; pointerId=null; dragStart=null;
+}
+function undo(){
+  if(gameState!=='play' || undoStack.length===0) return;
+  const last=undoStack.pop();
+  const v=vehicles.find(x=>x.id===last.id);
+  v.r=last.r; v.c=last.c; moveCount++; sfxBump();
+  hintCells=null;
+}
+function resetLevel(){ if(gameState==='play'||gameState==='won'){ loadLevel(levelIdx); } }
+
+function triggerWin(){
+  gameState='won'; winAnim=0; sfxWin();
+  saveBest(levelIdx, moveCount);
+  confetti=[];
+  for(let i=0;i<120;i++){ confetti.push({x:Math.random()*W,y:-20-Math.random()*H*0.5,
+    vx:(Math.random()-0.5)*3, vy:2+Math.random()*4, s:4+Math.random()*6,
+    col:CAR_COLORS[(Math.random()*CAR_COLORS.length)|0], rot:Math.random()*6.28, vr:(Math.random()-0.5)*0.3}); }
+}
+
+// ---------- Pointer events ----------
+canvas.addEventListener('pointerdown', e=>{ e.preventDefault(); ensureAudio();
+  if(gameState==='won'){ handleWonTap(e.clientX,e.clientY); return; }
+  onDown(e.clientX,e.clientY,e.pointerId); onButtons(e.clientX,e.clientY); }, {passive:false});
+canvas.addEventListener('pointermove', e=>{ e.preventDefault(); onMove(e.clientX,e.clientY); }, {passive:false});
+canvas.addEventListener('pointerup', e=>{ e.preventDefault(); onUp(); }, {passive:false});
+canvas.addEventListener('pointercancel', e=>{ onUp(); });
+
+// keyboard fallback
+let kbSel=0;
+window.addEventListener('keydown', e=>{
+  if(gameState!=='play') return;
+  const movable=vehicles;
+  if(e.key==='Tab'){ e.preventDefault(); kbSel=(kbSel+1)%movable.length; selected=movable[kbSel]; hintCells=null; }
+  const v=movable[kbSel]; if(!v) return;
+  let did=false;
+  if(v.orient==='h'){
+    if(e.key==='ArrowLeft' && maxSlide(v,-1)>0){ const o={r:v.r,c:v.c}; v.c--; undoStack.push({id:v.id,...o}); did=true; }
+    if(e.key==='ArrowRight'&& maxSlide(v,1)>0){ const o={r:v.r,c:v.c}; v.c++; undoStack.push({id:v.id,...o}); did=true; }
+  } else {
+    if(e.key==='ArrowUp'  && maxSlide(v,-1)>0){ const o={r:v.r,c:v.c}; v.r--; undoStack.push({id:v.id,...o}); did=true; }
+    if(e.key==='ArrowDown'&& maxSlide(v,1)>0){ const o={r:v.r,c:v.c}; v.r++; undoStack.push({id:v.id,...o}); did=true; }
+  }
+  if(did){ moveCount++; sfxSlide(); if(isWin(vehicles)) triggerWin(); }
+});
+
+// ---------- On-screen buttons (canvas-drawn, hit-tested) ----------
+let buttons=[]; // {x,y,w,h,label,fn}
+function layoutButtons(){
+  const by=boardY+boardPx+18; const bw=Math.min(120,(W-72)/3); const bh=48; const gap=12;
+  const totalW=bw*3+gap*2; let bx=(W-totalW)/2;
+  buttons=[
+    {x:bx,y:by,w:bw,h:bh,label:'↶ Undo',fn:undo},
+    {x:bx+bw+gap,y:by,w:bw,h:bh,label:'⟳ Reset',fn:resetLevel},
+    {x:bx+2*(bw+gap),y:by,w:bw,h:bh,label:'💡 Hint',fn:doHint},
+  ];
+}
+function onButtons(px,py){
+  for(const b of buttons){ if(px>=b.x&&px<=b.x+b.w&&py>=b.y&&py<=b.y+b.h){ b.fn(); return true; } }
+  // level pill tap -> level select
+  if(py<64 && px>W/2-90 && px<W/2+90){ openLevelSelect(); return true; }
+  return false;
+}
+
+// ---------- Won screen taps ----------
+let wonButtons=[];
+function handleWonTap(px,py){
+  for(const b of wonButtons){ if(px>=b.x&&px<=b.x+b.w&&py>=b.y&&py<=b.y+b.h){ b.fn(); return; } }
+}
+
+// ---------- Drawing ----------
+function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+function drawBoard(){
+  // board frame
+  ctx.save();
+  const pad=8;
+  ctx.fillStyle='rgba(0,0,0,0.35)';
+  roundRect(boardX-pad,boardY-pad,boardPx+pad*2,boardPx+pad*2,18); ctx.fill();
+  // grid background
+  ctx.fillStyle='#12123a'; roundRect(boardX,boardY,boardPx,boardPx,10); ctx.fill();
+  // grid lines
+  ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=1;
+  for(let i=1;i<N;i++){ ctx.beginPath(); ctx.moveTo(boardX+i*cell,boardY); ctx.lineTo(boardX+i*cell,boardY+boardPx); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(boardX,boardY+i*cell); ctx.lineTo(boardX+boardPx,boardY+i*cell); ctx.stroke(); }
+  // exit gate on right wall at EXIT_ROW
+  const gy=boardY+EXIT_ROW*cell;
+  ctx.fillStyle='rgba(38,222,129,0.28)';
+  ctx.fillRect(boardX+boardPx-2, gy, 12, cell);
+  ctx.fillStyle='#26de81'; ctx.font='bold '+(cell*0.5)+'px Segoe UI';
+  ctx.textAlign='left'; ctx.textBaseline='middle';
+  ctx.fillText('→', boardX+boardPx+8, gy+cell/2);
+
+  // hint highlight
+  if(hintCells && performance.now()<hintExpire){
+    const puls=0.35+0.25*Math.sin(performance.now()/150);
+    ctx.fillStyle='rgba(255,211,42,'+puls+')';
+    for(const [r,c] of hintCells){ roundRect(boardX+c*cell+4,boardY+r*cell+4,cell-8,cell-8,8); ctx.fill(); }
+  } else if(hintCells){ hintCells=null; }
+
+  // vehicles
+  for(const v of vehicles){ drawVehicle(v); }
+  ctx.restore();
+}
+function drawVehicle(v){
+  const x=boardX+v.c*cell, y=boardY+v.r*cell;
+  const w=(v.orient==='h'?v.len:1)*cell, h=(v.orient==='v'?v.len:1)*cell;
+  const m=cell*0.10;
+  const isRed=(v.id==='X');
+  const col=isRed?'#fc5c65':colorFor(v.id);
+  // shadow
+  ctx.fillStyle='rgba(0,0,0,0.3)'; roundRect(x+m+2,y+m+3,w-2*m,h-2*m,cell*0.22); ctx.fill();
+  // body
+  const grad=isRed?ctx.createLinearGradient(x,y,x+w,y+h):null;
+  if(isRed){ grad.addColorStop(0,'#ff6b6b'); grad.addColorStop(1,'#e0202f'); ctx.fillStyle=grad; }
+  else ctx.fillStyle=col;
+  roundRect(x+m,y+m,w-2*m,h-2*m,cell*0.22); ctx.fill();
+  // highlight stripe
+  ctx.fillStyle='rgba(255,255,255,0.22)';
+  if(v.orient==='h') roundRect(x+m+cell*0.12,y+m+cell*0.12,w-2*m-cell*0.24,(h-2*m)*0.28,cell*0.1);
+  else roundRect(x+m+cell*0.12,y+m+cell*0.12,(w-2*m)*0.28,h-2*m-cell*0.24,cell*0.1);
+  ctx.fill();
+  // windows (little cabin marks)
+  ctx.fillStyle='rgba(20,20,50,0.55)';
+  if(v.orient==='h'){ for(let i=0;i<v.len;i++){ const cx=x+i*cell+cell*0.5; roundRect(cx-cell*0.16,y+h*0.42,cell*0.32,h*0.34,4); ctx.fill(); } }
+  else { for(let i=0;i<v.len;i++){ const cy=y+i*cell+cell*0.5; roundRect(x+w*0.42,cy-cell*0.16,w*0.34,cell*0.32,4); ctx.fill(); } }
+  if(isRed){ ctx.fillStyle='#fff'; ctx.font='bold '+(cell*0.42)+'px Segoe UI'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('★', x+cell*0.5, y+h*0.5); }
+  // selected outline
+  if(selected && selected.id===v.id){ ctx.strokeStyle='#fff'; ctx.lineWidth=3; roundRect(x+m,y+m,w-2*m,h-2*m,cell*0.22); ctx.stroke(); }
+}
+
+function drawHUD(){
+  const pw=Math.min(300,W-40), ph=52, px=(W-pw)/2, py=12;
+  ctx.fillStyle='rgba(0,0,0,0.4)'; roundRect(px,py,pw,ph,14); ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.lineWidth=1; roundRect(px,py,pw,ph,14); ctx.stroke();
+  ctx.textBaseline='middle';
+  ctx.textAlign='left'; ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='bold 14px Segoe UI';
+  ctx.fillText('LEVEL', px+16, py+ph/2-9);
+  ctx.fillStyle='#fff'; ctx.font='bold 24px Segoe UI';
+  ctx.fillText((levelIdx+1)+'', px+16, py+ph/2+9);
+  ctx.textAlign='center'; ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='bold 14px Segoe UI';
+  ctx.fillText('MOVES', px+pw/2, py+ph/2-9);
+  ctx.fillStyle='#ffd32a'; ctx.font='bold 24px Segoe UI';
+  ctx.fillText(moveCount+'', px+pw/2, py+ph/2+9);
+  ctx.textAlign='right'; ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='bold 14px Segoe UI';
+  ctx.fillText('BEST', px+pw-16, py+ph/2-9);
+  const best=getBest(levelIdx);
+  ctx.fillStyle='#a29bfe'; ctx.font='bold 24px Segoe UI';
+  ctx.fillText(best!=null?best+'':'–', px+pw-16, py+ph/2+9);
+}
+function drawButtons(){
+  for(const b of buttons){
+    ctx.fillStyle='rgba(108,92,231,0.35)'; roundRect(b.x,b.y,b.w,b.h,12); ctx.fill();
+    ctx.strokeStyle='rgba(162,155,254,0.5)'; ctx.lineWidth=1.5; roundRect(b.x,b.y,b.w,b.h,12); ctx.stroke();
+    ctx.fillStyle='#fff'; ctx.font='bold 16px Segoe UI'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(b.label, b.x+b.w/2, b.y+b.h/2);
+  }
+}
+function drawWin(){
+  winAnim=Math.min(1,winAnim+0.04);
+  // confetti
+  for(const p of confetti){ p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr;
+    ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot); ctx.fillStyle=p.col;
+    ctx.fillRect(-p.s/2,-p.s/2,p.s,p.s); ctx.restore(); }
+  ctx.fillStyle='rgba(4,4,24,'+(0.7*winAnim)+')'; ctx.fillRect(0,0,W,H);
+  if(winAnim<0.4) return;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.save(); ctx.shadowColor='#ffd32a'; ctx.shadowBlur=30;
+  ctx.fillStyle='#ffd32a'; ctx.font='bold '+Math.min(64,W*0.12)+'px Segoe UI';
+  ctx.fillText('Escaped!', W/2, H*0.32); ctx.restore();
+  ctx.fillStyle='#fff'; ctx.font='bold 24px Segoe UI';
+  ctx.fillText('Level '+(levelIdx+1)+' cleared in '+moveCount+' moves', W/2, H*0.32+56);
+  const best=getBest(levelIdx), min=LEVELS[levelIdx].min;
+  ctx.fillStyle='#a29bfe'; ctx.font='18px Segoe UI';
+  ctx.fillText('Best: '+best+'   ·   Fewest possible: '+min, W/2, H*0.32+90);
+  // buttons
+  wonButtons=[];
+  const bw=Math.min(220,W-80), bh=56, cx=W/2;
+  const hasNext=levelIdx<LEVELS.length-1;
+  let by=H*0.55;
+  if(hasNext){
+    drawBigBtn(cx-bw/2,by,bw,bh,'Next Level ▶', ()=>loadLevel(levelIdx+1)); by+=bh+14;
+  }
+  drawBigBtn(cx-bw/2,by,bw,bh,'Play Again', ()=>loadLevel(levelIdx)); by+=bh+14;
+  drawBigBtn(cx-bw/2,by,bw,bh-8,'Level Select', ()=>openLevelSelect(),true);
+}
+function drawBigBtn(x,y,w,h,label,fn,secondary){
+  wonButtons.push({x,y,w,h,fn});
+  if(secondary){ ctx.fillStyle='rgba(45,42,114,0.9)'; }
+  else { const g=ctx.createLinearGradient(x,y,x+w,y+h); g.addColorStop(0,'#6c5ce7'); g.addColorStop(1,'#a29bfe'); ctx.fillStyle=g; }
+  roundRect(x,y,w,h,12); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.font='bold 20px Segoe UI'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(label, x+w/2, y+h/2);
+}
+
+function loop(){
+  ctx.clearRect(0,0,W,H);
+  if(gameState==='play' || gameState==='won'){
+    layoutButtons();
+    drawBoard();
+    drawHUD();
+    if(gameState==='play') drawButtons();
+    if(gameState==='won') drawWin();
+  }
+  requestAnimationFrame(loop);
+}
+
+// ---------- Menus ----------
+function buildPlayerCards(){
+  const wrap=document.getElementById('playerCards'); wrap.innerHTML='';
+  [['Caleb','🧒'],['Ezra','👦']].forEach(([name,em])=>{
+    const d=document.createElement('div'); d.className='pcard';
+    d.innerHTML='<span class="em">'+em+'</span>'+name;
+    d.onclick=()=>{ ensureAudio(); sfxSelect(); player=name; openLevelSelect(); };
+    wrap.appendChild(d);
+  });
+}
+function openLevelSelect(){
+  gameState='select';
+  document.getElementById('overlay').classList.add('hidden');
+  const ls=document.getElementById('levelSelect'); ls.classList.remove('hidden');
+  document.getElementById('lsTitle').textContent=player+' — Pick a Level';
+  const grid=document.getElementById('lvgrid'); grid.innerHTML='';
+  const rec=playerRec().trafficJam[player].best;
+  LEVELS.forEach((lv,i)=>{
+    const t=document.createElement('div'); t.className='lvtile';
+    const solved=rec[i]!=null;
+    if(solved) t.classList.add('solved');
+    t.innerHTML=(i+1)+(solved?'<span class="star">★ '+rec[i]+'</span>':'');
+    t.onclick=()=>{ sfxSelect(); loadLevel(i); };
+    grid.appendChild(t);
+  });
+}
+document.getElementById('lsSwitch').onclick=()=>{
+  gameState='menu';
+  document.getElementById('levelSelect').classList.add('hidden');
+  document.getElementById('overlay').classList.remove('hidden');
+};
+
+// ---------- Init ----------
+buildPlayerCards();
+resize();
+loop();
+</script>
+</body>
+</html>
