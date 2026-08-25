@@ -1,6 +1,6 @@
 # Games Index
 
-All 63 games in Garfield Boys' Arcade (64 directories — Archers has legacy 2D + current 3D).
+All 64 games in Garfield Boys' Arcade (65 directories — Archers has legacy 2D + current 3D).
 
 | Game | Directory | Description |
 |------|-----------|-------------|
@@ -67,6 +67,7 @@ All 63 games in Garfield Boys' Arcade (64 directories — Archers has legacy 2D 
 | Traffic Jam | games/traffic-jam/ | Rush Hour sliding-block puzzle — slide cars out of the way so the red car can escape; 12 verified levels, live-BFS hints, Caleb/Ezra progress |
 | Garfimon | games/garfimon/ | Pokemon-style card battler — collect from 151 cards across 9 energy types, then battle with HP/attack; Caleb/Ezra collections (note: saves under its own `garfimonState_<player>` keys, not `calebArcadeData`) |
 | Domino Rally | games/dominoes/ | 3D domino-run builder + toppler (Three.js + Rapier) — drag to draw straight lines or free curves, orbit/pan/select camera tools, a 360° rotation dial on whatever you last placed, 17 trick items in 5 families (obstacles, movers, noise-makers, gadgets, structures; 16 in the tray, Soft Sand is challenge-only) including four impulse-fired launchers (Rocket, Fire Jump, Loop the Loop, Slalom Tower) and a Springboard that comes loaded with the domino it flings, command-pattern undo AND redo, named saves, 22 achievements that unlock tools/tables/skins, 7 teaching challenges, per-device Low/High quality tiering with an adaptive governor, Caleb/Ezra progress |
+| Caesar's Challenge | games/caesars-challenge/ | Roman-numeral academy — 100 levels in 10 provinces (Latium → Roma), 10–15 procedurally generated puzzles per level across 12 types (decode, encode, + − × ÷, compare, order, forgery-spotting, missing letter, sequence, balance scales, Caesar-shift secret scrolls) with 5 input widgets; laurel streak multiplier, sundial time bonus that can never fail you, teach cards on every miss, 3 stars per level, mosaic reveal, denarii + 10 province trophies, Colosseum rival duels every 10th level; Caleb/Ezra progress |
 
 ## Naming quirks worth knowing
 
