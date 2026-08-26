@@ -100,23 +100,47 @@ resize();
 window.addEventListener('resize', resize);
 ```
 
-## Shared localStorage
+## localStorage — one item per game, key starts with `calebArcadeData`
+
+A new game owns its own item, `calebArcadeData:<gameName>`. The `calebArcadeData`
+prefix is the convention — it keeps every game's item together in the hub's ⚙
+panel — and everything after the colon is the game's folder name.
 
 ```js
-function loadArcadeData() {
-  try { return JSON.parse(localStorage.getItem('calebArcadeData')) || {}; }
+const SAVE_KEY = 'calebArcadeData:mygame';        // MUST start with calebArcadeData
+
+function loadData() {
+  try { return JSON.parse(localStorage.getItem(SAVE_KEY)) || {}; }
   catch(e) { return {}; }
 }
-function saveArcadeData(data) {
-  localStorage.setItem('calebArcadeData', JSON.stringify(data));
+// Returns false when the write did not stick (full quota, private browsing,
+// storage disabled) — never swallow that: tell the player and roll back the UI.
+function saveData(data) {
+  const json = JSON.stringify(data);
+  try {
+    localStorage.setItem(SAVE_KEY, json);
+    return localStorage.getItem(SAVE_KEY) === json;
+  } catch(e) { return false; }
 }
-// Per-game: data.gameName.highScore, data.gameName.bestTime, etc.
+// This game's own fields, not nested again: data.highScore, data.bestTime, ...
 ```
+
+**The legacy shared object still exists — leave it alone.** Most older games keep
+their data inside ONE `calebArcadeData` object under `data.<gameName>`:
+
+```js
+// LEGACY. Read/write this only in a game that already uses it. Do not migrate.
+JSON.parse(localStorage.getItem('calebArcadeData') || '{}').mygame
+```
+
+Splitting the item matters because `localStorage` is one ~5 MB quota for the whole
+origin: with everything in one object, every save rewrites all 60+ games and any
+game can be the one that fills it. See `docs/decisions.memory.md` (2026-08-23).
 
 ## Porting from an open-source repo
 1. Clone into `games/<name>/research/` (gitignored) — `git clone <repo-url> games/<name>/research/<repo-name>`.
 2. Use it as reference; implement in `games/<name>/index.html` using these conventions.
-3. Don't copy-paste wholesale — adapt to single-file, Canvas 2D, dark theme, touch-first, Web Audio, shared localStorage.
+3. Don't copy-paste wholesale — adapt to single-file, Canvas 2D, dark theme, touch-first, Web Audio, and a `calebArcadeData:<gameName>` save item.
 
 Examples: Speed Racer ported from `js13kGames/dr1v3n-wild`, Racer 13 from
 `js13kGames/sub13`, Worms references `hedgewars`.

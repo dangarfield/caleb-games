@@ -1,0 +1,1712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Roadways - Garfield Boys' Arcade</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { width:100%; height:100%; overflow:hidden; }
+body { background:#0a0a2e; touch-action:none; -webkit-user-select:none; user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  font-family:'Segoe UI',system-ui,sans-serif; }
+canvas { display:block; width:100%; height:100%; touch-action:none; }
+.hidden { display:none !important; }
+
+#backBtn { position:fixed; top:12px; left:12px; z-index:9999;
+  background:rgba(0,0,0,0.55); color:#fff; text-decoration:none;
+  padding:10px 18px; border-radius:20px;
+  font:bold 15px/1.4 'Segoe UI',system-ui,sans-serif;
+  border:1px solid rgba(255,255,255,0.18);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  transition:background 0.2s; }
+#backBtn:hover { background:rgba(0,0,0,0.75); }
+
+#overlay { position:fixed; inset:0; z-index:20; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; padding:56px 16px 24px; overflow-y:auto;
+  background:linear-gradient(180deg,#0a0a2e 0%,#141452 55%,#1a1a6e 100%);
+  color:#fff; text-align:center; }
+#overlay h1 { font-size:clamp(2.2rem,9vw,4rem); margin-bottom:0.35rem;
+  text-shadow:0 0 28px rgba(162,155,254,0.55); letter-spacing:1px; }
+#overlay .sub { font-size:clamp(1rem,3vw,1.35rem); color:#a0c4ff; margin-bottom:1.1rem; }
+#overlay .info { font-size:clamp(0.85rem,2.5vw,1.05rem); color:rgba(255,255,255,0.72);
+  margin-bottom:1.6rem; max-width:520px; line-height:1.55; }
+#overlay .best { font-size:clamp(0.9rem,2.6vw,1.1rem); color:#ffd32a; font-weight:700;
+  margin-bottom:1.3rem; }
+.players { display:flex; gap:18px; flex-wrap:wrap; justify-content:center; margin-bottom:1rem; }
+.pcard { min-width:150px; min-height:44px; padding:18px 26px; border-radius:18px; cursor:pointer;
+  font-size:1.35rem; font-weight:800; color:#fff;
+  border:2px solid rgba(255,255,255,0.18); background:rgba(255,255,255,0.06);
+  transition:transform .15s, border-color .15s, box-shadow .15s; }
+.pcard:hover { transform:scale(1.05); border-color:#a29bfe; box-shadow:0 6px 24px rgba(108,92,231,0.4); }
+.pcard:active { transform:scale(0.96); }
+.pcard .em { font-size:2.5rem; display:block; margin-bottom:4px; line-height:1.1; }
+.pcard .who { display:block; font-size:0.85rem; font-weight:600; color:#a0c4ff; margin-top:4px; }
+.pcard .rec { display:block; font-size:0.8rem; font-weight:700; color:#ffd32a; margin-top:6px; }
+.pcard.easy { background:linear-gradient(145deg,rgba(225,112,85,0.35),rgba(253,203,110,0.28)); }
+.pcard.normal { background:linear-gradient(145deg,rgba(108,92,231,0.4),rgba(162,155,254,0.28)); }
+.pcard.soon { background:linear-gradient(145deg,rgba(120,120,140,0.20),rgba(90,90,110,0.16)); color:rgba(255,255,255,0.5); cursor:default; }
+.pcard.soon:hover { transform:none; border-color:rgba(255,255,255,0.12); box-shadow:none; }
+#overlay .tip { font-size:0.8rem; color:rgba(255,255,255,0.45); margin-top:0.6rem; }
+#backToPlayers { cursor:pointer; color:#a0c4ff; text-decoration:underline; margin-top:0.4rem; }
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+<canvas id="c"></canvas>
+
+<div id="overlay">
+  <h1>Roadways</h1>
+  <div class="sub" id="levelLine">Build the roads. Keep the city moving.</div>
+  <div class="info" id="bootInfo">Drag to draw roads &mdash; diagonals count too. Cars drive from
+    houses to the matching shop, pick up one person and drive home. Every Sunday you pick
+    a reward.</div>
+  <div class="best" id="bestLine">&nbsp;</div>
+  <div id="profilePanel" class="players">
+    <div class="pcard easy" data-profile="ezra">
+      <span class="em">&#x1F642;</span>Ezra
+      <span class="rec" id="recEzra">&nbsp;</span>
+    </div>
+    <div class="pcard normal" data-profile="caleb">
+      <span class="em">&#x1F60E;</span>Caleb
+      <span class="rec" id="recCaleb">&nbsp;</span>
+    </div>
+  </div>
+  <div id="levelPanel" class="hidden" style="display:flex;flex-direction:column;align-items:center;">
+    <div class="sub" id="levelWho">Choose a city</div>
+    <div id="levelCards" class="players"></div>
+    <div id="backToPlayers">&#8592; Back to players</div>
+  </div>
+  <div class="tip" id="menuTip">Tap a player, then pick a city &middot; tools along the bottom</div>
+</div>
+
+<script>
+// If a module fails to load, the module block below never runs — say so instead
+// of showing a blank page.
+window.setTimeout(function () {
+  if (!window.__roadwaysBooted) {
+    var el = document.getElementById('bootInfo');
+    if (el) el.textContent = 'Could not load the game files (sim.js / render.js) — reload the page.';
+  }
+}, 2500);
+</script>
+<script type="module">
+import { Sim, REVEAL_WEEKS } from './sim.js';
+import { loadBundle } from './maps.js';
+import {
+  Camera, Renderer, COL, cls, clamp, rr, fontFor, withAlpha,
+  roadGlyph, eraserGlyph, motorwayGlyph, roundaboutGlyph, lightsGlyph,
+  bridgeGlyph, tripGlyph, REVEAL_ZOOM
+} from './render.js';
+
+/* ======================================================================
+ * layout constants
+ * ====================================================================*/
+const HUD_H = 58, HUD_TOP = 12, TOP_MIN = 78;
+const FONT = '"Segoe UI",system-ui,sans-serif';
+const FT = {
+  score: 'bold 24px ' + FONT,
+  day:   'bold 17px ' + FONT,
+  small: 'bold 12px ' + FONT,
+  tiny:  'bold 10px ' + FONT,
+  label: 'bold 11px ' + FONT,
+  badge: 'bold 12px ' + FONT,
+  title: 'bold 46px ' + FONT,
+  big:   'bold 34px ' + FONT,
+  mid:   'bold 20px ' + FONT,
+  body:  'bold 15px ' + FONT,
+  btn:   'bold 21px ' + FONT
+};
+
+/* ======================================================================
+ * canvas
+ * ====================================================================*/
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d', { alpha: false });
+const overlayEl = document.getElementById('overlay');
+
+let W = 0, H = 0, DPR = 1;
+let topBand = TOP_MIN, botBand = 92, hudY = HUD_TOP;
+
+const cam = new Camera();
+const renderer = new Renderer(ctx, cam);
+
+// The camera reveal is time-based: it interpolates from framing the opening rect to
+// framing the WHOLE playable box over REVEAL_WEEKS weeks (imported from sim.js — the
+// same constant paces the buildable-rect expansion, so the two stay in lock-step).
+// `revealStart` is the opening playable rect, snapshotted when a run starts.
+let revealStart = null;
+
+function backBtnBox() {
+  const el = document.getElementById('backBtn');
+  const w = (el && el.offsetWidth) | 0, h = (el && el.offsetHeight) | 0;
+  return { right: 12 + (w > 0 ? w : 105), bottom: 12 + (h > 0 ? h : 41) };
+}
+
+function layout() {
+  // The back button is a fixed HTML element top-left; the canvas HUD pill is
+  // centred. On narrow screens the centred pill would run under the button, so
+  // it drops below it instead.
+  const bb = backBtnBox();
+  // A FIXED width estimate on purpose: the real pill grows as the score grows,
+  // and re-deciding mid-run would shift topBand and jog the camera.
+  const pw = 320;
+  const drop = ((W - pw) / 2) < bb.right + 8;
+  hudY = drop ? bb.bottom + 10 : HUD_TOP;
+  topBand = Math.max(TOP_MIN, hudY + HUD_H + 10);
+  const pal = paletteMetrics();
+  botBand = pal.rows * pal.size + (pal.rows - 1) * pal.gap + 34;
+  cam.setView(0, topBand, W, Math.max(60, H - topBand - botBand));
+}
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);   // capped: tablet perf
+  W = Math.max(240, window.innerWidth | 0);
+  H = Math.max(240, window.innerHeight | 0);
+  canvas.width = Math.round(W * DPR);
+  canvas.height = Math.round(H * DPR);
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  layout();
+  renderer.setViewport(W, H, DPR);
+  if (sim) refitCamera(false);
+}
+
+/* ======================================================================
+ * storage — shared calebArcadeData, read-modify-write
+ * ====================================================================*/
+function loadArcadeData() {
+  try { return JSON.parse(localStorage.getItem('calebArcadeData')) || {}; }
+  catch (e) { return {}; }
+}
+function saveArcadeData(data) {
+  try { localStorage.setItem('calebArcadeData', JSON.stringify(data)); }
+  catch (e) { /* quota / private mode — play on */ }
+}
+// Best scores are PER LEVEL (per city) and per profile's tuning:
+// roadways.best[levelKey][diff]. `levelKey` is the map id, or 'random' for the
+// procedural fallback. (Older saves stored a flat best.easy/best.normal; those are
+// simply ignored — they are numbers, not the per-level objects read here.)
+function bestMap() {
+  const r = (loadArcadeData().roadways) || {};
+  return (r.best && typeof r.best === 'object') ? r.best : {};
+}
+function levelKeyFor(i) {
+  const lv = levels[i | 0];
+  return (lv && lv.id) ? String(lv.id) : 'random';
+}
+function bestFor(levelKey, diff) {
+  const e = bestMap()[levelKey];
+  return (e && typeof e === 'object') ? (e[diff] | 0) : 0;
+}
+/** Highest best for one profile's tuning across every level (for the menu headline). */
+function profileBest(diff) {
+  const B = bestMap();
+  let m = 0;
+  for (const k in B) {
+    const e = B[k];
+    if (e && typeof e === 'object' && (e[diff] | 0) > m) m = e[diff] | 0;
+  }
+  return m;
+}
+/** Preserves every other game's keys AND any other roadways key. */
+function saveBest(diff, levelKey, score) {
+  const d = loadArcadeData();
+  if (!d.roadways || typeof d.roadways !== 'object') d.roadways = {};
+  if (!d.roadways.best || typeof d.roadways.best !== 'object') d.roadways.best = {};
+  const B = d.roadways.best;
+  if (!B[levelKey] || typeof B[levelKey] !== 'object') B[levelKey] = {};
+  const cur = B[levelKey][diff] | 0;
+  let isNew = false;
+  if (score > cur) { B[levelKey][diff] = score; isNew = true; }
+  d.roadways.highScore = Math.max(d.roadways.highScore | 0, score, cur);
+  saveArcadeData(d);
+  return isNew;
+}
+
+/* ======================================================================
+ * audio — created lazily on the first gesture, no-ops if unavailable
+ * ====================================================================*/
+let actx = null, audioOK = true;
+function ensureAudio() {
+  if (!audioOK) return null;
+  try {
+    if (!actx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) { audioOK = false; return null; }
+      actx = new AC();
+    }
+    if (actx.state === 'suspended') actx.resume();
+    return actx;
+  } catch (e) { audioOK = false; return null; }
+}
+function tone(freq, dur, type, vol, endFreq, delay) {
+  const a = ensureAudio(); if (!a) return;
+  try {
+    const t0 = a.currentTime + (delay || 0);
+    const osc = a.createOscillator(), g = a.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(Math.max(20, freq), t0);
+    if (endFreq) osc.frequency.exponentialRampToValueAtTime(Math.max(20, endFreq), t0 + dur);
+    g.gain.setValueAtTime(vol == null ? 0.08 : vol, t0);
+    g.gain.exponentialRampToValueAtTime(0.0008, t0 + dur);
+    osc.connect(g); g.connect(a.destination);
+    osc.start(t0); osc.stop(t0 + dur + 0.02);
+  } catch (e) { /* ignore */ }
+}
+function noise(dur, vol, freq) {
+  const a = ensureAudio(); if (!a) return;
+  try {
+    const n = Math.max(1, Math.floor(a.sampleRate * dur));
+    const buf = a.createBuffer(1, n, a.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    const src = a.createBufferSource(); src.buffer = buf;
+    const g = a.createGain(), filt = a.createBiquadFilter();
+    filt.type = 'bandpass'; filt.frequency.value = freq || 800; filt.Q.value = 0.9;
+    g.gain.setValueAtTime(vol == null ? 0.06 : vol, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0008, a.currentTime + dur);
+    src.connect(filt); filt.connect(g); g.connect(a.destination);
+    src.start(); src.stop(a.currentTime + dur + 0.02);
+  } catch (e) { /* ignore */ }
+}
+
+const sfx = {
+  road()   { tone(520, 0.05, 'square', 0.032, 620); },
+  erase()  { tone(300, 0.05, 'square', 0.028, 220); },
+  refund() { tone(700, 0.04, 'sine', 0.02, 900); },
+  deny()   { tone(165, 0.14, 'sawtooth', 0.04, 110); },
+  pin()    { tone(980, 0.045, 'sine', 0.022, 1120); },
+  collect(){ tone(784, 0.06, 'sine', 0.035); },
+  trip()   { tone(659, 0.07, 'sine', 0.05); tone(880, 0.07, 'sine', 0.045, null, 0.055);
+             tone(1174, 0.11, 'sine', 0.04, null, 0.11); },
+  build()  { tone(240, 0.13, 'triangle', 0.05, 640); noise(0.08, 0.03, 500); },
+  alarm()  { tone(520, 0.16, 'square', 0.045, 400); tone(520, 0.16, 'square', 0.04, 400, 0.2); },
+  relief() { tone(523, 0.1, 'triangle', 0.04); tone(784, 0.16, 'triangle', 0.035, null, 0.09); },
+  pop()    { tone(420, 0.08, 'triangle', 0.04, 780); },
+  day()    { tone(880, 0.04, 'triangle', 0.022); },
+  week()   { [523, 659, 784, 1046].forEach((h, i) => tone(h, 0.4, 'triangle', 0.04, null, i * 0.055)); },
+  expand() { tone(180, 0.55, 'sine', 0.045, 900); noise(0.45, 0.035, 1400); },
+  over()   { [440, 330, 247, 165].forEach((h, i) => tone(h, 0.34, 'sine', 0.07, h * 0.85, i * 0.16)); },
+  tap()    { tone(660, 0.055, 'triangle', 0.045, 880); },
+  confirm(){ tone(740, 0.07, 'triangle', 0.035, 988); tone(1245, 0.09, 'sine', 0.022, null, 0.05); }
+};
+
+// Rate limiter — several of these events can fire in bursts.
+const rlAt = Object.create(null);
+function gate(key, ms) {
+  const t = now * 1000;
+  const prev = rlAt[key];
+  if (prev !== undefined && t - prev < ms) return false;
+  rlAt[key] = t;
+  return true;
+}
+
+/* ======================================================================
+ * run state
+ * ====================================================================*/
+let sim = null;
+let difficulty = 'normal';
+let curLevelKey = 'random';   // the level whose best score is being tracked this run
+let state = 'menu';           // menu | play | pause | over
+
+/* Authored levels, compiled from maps.json. `levels[0]` is level 1; the file is
+ * data, so adding a city is dropping in a new export from the map editor and
+ * nothing in here changes. An empty list is a working state, not an error: the
+ * sim falls back to its procedural map, which is what the Node harnesses use. */
+let levels = [];
+let levelIndex = 0;
+let now = 0;                  // seconds of animation time since load
+let tool = 'road';
+let pegA = null;              // two-tap placement anchor
+let bootError = '';
+
+let overAnim = 0, choiceAnim = 0, newBest = false;
+let finalScore = 0, finalWeek = 1, lostDest = null;
+
+const particles = [];         // world-space dots
+const popups = [];            // world-space text
+const flashes = [];           // tile flashes (deny / ghost)
+const PARTICLE_CAP = 120;
+
+const TOOLS = [
+  { id: 'road',       label: 'Road',   inv: 'roads' },
+  { id: 'eraser',     label: 'Erase',  inv: null },
+  { id: 'motorway',   label: 'Fast',   inv: 'motorway' },
+  { id: 'bridge',     label: 'Bridge', inv: 'bridge' }
+];
+function toolLabel(t) {
+  if (t.id === 'bridge') return (sim && sim.terrain === 'mountain') ? 'Tunnel' : 'Bridge';
+  return t.label;
+}
+function invCount(t) {
+  if (!t.inv || !sim) return -1;
+  const inv = sim.inventory || {};
+  return inv[t.inv] | 0;
+}
+
+/* ======================================================================
+ * camera control
+ * ====================================================================*/
+function boundsCentre(b) {
+  return { x: ((b.x0 | 0) + (b.x1 | 0) + 1) / 2, y: ((b.y0 | 0) + (b.y1 | 0) + 1) / 2 };
+}
+function openingCentre(b) {
+  // "Tightly cropped on the opening buildings": centre on their centroid if any
+  // exist, otherwise on the bounds centre.
+  const w = sim && sim.world;
+  let n = 0, sx = 0, sy = 0;
+  if (w) {
+    const hs = w.houses, ds = w.dests;
+    if (Array.isArray(hs)) for (let i = 0; i < hs.length; i++) {
+      const h = hs[i];
+      if (h && isFinite(h.x) && isFinite(h.y)) { sx += h.x + 0.5; sy += h.y + 0.5; n++; }
+    }
+    if (Array.isArray(ds)) for (let i = 0; i < ds.length; i++) {
+      const d = ds[i];
+      // A double office is two dest records sharing one footprint — weigh the
+      // building once, not once per colour, or it drags the framing towards itself.
+      if (d && d.complex && d.complex !== d) continue;
+      if (d && isFinite(d.x) && isFinite(d.y)) {
+        sx += d.x + (d.w | 0) / 2; sy += d.y + (d.h | 0) / 2; n++;
+      }
+    }
+  }
+  if (!n) return boundsCentre(b);
+  return { x: sx / n, y: sy / n };
+}
+
+/**
+ * Re-aim the camera. Called EVERY FRAME, so it allocates nothing.
+ *
+ * The framed rectangle interpolates LINEARLY over REVEAL_WEEKS weeks, from the
+ * opening playable rect (`start`) to the full playable box (`maxBounds` — the
+ * bounding box of every non-boundary cell; on a procedural map, the whole grid).
+ * So the run opens framed on the starting area and, by the end of week 7, the whole
+ * playable map is on screen. Both the zoom and the centre are pure functions of
+ * time — nothing keys off where the buildings are, so a spawn never moves the view.
+ *
+ * The scenery BEYOND the playable box (the level's boundary cells) is drawn by the
+ * renderer's surround layer and is never darkened: it exists only to fill the
+ * screen past the edge and to cap how far out the camera zooms.
+ *
+ * The fit reserves the top HUD band and the bottom button band (see setView), so
+ * the framed area always clears the buttons.
+ */
+function refitCamera(initial) {
+  if (!sim || !sim.world) return;
+  const w = sim.world;
+  const b = w.bounds || { x0: 0, y0: 0, x1: 10, y1: 7 };
+  const mb = w.maxBounds ||
+    { x0: 0, y0: 0, x1: ((w.maxCols | 0) || 40) - 1, y1: ((w.maxRows | 0) || 28) - 1 };
+  if (initial || !revealStart) {
+    revealStart = { x0: b.x0 | 0, y0: b.y0 | 0, x1: b.x1 | 0, y1: b.y1 | 0 };
+  }
+  const sb = revealStart;
+
+  // The framed rectangle interpolates LINEARLY from the opening playable rect
+  // (`start`) to the FULL playable box (`maxBounds` = the bounding box of every
+  // non-boundary cell) over REVEAL_WEEKS weeks. `p` is 0 at the start of week 1 and
+  // 1 at the end of week 7; weekProgress makes it a continuous creep, not a Monday
+  // step. Nothing here depends on where the buildings are, so a spawn never nudges
+  // the camera — the zoom and the centre are functions of time alone.
+  const wk = ((sim.week | 0) - 1) + clamp(+sim.weekProgress || 0, 0, 1);
+  const p = clamp(wk / REVEAL_WEEKS, 0, 1);
+
+  // The zoom (tile size) and the centre each interpolate LINEARLY in p between two
+  // endpoints, so both change at a steady rate across the 7 weeks:
+  //   p = 0 : the opening rect (`start`) fits the view, centred on it.
+  //   p = 1 : the full playable box (`maxBounds`) fits the view, centred on it.
+  // fitForSize fits into the view rect set by setView(), which already reserves the
+  // top HUD band and the bottom button band, so the framed area clears the buttons.
+  const fitStart = cam.fitForSize(sb.x1 - sb.x0 + 1, sb.y1 - sb.y0 + 1, 16);
+  const fitMax = cam.fitForSize(mb.x1 - mb.x0 + 1, mb.y1 - mb.y0 + 1, 16);
+  const ts = fitStart + (fitMax - fitStart) * p;
+  const scx = (sb.x0 + sb.x1 + 1) / 2, scy = (sb.y0 + sb.y1 + 1) / 2;
+  const mcx = (mb.x0 + mb.x1 + 1) / 2, mcy = (mb.y0 + mb.y1 + 1) / 2;
+  const cx = scx + (mcx - scx) * p, cy = scy + (mcy - scy) * p;
+  cam.setTarget(ts, cx, cy);
+  if (initial) {
+    cam.ts = ts;
+    cam.logTs = Math.log(cam.ts);
+    cam.cx = cx; cam.cy = cy;
+    cam.settled = false;
+  }
+}
+
+/* ======================================================================
+ * palette (canvas-drawn, touch-sized)
+ * ====================================================================*/
+function paletteMetrics() {
+  const n = TOOLS.length;
+  const gap = W < 380 ? 6 : 9;
+  const pad = W < 380 ? 8 : 12;
+  // Tap targets must stay >= 44px. On a very narrow screen a single row of six
+  // cannot do that, so it folds into two rows of three instead of shrinking.
+  let per = n;
+  let size = Math.floor((W - pad * 2 - gap * (per - 1)) / per);
+  if (size < 44) { per = 3; size = Math.floor((W - pad * 2 - gap * (per - 1)) / per); }
+  size = clamp(size, 44, 64);
+  const rows = Math.ceil(n / per);
+  return { n, per, rows, gap, size, pad };
+}
+const _palRects = [];
+function paletteRects() {
+  const m = paletteMetrics();
+  _palRects.length = 0;
+  for (let i = 0; i < m.n; i++) {
+    const r = Math.floor(i / m.per), c = i % m.per;
+    const inRow = Math.min(m.per, m.n - r * m.per);
+    const total = inRow * m.size + m.gap * (inRow - 1);
+    const x0 = Math.round((W - total) / 2);
+    const y = H - 20 - (m.rows - r) * m.size - (m.rows - 1 - r) * m.gap;
+    _palRects.push({ x: x0 + c * (m.size + m.gap), y: y, w: m.size, h: m.size, i: i });
+  }
+  return _palRects;
+}
+function hitRect(r, x, y, pad) {
+  const p = pad || 0;
+  return x >= r.x - p && x <= r.x + r.w + p && y >= r.y - p && y <= r.y + r.h + p;
+}
+
+function drawPalette() {
+  const rects = paletteRects();
+  for (let i = 0; i < rects.length; i++) {
+    const r = rects[i], t = TOOLS[i];
+    const count = invCount(t);
+    const usable = (count !== 0);
+    const active = (tool === t.id);
+    const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+
+    ctx.globalAlpha = usable ? 1 : 0.38;
+    // body
+    ctx.fillStyle = active ? 'rgba(108,92,231,0.92)' : 'rgba(0,0,0,0.5)';
+    rr(ctx, r.x, r.y, r.w, r.h, 14); ctx.fill();
+    ctx.strokeStyle = active ? '#ffffff' : 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = active ? 3 : 1.5;
+    rr(ctx, r.x, r.y, r.w, r.h, 14); ctx.stroke();
+    if (active) {
+      ctx.strokeStyle = 'rgba(162,155,254,0.5)'; ctx.lineWidth = 6;
+      rr(ctx, r.x - 3, r.y - 3, r.w + 6, r.h + 6, 17); ctx.stroke();
+    }
+
+    const gr = r.w * 0.26;
+    const ink = active ? '#ffffff' : 'rgba(255,255,255,0.85)';
+    if (t.id === 'road') roadGlyph(ctx, cx, cy - r.h * 0.06, gr, ink);
+    else if (t.id === 'eraser') eraserGlyph(ctx, cx, cy - r.h * 0.06, gr, ink);
+    else if (t.id === 'motorway') motorwayGlyph(ctx, cx, cy - r.h * 0.06, gr, ink);
+    else if (t.id === 'roundabout') roundaboutGlyph(ctx, cx, cy - r.h * 0.06, gr, ink);
+    else if (t.id === 'lights') lightsGlyph(ctx, cx, cy - r.h * 0.06, gr, ink);
+    else bridgeGlyph(ctx, cx, cy - r.h * 0.06, gr, ink, sim && sim.terrain === 'mountain');
+
+    // label
+    ctx.font = FT.label; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = active ? '#ffffff' : 'rgba(255,255,255,0.6)';
+    ctx.fillText(toolLabel(t), cx, r.y + r.h - 5);
+
+    // count badge
+    if (count >= 0) {
+      const bx = r.x + r.w - 8, by = r.y + 8;
+      ctx.fillStyle = count > 0 ? COL.gold : COL.danger;
+      ctx.beginPath(); ctx.arc(bx, by, 11, 0, Math.PI * 2); ctx.fill();
+      ctx.font = FT.badge; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#1a1a3e';
+      ctx.fillText(count > 99 ? '99+' : String(count), bx, by + 1);
+      ctx.textBaseline = 'alphabetic';
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+function selectTool(id) {
+  const t = TOOLS.find((x) => x.id === id);
+  if (!t) return;
+  if (invCount(t) === 0) { sfx.deny(); return; }
+  tool = id; pegA = null;
+  sfx.tap();
+}
+
+/* ======================================================================
+ * HUD pill
+ * ====================================================================*/
+const hudCache = { key: '', w: 260, score: '0', day: 'Mon', wk: 'Week 1', roads: '0',
+                   wScore: 0, wDay: 0, wWk: 0, wRoads: 0 };
+function drawHUD() {
+  const inv = sim.inventory || {};
+  const scoreS = String(sim.score | 0);
+  const dayS = String(sim.dayLabel || 'Mon');
+  const wkS = 'Week ' + (sim.week | 0);
+  const roadS = String(inv.roads | 0);
+  const key = scoreS + '|' + dayS + '|' + wkS + '|' + roadS;
+  if (key !== hudCache.key) {
+    hudCache.key = key;
+    hudCache.score = scoreS; hudCache.day = dayS; hudCache.wk = wkS; hudCache.roads = roadS;
+    ctx.font = FT.score; hudCache.wScore = ctx.measureText(scoreS).width;
+    ctx.font = FT.day;   hudCache.wDay = ctx.measureText(dayS).width;
+    ctx.font = FT.small; hudCache.wWk = ctx.measureText(wkS).width;
+    ctx.font = FT.score; hudCache.wRoads = ctx.measureText(roadS).width;
+    const midW = Math.max(hudCache.wDay, hudCache.wWk, 62);
+    hudCache.w = Math.round(16 + 22 + 6 + hudCache.wScore + 16 + 1 + 16 +
+                            midW + 16 + 1 + 16 + 20 + 6 + hudCache.wRoads + 16);
+  }
+
+  const pw = hudCache.w, ph = HUD_H;
+  const px = Math.round((W - pw) / 2), py = hudY;
+
+  const heat = clamp(Math.max(+sim.pressure || 0,
+                (sim.traffic && +sim.traffic.gridlock) || 0), 0, 1);
+  const hot = heat > 0.55;
+  const pulse = 0.5 + 0.5 * Math.sin(now * (heat > 0.8 ? 10 : 5));
+
+  if (hot) {
+    ctx.strokeStyle = withAlpha(heat > 0.8 ? COL.danger : COL.warn, 0.22 + 0.3 * pulse * heat);
+    ctx.lineWidth = 8;
+    rr(ctx, px - 4, py - 4, pw + 8, ph + 8, 18); ctx.stroke();
+  }
+  ctx.fillStyle = hot ? 'rgba(40,6,14,0.6)' : 'rgba(0,0,0,0.42)';
+  rr(ctx, px, py, pw, ph, 14); ctx.fill();
+  ctx.strokeStyle = hot ? withAlpha(heat > 0.8 ? COL.danger : COL.warn, 0.6 + 0.4 * pulse)
+                        : 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = hot ? 2 : 1;
+  rr(ctx, px, py, pw, ph, 14); ctx.stroke();
+
+  let x = px + 16;
+  const midY = py + ph / 2;
+  // trips
+  ctx.fillStyle = COL.gold;
+  tripGlyph(ctx, x + 11, midY - 1, 10, COL.gold);
+  x += 22 + 6;
+  ctx.font = FT.score; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = COL.gold;
+  ctx.fillText(hudCache.score, x, midY);
+  x += hudCache.wScore + 16;
+  ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(x, py + 10); ctx.lineTo(x, py + ph - 10); ctx.stroke();
+  x += 16;
+
+  // day + week + week progress
+  const midW = Math.max(hudCache.wDay, hudCache.wWk, 62);
+  ctx.font = FT.day; ctx.fillStyle = '#ffffff'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText(hudCache.day, x, py + 24);
+  ctx.font = FT.small; ctx.fillStyle = COL.sub;
+  ctx.fillText(hudCache.wk, x + hudCache.wDay + 8, py + 23);
+  const barW = midW, barY = py + 34;
+  ctx.fillStyle = 'rgba(255,255,255,0.16)';
+  rr(ctx, x, barY, barW, 5, 2.5); ctx.fill();
+  const wp = clamp(+sim.weekProgress || 0, 0, 1);
+  ctx.fillStyle = COL.glow;
+  rr(ctx, x, barY, Math.max(2, barW * wp), 5, 2.5); ctx.fill();
+  // day ticks
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  for (let d = 1; d < 7; d++) ctx.fillRect(Math.round(x + barW * d / 7), barY, 1, 5);
+  x += midW + 16;
+  ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(x, py + 10); ctx.lineTo(x, py + ph - 10); ctx.stroke();
+  x += 16;
+
+  // road tiles left
+  roadGlyph(ctx, x + 10, midY, 9, (inv.roads | 0) > 0 ? '#ffffff' : COL.danger);
+  x += 20 + 6;
+  ctx.font = FT.score; ctx.textBaseline = 'middle';
+  ctx.fillStyle = (inv.roads | 0) > 0 ? '#ffffff' : COL.danger;
+  ctx.fillText(hudCache.roads, x, midY);
+  ctx.textBaseline = 'alphabetic';
+}
+
+/* ======================================================================
+ * Sunday reward cards
+ * ====================================================================*/
+const _cardRects = [];
+function cardRects() {
+  _cardRects.length = 0;
+  const side = W >= 720 && W > H;
+  const availH = H - topBand - botBand;
+  if (side) {
+    const cw = Math.min(320, (W - 60) / 2), ch = Math.min(300, availH - 70);
+    const y = topBand + Math.max(50, (availH - ch) / 2 + 20);
+    _cardRects.push({ x: W / 2 - cw - 10, y: y, w: cw, h: ch });
+    _cardRects.push({ x: W / 2 + 10, y: y, w: cw, h: ch });
+  } else {
+    const cw = Math.min(400, W - 40);
+    const ch = Math.min(160, (availH - 90) / 2);
+    const y = topBand + Math.max(46, (availH - (ch * 2 + 16)) / 2 + 24);
+    _cardRects.push({ x: (W - cw) / 2, y: y, w: cw, h: ch });
+    _cardRects.push({ x: (W - cw) / 2, y: y + ch + 16, w: cw, h: ch });
+  }
+  return _cardRects;
+}
+function itemGlyph(item, cx, cy, r, ink) {
+  if (item === 'motorway') motorwayGlyph(ctx, cx, cy, r, ink);
+  else if (item === 'roundabout') roundaboutGlyph(ctx, cx, cy, r, ink);
+  else if (item === 'lights') lightsGlyph(ctx, cx, cy, r, ink);
+  else if (item === 'bridge') bridgeGlyph(ctx, cx, cy, r, ink, false);
+  else if (item === 'tunnel') bridgeGlyph(ctx, cx, cy, r, ink, true);
+  else roadGlyph(ctx, cx, cy, r, ink);
+}
+function itemName(opt) {
+  if (!opt) return '';
+  if (opt.label) return String(opt.label);
+  switch (opt.item) {
+    case 'motorway': return 'Motorway';
+    case 'roundabout': return 'Roundabout';
+    case 'lights': return 'Traffic Lights';
+    case 'bridge': return 'Bridge';
+    case 'tunnel': return 'Tunnel';
+    default: return 'Extra Roads';
+  }
+}
+function wrapText(text, cx, cy, maxW, lh, maxLines) {
+  const words = String(text || '').split(/\s+/);
+  let line = '', lines = [];
+  for (let i = 0; i < words.length; i++) {
+    const test = line ? line + ' ' + words[i] : words[i];
+    if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = words[i]; }
+    else line = test;
+    if (lines.length >= (maxLines || 3)) break;
+  }
+  if (line && lines.length < (maxLines || 3)) lines.push(line);
+  for (let i = 0; i < lines.length; i++) ctx.fillText(lines[i], cx, cy + i * lh);
+}
+
+function drawChoice() {
+  const pc = sim.pendingChoice;
+  if (!pc) return;
+  const a = clamp(choiceAnim / 0.3, 0, 1);
+  ctx.globalAlpha = 0.72 * a;
+  ctx.fillStyle = '#05061a';
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = 1;
+
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.font = FT.big; ctx.fillStyle = '#ffffff';
+  ctx.fillText('Sunday Reward', W / 2, topBand + 26);
+  ctx.font = FT.body; ctx.fillStyle = COL.sub;
+  ctx.fillText('Week ' + (pc.week | 0) + ' done — pick one', W / 2, topBand + 50);
+
+  const rects = cardRects();
+  const opts = Array.isArray(pc.options) ? pc.options : [];
+  for (let i = 0; i < rects.length; i++) {
+    const r = rects[i], o = opts[i];
+    const t = clamp((choiceAnim - i * 0.07) / 0.26, 0, 1);
+    const s = 0.9 + 0.1 * t;
+    ctx.save();
+    ctx.translate(r.x + r.w / 2, r.y + r.h / 2);
+    ctx.scale(s, s);
+    ctx.translate(-(r.x + r.w / 2), -(r.y + r.h / 2));
+    ctx.globalAlpha = t;
+
+    ctx.fillStyle = i === 0 ? 'rgba(108,92,231,0.35)' : 'rgba(0,206,201,0.25)';
+    rr(ctx, r.x, r.y, r.w, r.h, 20); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 2.5;
+    rr(ctx, r.x, r.y, r.w, r.h, 20); ctx.stroke();
+
+    if (!o) { ctx.restore(); continue; }
+    const wide = r.w > r.h * 1.4;
+    const roads = o.roads | 0;
+    const cnt = o.count | 0;
+
+    // road batch
+    const gy = r.y + (wide ? 44 : r.h * 0.34);
+    roadGlyph(ctx, r.x + 34, gy, 14, '#ffffff');
+    ctx.textAlign = 'left'; ctx.font = FT.mid; ctx.fillStyle = COL.gold;
+    ctx.fillText('+' + roads + ' road tiles', r.x + 58, gy + 7);
+
+    // infrastructure item
+    const iy = r.y + (wide ? 110 : r.h * 0.66);
+    itemGlyph(o.item, r.x + 34, iy, 15, '#ffffff');
+    ctx.font = FT.mid; ctx.fillStyle = '#ffffff';
+    const nm = itemName(o) + (cnt > 1 ? ' ×' + cnt : '');
+    ctx.fillText(o.item ? nm : 'Roads only', r.x + 58, iy + 7);
+    if (o.desc) {
+      ctx.font = FT.small; ctx.fillStyle = 'rgba(255,255,255,0.72)';
+      wrapText(o.desc, r.x + 58, iy + 26, r.w - 76, 15, wide ? 3 : 2);
+    }
+
+    // tap affordance
+    ctx.textAlign = 'center'; ctx.font = FT.small; ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillText('TAP TO TAKE', r.x + r.w / 2, r.y + r.h - 10);
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+  ctx.textAlign = 'left';
+}
+
+/* ======================================================================
+ * pause + game over (canvas-drawn)
+ * ====================================================================*/
+function drawPause() {
+  ctx.fillStyle = 'rgba(5,6,26,0.62)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.font = FT.big; ctx.fillStyle = '#ffffff';
+  ctx.fillText('Paused', W / 2, H / 2 - 6);
+  ctx.font = FT.body; ctx.fillStyle = COL.sub;
+  ctx.fillText('Tap anywhere to carry on', W / 2, H / 2 + 26);
+  ctx.textAlign = 'left';
+}
+
+function againRect() {
+  const w = Math.min(260, W - 60), h = 58;
+  return { x: (W - w) / 2, y: Math.min(H - 118, H / 2 + 100), w: w, h: h };
+}
+function modeRect() {
+  const r = againRect();
+  return { x: r.x + r.w * 0.15, y: r.y + r.h + 12, w: r.w * 0.7, h: 46 };
+}
+function drawGameOver() {
+  const a = clamp(overAnim / 0.6, 0, 1);
+
+  // highlight the destination that collapsed, on top of the dim
+  ctx.fillStyle = 'rgba(5,6,26,' + (0.66 * a) + ')';
+  ctx.fillRect(0, 0, W, H);
+  if (lostDest) {
+    const ts = cam.ts;
+    // Ring the HALF that gave up, not the whole footprint — a double office's two
+    // colours share one building and only one of them collapsed.
+    const box = lostDest.half || lostDest;
+    const w = Math.max(1, box.w | 0), h = Math.max(1, box.h | 0);
+    const px = cam.toX(box.x + w / 2), py = cam.toY(box.y + h / 2);
+    const R = Math.max(18, Math.min(w, h) * ts * 0.75) + Math.sin(now * 4) * 4;
+    ctx.strokeStyle = withAlpha(COL.danger, 0.35 * a); ctx.lineWidth = 14;
+    ctx.beginPath(); ctx.arc(px, py, R, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = COL.danger; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(px, py, R, 0, Math.PI * 2); ctx.stroke();
+    ctx.font = FT.small; ctx.textAlign = 'center'; ctx.fillStyle = COL.danger;
+    ctx.fillText('GAVE UP', px, py - R - 8);
+    ctx.textAlign = 'left';
+  }
+
+  ctx.globalAlpha = a;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  const cy = Math.min(H / 2 - 40, topBand + 120);
+  ctx.font = FT.title; ctx.fillStyle = '#ffffff';
+  ctx.fillText('Game Over', W / 2, cy);
+  ctx.font = FT.body; ctx.fillStyle = COL.sub;
+  ctx.fillText('A shop waited too long.', W / 2, cy + 28);
+
+  ctx.font = FT.big; ctx.fillStyle = COL.gold;
+  ctx.fillText(String(finalScore) + ' trips', W / 2, cy + 76);
+  ctx.font = FT.mid; ctx.fillStyle = '#ffffff';
+  ctx.fillText('Survived ' + finalWeek + (finalWeek === 1 ? ' week' : ' weeks'), W / 2, cy + 108);
+
+  const best = bestFor(curLevelKey, difficulty) | 0;
+  if (newBest) {
+    const p = 0.5 + 0.5 * Math.sin(now * 6);
+    ctx.font = FT.mid;
+    ctx.fillStyle = withAlpha(COL.gold, 0.7 + 0.3 * p);
+    ctx.fillText('NEW BEST!', W / 2, cy + 140);
+  } else {
+    ctx.font = FT.body; ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillText('Best: ' + best, W / 2, cy + 138);
+  }
+
+  const r = againRect();
+  ctx.fillStyle = 'rgba(108,92,231,0.95)';
+  rr(ctx, r.x, r.y, r.w, r.h, 14); ctx.fill();
+  ctx.strokeStyle = '#a29bfe'; ctx.lineWidth = 2;
+  rr(ctx, r.x, r.y, r.w, r.h, 14); ctx.stroke();
+  ctx.font = FT.btn; ctx.fillStyle = '#ffffff'; ctx.textBaseline = 'middle';
+  ctx.fillText('Play Again', r.x + r.w / 2, r.y + r.h / 2);
+
+  const mr = modeRect();
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  rr(ctx, mr.x, mr.y, mr.w, mr.h, 12); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = 1.5;
+  rr(ctx, mr.x, mr.y, mr.w, mr.h, 12); ctx.stroke();
+  ctx.font = FT.body; ctx.fillStyle = COL.sub;
+  ctx.fillText('Menu', mr.x + mr.w / 2, mr.y + mr.h / 2);
+
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left';
+  ctx.globalAlpha = 1;
+}
+
+/* ======================================================================
+ * particles
+ * ====================================================================*/
+function addBurst(tx, ty, colour, n) {
+  if (particles.length > PARTICLE_CAP) return;
+  const k = Math.min(n || 5, PARTICLE_CAP - particles.length);
+  for (let i = 0; i < k; i++) {
+    const a = Math.random() * Math.PI * 2, sp = 0.6 + Math.random() * 1.8;
+    particles.push({ x: tx, y: ty, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+                     life: 0.45 + Math.random() * 0.3, max: 0.75,
+                     r: 0.05 + Math.random() * 0.05, c: colour || '#fff' });
+  }
+}
+function addPop(tx, ty, text, colour) {
+  if (popups.length > 24) return;
+  popups.push({ x: tx, y: ty, t: 0, life: 0.95, text: String(text), c: colour || COL.gold });
+}
+function addFlash(tx, ty, bad) {
+  if (flashes.length > 20) return;
+  flashes.push({ x: tx, y: ty, t: 1, bad: !!bad });
+}
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.vx *= 0.92; p.vy = p.vy * 0.92 + dt * 0.6;
+    p.life -= dt;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+  for (let i = popups.length - 1; i >= 0; i--) {
+    const p = popups[i];
+    p.t += dt; p.y -= dt * 1.3;
+    if (p.t >= p.life) popups.splice(i, 1);
+  }
+  for (let i = flashes.length - 1; i >= 0; i--) {
+    flashes[i].t -= dt * 2.4;
+    if (flashes[i].t <= 0) flashes.splice(i, 1);
+  }
+}
+function drawParticles() {
+  const ts = cam.ts;
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i];
+    ctx.globalAlpha = clamp(p.life / p.max, 0, 1);
+    ctx.fillStyle = p.c;
+    const r = Math.max(1, p.r * ts);
+    ctx.beginPath(); ctx.arc(cam.toX(p.x), cam.toY(p.y), r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  if (popups.length) {
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    for (let i = 0; i < popups.length; i++) {
+      const p = popups[i];
+      const k = clamp(1 - p.t / p.life, 0, 1);
+      ctx.globalAlpha = k;
+      ctx.font = fontFor(clamp(ts * 0.5, 13, 30), true);
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillText(p.text, cam.toX(p.x) + 1, cam.toY(p.y) + 1);
+      ctx.fillStyle = p.c;
+      ctx.fillText(p.text, cam.toX(p.x), cam.toY(p.y));
+    }
+    ctx.globalAlpha = 1;
+    ctx.textAlign = 'left';
+  }
+}
+
+/* ======================================================================
+ * pointer input
+ * ====================================================================*/
+const DIR_OF = { '0,-1': 0, '1,-1': 1, '1,0': 2, '1,1': 3, '0,1': 4, '-1,1': 5, '-1,0': 6, '-1,-1': 7 };
+function dirOf(mx, my) {
+  const d = DIR_OF[mx + ',' + my];
+  return d === undefined ? -1 : d;
+}
+
+let activePointer = null, dragging = false;
+// A right- or middle-button drag erases whatever the palette says — held
+// separately from `tool` so the selection survives the gesture. Mouse only: a
+// touch pointerdown always reports button 0, so on the tablet the eraser tool is
+// still the way in.
+let eraseBtn = false;
+let lastTx = -9999, lastTy = -9999;
+let hoverTx = -9999, hoverTy = -9999, hoverOk = false, pegOk = false;
+let downX = 0, downY = 0, moved = false;
+
+function pointerPos(e) {
+  const r = canvas.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+function inPlayArea(y) { return y > topBand - 30 && y < H - botBand + 20; }
+
+function canDo(what, x, y, bx, by) {
+  const w = sim && sim.world;
+  if (!w) return false;
+  if (typeof w.inBounds === 'function' && !w.inBounds(x, y)) return false;
+  const inv = sim.inventory || {};
+  // A house's drive is free, so a house tile is always drawable even with no road
+  // tiles left; anywhere else needs a tile in the wallet.
+  if (what === 'road') {
+    if (typeof w.isHouseTile === 'function' && w.isHouseTile(x, y)) return true;
+    return (inv.roads | 0) > 0;
+  }
+  if (what === 'eraser') return true;
+  if (what === 'roundabout') {
+    if ((inv.roundabout | 0) <= 0) return false;
+    return typeof w.canAddRoundabout === 'function' ? w.canAddRoundabout(x, y) === 0 : true;
+  }
+  if (what === 'lights') {
+    if ((inv.lights | 0) <= 0) return false;
+    return typeof w.canAddLight === 'function' ? w.canAddLight(x, y) === 0 : true;
+  }
+  if (what === 'motorway') {
+    if ((inv.motorway | 0) <= 0) return false;
+    if (bx === undefined) return true;
+    return typeof w.canAddMotorway === 'function' ? w.canAddMotorway(x, y, bx, by) === 0 : true;
+  }
+  if (what === 'bridge') {
+    if ((inv.bridge | 0) <= 0) return false;
+    if (bx === undefined) return true;
+    return typeof w.canAddBridge === 'function' ? w.canAddBridge(x, y, bx, by) === 0 : true;
+  }
+  return false;
+}
+
+/**
+ * Why a one-off item would not go down, in four words. A tap with the roundabout
+ * or the lights used to do NOTHING when the spot was wrong — no buzz, no flash, no
+ * reason — which is indistinguishable from a broken tool. Roads stay silent on
+ * purpose (a drag crosses dozens of tiles), but a deliberate single tap owes an
+ * answer.
+ */
+const WHY_ROUND = { 1: 'Off the map', 2: 'Needs clear ground', 3: 'Something is here',
+                    5: 'Too near a building', 6: 'Something is here', 7: 'Needs a junction' };
+const WHY_LIGHT = { 1: 'Off the map', 3: 'Already here', 5: 'Not on a building',
+                    6: 'Something is here', 7: 'Needs a junction' };
+function denyPlace(what, tx, ty) {
+  if (!sim || sim.gameOver || sim.pendingChoice) return;
+  const w = sim.world;
+  const inv = sim.inventory || {};
+  let msg;
+  if ((inv[what === 'roundabout' ? 'roundabout' : 'lights'] | 0) <= 0) msg = 'None left';
+  else {
+    let why = 7;
+    try {
+      why = what === 'roundabout' ? w.canAddRoundabout(tx, ty) : w.canAddLight(tx, ty);
+    } catch (e) { why = 7; }
+    msg = (what === 'roundabout' ? WHY_ROUND : WHY_LIGHT)[why] || 'Cannot build here';
+  }
+  sfx.deny();
+  addFlash(tx, ty, true);
+  addPop(tx + 0.5, ty + 0.5, msg, COL.danger);
+}
+
+/**
+ * Every tile the selected one-off item would actually fit on, as a flat x,y list.
+ * The hover preview already colours the tile under the cursor — but a tablet has no
+ * cursor, so on touch the only way to find the one junction with room for a 3x3
+ * roundabout was to tap around blind. Rescanned only when the tool, the wallet or
+ * the world changes, so it costs one pass over the playable rect per change and
+ * nothing per frame.
+ */
+let spots = [], spotsKey = '';
+function refreshSpots() {
+  const live = state === 'play' && sim && !sim.pendingChoice && !erasing() &&
+    (tool === 'roundabout' || tool === 'lights');
+  if (!live) { if (spots.length) spots = []; spotsKey = ''; return; }
+  const w = sim.world, b = w.bounds;
+  if (!b) { spots = []; return; }
+  const have = (sim.inventory[tool === 'roundabout' ? 'roundabout' : 'lights'] | 0) > 0;
+  const key = tool + '|' + w.version + '|' + (have ? 1 : 0) +
+    '|' + b.x0 + ',' + b.y0 + ',' + b.x1 + ',' + b.y1;
+  if (key === spotsKey) return;
+  spotsKey = key;
+  spots = [];
+  if (!have) return;
+  const round = tool === 'roundabout';
+  for (let y = b.y0; y <= b.y1; y++) {
+    for (let x = b.x0; x <= b.x1; x++) {
+      let r;
+      try { r = round ? w.canAddRoundabout(x, y) : w.canAddLight(x, y); } catch (e) { return; }
+      if (r === RE_OK) spots.push(x, y);
+    }
+  }
+}
+
+function updateHover(tx, ty) {
+  hoverTx = tx; hoverTy = ty;
+  hoverOk = canDo(erasing() ? 'eraser' : tool, tx, ty);
+  if (pegA && (tool === 'motorway' || tool === 'bridge')) {
+    pegOk = !(pegA.x === tx && pegA.y === ty) && canDo(tool, pegA.x, pegA.y, tx, ty);
+  } else pegOk = false;
+}
+
+/** Erase every edge leaving a tile — a tap should just clear the junction. */
+function eraseTile(tx, ty) {
+  let any = false;
+  for (let d = 0; d < 8; d++) {
+    const r = sim.tryErase(tx, ty, d);
+    if (r) any = true;
+  }
+  return any;
+}
+
+/**
+ * What a TAP with the eraser (or a right-click) removes. Infrastructure sits on
+ * top of the road, so it goes first and the road under it survives — one more tap
+ * clears that. A drag only ever erases road, so sweeping the eraser across the
+ * map can never cost you a motorway you did not aim at.
+ */
+function eraseAt(tx, ty) {
+  if (sim.tryEraseInfra && sim.tryEraseInfra(tx, ty)) return true;
+  return eraseTile(tx, ty);
+}
+
+function erasing() { return tool === 'eraser' || eraseBtn; }
+
+// net.js reason codes the shell has to reason about. It does not import net.js —
+// world is reached only through sim — so they are restated here.
+const RE_OK = 0, RE_TERRAIN = 2, RE_EXISTS = 3, RE_CROSS = 4, RE_BUILDING = 5;
+
+function applyStep(x0, y0, mx, my) {
+  const d = dirOf(mx, my);
+  if (d < 0) return;
+  if (erasing()) { sim.tryErase(x0, y0, d); return; }
+  if (sim.tryRoad(x0, y0, d)) return;
+  if (mx === 0 || my === 0) return;
+  // A diagonal the world refused on GEOMETRY grounds becomes the L round the
+  // outside of whatever was in the way — a corner it would have cut (a building, a
+  // lot, a lake, a hill) or a diagonal it would have scissored. The finger asked to
+  // get from here to there; going round is what it meant, and leaving a hole in the
+  // middle of a drag (which is what a bare refusal does, since the anchor still
+  // advances) reads as the drag being flaky. RE_TERRAIN is included even though it is
+  // also what an endpoint IN water answers, because that case self-rejects below: the
+  // L through that endpoint is refused for the same reason, and the other L needs it
+  // too. Both halves must be legal, or nothing is laid: half an L leaves road hanging.
+  const w = sim.world;
+  let why;
+  try { why = w.canAddEdge(x0, y0, d); } catch (e) { return; }
+  if (why !== RE_BUILDING && why !== RE_CROSS && why !== RE_TERRAIN) return;
+  for (let k = 0; k < 2; k++) {
+    const ax = k === 0 ? mx : 0, ay = k === 0 ? 0 : my;
+    const bx = k === 0 ? 0 : mx, by = k === 0 ? my : 0;
+    const d1 = dirOf(ax, ay), d2 = dirOf(bx, by);
+    const vx = x0 + ax, vy = y0 + ay;
+    let r1, r2;
+    try { r1 = w.canAddEdge(x0, y0, d1); r2 = w.canAddEdge(vx, vy, d2); } catch (e) { return; }
+    const need = (r1 === RE_OK ? 1 : 0) + (r2 === RE_OK ? 1 : 0);
+    if ((r1 !== RE_OK && r1 !== RE_EXISTS) || (r2 !== RE_OK && r2 !== RE_EXISTS)) continue;
+    if ((sim.inventory.roads | 0) < need) {             // deny once, not half an L
+      if (gate('deny', 220)) sfx.deny();
+      addFlash(x0 + mx, y0 + my, true);
+      return;
+    }
+    if (r1 === RE_OK) sim.tryRoad(x0, y0, d1);
+    if (r2 === RE_OK) sim.tryRoad(vx, vy, d2);
+    return;
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * Turning a finger path into 8-directional tiles.
+ *
+ * The rule is: commit a tile the moment the pointer enters it, so the road
+ * always reaches exactly as far as the finger did — no trailing lag, and the
+ * tile you lift on is included.
+ *
+ * The one exception is what makes diagonals possible. A smooth 45-degree drag
+ * crosses its x and y boundaries a few milliseconds apart, so committing on
+ * entry alone would always lay the staircase A->B->C instead of the diagonal
+ * A->C. So when the pointer crosses a boundary CLOSE TO A CORNER — which is
+ * what a diagonal looks like just before it becomes obvious — that orthogonal
+ * step is HELD for one sample. If the pointer then lands on the diagonal tile
+ * we lay the diagonal; if it does anything else we lay the step we were
+ * holding. Crossings near the middle of an edge are unambiguous and commit
+ * immediately, so ordinary straight drawing has no latency at all.
+ * ------------------------------------------------------------------------ */
+const CORNER = 0.3;         // how close to a corner counts as "aiming at it"
+
+// a held orthogonal step, plus the diagonal tile it might turn out to be
+let pendX = 0, pendY = 0, pendDX = 0, pendDY = 0, pending = false;
+
+/**
+ * Which side of an orthogonal step the pointer is hugging: -1 low, +1 high,
+ * 0 comfortably in the middle (so: not aiming at a corner).
+ */
+function cornerSide(fx, fy, mx) {
+  const f = mx !== 0 ? fy - Math.floor(fy) : fx - Math.floor(fx);
+  if (f < CORNER) return -1;
+  if (f > 1 - CORNER) return 1;
+  return 0;
+}
+
+function stepTo(mx, my) {
+  const w = sim && sim.world;
+  if (w && typeof w.inBounds === 'function' && !w.inBounds(lastTx + mx, lastTy + my)) return false;
+  applyStep(lastTx, lastTy, mx, my);
+  lastTx += mx; lastTy += my;
+  return true;
+}
+
+/** Lay the step we were holding (the diagonal it was hedging against never came). */
+function flushPending() {
+  if (!pending) return;
+  pending = false;
+  stepTo(pendX - lastTx, pendY - lastTy);
+}
+
+/**
+ * Close a multi-tile gap (a fast swipe) by walking the straight line from the
+ * anchor to the pointer, picking at each step whichever of the three forward
+ * neighbours sits closest to that line. That is a Bresenham which also uses
+ * diagonals where the line is diagonal, so the road follows the swipe instead
+ * of cutting the corner off it. Returns with the anchor adjacent to (tx,ty).
+ */
+function walkGap(tx, ty, fx, fy) {
+  const ax = lastTx + 0.5, ay = lastTy + 0.5;
+  const lx = fx - ax, ly = fy - ay;
+  const inv = 1 / Math.max(1e-6, Math.sqrt(lx * lx + ly * ly));
+  const nx = -ly * inv, ny = lx * inv;                  // unit normal to the line
+  for (let guard = 0; guard < 64; guard++) {
+    const dx = tx - lastTx, dy = ty - lastTy;
+    if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) return;  // adjacent: the caller finishes
+    const sx = Math.sign(dx), sy = Math.sign(dy);
+    let bmx = sx, bmy = sy, best = Infinity;
+    for (let c = 0; c < 3; c++) {
+      const mx = c === 2 ? 0 : sx, my = c === 1 ? 0 : sy;
+      if (mx === 0 && my === 0) continue;
+      const d = Math.abs((lastTx + mx + 0.5 - ax) * nx + (lastTy + my + 0.5 - ay) * ny);
+      if (d < best) { best = d; bmx = mx; bmy = my; }
+    }
+    if (!stepTo(bmx, bmy)) return;
+  }
+}
+
+/** Advance the drag to the pointer's world position. */
+function dragToward(fx, fy) {
+  const tx = Math.floor(fx), ty = Math.floor(fy);
+
+  // 1. settle whatever was being held, now that there is a newer sample
+  if (pending) {
+    if (tx === pendDX && ty === pendDY) {
+      pending = false;
+      stepTo(tx - lastTx, ty - lastTy);          // the diagonal it was aiming at
+    } else if (tx === lastTx && ty === lastTy) {
+      pending = false;                           // came back; nothing to lay
+    } else if (tx === pendX && ty === pendY) {
+      if (cornerSide(fx, fy, pendX - lastTx) === 0) flushPending();
+      else return { x: lastTx, y: lastTy };      // still hovering the corner: wait
+    } else {
+      flushPending();                            // moved on; the held step was real
+    }
+  }
+
+  // 2. close any gap, then take the final adjacent step
+  walkGap(tx, ty, fx, fy);
+  const dx = tx - lastTx, dy = ty - lastTy;
+  if (dx !== 0 || dy !== 0) {
+    if (dx !== 0 && dy !== 0) {
+      stepTo(dx, dy);                            // diagonal: unambiguous
+    } else {
+      const side = cornerSide(fx, fy, dx);
+      if (side === 0) stepTo(dx, dy);            // mid-edge crossing: unambiguous
+      else {
+        pending = true;                          // hold it: this may be a diagonal
+        pendX = tx; pendY = ty;
+        pendDX = dx !== 0 ? tx : tx + side;
+        pendDY = dx !== 0 ? ty + side : ty;
+      }
+    }
+  }
+  return { x: lastTx, y: lastTy };
+}
+
+function onDown(e) {
+  const p = pointerPos(e);
+  if (state === 'over') {
+    if (hitRect(againRect(), p.x, p.y, 8)) { sfx.tap(); startGame(difficulty); return; }
+    if (hitRect(modeRect(), p.x, p.y, 8)) {
+      sfx.tap(); state = 'menu'; sim = null; refreshMenuText(); showProfiles();
+      overlayEl.classList.remove('hidden');
+    }
+    return;
+  }
+  if (state === 'pause') { state = 'play'; sfx.tap(); return; }
+  if (state !== 'play' || !sim) return;
+
+  // While the reward cards are up ONLY the cards may consume taps.
+  if (sim.pendingChoice) {
+    const rects = cardRects();
+    for (let i = 0; i < rects.length; i++) {
+      if (hitRect(rects[i], p.x, p.y, 6)) {
+        try { sim.choose(i); } catch (err) { /* keep playing */ }
+        sfx.confirm();
+        choiceAnim = 0;
+        return;
+      }
+    }
+    return;
+  }
+
+  // palette
+  const rects = paletteRects();
+  for (let i = 0; i < rects.length; i++) {
+    if (hitRect(rects[i], p.x, p.y, 6)) { selectTool(TOOLS[i].id); return; }
+  }
+  if (!inPlayArea(p.y)) return;
+
+  activePointer = e.pointerId;
+  downX = p.x; downY = p.y; moved = false;
+  pending = false;
+  // Right button (button 2) or a middle click erases, whatever the palette says.
+  eraseBtn = (e.button === 2 || e.button === 1 || (e.buttons | 0) === 2);
+  const tx = cam.tileX(p.x), ty = cam.tileY(p.y);
+  updateHover(tx, ty);
+
+  if (eraseBtn && pegA) {
+    pegA = null; eraseBtn = false; sfx.erase();   // right-click cancels a pending peg
+  } else if (eraseBtn) {
+    dragging = true; lastTx = tx; lastTy = ty;
+  } else if (tool === 'road') {
+    dragging = true; lastTx = tx; lastTy = ty;
+  } else if (tool === 'eraser') {
+    dragging = true; lastTx = tx; lastTy = ty;
+  } else if (tool === 'roundabout') {
+    if (!sim.tryRoundabout(tx, ty)) denyPlace('roundabout', tx, ty);
+  } else if (tool === 'lights') {
+    if (!sim.tryLight(tx, ty)) denyPlace('lights', tx, ty);
+  } else if (tool === 'motorway' || tool === 'bridge') {
+    if (!pegA) {
+      pegA = { x: tx, y: ty };
+      sfx.tap();
+    } else if (pegA.x === tx && pegA.y === ty) {
+      pegA = null; sfx.erase();                      // same tile cancels
+    } else {
+      const okNow = pegOk;
+      let done = false;
+      if (okNow) {
+        done = (tool === 'motorway') ? !!sim.tryMotorway(pegA.x, pegA.y, tx, ty)
+                                     : !!sim.tryBridge(pegA.x, pegA.y, tx, ty);
+      }
+      if (!done) { addFlash(tx, ty, true); sfx.deny(); }
+      pegA = null;                                   // anywhere invalid cancels
+    }
+  }
+  try { canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId); } catch (err) {}
+  if (e.preventDefault) e.preventDefault();
+}
+
+function onMove(e) {
+  const p = pointerPos(e);
+  if (state !== 'play' || !sim) return;
+  if (activePointer === null || e.pointerId === activePointer) {
+    const tx = cam.tileX(p.x), ty = cam.tileY(p.y);
+    if (tx !== hoverTx || ty !== hoverTy) updateHover(tx, ty);
+    if (Math.abs(p.x - downX) > 6 || Math.abs(p.y - downY) > 6) moved = true;
+    if (dragging && activePointer !== null && !sim.pendingChoice) {
+      // Fed the CONTINUOUS pointer position, not the tile index: the fractional
+      // part is what tells a diagonal drag apart from a staircase.
+      dragToward(cam.toWX(p.x), cam.toWY(p.y));
+    }
+  }
+  if (e.preventDefault) e.preventDefault();
+}
+
+function onUp(e) {
+  if (state === 'play' && sim && dragging) {
+    // The finger has stopped moving, so a held step is not a diagonal after all.
+    // Flushing here is what makes the road reach the tile you lifted on.
+    flushPending();
+    if (!moved && erasing()) eraseAt(lastTx, lastTy);   // a tap clears the junction
+  }
+  pending = false;
+  eraseBtn = false;
+  dragging = false;
+  activePointer = null;
+  try { canvas.releasePointerCapture && canvas.releasePointerCapture(e.pointerId); } catch (err) {}
+}
+
+canvas.addEventListener('pointerdown', onDown);
+canvas.addEventListener('pointermove', onMove);
+canvas.addEventListener('pointerup', onUp);
+canvas.addEventListener('pointercancel', onUp);
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+/* ======================================================================
+ * keyboard (desktop dev fallback)
+ * ====================================================================*/
+window.addEventListener('keydown', (e) => {
+  const k = e.key;
+  if (k === 'r' || k === 'R') {
+    if (state === 'play' || state === 'over' || state === 'pause') startGame(difficulty);
+    return;
+  }
+  if (!sim || (state !== 'play' && state !== 'pause')) return;
+  if (sim.pendingChoice) return;            // cards gate the palette, eraser and Space
+  if (k === ' ' || k === 'Spacebar') {
+    state = (state === 'play') ? 'pause' : 'play';
+    if (e.preventDefault) e.preventDefault();
+    return;
+  }
+  if (state !== 'play') return;
+  if (k === 'e' || k === 'E') { selectTool('eraser'); return; }
+  if (k === '1') selectTool('road');
+  else if (k === '2') selectTool('motorway');
+  else if (k === '3') selectTool('bridge');
+});
+
+/* ======================================================================
+ * events -> juice
+ * ====================================================================*/
+function destById(id) {
+  const list = sim && sim.world && sim.world.dests;
+  if (!Array.isArray(list)) return null;
+  for (let i = 0; i < list.length; i++) if (list[i] && list[i].id === id) return list[i];
+  return null;
+}
+
+function handleEvents() {
+  let evs = null;
+  try { evs = sim.drainEvents(); } catch (e) { return; }
+  if (!Array.isArray(evs) || !evs.length) return;
+  for (let i = 0; i < evs.length; i++) {
+    const ev = evs[i];
+    if (!ev || !ev.type) continue;
+    const tx = isFinite(ev.x) ? ev.x + 0.5 : null;
+    const ty = isFinite(ev.y) ? ev.y + 0.5 : null;
+    switch (ev.type) {
+      case 'road':
+        if (gate('road', 34)) sfx.road();
+        if (tx !== null && gate('roadp', 60)) addBurst(tx, ty, '#cfd6f5', 2);
+        break;
+      case 'erase':
+        if (gate('erase', 40)) sfx.erase();
+        if (tx !== null && gate('erasep', 70)) addBurst(tx, ty, '#8d95b4', 2);
+        break;
+      case 'ghost':
+        // Erased, but cars are still on it so the road does not vanish yet. The
+        // flash + the 'refund' event that always follows are the only feedback
+        // that the erase actually landed.
+        if (tx !== null) addFlash(ev.x, ev.y, false);
+        if (gate('ghost', 260)) sfx.erase();
+        break;
+      case 'refund':
+        if (gate('refund', 90)) sfx.refund();
+        break;
+      case 'deny':
+        // Contract: 'deny' means the action was legal but the wallet is empty.
+        if (gate('deny', 220)) sfx.deny();
+        if (tx !== null) addFlash(ev.x, ev.y, true);
+        break;
+      case 'infra':
+        sfx.build();
+        if (tx !== null) addBurst(tx, ty, COL.glow, 10);
+        break;
+      case 'uninfra':
+        // louder than a road erase — you just got an inventory item back
+        sfx.refund();
+        if (tx !== null) addBurst(tx, ty, COL.glow, 8);
+        break;
+      case 'pin':
+        if (gate('pin', 95)) sfx.pin();
+        break;
+      case 'collect':
+        if (gate('collect', 70)) sfx.collect();
+        if (tx !== null) addBurst(tx, ty, ev.color != null ? cls(ev.color).light : '#fff', 4);
+        break;
+      case 'trip': {
+        if (gate('trip', 60)) sfx.trip();
+        // Per-trip value only — never the running total.
+        const v = (typeof ev.score === 'number' && ev.score > 0 && ev.score <= 9) ? (ev.score | 0) : 1;
+        if (tx !== null) { addPop(tx, ty, '+' + v, COL.gold); addBurst(tx, ty, COL.gold, 6); }
+        break;
+      }
+      case 'timerStart':
+        if (gate('alarm', 400)) sfx.alarm();
+        if (tx !== null) addFlash(ev.x, ev.y, true);
+        break;
+      case 'timerEnd':
+        if (gate('relief', 250)) sfx.relief();
+        break;
+      case 'spawn':
+        if (gate('spawn', 90)) sfx.pop();
+        if (tx !== null) addBurst(tx, ty, ev.color != null ? cls(ev.color).light : COL.glow, 8);
+        break;
+      case 'upgrade':
+        sfx.pop();
+        if (tx !== null) addBurst(tx, ty, COL.gold, 10);
+        break;
+      case 'carAdded':
+        if (gate('car', 90)) sfx.pop();
+        if (tx !== null) addBurst(tx, ty, '#ffffff', 4);
+        break;
+      case 'day':
+        if (gate('day', 200)) sfx.day();
+        break;
+      case 'week':
+        sfx.week();
+        choiceAnim = 0;
+        break;
+      case 'expand':
+        // The reveal is continuous now (a band of tiles at a time, many times a
+        // week), so it does NOT chime — the weekly 'week' cue is the audible beat.
+        renderer.markAll();       // newly-revealed tiles need the terrain/road caches rebuilt
+        // No refit: the camera reveal is time-based (refitCamera runs every frame),
+        // so the framing is already where it should be.
+        break;
+      case 'gameover':
+        endRun(ev);
+        break;
+      default: break;
+    }
+  }
+}
+
+function endRun(ev) {
+  if (state === 'over') return;
+  state = 'over';
+  overAnim = 0;
+  finalScore = sim.score | 0;
+  finalWeek = Math.max(1, sim.week | 0);
+  lostDest = destById(sim.lostDestId != null ? sim.lostDestId : (ev && ev.destId));
+  if (!lostDest && ev && isFinite(ev.x)) lostDest = { x: ev.x, y: ev.y, w: 1, h: 1 };
+  newBest = saveBest(difficulty, curLevelKey, finalScore);
+  sfx.over();
+  refreshMenuText();
+}
+
+/* ======================================================================
+ * frame loop
+ * ====================================================================*/
+let lastT = 0, rafId = 0;
+
+function frame(t) {
+  rafId = requestAnimationFrame(frame);
+  const nt = (typeof t === 'number' ? t : 0) / 1000;
+  let dt = lastT ? nt - lastT : 0;
+  lastT = nt;
+  if (!isFinite(dt) || dt < 0) dt = 0;
+  if (dt > 0.05) dt = 0.05;                     // clamp
+  if (document.hidden) return;                  // pause on hide
+  now += dt;
+
+  if (sim) {
+    const running = (state === 'play' && !sim.pendingChoice && !sim.gameOver);
+    if (running) {
+      try { sim.update(dt); } catch (e) { /* never let a sim throw kill the frame */ }
+    }
+    handleEvents();
+    // The 'gameover' event is the normal path (it carries the lost destination),
+    // but a terminal state must never depend on a transient message: if the flag
+    // is set and we somehow missed the event, the board would sit frozen in 'play'
+    // with no game-over screen and no way to restart. The flag is the backstop.
+    if (sim.gameOver && state === 'play') endRun(null);
+    // Re-aim before easing. The target creeps out a ring per week (see
+    // refitCamera), so this has to run every frame, not on the expand event.
+    if (state === 'play') refitCamera(false);
+    cam.update(dt);
+    if (sim.pendingChoice) choiceAnim = Math.min(1, choiceAnim + dt);
+  }
+  if (state === 'over') overAnim += dt;
+  updateParticles(dt);
+  render();
+}
+
+const ui = { time: 0, tool: 'road', hover: { x: 0, y: 0, ok: false, on: false },
+             dragging: false, pegA: null, pegOk: false, flashes: flashes, spots: spots };
+
+function render() {
+  renderer.drawBackground();
+  if (state === 'menu' || !sim) return;
+
+  ui.time = now;
+  ui.tool = erasing() ? 'eraser' : tool;   // a right-drag previews as the eraser
+  ui.hover.x = hoverTx; ui.hover.y = hoverTy; ui.hover.ok = hoverOk;
+  ui.hover.on = (hoverTx > -9000);
+  ui.dragging = dragging;                  // grid of buildable spaces shows during a drag
+  ui.pegA = pegA; ui.pegOk = pegOk;
+  refreshSpots();
+  ui.spots = spots;                        // refreshSpots may have swapped the array
+  const showPreview = (state === 'play' && !sim.pendingChoice);
+  renderer.drawWorld(sim, showPreview ? ui : { time: now, flashes: flashes });
+
+  drawParticles();
+
+  if (state !== 'over') {
+    drawHUD();
+    if (!sim.pendingChoice) drawPalette();
+  }
+  if (sim.pendingChoice && state === 'play') drawChoice();
+  if (state === 'pause') drawPause();
+  if (state === 'over') drawGameOver();
+  if (bootError) {
+    ctx.font = FT.small; ctx.fillStyle = COL.danger; ctx.textAlign = 'center';
+    ctx.fillText(bootError, W / 2, H - 6);
+    ctx.textAlign = 'left';
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) lastT = 0;              // no giant dt on return
+});
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 120));
+
+/* ======================================================================
+ * start / restart
+ * ====================================================================*/
+function startGame(diff) {
+  difficulty = (diff === 'easy') ? 'easy' : 'normal';
+  curLevelKey = levelKeyFor(levelIndex);   // best scores are tracked per level
+  ensureAudio();
+  try {
+    sim = new Sim({
+      difficulty: difficulty,
+      seed: (Math.random() * 1e9) | 0,
+      map: levels[levelIndex] || null
+    });
+  } catch (e) {
+    bootError = 'sim.js failed to start: ' + (e && e.message ? e.message : e);
+    sim = null;
+    const el = document.getElementById('bootInfo');
+    if (el) el.textContent = bootError;
+    return;
+  }
+  state = 'play';
+  tool = 'road'; pegA = null;
+  hoverTx = -9999; hoverTy = -9999;
+  particles.length = 0; popups.length = 0; flashes.length = 0;
+  overAnim = 0; choiceAnim = 0; newBest = false; lostDest = null;
+  hudCache.key = '';
+  renderer.markAll();
+  layout();
+  renderer.setViewport(W, H, DPR);
+  refitCamera(true);                    // frames the opening rect; linear reveal to the full map over 7 weeks
+  try { sim.drainEvents(); } catch (e) {}
+  overlayEl.classList.add('hidden');
+}
+
+function refreshMenuText() {
+  const bl = document.getElementById('bestLine');
+  // Ezra plays the easy tuning, Caleb the normal one. The profile-card record is that
+  // profile's best across ALL cities; the per-city best lives on the city cards.
+  const eb = profileBest('easy'), nb = profileBest('normal');
+  const best = Math.max(eb, nb);
+  if (bl) bl.innerHTML = best > 0 ? ('Best run: <b>' + best + ' trips</b>') : '&nbsp;';
+  const re = document.getElementById('recEzra'), rn = document.getElementById('recCaleb');
+  if (re) re.innerHTML = eb > 0 ? ('best ' + eb) : '&nbsp;';
+  if (rn) rn.innerHTML = nb > 0 ? ('best ' + nb) : '&nbsp;';
+}
+
+// Ezra / Caleb are PROFILES. Each carries a difficulty tuning (Ezra = easy, Caleb =
+// normal) and its own best score. Picking a profile opens the city (level) select.
+let selectedProfile = 'caleb';
+
+function showProfiles() {
+  const lp = document.getElementById('levelPanel'), pp = document.getElementById('profilePanel');
+  const tip = document.getElementById('menuTip');
+  if (lp) lp.classList.add('hidden');
+  if (pp) pp.classList.remove('hidden');
+  if (tip) tip.classList.remove('hidden');
+}
+function showLevels(profile) {
+  selectedProfile = (profile === 'ezra') ? 'ezra' : 'caleb';
+  difficulty = (selectedProfile === 'ezra') ? 'easy' : 'normal';
+  const who = document.getElementById('levelWho');
+  if (who) who.textContent = (selectedProfile === 'ezra' ? 'Ezra' : 'Caleb') + ' — choose a city';
+  buildLevelCards();
+  const lp = document.getElementById('levelPanel'), pp = document.getElementById('profilePanel');
+  const tip = document.getElementById('menuTip');
+  if (pp) pp.classList.add('hidden');
+  if (lp) lp.classList.remove('hidden');
+  if (tip) tip.classList.add('hidden');
+}
+
+// One card per compiled level (playable), then a couple of "coming soon" placeholders.
+// More maps in maps.json appear here automatically.
+function buildLevelCards() {
+  const wrap = document.getElementById('levelCards');
+  if (!wrap) return;
+  const diff = (selectedProfile === 'ezra') ? 'easy' : 'normal';   // best is shown per level, for this profile
+  const rec = (key) => { const b = bestFor(key, diff); return '<span class="rec">' + (b > 0 ? ('best ' + b) : '&nbsp;') + '</span>'; };
+  wrap.innerHTML = '';
+  for (let i = 0; i < levels.length; i++) {
+    const card = document.createElement('div');
+    card.className = 'pcard normal';
+    card.innerHTML = '<span class="em">&#x1F3D9;</span>' + (levels[i].name || ('City ' + (i + 1))) + rec(levelKeyFor(i));
+    const idx = i;
+    card.addEventListener('click', function () { chooseLevel(idx); });
+    wrap.appendChild(card);
+  }
+  if (!levels.length) {
+    // maps.json did not load — offer the procedural city so the game still plays.
+    const card = document.createElement('div');
+    card.className = 'pcard normal';
+    card.innerHTML = '<span class="em">&#x1F3B2;</span>Random city' + rec('random');
+    card.addEventListener('click', function () { chooseLevel(0); });
+    wrap.appendChild(card);
+  }
+  for (let k = 0; k < 2; k++) {
+    const card = document.createElement('div');
+    card.className = 'pcard soon';
+    card.innerHTML = '<span class="em">&#x1F6A7;</span>Coming soon';
+    wrap.appendChild(card);
+  }
+}
+function chooseLevel(i) {
+  levelIndex = i | 0;
+  ensureAudio(); sfx.tap();
+  startGame(difficulty);            // difficulty was set from the profile in showLevels
+}
+
+const profileCards = document.querySelectorAll('#profilePanel .pcard');
+for (let i = 0; i < profileCards.length; i++) {
+  profileCards[i].addEventListener('click', function () {
+    ensureAudio(); sfx.tap();
+    showLevels(this.getAttribute('data-profile'));
+  });
+}
+const backEl = document.getElementById('backToPlayers');
+if (backEl) backEl.addEventListener('click', function () { sfx.tap(); showProfiles(); });
+
+/* ======================================================================
+ * levels
+ * ====================================================================*/
+/**
+ * Fetch + compile maps.json. Deliberately NOT awaited before the render loop
+ * starts — the menu is HTML and already on screen — but the play cards are held
+ * until it settles, because starting a run and then swapping the map under it is
+ * worse than a few milliseconds of a greyed-out button on a local file.
+ *
+ * A failure is survivable and says so out loud in the menu: `levels` stays empty
+ * and Sim falls back to the procedural map rather than refusing to start.
+ */
+function setCardsEnabled(on) {
+  const pc = document.querySelectorAll('#profilePanel .pcard');
+  for (let i = 0; i < pc.length; i++) {
+    pc[i].style.pointerEvents = on ? '' : 'none';
+    pc[i].style.opacity = on ? '' : '0.45';
+  }
+}
+
+async function loadLevels() {
+  setCardsEnabled(false);
+  const res = await loadBundle();
+  levels = res.maps;
+  levelIndex = 0;
+  setCardsEnabled(true);
+  buildLevelCards();                    // fill the (possibly already-open) city list
+  const el = document.getElementById('levelLine');
+  if (!levels.length && el) {
+    el.textContent = 'Random city (maps.json did not load)';
+  }
+  if (res.errors.length) {
+    // Console, not the menu: the second and later entries are per-level author
+    // typos that only matter to whoever is editing the bundle.
+    console.warn('[roadways] maps.json:', res.errors.join(' | '));
+  }
+}
+
+/* ======================================================================
+ * boot
+ * ====================================================================*/
+window.__roadwaysBooted = true;
+refreshMenuText();
+resize();
+rafId = requestAnimationFrame(frame);
+loadLevels();
+
+// exposed for the headless harness only (no gameplay use)
+window.__rw = {
+  get sim() { return sim; }, cam: cam, renderer: renderer,
+  get state() { return state; }, set state(v) { state = v; },
+  get tool() { return tool; },
+  startGame: startGame, selectTool: selectTool, resize: resize,
+  frame: frame, render: render, refitCamera: refitCamera,
+  paletteRects: paletteRects, cardRects: cardRects, againRect: againRect, modeRect: modeRect,
+  dragToward: dragToward, dirOf: dirOf, updateHover: updateHover, layout: layout,
+  onDown: onDown, onMove: onMove, onUp: onUp,
+  get pegA() { return pegA; },
+  get levels() { return levels; },
+  get levelIndex() { return levelIndex; }, set levelIndex(v) { levelIndex = v | 0; },
+  loadLevels: loadLevels,
+  particles: particles, popups: popups, flashes: flashes
+};
+</script>
+</body>
+</html>

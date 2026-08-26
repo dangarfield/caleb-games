@@ -20,7 +20,7 @@ The single loop that makes it fun, in 2–3 sentences.
 - [ ] Single self-contained games/<name>/index.html
 - [ ] Canvas 2D, dark-theme palette, touch-action:none
 - [ ] Back button href = ../../index.html
-- [ ] Canvas HUD pill, canvas game-over, calebArcadeData localStorage
+- [ ] Canvas HUD pill, canvas game-over, own localStorage item keyed calebArcadeData:<gameName>
 
 ## Acceptance Criteria
 - [ ] Plays with no JS console errors

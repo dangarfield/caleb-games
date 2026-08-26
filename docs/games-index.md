@@ -1,6 +1,6 @@
 # Games Index
 
-All 64 games in Garfield Boys' Arcade (65 directories — Archers has legacy 2D + current 3D).
+All 65 games in Garfield Boys' Arcade (66 directories — Archers has legacy 2D + current 3D).
 
 | Game | Directory | Description |
 |------|-----------|-------------|
@@ -67,6 +67,7 @@ All 64 games in Garfield Boys' Arcade (65 directories — Archers has legacy 2D 
 | Traffic Jam | games/traffic-jam/ | Rush Hour sliding-block puzzle — slide cars out of the way so the red car can escape; 12 verified levels, live-BFS hints, Caleb/Ezra progress |
 | Garfimon | games/garfimon/ | Pokemon-style card battler — collect from 151 cards across 9 energy types, then battle with HP/attack; Caleb/Ezra collections (note: saves under its own `garfimonState_<player>` keys, not `calebArcadeData`) |
 | Domino Rally | games/dominoes/ | 3D domino-run builder + toppler (Three.js + Rapier) — drag to draw straight lines or free curves, orbit/pan/select camera tools, a 360° rotation dial on whatever you last placed, 17 trick items in 5 families (obstacles, movers, noise-makers, gadgets, structures; 16 in the tray, Soft Sand is challenge-only) including four impulse-fired launchers (Rocket, Fire Jump, Loop the Loop, Slalom Tower) and a Springboard that comes loaded with the domino it flings, command-pattern undo AND redo, named saves, 22 achievements that unlock tools/tables/skins, 7 teaching challenges, per-device Low/High quality tiering with an adaptive governor, Caleb/Ezra progress |
+| Roadways | games/roadways/ | Mini Motorways-style city-traffic puzzle — drag 8-directional roads (diagonals cost the same tile but drive √2 slower) to connect houses to matching-coloured destinations; cars live at the houses and auto-route out, collect one waiting pin and return, with real congestion (intersection yields, no overtaking, gridlock cascade). Each house has a single free "drive" (one edge, redrawing replaces it). Pins pile up at destinations and past a hidden cap start a radial countdown that ends the run if it empties; square destinations upgrade to circles and demand faster. Monday→Sunday calendar with irregular spawns, Sunday choose-one-of-two bundles (road tiles + motorway or bridge/tunnel), free erase with a ghost-tile that keeps a car's route home; the camera zooms out linearly to reveal the whole city over 7 weeks with the buildable area growing to meet it; starts on one colour and ramps to 5. Ezra/Caleb are player profiles (Easy/Normal tuning) that pick a city (Los Angeles built; more "coming soon"); best score is per city × profile |
 | Caesar's Challenge | games/caesars-challenge/ | Roman-numeral academy — 100 levels in 10 provinces (Latium → Roma), 10–15 procedurally generated puzzles per level across 12 types (decode, encode, + − × ÷, compare, order, forgery-spotting, missing letter, sequence, balance scales, Caesar-shift secret scrolls) with 5 input widgets; laurel streak multiplier, sundial time bonus that can never fail you, teach cards on every miss, 3 stars per level, mosaic reveal, denarii + 10 province trophies, Colosseum rival duels every 10th level; Caleb/Ezra progress |
 
 ## Naming quirks worth knowing

@@ -6,6 +6,30 @@ Review periodically — memory drifts. Newest at the top.
 
 ---
 
+## 2026-08-25 — New games get their own save item, keyed `calebArcadeData:<gameName>`
+The one shared `calebArcadeData` object hit a wall in practice, so the convention changes for
+**new** games: each owns a single localStorage item whose key *starts with* `calebArcadeData` —
+`calebArcadeData:<gameName>`, the folder name after the colon — holding that game's object
+directly, not nested under its own name again. Keeping the prefix is the point: the hub's ⚙
+panel lists every localStorage key alphabetically with its size and a Clear button, so a split key
+still sits with the rest of the arcade's data and becomes its own clearable row.
+
+**The legacy shape persists for most of the arcade and must not be touched.** Games already
+storing under `data.<gameName>` inside the single `calebArcadeData` object keep doing exactly
+that. Do not migrate one, and do not switch a game's storage while in there fixing something
+else — the only reason to move a game is that it is the one whose saves are failing. Two shapes
+coexisting is deliberate, not debt to clean up: a bulk migration would risk 60+ games' saved
+progress to fix a problem that only bites the growing ones.
+
+What this does and does not solve: `localStorage` is still ONE ~5 MB quota for the whole origin,
+so splitting keys does not create room. It stops one object from being rewritten in full on every
+save, keeps a corrupt or oversized game from taking the rest down with it, and makes "clear the
+big one" actionable per game. The prune-ladder and never-swallow-a-write-failure rules in the two
+entries below still apply to every save path, split or shared.
+Updated: `.claude/rules/arcade-build.md`, `.apm/instructions/arcade-build.instructions.md`,
+`AGENTS.md`, `knowledge/boilerplate.md`, both `game-reviewer` rubrics, `.apm/specs/game.spec.md`,
+`.apm/skills/update-game/SKILL.md`.
+
 ## 2026-08-23 — One 5 MB quota, 64 games: a save path needs a prune ladder
 Follow-on from the entry below, and the actual cause of the child's report. `localStorage` is
 ONE quota for the whole origin — about 5 MB of characters, not per key and not per game — and

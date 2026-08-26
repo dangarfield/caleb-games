@@ -28,7 +28,9 @@ the *how-to-think* detail (boilerplate, audio recipes, UX patterns) lives in
 - HUD as a canvas-drawn pill, top-centre. Game-over screen canvas-drawn (not HTML).
 
 ## Persistence
-- Shared localStorage key `calebArcadeData` (JSON). Per-game data under `data.<gameName>`.
+- **A new game gets its OWN localStorage item, and its key MUST START with `calebArcadeData`:** `calebArcadeData:<gameName>` (JSON), where `<gameName>` is the game's folder name — e.g. `calebArcadeData:roadways`. The prefix is the convention: the hub's ⚙ panel lists keys alphabetically, so every `calebArcadeData:*` item clusters with the shared blob, each with its own size and Clear button. Store the game's own object directly — do not nest it under a `<gameName>` key inside its own item.
+- **Legacy — do not change it:** most existing games share ONE `calebArcadeData` object with their data under `data.<gameName>`. That still works and stays. Never migrate a game off it, and never switch a game's storage while fixing something unrelated; the only reason to move one is that it is the game whose saves are actually failing.
+- Why the split: `localStorage` is ONE ~5 MB quota for the whole origin. A single shared object means every save rewrites all 60+ games' data at once, so one big game wedges the whole arcade and a write can fail for reasons that have nothing to do with the game doing it. Separate items keep both a failure and a "clear this" local to one game. Save paths still owe the prune-ladder rules in `docs/decisions.memory.md` (2026-08-23).
 
 ## When you finish
 - The game's `docs/game-<name>.md` node MUST reflect reality (features, files, and any bug fixed appended to its `## Memory` section). This is enforced by the `docs-writeback` hook.
