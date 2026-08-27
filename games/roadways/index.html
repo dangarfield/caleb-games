@@ -923,7 +923,65 @@ function pointerPos(e) {
   const r = canvas.getBoundingClientRect();
   return { x: e.clientX - r.left, y: e.clientY - r.top };
 }
-function inPlayArea(y) { return y > topBand - 30 && y < H - botBand + 20; }
+// Only the top HUD band is off-limits by Y. The bottom is NOT blocked wholesale any
+// more (that made the whole bottom row dead even beside the few centred tool icons);
+// the palette blocks only its own footprint — see paletteBox / onDown.
+function inPlayArea(y) { return y > topBand - 30; }
+// Bounding box of the tool icons (with a small margin) — a tap in here is a palette
+// tap, not a map action; a tap in the bottom band BESIDE it is free to draw.
+function paletteBox() {
+  const rects = paletteRects();
+  if (!rects.length) return null;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (let i = 0; i < rects.length; i++) {
+    const r = rects[i];
+    if (r.x < x0) x0 = r.x; if (r.y < y0) y0 = r.y;
+    if (r.x + r.w > x1) x1 = r.x + r.w; if (r.y + r.h > y1) y1 = r.y + r.h;
+  }
+  const m = 8;
+  return { x0: x0 - m, y0: y0 - m, x1: x1 + m, y1: y1 + m };
+}
+
+/* ---- top-right controls: pause + quit-to-menu (canvas-drawn, hit-tested) ---- */
+function topBtnSize() { return clamp(Math.round(W * 0.11), 38, 46); }
+function quitRect() { const s = topBtnSize(); return { x: W - 12 - s, y: 12, w: s, h: s }; }
+function pauseRect() { const s = topBtnSize(), q = quitRect(); return { x: q.x - 10 - s, y: 12, w: s, h: s }; }
+function quitToMenu() {
+  state = 'menu'; sim = null; refreshMenuText(); showProfiles();
+  overlayEl.classList.remove('hidden');
+}
+function drawTopButtons() {
+  const btn = (r, kind) => {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    rr(ctx, r.x, r.y, r.w, r.h, 12); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = 1.5;
+    rr(ctx, r.x, r.y, r.w, r.h, 12); ctx.stroke();
+    const cx = r.x + r.w / 2, cy = r.y + r.h / 2, s = r.w * 0.24;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    if (kind === 'pause') {
+      if (state === 'pause') {                       // paused → show a play triangle
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.moveTo(cx - s * 0.6, cy - s); ctx.lineTo(cx + s, cy); ctx.lineTo(cx - s * 0.6, cy + s);
+        ctx.closePath(); ctx.fill();
+      } else {                                         // playing → two bars
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(2, r.w * 0.1);
+        ctx.beginPath();
+        ctx.moveTo(cx - s * 0.5, cy - s); ctx.lineTo(cx - s * 0.5, cy + s);
+        ctx.moveTo(cx + s * 0.5, cy - s); ctx.lineTo(cx + s * 0.5, cy + s);
+        ctx.stroke();
+      }
+    } else {                                           // quit → an X
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(2, r.w * 0.1);
+      ctx.beginPath();
+      ctx.moveTo(cx - s, cy - s); ctx.lineTo(cx + s, cy + s);
+      ctx.moveTo(cx + s, cy - s); ctx.lineTo(cx - s, cy + s);
+      ctx.stroke();
+    }
+  };
+  btn(pauseRect(), 'pause');
+  btn(quitRect(), 'quit');
+}
 
 function canDo(what, x, y, bx, by) {
   const w = sim && sim.world;
@@ -1217,6 +1275,11 @@ function onDown(e) {
     }
     return;
   }
+  // top-right controls, available while playing OR paused (so Play/Quit work when paused)
+  if (state === 'play' || state === 'pause') {
+    if (hitRect(quitRect(), p.x, p.y, 8)) { sfx.tap(); quitToMenu(); return; }
+    if (hitRect(pauseRect(), p.x, p.y, 8)) { sfx.tap(); state = (state === 'play') ? 'pause' : 'play'; return; }
+  }
   if (state === 'pause') { state = 'play'; sfx.tap(); return; }
   if (state !== 'play' || !sim) return;
 
@@ -1240,7 +1303,9 @@ function onDown(e) {
   for (let i = 0; i < rects.length; i++) {
     if (palTools[i] && hitRect(rects[i], p.x, p.y, 6)) { selectTool(palTools[i].id); return; }
   }
-  if (!inPlayArea(p.y)) return;
+  if (!inPlayArea(p.y)) return;                 // under the HUD: not a map action
+  const pb = paletteBox();                      // inside the icon cluster: not a map action either
+  if (pb && p.x >= pb.x0 && p.x <= pb.x1 && p.y >= pb.y0 && p.y <= pb.y1) return;
 
   activePointer = e.pointerId;
   downX = p.x; downY = p.y; moved = false;
@@ -1525,6 +1590,7 @@ function render() {
   }
   if (sim.pendingChoice && state === 'play') drawChoice();
   if (state === 'pause') drawPause();
+  if (state === 'play' || state === 'pause') drawTopButtons();
   if (state === 'over') drawGameOver();
   if (bootError) {
     ctx.font = FT.small; ctx.fillStyle = COL.danger; ctx.textAlign = 'center';
