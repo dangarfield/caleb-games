@@ -44,6 +44,9 @@ const PIN_HARD_CAP = 60;      // sanity clamp above `cap`; you have already lost
 const PIN_RATE = 0.8;         // global throttle on how fast pins appear: pins tick at this
                               // fraction of their otherwise-computed rate (0.8 = 20% slower /
                               // 25% longer intervals). Raise toward 1.0 to speed pins back up.
+const ENDGAME_WEEK = 14;      // after this week the demand ramp is done and the ENDGAME begins:
+const ENDGAME_DECAY = 0.9;    // each week past it, pin intervals shrink to 90% (10% faster),
+                              // compounding, so the run eventually becomes unwinnable.
 const FLEET_CAP = 56;         // tablet perf guard on total cars (NOT a measured limit)
 const MAX_DEST_ID = 4096;     // size bound for the id->dest fast lookup
 
@@ -194,6 +197,8 @@ export class Sim {
     this._terrainKnown = false;
     this._terrainVer = -1;
     this._hasObstacle = false;
+    this._hasWater = false;
+    this._hasMountain = false;
     this._roundKnown = false;
     this._roundVer = -1;
     this._roundFits = false;
@@ -354,11 +359,15 @@ export class Sim {
     } else {
       n = this.intervalSquare * d._jit;
     }
-    // Apply the day's demand scale: 1.0 on day 1 (nothing changes), 0.6 by day 10.
-    // A double office's half starts at 1.2 (slightly slower), falling to 0.8 by day 10.
+    // Apply the day's demand scale: 1.0 on day 1 (nothing changes), rising over the
+    // 14-week ramp. A double office's half starts slower and eases in over the same span.
     const scale = intervalScale(d._shape, !!d.isHalf, this.day);
     n *= scale;
     n /= PIN_RATE;                          // global rate throttle (0.8 => longer interval => fewer pins)
+    // ENDGAME: once the ramp is done (after ENDGAME_WEEK), the demand TIME shrinks
+    // ENDGAME_DECAY per week — pins come faster and faster until no amount of houses
+    // can keep up and the run eventually becomes impossible.
+    if (this.week > ENDGAME_WEEK) n *= Math.pow(ENDGAME_DECAY, this.week - ENDGAME_WEEK);
     d._next = (n > 0.08) ? n : 0.08;
   }
 
@@ -810,25 +819,33 @@ export class Sim {
 
   // ==================== Sunday reward ====================
 
-  // Is there any water/mountain inside the playable rect? No obstacle -> never
-  // offer a bridge/tunnel the player cannot use.
-  _mapHasObstacle() {
+  // What obstacles are inside the CURRENTLY revealed playable rect? Cached on
+  // world.version. Tracks water and mountain SEPARATELY, because a span reward must
+  // match reality: never offer a tunnel unless there are mountains, nor a bridge
+  // unless there is water.
+  _scanObstacles() {
     const w = this.world;
-    if (!w || typeof w.tileAt !== 'function' || !w.bounds) return false;
-    if (this._terrainVer === w.version && this._terrainKnown) return this._hasObstacle;
+    if (!w || typeof w.tileAt !== 'function' || !w.bounds) {
+      this._hasWater = false; this._hasMountain = false; this._hasObstacle = false; return;
+    }
+    if (this._terrainVer === w.version && this._terrainKnown) return;
     const b = w.bounds;
-    let found = false;
-    for (let y = b.y0; y <= b.y1 && !found; y++) {
+    let water = false, mnt = false;
+    for (let y = b.y0; y <= b.y1; y++) {
       for (let x = b.x0; x <= b.x1; x++) {
         const t = w.tileAt(x, y);
-        if (t === TILE_WATER || t === TILE_MOUNTAIN) { found = true; break; }
+        if (t === TILE_WATER) water = true;
+        else if (t === TILE_MOUNTAIN) mnt = true;
       }
+      if (water && mnt) break;
     }
-    this._hasObstacle = found;
+    this._hasWater = water; this._hasMountain = mnt; this._hasObstacle = water || mnt;
     this._terrainKnown = true;
     this._terrainVer = w.version;
-    return found;
   }
+  _mapHasObstacle() { this._scanObstacles(); return !!this._hasObstacle; }
+  _mapHasMountain() { this._scanObstacles(); return !!this._hasMountain; }
+  _mapHasWater() { this._scanObstacles(); return !!this._hasWater; }
 
   // Is there ANYWHERE a roundabout would currently go? Same rule as the bridge gate
   // above, and it matters more: a roundabout eats a 3x3 block clear of buildings,
@@ -899,7 +916,15 @@ export class Sim {
     const base = this.weeklyRoads;
     const big = Math.round(base * 1.8);   // down from 2.2
     const pool = ['motorway'];
-    if (this._mapHasObstacle()) pool.push(this.terrain === 'mountain' ? 'tunnel' : 'bridge');
+    // The span reward matches what the revealed map actually holds: a TUNNEL only if
+    // there are mountains, a BRIDGE only if there is water. When both are present the
+    // run's terrain flavour (the dominant one) picks the label. This is what stops a
+    // tunnel being offered on a map with no mountains at all.
+    const mnt = this._mapHasMountain(), wtr = this._mapHasWater();
+    if (mnt || wtr) {
+      pool.push(mnt && wtr ? (this.terrain === 'mountain' ? 'tunnel' : 'bridge')
+                           : (mnt ? 'tunnel' : 'bridge'));
+    }
 
     // pick two distinct items
     let a = pool[(this._rnd() * pool.length) | 0];

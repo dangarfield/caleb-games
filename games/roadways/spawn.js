@@ -13,8 +13,10 @@
 //
 // A HOUSE is still simple: its one tile is its own gate and door.
 //
-// HOUSE SPAWN ANCHORS: each colour gets 4 anchor points at random across the
-// whole map (picked up front, fixed for the run). When spawning a house, we try
+// HOUSE SPAWN ANCHORS: each colour gets 4 anchor points SPREAD across the whole map
+// (picked up front by farthest-point sampling against all anchors so far — its own
+// AND other colours', the latter weighted weaker — so a colour doesn't clump and
+// different colours don't share an area; fixed for the run). When spawning a house, we try
 // anchors that are visible, sample tiles 0..5 tiles away, and fall back to the
 // full random search only when that fails. This makes neighbourhoods form — the
 // same four places per colour all run long, new anchors only come into play as
@@ -48,14 +50,17 @@
 // HOUSE_DAYS stays the honest "how often at equilibrium" number.
 //
 // ---------------------------------------------------------------------------
-// OFFICES — one every 4-6 days
+// OFFICES — one every 3-5 days
 // ---------------------------------------------------------------------------
-// One office clock, independent of the week. Every OFFICE_DAYS_MIN..MAX in-game
-// days it fires, and either introduces the next COLOUR (if the difficulty schedule
-// says one is due) or hands relief to whichever existing colour has the most houses
-// per office. Either way the office may never open with no houses of its colour: the
-// 'intro' and 'dest' entries check EVERY colour the new building serves — a double
-// office serves two — and pin a retrying 'chouse' for any that has none.
+// One office clock, independent of the week. Every OFFICE_DAYS_MIN..MAX in-game days
+// it fires an office. WHICH colour: while the run holds fewer colours than the date's
+// cap (`_colorCap` — one more colour per week, up to MAX_COLORS), it introduces the
+// next NEW colour (ignoring the density ceiling because introducing the colour is the
+// point); once that cap is reached it hands RELIEF to a RANDOM existing colour (`_pickDestColor`),
+// capped by the office density ceiling so a mature board paces to the room it has. Either
+// way the office may never open with no houses of its colour: the 'intro' and 'dest'
+// entries check EVERY colour the new building serves — a double office serves two —
+// and pin a retrying 'chouse' for any that has none.
 //
 // DOM-free: no window/document/canvas/audio/localStorage in here.
 //
@@ -95,13 +100,11 @@ import { colorNeed } from './demand.js';
 const DIFF = {
   easy: {
     dayLength: 12,
-    colorEvery: 2.75,     // a new colour every N weeks (capped at MAX_COLORS — 5 by ~week 12 on Easy)
     tilesPerHouse: 6,     // density ceiling — a SAFETY NET, not the rate (see below)
     houseDays: 2.8        // equilibrium cadence of ONE colour's house clock, in days
   },
   normal: {
     dayLength: 9,
-    colorEvery: 2.5,      // 1 colour to start, +1 every 2.5 weeks, capped at MAX_COLORS — 5 by ~week 11
     tilesPerHouse: 5,
     houseDays: 3.2
   }
@@ -113,18 +116,21 @@ const DIFF = {
 // drowning colour can actually be relieved (the clock wants ~2 houses/day against a
 // 47-house ceiling by week 4), and the real backstops are the ones that mean
 // something: sim's FLEET_CAP for the tablet, and losing the run for the player.
-// Easy and Normal share the 4-6 day office cadence deliberately: Easy's day is 12s
+// Easy and Normal share the 3-5 day office cadence deliberately: Easy's day is 12s
 // against Normal's 9s, so the same number of days is already a third more real time
 // to wire the new office up.
 
 const START_COLORS = 1;          // the run opens on ONE office and its houses; more colours arrive on the clock
-const MAX_COLORS = 5;            // the run tops out at 5 colours (of the 8 defined), reached gradually — see _colorsDue
+const MAX_COLORS = 5;            // the run tops out at 5 colours (of the 8 defined); the office clock introduces them one per firing, then relieves existing colours
 const MIN_GAP = 0.9;              // seconds between two scheduled spawns
 
 // --- the per-colour house clock (see DEMAND vs SUPPLY above) ---
 // The equilibrium cadence itself is per difficulty (DIFF.houseDays); everything
 // below is the shape of the feedback loop and is shared.
 const HOUSE_JITTER = 0.4;         // +-20% so two colours never lock into step
+const OVERSPAWN = 1.25;           // target ~25% MORE houses than raw demand needs, then hold
+                                  // (eventually consistent): the house clock fills to this and
+                                  // stops placing, instead of trickling on to the density ceiling.
 const SPEED_MIN = 0.35;           // heavily over-supplied: ~9 days per house
 const SPEED_MAX = 3.0;            // drowning: ~1 day per house
 const TREND_UP = 1.4;             // weight on "the queue is growing"
@@ -136,12 +142,10 @@ const TREND_REF = 0.10;           // pins/second/office that counts as full-tilt
 const BACKLOG_REF = 4;            // unclaimed pins per office that counts as deep
 
 // --- the office clock ---
-const OFFICE_DAYS_MIN = 4;        // an office every 4-6 in-game days
-const OFFICE_DAYS_MAX = 6;
-const RELIEF_SPEED = 2.2;         // a colour whose house clock is pinned this high (of a 3.0 max) is
-                                  // losing badly enough to earn a whole extra OFFICE, not just more
-                                  // houses. Below it, no new colour due means NO office fires — so the
-                                  // early game does not pile same-colour buildings the board never needed.
+const OFFICE_DAYS_MIN = 3;        // an office every 3-5 in-game days
+const OFFICE_DAYS_MAX = 5;
+const OFFICE_LAST_WEEK = 14;      // after this week no more offices spawn — the demand ramp is
+                                  // done, so only houses spawn from here (to serve what exists)
 const TILES_PER_OFFICE = 18;      // density ceiling for offices (a NEW COLOUR ignores it).
                                   // A safety net, not the rate. Measured over 8 seeds: at 24
                                   // it BOUND (8.7-day gaps against a clock asking for 3-5);
@@ -219,22 +223,44 @@ export class Generator {
     this._supply = null;                                 // sim's per-colour snapshot
     this._rollOffice();
 
-    // house spawn anchors: 4 per colour, across the WHOLE grid, fixed for the run
+    // house spawn anchors: 4 per colour, across the WHOLE grid, fixed for the run.
+    // They are SPREAD OUT by farthest-point sampling against EVERY anchor placed so
+    // far, across all colours — so a colour's neighbourhoods don't clump AND different
+    // colours don't all land in the same area (no r/g/b on top of each other). Same-
+    // colour spacing counts full; OTHER-colour spacing counts less (W_OTHER), so the
+    // colours still interleave — pushed apart, not perfectly segregated.
+    const MC = this.world.maxCols, MR = this.world.maxRows, tiles = this.world.tiles;
+    const W_OTHER = 0.35;
+    const sampleEmpty = () => {
+      let ax = (this._rng() * MC) | 0, ay = (this._rng() * MR) | 0;
+      for (let t = 0; t < 8; t++) {   // prefer open land, a few tries, no hard loop
+        const tx = (this._rng() * MC) | 0, ty = (this._rng() * MR) | 0;
+        if (tiles[ty * MC + tx] === T_EMPTY) { ax = tx; ay = ty; break; }
+      }
+      return { x: ax, y: ay };
+    };
+    const placed = [];   // every anchor chosen so far, tagged with its colour
     this._anchors = [];
     for (let c = 0; c < COLORS.length; c++) {
       const pts = [];
       for (let k = 0; k < 4; k++) {
-        let ax = (this._rng() * this.world.maxCols) | 0;
-        let ay = (this._rng() * this.world.maxRows) | 0;
-        // prefer non-terrain with a few tries, but do not loop hard
-        for (let t = 0; t < 8; t++) {
-          const tx = (this._rng() * this.world.maxCols) | 0;
-          const ty = (this._rng() * this.world.maxRows) | 0;
-          if (this.world.tiles[ty * this.world.maxCols + tx] === T_EMPTY) {
-            ax = tx; ay = ty; break;
+        let best = null, bestScore = -1;
+        const tries = placed.length ? 16 : 1;   // the very first anchor is free
+        for (let s = 0; s < tries; s++) {
+          const cand = sampleEmpty();
+          let score = Infinity;                  // distance to the NEAREST existing anchor
+          for (let j = 0; j < placed.length; j++) {
+            const a = placed[j];
+            const dx = cand.x - a.x, dy = cand.y - a.y;
+            let eff = dx * dx + dy * dy;
+            if (a.c !== c) eff /= W_OTHER;        // other-colour anchors repel more weakly
+            if (eff < score) score = eff;
           }
+          if (score > bestScore) { bestScore = score; best = cand; }
         }
-        pts.push({ x: ax, y: ay });
+        best.c = c;
+        pts.push(best);
+        placed.push(best);
       }
       this._anchors.push(pts);
     }
@@ -419,9 +445,18 @@ export class Generator {
       // Speed warps TIME, not the interval, so HOUSE_DAYS stays readable as the
       // equilibrium cadence and a colour that flips between fast and slow mid-wait
       // keeps the progress it had already made.
-      this._houseT[c] -= dt * this._houseSpeed(c);
+      const speed = this._houseSpeed(c);
+      this._houseT[c] -= dt * speed;
       if (this._houseT[c] > 0) continue;
       this._rollHouse(c);
+      // The ~25% overspawn target is where a colour that is KEEPING UP settles: once it
+      // is at target AND not under pressure (its demand clock is at or below the
+      // equilibrium rate), hold — tick but place nothing. But a colour that is genuinely
+      // BEHIND (speed above equilibrium: queue rising or deep) keeps spawning PAST the
+      // target, up to the density ceiling, so it can actually catch up. The rating is
+      // only an estimate of how many houses an office needs; on a big, congested map the
+      // real number is higher, and this is what lets supply find it.
+      if (speed <= 1.05 && this._colorHouses[c] >= this._houseTarget(c)) continue;
       // The map is the real difficulty curve: at the density ceiling the spawn is
       // dropped rather than packing the board solid. New rings raise the ceiling.
       if (this.world.houses.length >= budget) continue;
@@ -480,37 +515,24 @@ export class Generator {
     }
     this._officeT -= dt;
     if (this._officeT > 0) return out;
-    // A NEW COLOUR is due? Introduce it — that ignores the density ceiling, because
-    // the colour schedule is a promise and an office is how it is kept.
-    const introDue = this.colorsUnlocked < this._colorsDue();
-    if (!introDue) {
-      // No new colour due, so any office now would be RELIEF (another building for an
-      // EXISTING colour). Only fire one if a colour is genuinely drowning and there is
-      // room; otherwise reroll and look again next cadence. This is what stops the
-      // early game stacking same-colour offices the board never asked for.
-      if (!this._needsRelief() || this.world.dests.length >= this._officeBudget()) {
-        this._rollOffice();
-        return out;
-      }
+    // Buildings are DONE after week OFFICE_LAST_WEEK: the demand ramp has finished by
+    // then, so from here only HOUSES spawn (to serve the buildings that exist). The
+    // clock keeps ticking harmlessly but never places another office.
+    if (this.week > OFFICE_LAST_WEEK) { this._rollOffice(); return out; }
+    // An office spawns every OFFICE_DAYS_MIN..MAX days, full stop. WHICH colour it is
+    // is decided in _armOffice: a NEW colour while the run holds fewer than the
+    // date-capped number (`_colorCap`, ~one more colour per week up to MAX_COLORS) —
+    // that ignores the density ceiling because introducing the colour is the point —
+    // otherwise a RELIEF office for a RANDOM existing colour, which DOES respect the
+    // ceiling, so a mature board paces offices to the room it actually has.
+    const wantNewColour = this.colorsUnlocked < this._colorCap();
+    if (!wantNewColour && this.world.dests.length >= this._officeBudget()) {
+      this._rollOffice();                 // board at its office ceiling; look again next cadence
+      return out;
     }
     this._officeWait = 0;                 // a FRESH fire; the house hold starts now
     this._armOffice(now);
     return out;
-  }
-
-  /**
-   * True when some unlocked colour is losing badly enough to warrant a whole extra
-   * OFFICE rather than just more houses — its house clock is pinned near SPEED_MAX,
-   * meaning it is already spawning houses as fast as it can and still falling behind.
-   * A colour with no office yet is skipped: giving it one is an intro's job, not
-   * relief. With no supply snapshot (very early) _houseSpeed is 1, so nothing relieves.
-   */
-  _needsRelief() {
-    for (let c = 0; c < this.colorsUnlocked; c++) {
-      if (this._colorDests[c] <= 0) continue;
-      if (this._houseSpeed(c) >= RELIEF_SPEED) return true;
-    }
-    return false;
   }
 
   /** Is there still a live office entry in the plan? */
@@ -529,21 +551,21 @@ export class Generator {
   _armOffice(now) {
     this._officeDests = this.world.dests.length;
     this._officeOut = 1;
-    const kind = this.colorsUnlocked < this._colorsDue() ? 'intro' : 'dest';
+    // Prioritise a NEW colour until the date-capped count is reached, then a relief
+    // 'dest' for a random already-unlocked colour (see _pickDestColor).
+    const kind = this.colorsUnlocked < this._colorCap() ? 'intro' : 'dest';
     this._add(kind, now, -1, MAX_TRIES_PINNED);
   }
 
   /**
-   * How many colours the difficulty schedule says should have arrived by now. The
-   * office clock tops up against this rather than firing on a strict cadence: a map
-   * buried in the player's road can starve a 3x2 footprint, and a strict cadence
-   * would then skip that colour FOREVER. On a healthy map the two are identical.
+   * How many DISTINCT colours may exist by now — one more per week, capped at
+   * MAX_COLORS: week 1 -> 1, week 2 -> 2, ... week 5 -> 5, and 5 thereafter. The
+   * office clock introduces new colours up to this, then relieves existing ones.
    */
-  _colorsDue() {
-    const d = DIFF[this.difficulty];
-    const due = START_COLORS + Math.floor((this.week - 1) / d.colorEvery);
-    const cap = MAX_COLORS < COLORS.length ? MAX_COLORS : COLORS.length;
-    return due > cap ? cap : due;
+  _colorCap() {
+    const hard = MAX_COLORS < COLORS.length ? MAX_COLORS : COLORS.length;
+    const byDate = this.week | 0;
+    return byDate < 1 ? 1 : (byDate > hard ? hard : byDate);
   }
 
   // Offices get a density ceiling of their own. A NEW COLOUR is exempt (checked by
@@ -657,6 +679,13 @@ export class Generator {
     return n < 4 ? 4 : n;
   }
 
+  // How many houses this colour should settle at: ~25% above its raw demand rating
+  // (see OVERSPAWN). The house clock fills to this and then holds; the hard floor
+  // (colorNeed with no overshoot) still guarantees the bare minimum underneath it.
+  _houseTarget(c) {
+    return colorNeed(this.world.dests, c, this.day, OVERSPAWN);
+  }
+
   /**
    * An office may never open with no houses of its colour. Called for every new
    * office, and it walks `parts` rather than trusting the colour that was ASKED
@@ -685,14 +714,13 @@ export class Generator {
   }
 
   // The colour with the most houses per destination needs relief.
+  // A relief office (one placed once the date-capped colour count is reached) takes a
+  // RANDOM colour from those already unlocked — so the colours keep mixing rather than
+  // always feeding the same one.
   _pickDestColor() {
-    let best = -1, bestW = -1;
-    for (let c = 0; c < this.colorsUnlocked; c++) {
-      if (this._colorHouses[c] <= 0) continue;
-      const wgt = (this._colorHouses[c] + 1) / (this._colorDests[c] + 1) * (0.7 + this._rng() * 0.6);
-      if (wgt > bestW) { bestW = wgt; best = c; }
-    }
-    return best;
+    const n = this.colorsUnlocked | 0;
+    if (n <= 0) return -1;
+    return (this._rng() * n) | 0;
   }
 
   // A square that has stood for a couple of weeks may become a circle (faster,

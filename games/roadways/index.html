@@ -46,8 +46,6 @@ canvas { display:block; width:100%; height:100%; touch-action:none; }
 .pcard .rec { display:block; font-size:0.8rem; font-weight:700; color:#ffd32a; margin-top:6px; }
 .pcard.easy { background:linear-gradient(145deg,rgba(225,112,85,0.35),rgba(253,203,110,0.28)); }
 .pcard.normal { background:linear-gradient(145deg,rgba(108,92,231,0.4),rgba(162,155,254,0.28)); }
-.pcard.soon { background:linear-gradient(145deg,rgba(120,120,140,0.20),rgba(90,90,110,0.16)); color:rgba(255,255,255,0.5); cursor:default; }
-.pcard.soon:hover { transform:none; border-color:rgba(255,255,255,0.12); box-shadow:none; }
 #overlay .tip { font-size:0.8rem; color:rgba(255,255,255,0.45); margin-top:0.6rem; }
 #backToPlayers { cursor:pointer; color:#a0c4ff; text-decoration:underline; margin-top:0.4rem; }
 </style>
@@ -341,6 +339,15 @@ function toolLabel(t) {
   if (t.id === 'bridge') return (sim && sim.terrain === 'mountain') ? 'Tunnel' : 'Bridge';
   return t.label;
 }
+// Only the tools the player actually has get a palette icon: Road and Erase are
+// always shown; an infrastructure tool (motorway, bridge/tunnel) appears only once
+// its inventory is above zero.
+function visibleTools() {
+  return TOOLS.filter(function (t) {
+    if (t.inv === null || t.inv === 'roads') return true;
+    return invCount(t) > 0;
+  });
+}
 function invCount(t) {
   if (!t.inv || !sim) return -1;
   const inv = sim.inventory || {};
@@ -440,7 +447,7 @@ function refitCamera(initial) {
  * palette (canvas-drawn, touch-sized)
  * ====================================================================*/
 function paletteMetrics() {
-  const n = TOOLS.length;
+  const n = visibleTools().length;
   const gap = W < 380 ? 6 : 9;
   const pad = W < 380 ? 8 : 12;
   // Tap targets must stay >= 44px. On a very narrow screen a single row of six
@@ -473,8 +480,12 @@ function hitRect(r, x, y, pad) {
 
 function drawPalette() {
   const rects = paletteRects();
+  const tools = visibleTools();
+  // If the selected tool ran out and lost its icon, drop back to Road.
+  if (!tools.some(function (t) { return t.id === tool; })) { tool = 'road'; pegA = null; }
   for (let i = 0; i < rects.length; i++) {
-    const r = rects[i], t = TOOLS[i];
+    const r = rects[i], t = tools[i];
+    if (!t) continue;
     const count = invCount(t);
     const usable = (count !== 0);
     const active = (tool === t.id);
@@ -1225,8 +1236,9 @@ function onDown(e) {
 
   // palette
   const rects = paletteRects();
+  const palTools = visibleTools();
   for (let i = 0; i < rects.length; i++) {
-    if (hitRect(rects[i], p.x, p.y, 6)) { selectTool(TOOLS[i].id); return; }
+    if (palTools[i] && hitRect(rects[i], p.x, p.y, 6)) { selectTool(palTools[i].id); return; }
   }
   if (!inPlayArea(p.y)) return;
 
@@ -1597,8 +1609,7 @@ function showLevels(profile) {
   if (tip) tip.classList.add('hidden');
 }
 
-// One card per compiled level (playable), then a couple of "coming soon" placeholders.
-// More maps in maps.json appear here automatically.
+// One card per compiled level. More maps in maps.json appear here automatically.
 function buildLevelCards() {
   const wrap = document.getElementById('levelCards');
   if (!wrap) return;
@@ -1619,12 +1630,6 @@ function buildLevelCards() {
     card.className = 'pcard normal';
     card.innerHTML = '<span class="em">&#x1F3B2;</span>Random city' + rec('random');
     card.addEventListener('click', function () { chooseLevel(0); });
-    wrap.appendChild(card);
-  }
-  for (let k = 0; k < 2; k++) {
-    const card = document.createElement('div');
-    card.className = 'pcard soon';
-    card.innerHTML = '<span class="em">&#x1F6A7;</span>Coming soon';
     wrap.appendChild(card);
   }
 }

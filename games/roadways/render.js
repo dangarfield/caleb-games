@@ -847,7 +847,8 @@ export class Renderer {
 
     this._paintRoundabouts(g, world, ts, cx, cy);
     this._paintBridges(g, world, ts, cx, cy);
-    this._paintMotorways(g, world, ts, cx, cy);
+    // Motorways are NOT baked into the road layer — they are ELEVATED. They are drawn
+    // live in drawWorld, on top of houses/roads/ground-cars (see `_drawMotorways`).
   }
 
   _paintRoundabouts(g, world, ts, cx, cy) {
@@ -933,6 +934,15 @@ export class Renderer {
       }
       g.lineCap = 'round';
     }
+  }
+
+  // Live, elevated motorway pass (drawWorld) — the same painter as the cached layers
+  // used, but fed the CAMERA transform (tile centres at x+0.5) so it lands on top of
+  // the buildings instead of baked under them.
+  _drawMotorways(world) {
+    const cam = this.cam;
+    this._paintMotorways(this.ctx, world, cam.ts,
+      (x) => cam.toX(x + 0.5), (y) => cam.toY(y + 0.5));
   }
 
   _paintMotorways(g, world, ts, cx, cy) {
@@ -1032,12 +1042,16 @@ export class Renderer {
     // tile slides under the house/office instead of being capped by it. Cars
     // standing on a footprint tile (the gate->door drive link) go under with it,
     // otherwise they'd drive visibly across the roof for a few tenths of a second.
-    this._drawCars(sim, world, true);
+    this._drawCars(sim, world, 'under');
     this._drawHouses(world);
     this._drawHouseMarks(world);
     this._drawDests(sim, world);      // lot + drive lane + building, once per office
     this._drawGateHints(world);       // only "a road can land here" on free gates
-    this._drawCars(sim, world, false);
+    this._drawCars(sim, world, 'ground');
+    // Motorways are ELEVATED: their deck is drawn ON TOP of houses, roads and the
+    // ground cars, and the cars crossing a span are drawn on top of the deck.
+    this._drawMotorways(world);
+    this._drawCars(sim, world, 'mway');
     this._drawTimers(world);          // on top: the failure clock must never hide
     if (ui) this._drawPreview(sim, world, ui);
   }
@@ -1816,7 +1830,12 @@ export class Renderer {
    * Two passes over the array is cheaper than sorting, and the pass that finds
    * nothing costs one `buildingAt` per car.
    */
-  _drawCars(sim, world, inside) {
+  // `pass` picks which layer of cars to draw:
+  //   'under'  — cars whose tile is a HOUSE (drawn beneath the house sprite)
+  //   'ground' — everyone else on the ground (roads, driveways, office lots)
+  //   'mway'   — cars crossing a MOTORWAY span (drawn ABOVE the elevated deck)
+  // The three passes bracket the buildings and the motorway deck in drawWorld.
+  _drawCars(sim, world, pass) {
     const traffic = sim && sim.traffic;
     const cars = traffic && traffic.cars;
     if (!Array.isArray(cars) || !cars.length) return;
@@ -1839,8 +1858,11 @@ export class Renderer {
       // the driveway or in its bay must stay on top too — the whole office is a
       // paved surface _drawDests paints over the road layer.
       const tx = Math.floor(c.x), ty = Math.floor(c.y);
-      const within = (at && typeof at.tileAt === 'function') ? at.tileAt(tx, ty) === T_HOUSE : false;
-      if (within !== !!inside) continue;
+      const onHouse = (at && typeof at.tileAt === 'function') ? at.tileAt(tx, ty) === T_HOUSE : false;
+      // K_MOTORWAY === 1 in traffic.js: a car carries `linkKind` for the span it is on.
+      const onMway = !onHouse && (c.linkKind | 0) === 1;
+      const layer = onHouse ? 'under' : (onMway ? 'mway' : 'ground');
+      if (layer !== pass) continue;
       const px = cam.toX(c.x), py = cam.toY(c.y);
       if (px < -ts || py < -ts || px > this.W + ts || py > this.H + ts) continue;
 

@@ -9,25 +9,28 @@
 // THE RULE (author's numbers, do not "improve" them silently)
 // ---------------------------------------------------------------------------
 // An office is rated in HOUSES TO SUSTAIN IT — how many houses' worth of cars it
-// takes to keep its pin queue down. That rating RISES over the first ten days and
-// then holds:
+// takes to keep its pin queue down. That rating RISES over the first FOURTEEN WEEKS
+// (day 1 -> day 98) and then holds:
 //
-//   standard office (square)   1.2 houses on day 1  ->  2.0 by the end of day 10
-//   skyscraper      (circle)   1.8                 ->  3.0
-//   double office, PER HALF    1.0                 ->  1.5   (so 2.0 -> 3.0 a pair)
+//   standard office (square)   1.0 houses on day 1  ->  1.4 by the end of week 14
+//   skyscraper      (circle)   1.5                 ->  2.2
+//   double office, PER HALF    0.8                 ->  1.1   (so 1.6 -> 2.2 a pair)
 //
 // A double office is deliberately CHEAPER per colour than two separate offices
-// (2.0-3.0 for the pair, against 2.4-4.0 for two singles): its shared driveway is
+// (1.6-2.2 for the pair, against 2.0-2.8 for two singles): its shared driveway is
 // a reward, not just a bigger building.
+//
+// (These numbers were softened from 1.2->2.0 / 1.8->3.0 to lighten overall demand —
+// see `game-roadways.md` Memory.)
 //
 // Two consequences fall out of one number:
 //
 //   1. PIN RATE. `intervalScale` is REF / need, where REF is the day-1 rating of
-//      that shape. So day 1 behaves EXACTLY as it did before this file existed
-//      (scale 1.0) and by day 10 a square's interval is 0.6x — it asks for ~67%
-//      more deliveries per second. This is the fix for "the game never gets
-//      harder": before, per-office demand was constant forever and all growth was
-//      in the COUNT of offices, which stalls when the colours run out.
+//      that shape. So day 1 behaves as it always has (scale 1.0) and by the end of
+//      week 14 a square's interval is ~0.71x — it asks for ~40% more deliveries per
+//      second, reached slowly across those fourteen weeks. This is what stops
+//      per-office demand being constant forever (all growth in the office COUNT,
+//      which stalls when colours run out).
 //   2. HOUSE FLOOR. `colorNeed` sums the ratings of one colour's offices, and the
 //      generator guarantees at least that many houses of that colour exist. The
 //      player is never asked for throughput the map cannot physically supply.
@@ -42,17 +45,20 @@ export function absDay(week, dayIndex) {
   return (w - 1) * 7 + di + 1;
 }
 
-const RAMP_DAYS = 9;    // day 1 -> day 10 is nine days of growth, then it holds
+const RAMP_DAYS = 97;   // day 1 -> day 98 (end of week 14) is 97 days of growth, then it holds.
 
-/** 0 on day 1, 1 from day 10 on. */
+/** 0 on day 1, 1 from day 98 (end of week 14) on. */
 export function ramp(day) {
   const p = ((day | 0) - 1) / RAMP_DAYS;
   return p <= 0 ? 0 : (p >= 1 ? 1 : p);
 }
 
-// [start, end] houses-to-sustain, per shape, single vs one half of a double
-const NEED_SINGLE = { square: [1.2, 2.0], circle: [1.8, 3.0] };
-const NEED_HALF = { square: [1.0, 1.5], circle: [1.5, 2.25] };
+// [start, end] houses-to-sustain, per shape, single vs one half of a double.
+// Softened so demand rises only gently across the first seven weeks and each office
+// needs fewer houses: this lowers BOTH the pin rate (intervalScale = day1need/todayNeed)
+// AND the house floor (colorNeed = ceil of the sum) at once.
+const NEED_SINGLE = { square: [1.0, 1.4], circle: [1.5, 2.2] };
+const NEED_HALF = { square: [0.8, 1.1], circle: [1.2, 1.7] };
 
 /**
  * Houses needed to sustain one office (one COLOUR of it — a double office asks
@@ -79,20 +85,27 @@ export function intervalScale(shape, isHalf, day) {
 }
 
 /**
- * The house floor for one colour: sum of its offices' ratings, rounded up.
+ * Houses one colour wants: EACH office rounded UP to a whole house, then summed.
+ * Rounding per office (rather than ceil-of-the-sum) is more generous and truer to
+ * "this office needs N houses" — a 1.9-rated office asks for 2 whole houses instead
+ * of contributing 1.9 that gets swallowed when summed with other fractions.
  * @param {Array} dests world.dests (every colour PART, so a double office
  *   contributes its two halves separately — which is exactly what we want)
  * @param {number} color
  * @param {number} day
- * @returns {number} minimum houses of that colour for demand to be servable
+ * @param {number} [overshoot] optional factor > 1. With it, aim that far ABOVE the
+ *   per-office-rounded need (a supply buffer — the generator targets a deliberate
+ *   overspawn). Omit it for the bare need: the minimum houses for demand to be servable.
+ * @returns {number}
  */
-export function colorNeed(dests, color, day) {
+export function colorNeed(dests, color, day, overshoot) {
   if (!dests) return 0;
-  let sum = 0;
+  let need = 0;
   for (let i = 0; i < dests.length; i++) {
     const d = dests[i];
     if (!d || (d.color | 0) !== (color | 0)) continue;
-    sum += housesNeeded(d.shape === 'circle' ? 'circle' : 'square', !!d.isHalf, day);
+    need += Math.ceil(housesNeeded(d.shape === 'circle' ? 'circle' : 'square', !!d.isHalf, day) - 1e-9);
   }
-  return Math.ceil(sum - 1e-9);
+  if (overshoot && overshoot > 1) return Math.round(need * overshoot);
+  return need;
 }
