@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0a2e">
+<title>Air Hockey World Cup - Garfield Boys' Arcade</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { width:100%; height:100%; }
+  body { background:#0a0a2e; overflow:hidden; touch-action:none;
+    -webkit-user-select:none; user-select:none;
+    font-family:'Segoe UI',system-ui,-apple-system,sans-serif; }
+  canvas { display:block; width:100%; height:100%; touch-action:none; }
+  .hidden { display:none !important; }
+
+  #backBtn { position:fixed; top:12px; left:12px; z-index:9999;
+    background:rgba(0,0,0,0.55); color:#fff; text-decoration:none;
+    padding:6px 18px; border-radius:20px;
+    font:bold 15px/1.4 'Segoe UI',system-ui,sans-serif;
+    border:1px solid rgba(255,255,255,0.18);
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+    transition:background 0.2s; }
+  #backBtn:hover { background:rgba(0,0,0,0.75); }
+
+
+  #bootErr { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%);
+    color:#e74c3c; font-weight:700; max-width:520px; text-align:center; z-index:30;
+    background:rgba(4,4,22,0.9); padding:16px 20px; border-radius:12px;
+    font-size:clamp(0.8rem,2.2vw,1rem); line-height:1.5; }
+
+  /* Rotate-to-portrait overlay — shown only when the screen is landscape.
+     The game rink is portrait, so play is best held upright. */
+  #rotate { position:fixed; inset:0; z-index:10000; display:none;
+    flex-direction:column; align-items:center; justify-content:center;
+    background:linear-gradient(135deg,#0a0a2e,#141452,#1a1a6e);
+    color:#fff; text-align:center; padding:24px; }
+  #rotate .phone { font-size:clamp(3rem,14vw,6rem); line-height:1;
+    animation:rotateHint 1.8s ease-in-out infinite; }
+  #rotate h2 { font-size:clamp(1.2rem,5vw,2rem); margin:0.8rem 0 0.4rem;
+    color:#ffd32a; text-shadow:0 0 20px rgba(108,92,231,0.6); }
+  #rotate p { font-size:clamp(0.9rem,3vw,1.2rem); color:#a0c4ff; max-width:420px; }
+  @keyframes rotateHint {
+    0%, 40% { transform:rotate(0deg); }
+    60%, 100% { transform:rotate(-90deg); }
+  }
+  /* Touch devices in landscape: prompt to rotate (they can turn the screen).
+     Portrait is never blocked; desktops (fine pointer) are never blocked since
+     they can't be rotated. */
+  @media (orientation: landscape) and (pointer: coarse) {
+    #rotate { display:flex; }
+    #c, #backBtn { visibility:hidden; }
+  }
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+<canvas id="c"></canvas>
+
+<div id="rotate">
+  <div class="phone">📱</div>
+  <h2>Please rotate your device</h2>
+  <p>Air Hockey plays best in portrait — turn your screen upright to start the World Cup!</p>
+</div>
+
+<div id="bootErr" class="hidden"></div>
+
+<script type="module" src="js/game.js"></script>
+<script>
+  // Surface a module load/parse failure instead of a silent blank canvas.
+  window.addEventListener('error', (e) => {
+    const b = document.getElementById('bootErr');
+    if (b && e.message) { b.classList.remove('hidden'); b.textContent = 'Load error: ' + e.message; }
+  });
+</script>
+</body>
+</html>
