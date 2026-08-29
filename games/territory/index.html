@@ -1,0 +1,1987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Territory - Garfield Boys' Arcade</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:100%; height:100%; overflow:hidden; }
+  body { background:#1a1a2e; touch-action:none; -webkit-user-select:none; user-select:none;
+    font-family:'Segoe UI',system-ui,sans-serif; }
+  canvas { display:block; width:100%; height:100%; }
+  #backBtn { position:fixed; top:12px; left:12px; z-index:9999;
+    background:rgba(0,0,0,0.55); color:#fff; text-decoration:none;
+    padding:6px 18px; border-radius:20px;
+    font:bold 15px/1.4 'Segoe UI',system-ui,sans-serif;
+    border:1px solid rgba(255,255,255,0.18);
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
+  #backBtn:hover { background:rgba(0,0,0,0.75); }
+  /* icon-only "back to the wheel map" button - play screen only */
+  #mapBtn { position:fixed; top:10px; right:12px; z-index:9999; display:none;
+    width:46px; height:46px; padding:0; border-radius:23px;
+    background:rgba(0,0,0,0.55); border:1px solid rgba(255,255,255,0.18);
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); cursor:pointer;
+    align-items:center; justify-content:center; }
+  #mapBtn.on { display:flex; }
+  #mapBtn:active { background:rgba(0,0,0,0.8); }
+  #mapBtn svg { width:26px; height:26px; display:block; }
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+<button id="mapBtn" aria-label="Back to the wheel map" title="Wheel map">
+  <svg viewBox="0 0 24 24" fill="none" stroke="#a29bfe" stroke-width="1.9" stroke-linecap="round">
+    <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.4" fill="#a29bfe" stroke="none"/>
+    <path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.9 2.9M15.5 15.5l2.9 2.9M18.4 5.6l-2.9 2.9M8.5 15.5l-2.9 2.9"/>
+  </svg>
+</button>
+<canvas id="c"></canvas>
+<script>
+'use strict';
+
+/* ============================================================================
+   TERRITORY - Qix / Xonix / JezzBall territory capture on a 24-spoke wheel map.
+   Single file. Canvas 2D. Touch-first, 4-directional. Infinijump-styled play field.
+   Every difficulty/feel knob lives in TUNING; every colour lives in THEME.
+   ========================================================================== */
+
+/* ------------------------------------------------------------------ TUNING
+   ALL difficulty / feel knobs. Speeds are in GRID CELLS PER SECOND, sizes in CELLS. */
+const TUNING = {
+  // Coarse grid on purpose: chunky cells make each closed loop worth a real slice
+  // of the field, and the whole board repaints as one tiny image blit.
+  grid: { cols: 52, minRows: 32, maxRows: 46, border: 2 },
+
+  // Per-ring automatic ramp (ring 0 = innermost/easiest .. ring 5 = hardest)
+  ring: {
+    enemyPerRing: 1,      // enemyCount = base(type) + ring
+    speedPerRing: 0.16,   // speedMult  = 1 + 0.16 * ring
+    sizePerRing:  0.06,   // enemySize  = 1 + 0.06 * ring
+    targetBase:   60,     // targetPct  = 60 + 4 * ring  -> 60..80
+    targetPerRing: 4,
+    lives: 3,
+    livesDropRing: 5      // one fewer life from this ring out
+  },
+
+  // Global difficulty toggle, stored per profile, multiplies the ring ramp.
+  difficulty: {
+    easy:   { label:'Easy',   speed:0.80, enemies:-1, target:-8, lives:+1 },
+    normal: { label:'Normal', speed:1.00, enemies: 0, target: 0, lives: 0 },
+    hard:   { label:'Hard',   speed:1.25, enemies:+1, target:+5, lives: 0 }
+  },
+  targetMin: 40, targetMax: 88,
+  maxEnemies: 12,               // hard cap on total enemies in any level
+
+  // Per-mechanic target-% offsets. Mirror claims with TWO markers, so it owes more.
+  typeTarget: { mirror: +8 },
+
+  // Mixed spokes: how many mechanics are stirred together.
+  // count = min(maxCombo, ring + comboBase)  ->  ring0:2, ring1:3, ring2:4, ring3+:5
+  mix: { comboBase: 2, maxCombo: 5 },
+
+  // The marker is deliberately faster than everything that chases it.
+  marker: { speed: 16, turnRate: 30, invuln: 1.6, joyDead: 14, padRadius: 46 },
+
+  // Per-mechanic enemy budgets: enemyCount = base + ring + diffMod, capped.
+  base: { classic:2, swarm:5, sparx:2, qix:1, gravity:2, splitter:2, fuse:2,
+          hunter:2, ice:2, wind:2, mirror:2, boss:1,
+          maze:2, shrink:2, jezz:3, portal:2, bomber:2, ghost:2 },
+  cap:  { ball:8, swarm:11, sparx:4, qix:2, gball:8, split:5, hunter:4,
+          boss:2, bomber:4, ghost:5 },
+
+  ball:    { speed: 7.0,  radius: 0.95 },
+  swarm:   { speed: 9.5,  radius: 0.62 },
+  qix:     { speed: 5.5,  radius: 2.6, turn: 1.5, bounceCd: 0.6 },
+  boss:    { speed: 5.2,  radius: 3.2, steer: 2.4, bounceCd: 0.75 },
+  sparx:   { steps: 6.5 },                                  // border steps per second
+  gravity: { accel: 13, bounceMin: 0.60, bounceMax: 1.05, kick: 4 },
+  hunter:  { speed: 6.5, accel: 8, maxSpeed: 9 },
+  bomber:  { speed: 6.5, fuse: 5.5, radius: 4.0 },
+  ghost:   { speed: 7.0, phaseOn: 1.7, phaseOff: 3.4 },
+  ice:     { turnRate: 3.0 },             // slow turn = momentum / sliding
+  wind:    { push: 2.6, rotate: 0.22, ballPush: 5.5 },
+  fuse:    { delay: 0.4, speed: 10 },     // stall this long, then the trail burns
+  shrink:  { interval: 2.6, fraction: 0.05 },
+  splitter:{ max: 12 },
+  jezz:    { wallSpeed: 24 },
+  maze:    { blocks: 6 },
+  portal:  { cooldown: 0.55 },
+
+  // presentation timings / budgets
+  fx: { fillPerCell: 0.02, fillMin: 0.25, fillMax: 0.7, glowHold: 0.14,
+        sparkChance: 0.035, maxParticles: 150, stars: 90, winRings: 7 }
+};
+
+/* ------------------------------------------------------------------- THEME
+   Colours only (Infinijump palette). Not difficulty: kept out of TUNING. */
+const THEME = {
+  bg: ['#1a1a2e', '#16213e', '#0f3460'],
+  node: '#6c5ce7', glow: '#a29bfe', player: '#00e5ff',
+  danger: '#ff4757', gold: '#ffd32a',
+  empty: '#111a38', wall: '#41508a'
+};
+
+/* --------------------------------------------------------------- mechanics */
+const MECH = {
+  classic: { name:'Classic',  color:'#4dd0e1' },
+  swarm:   { name:'Swarm',    color:'#ff7675' },
+  sparx:   { name:'Sparx',    color:'#ffd32a' },
+  qix:     { name:'Qix',      color:'#e056fd' },
+  gravity: { name:'Gravity',  color:'#74b9ff' },
+  splitter:{ name:'Splitter', color:'#55efc4' },
+  fuse:    { name:'Fuse',     color:'#ff9f43' },
+  hunter:  { name:'Hunter',   color:'#ff6b81' },
+  ice:     { name:'Ice',      color:'#81ecec' },
+  wind:    { name:'Wind',     color:'#b2bec3' },
+  mirror:  { name:'Mirror',   color:'#fd79a8' },
+  boss:    { name:'Boss',     color:'#ff4757' },
+  maze:    { name:'Maze',     color:'#a29bfe' },
+  shrink:  { name:'Shrink',   color:'#e17055' },
+  jezz:    { name:'JezzBall', color:'#00cec9' },
+  portal:  { name:'Portal',   color:'#8c7ae6' },
+  bomber:  { name:'Bomber',   color:'#fab1a0' },
+  ghost:   { name:'Ghost',    color:'#dfe6e9' }
+};
+const ALL_MECH = Object.keys(MECH);
+// 12 pure spokes, clockwise from the top.
+const PURE = ['classic','swarm','sparx','qix','gravity','splitter',
+              'fuse','hunter','ice','wind','mirror','boss'];
+// Which mechanic spawns which enemy kind.
+const SPAWNER = { classic:'ball', swarm:'swarm', sparx:'sparx', qix:'qix',
+  gravity:'gball', splitter:'split', hunter:'hunter', boss:'boss',
+  bomber:'bomber', ghost:'ghost' };
+
+const SPOKES = 24, RINGS = 6, LEVELS = SPOKES * RINGS;
+const DIFFS = ['easy','normal','hard'];
+
+console.info('[Territory] mixed-spoke mechanics per level = min(ring + ' +
+  TUNING.mix.comboBase + ', cap ' + TUNING.mix.maxCombo + ')  ->  ring0:2 ring1:3 ring2:4 ring3+:' +
+  TUNING.mix.maxCombo);
+
+/* ------------------------------------------------------------------- utils */
+const clamp = (v,a,b) => v < a ? a : (v > b ? b : v);
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function rr(g, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  g.beginPath();
+  g.moveTo(x + r, y);
+  g.lineTo(x + w - r, y); g.arcTo(x + w, y, x + w, y + r, r);
+  g.lineTo(x + w, y + h - r); g.arcTo(x + w, y + h, x + w - r, y + h, r);
+  g.lineTo(x + r, y + h); g.arcTo(x, y + h, x, y + h - r, r);
+  g.lineTo(x, y + r); g.arcTo(x, y, x + r, y, r);
+  g.closePath();
+}
+function hexToRgb(h) {
+  return [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+}
+function mixHex(a, b, t) {
+  const A = hexToRgb(a), B = hexToRgb(b);
+  const c = i => Math.round(A[i] + (B[i] - A[i]) * t).toString(16).padStart(2,'0');
+  return '#' + c(0) + c(1) + c(2);
+}
+function packRGB(h) {  // little-endian ABGR for Uint32 image writes
+  const [r,g,b] = hexToRgb(h);
+  return (255 << 24) | (b << 16) | (g << 8) | r;
+}
+
+/* --------------------------------------------------------------- storage
+   Legacy shared blob: calebArcadeData -> .territory (this game already shipped
+   on that key, so progress stays where the kids left it).
+   Shape: { profile, profiles: { caleb: { difficulty, cleared: {easy:{},normal:{},hard:{}} } } }
+   Cleared is PASS/FAIL only, keyed per profile AND per difficulty.            */
+const ARCADE_KEY = 'calebArcadeData';
+let saveBroken = false;
+
+function loadArcade() {
+  try {
+    const raw = localStorage.getItem(ARCADE_KEY);
+    if (!raw) return {};
+    const o = JSON.parse(raw);
+    return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
+  } catch (e) { return {}; }
+}
+function blankProfile() {
+  return { difficulty:'normal', cleared: { easy:{}, normal:{}, hard:{} } };
+}
+const validId = k => /^\d{1,2}-\d$/.test(k);
+
+function normalise(t) {
+  const out = { profile:'caleb', profiles:{ caleb:blankProfile(), ezra:blankProfile() } };
+  if (!t || typeof t !== 'object') return out;
+  if (t.profile === 'ezra' || t.profile === 'caleb') out.profile = t.profile;
+  const src = (t.profiles && typeof t.profiles === 'object') ? t.profiles : {};
+  for (const name of ['caleb','ezra']) {
+    const p = src[name], dst = out.profiles[name];
+    if (!p || typeof p !== 'object') continue;
+    if (TUNING.difficulty[p.difficulty]) dst.difficulty = p.difficulty;
+    const cl = p.cleared;
+    if (!cl || typeof cl !== 'object' || Array.isArray(cl)) continue;
+    // current shape: cleared[difficulty][levelId] = 1
+    for (const d of DIFFS) {
+      const bucket = cl[d];
+      if (!bucket || typeof bucket !== 'object' || Array.isArray(bucket)) continue;
+      for (const k in bucket) if (validId(k) && bucket[k]) dst.cleared[d][k] = 1;
+    }
+    // legacy shape: cleared[levelId] = bestPct -> pass/fail under the saved difficulty
+    for (const k in cl) {
+      if (!validId(k)) continue;
+      const v = cl[k];
+      if (typeof v === 'number' || v === true) dst.cleared[dst.difficulty][k] = 1;
+    }
+  }
+  return out;
+}
+let SAVE = normalise(loadArcade().territory);
+
+function persist() {
+  try {
+    const all = loadArcade();
+    all.territory = SAVE;
+    const json = JSON.stringify(all);
+    localStorage.setItem(ARCADE_KEY, json);
+    saveBroken = (localStorage.getItem(ARCADE_KEY) !== json);
+  } catch (e) {
+    // Quota / private mode / storage disabled: keep playing, just flag it.
+    saveBroken = true;
+  }
+}
+const prof = () => SAVE.profiles[SAVE.profile] || SAVE.profiles.caleb;
+function clearedSet() {
+  const p = prof();
+  if (!p.cleared[p.difficulty]) p.cleared[p.difficulty] = {};
+  return p.cleared[p.difficulty];
+}
+const levelId = (s, r) => s + '-' + r;
+const isCleared = (s, r) => !!clearedSet()[levelId(s, r)];
+const isUnlocked = (s, r) => r === 0 || isCleared(s, r - 1);
+function clearedTotal() { let n = 0; const c = clearedSet(); for (const k in c) if (c[k]) n++; return n; }
+function recordClear(s, r) { clearedSet()[levelId(s, r)] = 1; persist(); }
+
+/* ----------------------------------------------------------------- audio */
+let actx = null, muted = false;
+function ensureAudio() {
+  try {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+  } catch (e) { actx = null; }
+  return actx;
+}
+function tone(freq, dur, type, vol, endFreq) {
+  if (muted) return;
+  const a = ensureAudio(); if (!a) return;
+  try {
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(freq, a.currentTime);
+    if (endFreq) o.frequency.exponentialRampToValueAtTime(Math.max(endFreq,20), a.currentTime + dur);
+    g.gain.setValueAtTime(vol == null ? 0.09 : vol, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + dur);
+    o.connect(g); g.connect(a.destination);
+    o.start(); o.stop(a.currentTime + dur);
+  } catch (e) {}
+}
+function noise(dur, vol, freq) {
+  if (muted) return;
+  const a = ensureAudio(); if (!a) return;
+  try {
+    const buf = a.createBuffer(1, Math.max(1, a.sampleRate * dur), a.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const src = a.createBufferSource(); src.buffer = buf;
+    const g = a.createGain();
+    g.gain.setValueAtTime(vol == null ? 0.08 : vol, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + dur);
+    const f = a.createBiquadFilter(); f.type = 'bandpass';
+    f.frequency.value = freq || 700; f.Q.value = 1;
+    src.connect(f); f.connect(g); g.connect(a.destination);
+    src.start(); src.stop(a.currentTime + dur);
+  } catch (e) {}
+}
+let lastDraw = 0;
+const SFX = {
+  tap:   () => tone(660, 0.06, 'square', 0.05),
+  draw:  () => { const t = performance.now(); if (t - lastDraw < 90) return; lastDraw = t; tone(300 + Math.random()*60, 0.045, 'square', 0.025); },
+  claim: () => { tone(523,0.09,'triangle',0.08); setTimeout(()=>tone(659,0.09,'triangle',0.08),70); setTimeout(()=>tone(784,0.12,'triangle',0.08),140); },
+  death: () => { tone(300,0.3,'sine',0.13,120); noise(0.25,0.09,300); },
+  win:   () => [523,659,784,1046,1318].forEach((f,i)=>setTimeout(()=>tone(f,0.24,'triangle',0.1),i*110)),
+  lose:  () => [392,330,262,196].forEach((f,i)=>setTimeout(()=>tone(f,0.28,'sine',0.1),i*140)),
+  split: () => tone(880, 0.08, 'sawtooth', 0.05, 440),
+  wall:  () => tone(180, 0.12, 'square', 0.06, 320),
+  shrink:() => noise(0.12, 0.045, 400),
+  portal:() => tone(700, 0.16, 'sine', 0.07, 1500),
+  boom:  () => { noise(0.35, 0.13, 180); tone(90, 0.35, 'sawtooth', 0.09, 40); }
+};
+
+/* --------------------------------------------------------------- canvas */
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const mapBtn = document.getElementById('mapBtn');
+let W = 0, H = 0, DPR = 1;
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = Math.max(320, window.innerWidth);
+  H = Math.max(320, window.innerHeight);
+  canvas.width = Math.round(W * DPR);
+  canvas.height = Math.round(H * DPR);
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  layoutWheel();
+  if (screenName === 'play') layoutPlay();
+  mapDirty = true;
+}
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 150));
+
+/* ------------------------------------------------------------- starfield */
+const stars = [];
+for (let i = 0; i < TUNING.fx.stars; i++)
+  stars.push({ x: Math.random(), y: Math.random(), r: Math.random() * 1.4 + 0.4, tw: Math.random() * 6.283 });
+function drawStars(t) {
+  const time = t * 0.001;
+  ctx.fillStyle = '#fff';
+  for (const s of stars) {
+    ctx.globalAlpha = (Math.sin(time * 2 + s.tw) * 0.3 + 0.7) * 0.55;
+    ctx.beginPath(); ctx.arc(s.x * W, s.y * H, s.r, 0, 6.283); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+function bgGradient(g) {
+  const grad = g.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, THEME.bg[0]); grad.addColorStop(0.5, THEME.bg[1]); grad.addColorStop(1, THEME.bg[2]);
+  g.fillStyle = grad; g.fillRect(0, 0, W, H);
+}
+
+/* ------------------------------------------------------------- particles */
+let parts = [];
+function spawnParticles(x, y, color, count, speedMult, sizeMult) {
+  const sm = speedMult || 1, zm = sizeMult || 1;
+  const room = TUNING.fx.maxParticles - parts.length;
+  const n = Math.min(count, Math.max(0, room));
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * 6.283, spd = (35 + Math.random() * 120) * sm;
+    parts.push({ x, y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
+      life: 1, decay: 0.9 + Math.random() * 1.5, color, r: (1.6 + Math.random() * 3) * zm });
+  }
+}
+function stepParticles(dt) {
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i];
+    p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 60 * dt;
+    p.vx *= 0.96; p.vy *= 0.96;
+    p.life -= p.decay * dt;
+    if (p.life <= 0) parts.splice(i, 1);
+  }
+}
+function drawParticles() {
+  // Glow is the expensive part, so a big burst drops it: the tablet keeps the
+  // frame rate and nobody can tell during a 0.5 s shower of sparks.
+  const glow = parts.length <= 60;
+  for (const p of parts) {
+    ctx.globalAlpha = Math.max(0, p.life);
+    if (glow) { ctx.shadowColor = p.color; ctx.shadowBlur = 7 * p.life; }
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (0.5 + p.life * 0.5), 0, 6.283); ctx.fill();
+  }
+  ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+}
+
+/* ============================================================== LEVEL DEF */
+function levelConfig(spoke, ring) {
+  const mechs = [];
+  if (spoke % 2 === 0) {
+    mechs.push(PURE[spoke / 2]);                       // pure spoke: always one type
+  } else {
+    // mixed spoke: the two neighbours, then top up from the FULL 18-type pool.
+    mechs.push(PURE[(spoke - 1) / 2], PURE[((spoke + 1) / 2) % 12]);
+    const want = Math.min(TUNING.mix.maxCombo, ring + TUNING.mix.comboBase);
+    const rng = mulberry32(spoke * 7919 + ring * 104729 + 17);
+    const pool = ALL_MECH.filter(k => mechs.indexOf(k) < 0);
+    while (mechs.length < want && pool.length) {
+      mechs.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
+    }
+  }
+  const has = {};
+  for (const m of mechs) has[m] = true;
+
+  const diff = TUNING.difficulty[prof().difficulty] || TUNING.difficulty.normal;
+  const R = TUNING.ring;
+  let tOff = 0;
+  for (const m of mechs) tOff += (TUNING.typeTarget[m] || 0);
+  const targetPct = clamp(R.targetBase + R.targetPerRing * ring + diff.target + tOff,
+                          TUNING.targetMin, TUNING.targetMax);
+  const speedMult = (1 + R.speedPerRing * ring) * diff.speed;
+  const sizeMult  = 1 + R.sizePerRing * ring;
+  const lives     = Math.max(1, R.lives - (ring >= R.livesDropRing ? 1 : 0) + (diff.lives || 0));
+
+  // Enemy groups -------------------------------------------------------
+  const groups = [];
+  for (const m of mechs) {
+    const kind = SPAWNER[m];
+    if (!kind) continue;
+    let n = (TUNING.base[m] || 2) + ring * R.enemyPerRing + diff.enemies;
+    n = clamp(n, 1, TUNING.cap[kind] || 99);
+    const g = groups.find(x => x.kind === kind);
+    if (g) g.n = clamp(g.n + n, 1, TUNING.cap[kind] || 99); else groups.push({ kind, n });
+  }
+  if (!groups.length) {  // all-modifier level: give it plain balls
+    const n = clamp((TUNING.base[mechs[0]] || 3) + ring + diff.enemies, 1, TUNING.cap.ball);
+    groups.push({ kind:'ball', n });
+  }
+  // Every level MUST have at least one roamer loose in the open field. Sparx ride
+  // the claimed frontier, never the open space, so a sparx-only level would have
+  // no enemy inside any region and the very first loop would claim 100% of it.
+  if (!groups.some(g => g.kind !== 'sparx')) {
+    groups.push({ kind:'ball', n: clamp(1 + ((ring / 2) | 0) + diff.enemies, 1, TUNING.cap.ball) });
+  }
+  let total = groups.reduce((s, g) => s + g.n, 0);
+  while (total > TUNING.maxEnemies) {            // trim from the biggest group
+    groups.sort((a, b) => b.n - a.n);
+    if (groups[0].n <= 1) break;
+    groups[0].n--; total--;
+  }
+
+  const colors = mechs.map(m => MECH[m].color);
+  let accent = colors[0];
+  for (let i = 1; i < colors.length; i++) accent = mixHex(accent, colors[i], 1 / (i + 1));
+
+  return {
+    spoke, ring, mechs, has, name: mechs.map(m => MECH[m].name).join(' · '),
+    targetPct, speedMult, sizeMult, lives, groups, accent,
+    mazeBlocks: TUNING.maze.blocks + (has.maze ? ring : 0)
+  };
+}
+
+/* ============================================================ WHEEL MAP */
+let wheel = { cx:0, cy:0, hubR:0, step:0, nodeR:0, nodes:[] };
+let mapCache = null, mapCacheCtx = null, mapDirty = true;
+let preview = null;               // node being previewed (finger down)
+let hubRects = [];                // hub toggle hit areas
+
+function layoutWheel() {
+  const cx = W / 2, cy = H / 2 + 4;
+  const maxR = Math.min(W, H) / 2 - Math.max(14, Math.min(W, H) * 0.05);
+  const hubR = clamp(maxR * 0.34, 58, 132);
+  const step = (maxR - hubR) / RINGS;
+  const nodeR = clamp(step * 0.33, 5, 15);
+  const nodes = [];
+  for (let s = 0; s < SPOKES; s++) {
+    const ang = (-90 + s * (360 / SPOKES)) * Math.PI / 180;
+    const ca = Math.cos(ang), sa = Math.sin(ang);
+    for (let r = 0; r < RINGS; r++) {
+      const rad = hubR + step * (r + 0.55);
+      nodes.push({ s, r, x: cx + ca * rad, y: cy + sa * rad, ang });
+    }
+  }
+  wheel = { cx, cy, hubR, step, nodeR, nodes, maxR };
+  if (!mapCache) {
+    mapCache = document.createElement('canvas');
+    mapCacheCtx = mapCache.getContext('2d');
+  }
+  mapCache.width = Math.round(W * DPR); mapCache.height = Math.round(H * DPR);
+  mapCacheCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  mapDirty = true;
+}
+
+function spokeColors(s) {
+  if (s % 2 === 0) { const c = MECH[PURE[s / 2]].color; return [c, c]; }
+  return [MECH[PURE[(s - 1) / 2]].color, MECH[PURE[((s + 1) / 2) % 12]].color];
+}
+
+function paintMapCache() {
+  const g = mapCacheCtx;
+  g.clearRect(0, 0, W, H);
+  const grad = g.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, THEME.bg[0]); grad.addColorStop(0.5, THEME.bg[1]); grad.addColorStop(1, THEME.bg[2]);
+  g.fillStyle = grad; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#fff';
+  for (const s of stars) {
+    g.globalAlpha = 0.35 + (s.r - 0.4) * 0.25;
+    g.beginPath(); g.arc(s.x * W, s.y * H, s.r, 0, 6.283); g.fill();
+  }
+  g.globalAlpha = 1;
+
+  const { cx, cy, hubR, step, nodeR, nodes, maxR } = wheel;
+
+  // ring guides
+  g.strokeStyle = 'rgba(162,155,254,0.10)'; g.lineWidth = 1;
+  for (let r = 0; r <= RINGS; r++) {
+    g.beginPath(); g.arc(cx, cy, hubR + step * r, 0, Math.PI * 2); g.stroke();
+  }
+  // spokes
+  for (let s = 0; s < SPOKES; s++) {
+    const ang = (-90 + s * 15) * Math.PI / 180;
+    const [c1, c2] = spokeColors(s);
+    const x1 = cx + Math.cos(ang) * hubR, y1 = cy + Math.sin(ang) * hubR;
+    const x2 = cx + Math.cos(ang) * (hubR + step * RINGS), y2 = cy + Math.sin(ang) * (hubR + step * RINGS);
+    const lg = g.createLinearGradient(x1, y1, x2, y2);
+    lg.addColorStop(0, c1); lg.addColorStop(1, c2);
+    g.strokeStyle = lg; g.globalAlpha = (s % 2 === 0) ? 0.34 : 0.2;
+    g.lineWidth = (s % 2 === 0) ? 2.5 : 1.5;
+    g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
+    g.globalAlpha = 1;
+  }
+  // PURE spoke names: bigger, halfway along the spoke, offset perpendicular so
+  // they never sit on the line or the node dots.
+  const fs = Math.round(clamp(maxR * 0.062, 11, 19));
+  g.font = 'bold ' + fs + 'px system-ui,sans-serif';
+  g.textBaseline = 'middle';
+  for (let s = 0; s < SPOKES; s += 2) {
+    const ang = (-90 + s * 15) * Math.PI / 180;
+    const rad = hubR + step * 3;                       // halfway out
+    const off = nodeR + fs * 0.72;                     // clear of line + dots
+    const flip = Math.cos(ang) < 0;
+    const nx = -Math.sin(ang), ny = Math.cos(ang);     // spoke normal
+    const x = cx + Math.cos(ang) * rad + nx * (flip ? -off : off);
+    const y = cy + Math.sin(ang) * rad + ny * (flip ? -off : off);
+    g.save(); g.translate(x, y); g.rotate(flip ? ang + Math.PI : ang);
+    g.textAlign = 'center';
+    const label = MECH[PURE[s / 2]].name;
+    g.lineWidth = 3; g.strokeStyle = 'rgba(10,10,30,0.85)';
+    g.strokeText(label, 0, 0);
+    g.fillStyle = MECH[PURE[s / 2]].color;
+    g.fillText(label, 0, 0);
+    g.restore();
+  }
+  // nodes
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  for (const n of nodes) {
+    const [c1, c2] = spokeColors(n.s);
+    const col = mixHex(c1, c2, 0.5);
+    const cleared = isCleared(n.s, n.r), open = isUnlocked(n.s, n.r);
+    g.beginPath(); g.arc(n.x, n.y, nodeR, 0, Math.PI * 2);
+    if (cleared) { g.fillStyle = col; g.fill();
+      g.strokeStyle = '#ffffff'; g.globalAlpha = 0.75; g.lineWidth = 1.4; g.stroke(); g.globalAlpha = 1;
+    } else if (open) {
+      g.fillStyle = 'rgba(16,16,46,0.85)'; g.fill();
+      g.strokeStyle = col; g.lineWidth = 2.2; g.stroke();
+    } else {
+      g.fillStyle = 'rgba(255,255,255,0.07)'; g.fill();
+      g.strokeStyle = 'rgba(255,255,255,0.16)'; g.lineWidth = 1; g.stroke();
+    }
+    if (cleared && nodeR >= 7) {
+      g.strokeStyle = '#10102e'; g.lineWidth = Math.max(1.6, nodeR * 0.24); g.lineCap = 'round';
+      g.beginPath();
+      g.moveTo(n.x - nodeR * 0.45, n.y + nodeR * 0.02);
+      g.lineTo(n.x - nodeR * 0.09, n.y + nodeR * 0.4);
+      g.lineTo(n.x + nodeR * 0.48, n.y - nodeR * 0.38);
+      g.stroke();
+    }
+  }
+  mapDirty = false;
+}
+
+function drawHub(t) {
+  const { cx, cy, hubR } = wheel;
+  hubRects = [];
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, hubR - 2, 0, Math.PI * 2);
+  const rg = ctx.createRadialGradient(cx, cy - hubR * 0.3, hubR * 0.2, cx, cy, hubR);
+  rg.addColorStop(0, 'rgba(44,44,116,0.97)'); rg.addColorStop(1, 'rgba(15,20,52,0.97)');
+  ctx.fillStyle = rg; ctx.fill();
+  ctx.strokeStyle = 'rgba(162,155,254,0.5)'; ctx.lineWidth = 2; ctx.stroke();
+
+  const S = hubR / 100;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = 'bold ' + Math.round(clamp(18 * S, 11, 20)) + 'px system-ui,sans-serif';
+  ctx.fillStyle = THEME.glow;
+  ctx.fillText('TERRITORY', cx, cy - hubR * 0.62);
+
+  const pw = hubR * 0.62, ph = clamp(hubR * 0.24, 16, 30);
+  const py = cy - hubR * 0.3;
+  ['caleb','ezra'].forEach((name, i) => {
+    const x = cx + (i === 0 ? -pw - 3 : 3), y = py - ph / 2;
+    const on = SAVE.profile === name;
+    rr(ctx, x, y, pw, ph, ph / 2);
+    ctx.fillStyle = on ? THEME.node : 'rgba(255,255,255,0.09)'; ctx.fill();
+    ctx.strokeStyle = on ? THEME.glow : 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = on ? '#fff' : 'rgba(255,255,255,0.55)';
+    ctx.font = 'bold ' + Math.round(clamp(13 * S, 9, 15)) + 'px system-ui,sans-serif';
+    ctx.fillText(name === 'caleb' ? 'Caleb' : 'Ezra', x + pw / 2, y + ph / 2 + 0.5);
+    hubRects.push({ x, y, w: pw, h: ph, fn: () => {
+      SAVE.profile = name; persist(); mapDirty = true; SFX.tap();
+    }});
+  });
+
+  const dw = hubR * 0.42, dh = clamp(hubR * 0.22, 14, 27), dy = cy + hubR * 0.06;
+  DIFFS.forEach((k, i) => {
+    const x = cx + (i - 1) * (dw + 4) - dw / 2, y = dy - dh / 2;
+    const on = prof().difficulty === k;
+    rr(ctx, x, y, dw, dh, 5);
+    ctx.fillStyle = on ? (k === 'easy' ? '#26de81' : k === 'normal' ? '#4dd0e1' : THEME.danger) : 'rgba(255,255,255,0.08)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = on ? '#08082a' : 'rgba(255,255,255,0.55)';
+    ctx.font = 'bold ' + Math.round(clamp(11 * S, 8, 13)) + 'px system-ui,sans-serif';
+    ctx.fillText(TUNING.difficulty[k].label, x + dw / 2, y + dh / 2 + 0.5);
+    hubRects.push({ x, y, w: dw, h: dh, fn: () => {
+      prof().difficulty = k; persist(); mapDirty = true; SFX.tap();
+    }});
+  });
+
+  ctx.font = 'bold ' + Math.round(clamp(17 * S, 11, 19)) + 'px system-ui,sans-serif';
+  ctx.fillStyle = THEME.gold;
+  ctx.fillText(clearedTotal() + ' / ' + LEVELS, cx, cy + hubR * 0.45);
+  ctx.font = Math.round(clamp(10 * S, 8, 11)) + 'px system-ui,sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  ctx.fillText('cleared on ' + TUNING.difficulty[prof().difficulty].label, cx, cy + hubR * 0.68);
+  ctx.restore();
+}
+
+function drawMap(t) {
+  if (mapDirty) paintMapCache();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(mapCache, 0, 0);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+  const pulse = 0.5 + 0.5 * Math.sin(t * 0.004);
+  ctx.lineWidth = 2;
+  for (const n of wheel.nodes) {
+    if (isCleared(n.s, n.r) || !isUnlocked(n.s, n.r)) continue;
+    const [c1, c2] = spokeColors(n.s);
+    ctx.strokeStyle = mixHex(c1, c2, 0.5);
+    ctx.globalAlpha = 0.18 + 0.5 * pulse;
+    ctx.beginPath(); ctx.arc(n.x, n.y, wheel.nodeR + 2 + pulse * 4, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  drawHub(t);
+
+  const bh = 54, by = H - bh - 8;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  if (preview) {
+    const cfgp = levelConfig(preview.s, preview.r);
+    const open = isUnlocked(preview.s, preview.r);
+    const bw = Math.min(W - 24, 470), bx = (W - bw) / 2;
+    rr(ctx, bx, by, bw, bh, 14);
+    ctx.fillStyle = 'rgba(0,0,0,0.62)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.font = 'bold 15px system-ui,sans-serif';
+    ctx.fillStyle = open ? cfgp.accent : 'rgba(255,255,255,0.4)';
+    const nm = cfgp.name.length > 40 ? cfgp.name.slice(0, 39) + '…' : cfgp.name;
+    ctx.fillText(nm, bx + bw / 2, by + 18);
+    ctx.font = 'bold 12px system-ui,sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillText(open
+      ? ('Ring ' + (preview.r + 1) + '  ·  fill ' + cfgp.targetPct + '%  ·  ' + cfgp.lives + ' lives  ·  release to play')
+      : ('Ring ' + (preview.r + 1) + '  ·  locked — clear ring ' + preview.r + ' first'),
+      bx + bw / 2, by + 38);
+  } else {
+    ctx.font = 'bold 13px system-ui,sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillText('Hold a dot to peek · release to play · centre = easy, edge = hard', W / 2, by + bh / 2);
+  }
+  if (saveBroken) {
+    ctx.font = 'bold 11px system-ui,sans-serif'; ctx.fillStyle = THEME.danger;
+    ctx.fillText('progress could not be saved on this device', W / 2, 22);
+  }
+}
+
+function hitNode(px, py) {
+  const rad = wheel.nodeR + 9;
+  let best = null, bd = rad * rad;
+  for (const n of wheel.nodes) {
+    const dx = n.x - px, dy = n.y - py, d = dx * dx + dy * dy;
+    if (d <= bd) { bd = d; best = n; }
+  }
+  return best;
+}
+
+/* ============================================================ PLAY STATE */
+const EMPTY = 0, CLAIMED = 1, WALL = 2, TRAIL = 3;
+let screenName = 'map';       // 'map' | 'play'
+let overlayState = null;      // null | 'win' | 'lose'
+let cfg = null;
+let cols = 0, rows = 0, cellCount = 0;
+let grid = null, regionBuf = null, stackBuf = null;
+let baseClaimed = 0, wallCount = 0, claimedCount = 0, fillable = 1;
+let enemies = [], markers = [], portals = [], wall = null;
+let lives = 0, pct = 0, invuln = 0, bannerT = 0, paused = false;
+let windAngle = 0, shrinkT = 0, flashT = 0, confetti = [], booms = [];
+let winFx = null;
+let play = { x:0, y:0, w:0, h:0, cell:0 };
+const hud = { x:0, y:10, w:0, h:54 };
+let gridCanvas = null, gridCtx = null, gridImg = null, gridPix = null, gridDirty = true;
+let COL = {}, claimTable = null;
+let fillMask = null, fillCells = null, fillDist = null, fillT = 0, fillDur = 0, fillMaxD = 1, fillActive = false;
+let fillGlow = [];
+let overlayRects = [];
+let joy = { active:false, ax:0, ay:0, dx:0, dy:0 };
+const keys = { left:false, right:false, up:false, down:false };
+const clearKeys = () => { keys.left = keys.right = keys.up = keys.down = false; };
+
+function layoutPlay() {
+  // HUD pill sits beside the two fixed HTML buttons when there is room for it,
+  // and drops below them on a narrow phone so nothing ever overlaps.
+  hud.w = Math.min(W - 32, 420);
+  hud.x = Math.round((W - hud.w) / 2);
+  hud.h = 54;
+  hud.y = (hud.x > 122 && W - (hud.x + hud.w) > 64) ? 10 : 62;
+  const top = hud.y + hud.h + 8, pad = 10, bot = 12;
+  const availW = W - pad * 2, availH = H - top - bot;
+  const cell = Math.min(availW / cols, availH / rows);
+  play.cell = cell;
+  play.w = cell * cols; play.h = cell * rows;
+  play.x = Math.round((W - play.w) / 2);
+  // biased upward: the slack below the field is where a thumb (and the joypad) live
+  play.y = Math.round(top + (availH - play.h) * 0.35);
+}
+
+function startLevel(spoke, ring) {
+  cfg = levelConfig(spoke, ring);
+  cols = TUNING.grid.cols;
+  const top = 74, pad = 10, bot = 12;
+  const aspect = (H - top - bot) / Math.max(1, W - pad * 2);
+  rows = clamp(Math.round(cols * aspect), TUNING.grid.minRows, TUNING.grid.maxRows);
+  cellCount = cols * rows;
+  grid = new Uint8Array(cellCount);
+  regionBuf = new Int16Array(cellCount);
+  stackBuf = new Int32Array(cellCount);
+  fillMask = new Uint8Array(cellCount);
+  fillActive = false; fillGlow = []; fillCells = null;
+
+  const b = TUNING.grid.border;
+  for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++)
+    grid[y * cols + x] = (x < b || y < b || x >= cols - b || y >= rows - b) ? CLAIMED : EMPTY;
+  baseClaimed = 0;
+  for (let i = 0; i < cellCount; i++) if (grid[i] === CLAIMED) baseClaimed++;
+
+  const rng = mulberry32(spoke * 31337 + ring * 991 + 7);
+  wallCount = 0;
+  if (cfg.has.maze) buildMaze(rng);
+  fillable = Math.max(1, cellCount - baseClaimed - wallCount);
+  claimedCount = baseClaimed;
+  pct = 0;
+
+  // Gravity levels start at the TOP: gravity balls pile up on the floor, so
+  // spawning down there would bury the player under them.
+  markers = [];
+  const spawn = cfg.has.gravity
+    ? { x: cols / 2, y: b - 0.5 }
+    : { x: cols / 2, y: rows - b + 0.5 };
+  markers.push(makeMarker(spawn.x, spawn.y, false));
+  if (cfg.has.mirror) markers.push(makeMarker(cols - spawn.x, rows - spawn.y, true));
+
+  portals = [];
+  if (cfg.has.portal) {
+    portals.push({ x: Math.floor(cols * 0.22), y: Math.floor(rows * 0.3), cd: 0 });
+    portals.push({ x: Math.floor(cols * 0.78), y: Math.floor(rows * 0.7), cd: 0 });
+  }
+
+  enemies = [];
+  for (const g of cfg.groups) for (let i = 0; i < g.n; i++) spawnEnemy(g.kind, rng);
+
+  lives = cfg.lives;
+  invuln = TUNING.marker.invuln;
+  bannerT = 1.6; flashT = 0; shrinkT = 0; windAngle = rng() * Math.PI * 2;
+  wall = null; confetti = []; booms = []; parts = []; winFx = null;
+  joy.active = false; clearKeys();
+  overlayState = null; paused = false;
+  screenName = 'play';
+  mapBtn.classList.add('on');
+
+  // claimed field: vertical gradient + brighter frontier edge, baked into the blit
+  const light = mixHex(cfg.accent, '#ffffff', 0.45);
+  const dark  = mixHex(cfg.accent, '#0b1030', 0.55);
+  claimTable = new Uint32Array(rows);
+  for (let y = 0; y < rows; y++) claimTable[y] = packRGB(mixHex(light, dark, y / Math.max(1, rows - 1)));
+  COL = {
+    empty:  packRGB(THEME.empty),
+    wall:   packRGB(THEME.wall),
+    trail:  packRGB('#fff9c4'),
+    edge:   packRGB(mixHex(cfg.accent, '#ffffff', 0.72)),
+    hidden: packRGB(mixHex(THEME.empty, cfg.accent, 0.22)),
+    flash:  packRGB('#ffffff')
+  };
+  gridCanvas = document.createElement('canvas');
+  gridCanvas.width = cols; gridCanvas.height = rows;
+  gridCtx = gridCanvas.getContext('2d');
+  gridImg = gridCtx.createImageData(cols, rows);
+  gridPix = new Uint32Array(gridImg.data.buffer);
+  gridDirty = true;
+  layoutPlay();
+  ensureAudio();
+}
+
+function makeMarker(x, y, mirror) {
+  return { x, y, hx:0, hy:0, trail:[], mirror, stall:0, fuseAcc:0, spawnX:x, spawnY:y, pcd:0 };
+}
+
+function buildMaze(rng) {
+  const b = TUNING.grid.border + 3;
+  for (let k = 0; k < cfg.mazeBlocks; k++) {
+    const horiz = rng() < 0.5;
+    const w = horiz ? 4 + Math.floor(rng() * 12) : 1 + Math.floor(rng() * 2);
+    const h = horiz ? 1 + Math.floor(rng() * 2) : 4 + Math.floor(rng() * 10);
+    const x0 = b + Math.floor(rng() * Math.max(1, cols - b * 2 - w));
+    const y0 = b + Math.floor(rng() * Math.max(1, rows - b * 2 - h));
+    for (let y = y0; y < Math.min(rows - b, y0 + h); y++)
+      for (let x = x0; x < Math.min(cols - b, x0 + w); x++) {
+        const i = y * cols + x;
+        if (grid[i] === EMPTY) { grid[i] = WALL; wallCount++; }
+      }
+  }
+}
+
+function spawnEnemy(kind, rng) {
+  const T = TUNING;
+  let x, y, tries = 0;
+  const b = TUNING.grid.border + 2;
+  do {
+    x = b + rng() * (cols - b * 2);
+    y = b + rng() * (rows - b * 2);
+    tries++;
+  } while (tries < 60 && (grid[cellAt(x, y)] !== EMPTY ||
+           Math.hypot(x - markers[0].x, y - markers[0].y) < 12));
+
+  const sp = cfg.speedMult, sz = cfg.sizeMult;
+  const ang = rng() * Math.PI * 2;
+  const e = { kind, x, y, vx:0, vy:0, r:1, alive:true, t:rng() * 3, pcd:0, bcd:0 };
+  if (kind === 'sparx') {
+    e.cx = clamp(Math.floor(cols / 2 + (rng() < 0.5 ? -1 : 1) * cols * 0.3), 1, cols - 2);
+    e.cy = rng() < 0.5 ? TUNING.grid.border - 1 : rows - TUNING.grid.border;
+    e.cy = clamp(e.cy, 1, rows - 2);
+    e.dx = rng() < 0.5 ? 1 : -1; e.dy = 0;
+    e.acc = 0; e.r = 0.9 * sz;
+    e.x = e.cx + 0.5; e.y = e.cy + 0.5;
+    enemies.push(e); return e;
+  }
+  let speed = T.ball.speed, r = T.ball.radius;
+  if (kind === 'swarm')  { speed = T.swarm.speed;  r = T.swarm.radius; }
+  if (kind === 'qix')    { speed = T.qix.speed;    r = T.qix.radius; e.dir = ang; }
+  if (kind === 'boss')   { speed = T.boss.speed;   r = T.boss.radius; }
+  if (kind === 'gball')  { speed = T.ball.speed * 0.7; }
+  if (kind === 'hunter') { speed = T.hunter.speed; }
+  if (kind === 'bomber') { speed = T.bomber.speed; e.fuse = T.bomber.fuse * (0.5 + rng()); }
+  if (kind === 'ghost')  { speed = T.ghost.speed; e.phase = 0; e.phaseT = T.ghost.phaseOff * rng(); }
+  if (kind === 'split')  { e.gen = 0; }
+  e.r = r * sz;
+  e.vx = Math.cos(ang) * speed * sp;
+  e.vy = Math.sin(ang) * speed * sp;
+  enemies.push(e);
+  return e;
+}
+
+const cellAt = (x, y) => {
+  const cx = clamp(Math.floor(x), 0, cols - 1), cy = clamp(Math.floor(y), 0, rows - 1);
+  return cy * cols + cx;
+};
+const isBorderCell = (x, y) => {
+  const b = TUNING.grid.border;
+  return x < b || y < b || x >= cols - b || y >= rows - b;
+};
+
+/* ------------------------------------------------------------- claiming */
+function recount() {
+  let n = 0;
+  for (let i = 0; i < cellCount; i++) if (grid[i] === CLAIMED) n++;
+  claimedCount = n;
+  pct = clamp((claimedCount - baseClaimed) / fillable * 100, 0, 100);
+}
+
+const _ec = [];
+function enemyCells(e, out) {
+  out.length = 0;
+  const r = Math.max(0.4, e.r);
+  out.push(cellAt(e.x, e.y));
+  out.push(cellAt(e.x - r, e.y)); out.push(cellAt(e.x + r, e.y));
+  out.push(cellAt(e.x, e.y - r)); out.push(cellAt(e.x, e.y + r));
+  if (r > 1.6) {
+    const d = r * 0.7;
+    out.push(cellAt(e.x - d, e.y - d)); out.push(cellAt(e.x + d, e.y - d));
+    out.push(cellAt(e.x - d, e.y + d)); out.push(cellAt(e.x + d, e.y + d));
+  }
+  return out;
+}
+
+/* TRUE Xonix rule. The closed trail is a permanent wall: it splits open space into
+   4-connected regions. Every region with NO enemy inside becomes yours. A region
+   that still holds an enemy stays OPEN and the enemy is never moved - a ball you
+   cut off simply lives in a smaller pen from now on. */
+function claimRegions(out) {
+  regionBuf.fill(0);
+  const regions = [];
+  for (let i = 0; i < cellCount; i++) {
+    if (grid[i] !== EMPTY || regionBuf[i] !== 0) continue;
+    const id = regions.length + 1;
+    let sp = 0; stackBuf[sp++] = i; regionBuf[i] = id;
+    const cells = [];
+    while (sp > 0) {
+      const c = stackBuf[--sp]; cells.push(c);
+      const cx = c % cols, cy = (c - cx) / cols;
+      if (cx > 0)        { const n = c - 1;    if (grid[n] === EMPTY && regionBuf[n] === 0) { regionBuf[n] = id; stackBuf[sp++] = n; } }
+      if (cx < cols - 1) { const n = c + 1;    if (grid[n] === EMPTY && regionBuf[n] === 0) { regionBuf[n] = id; stackBuf[sp++] = n; } }
+      if (cy > 0)        { const n = c - cols; if (grid[n] === EMPTY && regionBuf[n] === 0) { regionBuf[n] = id; stackBuf[sp++] = n; } }
+      if (cy < rows - 1) { const n = c + cols; if (grid[n] === EMPTY && regionBuf[n] === 0) { regionBuf[n] = id; stackBuf[sp++] = n; } }
+    }
+    regions.push({ cells, hasEnemy: false });
+  }
+  if (!regions.length) return 0;
+  for (const e of enemies) {
+    if (!e.alive || e.kind === 'sparx') continue;      // sparx ride claimed ground
+    const list = enemyCells(e, _ec);
+    for (const c of list) { const rid = regionBuf[c]; if (rid > 0) regions[rid - 1].hasEnemy = true; }
+  }
+  let n = 0;
+  for (const r of regions) {
+    if (r.hasEnemy) continue;
+    for (const c of r.cells) { grid[c] = CLAIMED; n++; if (out) out.push(c); }
+  }
+  return n;
+}
+
+/* ------------------------------------------------- animated fill / capture */
+function startFill(cells, ox, oy) {
+  if (!cells.length) return;
+  fillCells = cells;
+  fillDist = new Float32Array(cells.length);
+  fillMaxD = 1;
+  for (let k = 0; k < cells.length; k++) {
+    const i = cells[k], cx = i % cols, cy = (i - cx) / cols;
+    const d = Math.hypot(cx + 0.5 - ox, cy + 0.5 - oy);
+    fillDist[k] = d;
+    if (d > fillMaxD) fillMaxD = d;
+    fillMask[i] = 1;
+  }
+  fillT = 0;
+  fillDur = clamp(TUNING.fx.fillMin + fillMaxD * TUNING.fx.fillPerCell, TUNING.fx.fillMin, TUNING.fx.fillMax);
+  fillActive = true;
+  gridDirty = true;
+}
+function stepFill(dt) {
+  if (fillActive) {
+    fillT += dt;
+    const k = Math.min(1, fillT / fillDur);
+    const thresh = fillMaxD * k;
+    for (let j = 0; j < fillCells.length; j++) {
+      const i = fillCells[j];
+      if (fillMask[i] !== 1) continue;
+      if (fillDist[j] > thresh) continue;
+      fillMask[i] = 2;
+      fillGlow.push({ i, t: TUNING.fx.glowHold });
+      if (Math.random() < TUNING.fx.sparkChance) {
+        const cx = i % cols, cy = (i - cx) / cols;
+        spawnParticles(s2gX(cx + 0.5), s2gY(cy + 0.5), COLSPARK, 1, 0.5, 0.7);
+      }
+    }
+    gridDirty = true;
+    if (k >= 1) { fillActive = false; fillCells = null; }
+  }
+  if (fillGlow.length) {
+    for (let j = fillGlow.length - 1; j >= 0; j--) {
+      const gg = fillGlow[j];
+      gg.t -= dt;
+      if (gg.t <= 0) { fillMask[gg.i] = 0; fillGlow.splice(j, 1); gridDirty = true; }
+    }
+    gridDirty = true;
+  }
+}
+let COLSPARK = '#ffffff';
+
+function closeTrail(m) {
+  if (!m.trail.length) return;
+  const ox = m.x, oy = m.y;
+  const newly = [];
+  for (const c of m.trail) { grid[c] = CLAIMED; newly.push(c); }
+  m.trail.length = 0;
+  m.stall = 0; m.fuseAcc = 0;
+  claimRegions(newly);
+  recount();
+  COLSPARK = mixHex(cfg.accent, '#ffffff', 0.5);
+  startFill(newly, ox, oy);
+  gridDirty = true;
+  SFX.claim();
+  flashT = 0.2;
+  spawnParticles(s2gX(ox), s2gY(oy), cfg.accent, 16, 1.2);
+  spawnParticles(s2gX(ox), s2gY(oy), '#fff', 8, 1.6, 0.7);
+  if (cfg.has.splitter) splitBalls();
+  if (pct >= cfg.targetPct) winLevel();
+}
+
+function splitBalls() {
+  if (enemies.length >= TUNING.splitter.max) return;
+  const balls = enemies.filter(e => e.alive && (e.kind === 'split' || e.kind === 'ball'));
+  let added = 0;
+  for (const e of balls) {
+    if (enemies.length >= TUNING.splitter.max) break;
+    enemies.push({ kind:e.kind, x:e.x, y:e.y, vx:-e.vy, vy:e.vx, r:e.r,
+      alive:true, t:0, pcd:0, bcd:0, gen:(e.gen||0)+1 });
+    added++;
+  }
+  if (added) SFX.split();
+}
+
+/* -------------------------------------------------------------- movement */
+// returns 'ok' | 'block' | 'abort'
+function enterCell(m, cx, cy) {
+  if (cx < 0 || cy < 0 || cx >= cols || cy >= rows) return 'block';
+  const i = cy * cols + cx;
+  const v = grid[i];
+  if (v === WALL) return 'block';
+  if (v === CLAIMED) {
+    if (m.trail.length) { closeTrail(m); return 'abort'; }
+    return 'ok';
+  }
+  if (v === EMPTY) {
+    if (cfg.has.jezz) {                        // JezzBall: launch a wall, never a trail
+      if (!m.mirror && !wall) launchWall(m);
+      return 'block';
+    }
+    grid[i] = TRAIL; m.trail.push(i); gridDirty = true; SFX.draw();
+    return 'ok';
+  }
+  // TRAIL
+  const n = m.trail.length;
+  if (n >= 2 && m.trail[n - 2] === i) {        // forgiving: retract along the trail
+    grid[m.trail[n - 1]] = EMPTY; m.trail.pop(); gridDirty = true;
+    return 'ok';
+  }
+  if (n && m.trail[n - 1] === i) return 'ok';
+  hit('trail');
+  return 'abort';
+}
+
+function moveMarker(m, dx, dy) {
+  if (dx !== 0) {
+    const nx = m.x + dx, ocx = Math.floor(m.x), ncx = Math.floor(nx);
+    if (ncx !== ocx) {
+      const res = enterCell(m, ncx, Math.floor(m.y));
+      if (res === 'abort') { m.x = clamp(nx, 0.02, cols - 0.02); return false; }
+      if (res === 'block') { m.x = ncx > ocx ? ocx + 0.98 : ocx + 0.02; m.hx = 0; }
+      else m.x = clamp(nx, 0.02, cols - 0.02);
+    } else m.x = nx;
+  }
+  if (dy !== 0) {
+    const ny = m.y + dy, ocy = Math.floor(m.y), ncy = Math.floor(ny);
+    if (ncy !== ocy) {
+      const res = enterCell(m, Math.floor(m.x), ncy);
+      if (res === 'abort') { m.y = clamp(ny, 0.02, rows - 0.02); return false; }
+      if (res === 'block') { m.y = ncy > ocy ? ocy + 0.98 : ocy + 0.02; m.hy = 0; }
+      else m.y = clamp(ny, 0.02, rows - 0.02);
+    } else m.y = ny;
+  }
+  return true;
+}
+
+// 4-DIRECTIONAL ONLY. Up / down / left / right - never diagonal.
+function desiredHeading() {
+  if (joy.active) {
+    const ax = Math.abs(joy.dx), ay = Math.abs(joy.dy);
+    if (Math.max(ax, ay) > TUNING.marker.joyDead)
+      return ax >= ay ? [Math.sign(joy.dx), 0] : [0, Math.sign(joy.dy)];
+  }
+  if (keys.left)  return [-1, 0];
+  if (keys.right) return [ 1, 0];
+  if (keys.up)    return [ 0,-1];
+  if (keys.down)  return [ 0, 1];
+  return [0, 0];
+}
+
+function stepMarkers(dt) {
+  const [ddx, ddy] = desiredHeading();
+  const rate = cfg.has.ice ? TUNING.ice.turnRate : TUNING.marker.turnRate;
+  const k = 1 - Math.exp(-rate * dt);
+  let wx0 = 0, wy0 = 0;
+  if (cfg.has.wind) { wx0 = Math.cos(windAngle) * TUNING.wind.push; wy0 = Math.sin(windAngle) * TUNING.wind.push; }
+
+  for (const m of markers) {
+    // Wind only shoves you while you are OUT in the open. It must never drag an
+    // idle marker off safe ground into a trail the player never asked for.
+    const wx = m.trail.length ? wx0 : 0, wy = m.trail.length ? wy0 : 0;
+    const tx = m.mirror ? -ddx : ddx, ty = m.mirror ? -ddy : ddy;
+    m.hx += (tx - m.hx) * k; m.hy += (ty - m.hy) * k;
+    if (Math.abs(m.hx) < 0.02) m.hx = 0;
+    if (Math.abs(m.hy) < 0.02) m.hy = 0;
+    const spd = TUNING.marker.speed;
+    const moving = Math.abs(m.hx) + Math.abs(m.hy) > 0.15;
+
+    // fuse: stall on an open trail and it starts burning behind you
+    if (cfg.has.fuse) {
+      if (m.trail.length && !moving) {
+        m.stall += dt;
+        if (m.stall > TUNING.fuse.delay) {
+          m.fuseAcc += TUNING.fuse.speed * dt * cfg.speedMult;
+          while (m.fuseAcc >= 1 && m.trail.length) {
+            m.fuseAcc -= 1;
+            const c = m.trail.shift(); grid[c] = EMPTY; gridDirty = true;
+            const cx = c % cols, cy = (c - cx) / cols;
+            spawnParticles(s2gX(cx + 0.5), s2gY(cy + 0.5), MECH.fuse.color, 2, 0.6, 0.7);
+            if (!m.trail.length) { hit('fuse'); return; }
+          }
+        }
+      } else { m.stall = 0; m.fuseAcc = 0; }
+    }
+
+    const vx = m.hx * spd + wx, vy = m.hy * spd + wy;
+    const dist = Math.hypot(vx, vy) * dt;
+    if (dist <= 0) continue;
+    const steps = Math.min(8, Math.max(1, Math.ceil(dist / 0.34)));
+    const sdt = dt / steps;
+    for (let s = 0; s < steps; s++) {
+      if (!moveMarker(m, m.hx * spd * sdt + wx * sdt, m.hy * spd * sdt + wy * sdt)) break;
+    }
+    if (portals.length) {
+      m.pcd = Math.max(0, m.pcd - dt);
+      if (m.pcd === 0) {
+        for (let p = 0; p < portals.length; p++) {
+          const P = portals[p];
+          if (Math.abs(m.x - (P.x + 0.5)) < 1.2 && Math.abs(m.y - (P.y + 0.5)) < 1.2) {
+            const Q = portals[(p + 1) % portals.length];
+            spawnParticles(s2gX(m.x), s2gY(m.y), MECH.portal.color, 10, 1.1);
+            m.x = Q.x + 0.5; m.y = Q.y + 0.5; m.pcd = TUNING.portal.cooldown;
+            const i = cellAt(m.x, m.y);
+            if (grid[i] === EMPTY && m.trail.length) { grid[i] = TRAIL; m.trail.push(i); gridDirty = true; }
+            spawnParticles(s2gX(m.x), s2gY(m.y), MECH.portal.color, 10, 1.1);
+            SFX.portal();
+            break;
+          }
+        }
+      }
+    }
+  }
+}
+
+/* ------------------------------------------------------------- JezzBall */
+function launchWall(m) {
+  const axis = Math.abs(m.hx) >= Math.abs(m.hy) ? 'h' : 'v';
+  const cx = clamp(Math.floor(m.x), 0, cols - 1), cy = clamp(Math.floor(m.y), 0, rows - 1);
+  wall = { axis, cx, cy, a: 0, b: 0, aAlive: true, bAlive: true, cells: [], acc: 0 };
+  SFX.wall();
+}
+function wallCell(w, side, n) {
+  const d = side === 'a' ? -n : n;
+  return w.axis === 'h' ? { x: w.cx + d, y: w.cy } : { x: w.cx, y: w.cy + d };
+}
+function stepWall(dt) {
+  if (!wall) return;
+  wall.acc += TUNING.jezz.wallSpeed * dt;
+  while (wall.acc >= 1) {
+    wall.acc -= 1;
+    for (const side of ['a','b']) {
+      if (!wall[side + 'Alive']) continue;
+      const n = wall[side] + 1;
+      const p = wallCell(wall, side, n);
+      if (p.x < 0 || p.y < 0 || p.x >= cols || p.y >= rows) { wall[side + 'Alive'] = false; continue; }
+      const i = p.y * cols + p.x;
+      if (grid[i] !== EMPTY) { wall[side + 'Alive'] = false; continue; }
+      grid[i] = TRAIL; wall.cells.push(i); wall[side] = n; gridDirty = true;
+    }
+    if (!wall.aAlive && !wall.bAlive) {
+      const cells = wall.cells, ox = wall.cx + 0.5, oy = wall.cy + 0.5;
+      for (const c of cells) grid[c] = CLAIMED;
+      wall = null;
+      const newly = cells.slice();
+      claimRegions(newly);
+      recount();
+      COLSPARK = mixHex(cfg.accent, '#ffffff', 0.5);
+      startFill(newly, ox, oy);
+      gridDirty = true; SFX.claim(); flashT = 0.2;
+      spawnParticles(s2gX(ox), s2gY(oy), cfg.accent, 14, 1.2);
+      if (cfg.has.splitter) splitBalls();
+      if (pct >= cfg.targetPct) winLevel();
+      return;
+    }
+  }
+}
+function breakWall() {
+  if (!wall) return;
+  for (const c of wall.cells) if (grid[c] === TRAIL) grid[c] = EMPTY;
+  wall = null; gridDirty = true;
+}
+
+/* --------------------------------------------------------------- enemies */
+function solidFor(e, cx, cy) {
+  if (cx < 0 || cy < 0 || cx >= cols || cy >= rows) return true;
+  const v = grid[cy * cols + cx];
+  if (v === TRAIL) return false;
+  if (e.kind === 'ghost' && e.phase) return false;
+  return v === CLAIMED || v === WALL;
+}
+
+/* Edge-based collision: a ball bounces when its EDGE (centre +- radius on the
+   axis it is moving along) reaches solid ground - the same edge the trail-break
+   test uses, so bouncing and cutting agree. Returns a bitmask of axes bounced. */
+function moveEnemy(e, dt) {
+  const r = e.r;
+  const inside = solidFor(e, Math.floor(e.x), Math.floor(e.y));
+  const dist = Math.hypot(e.vx, e.vy) * dt;
+  const steps = Math.min(8, Math.max(1, Math.ceil(dist / 0.34)));
+  const sdt = dt / steps;
+  let bounced = 0;
+  for (let s = 0; s < steps; s++) {
+    if (e.vx !== 0) {
+      const nx = e.x + e.vx * sdt;
+      const probe = nx + (e.vx > 0 ? r : -r);
+      if (!inside && (probe <= 0 || probe >= cols || solidFor(e, Math.floor(probe), Math.floor(e.y)))) {
+        e.vx = -e.vx; bounced |= 1;
+        if (e.kind === 'gball') e.vx *= randBounce();
+      } else e.x = nx;
+    }
+    if (e.vy !== 0) {
+      const ny = e.y + e.vy * sdt;
+      const probe = ny + (e.vy > 0 ? r : -r);
+      if (!inside && (probe <= 0 || probe >= rows || solidFor(e, Math.floor(e.x), Math.floor(probe)))) {
+        e.vy = -e.vy; bounced |= 2;
+        if (e.kind === 'gball') {
+          // Variable restitution: some bounces float, some barely lift.
+          e.vy *= randBounce();
+          const kick = TUNING.gravity.kick * cfg.speedMult;
+          if (Math.abs(e.vy) < kick) e.vy = -kick;
+        }
+      } else e.y = ny;
+    }
+  }
+  e.x = clamp(e.x, 0.05, cols - 0.05);
+  e.y = clamp(e.y, 0.05, rows - 0.05);
+  return bounced;
+}
+function randBounce() {
+  const g = TUNING.gravity;
+  return g.bounceMin + Math.random() * (g.bounceMax - g.bounceMin);
+}
+// Big roamers (Qix / Boss) must never grind along an edge: push them back inward.
+function keepInside(e) {
+  const pad = e.r + 1.2;
+  let turned = 0;
+  if (e.x < pad && e.vx < 0)          { e.vx = Math.abs(e.vx); turned = 1; }
+  if (e.x > cols - pad && e.vx > 0)   { e.vx = -Math.abs(e.vx); turned = 1; }
+  if (e.y < pad && e.vy < 0)          { e.vy = Math.abs(e.vy); turned = 1; }
+  if (e.y > rows - pad && e.vy > 0)   { e.vy = -Math.abs(e.vy); turned = 1; }
+  return turned;
+}
+
+function stepEnemies(dt) {
+  const sp = cfg.speedMult;
+  const target = markers[0];
+  let exposed = false;
+  for (const m of markers) if (m.trail.length) { exposed = true; break; }
+  let wx = 0, wy = 0;
+  if (cfg.has.wind) { wx = Math.cos(windAngle) * TUNING.wind.ballPush; wy = Math.sin(windAngle) * TUNING.wind.ballPush; }
+
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    e.t += dt;
+    if (e.bcd > 0) e.bcd -= dt;
+
+    if (e.kind === 'sparx') { stepSparx(e, dt); continue; }
+
+    if (e.kind === 'gball') e.vy += TUNING.gravity.accel * dt * sp;
+    if (cfg.has.wind) { e.vx += wx * dt; e.vy += wy * dt; }
+
+    // Hunters only home while the player is exposed (trail out), otherwise they
+    // would camp beside the marker on safe ground and the level would deadlock.
+    if (e.kind === 'hunter' && exposed) {
+      const dx = target.x - e.x, dy = target.y - e.y, d = Math.hypot(dx, dy) || 1;
+      e.vx += dx / d * TUNING.hunter.accel * dt * sp;
+      e.vy += dy / d * TUNING.hunter.accel * dt * sp;
+      const s = Math.hypot(e.vx, e.vy), mx = TUNING.hunter.maxSpeed * sp;
+      if (s > mx) { e.vx = e.vx / s * mx; e.vy = e.vy / s * mx; }
+    }
+    if (e.kind === 'qix') {
+      // Wander, but hold a straight course for bounceCd after a bounce so it
+      // always clears the wall instead of grinding along it.
+      if (e.bcd <= 0) e.dir += (Math.random() - 0.5) * TUNING.qix.turn * dt * 6;
+      const s = TUNING.qix.speed * sp;
+      e.vx = Math.cos(e.dir) * s; e.vy = Math.sin(e.dir) * s;
+    }
+    if (e.kind === 'boss') {
+      // Hunts the live trail; prowls mid-field when nobody is exposed. Steering
+      // is suspended right after a bounce so a wall can never trap it.
+      if (e.bcd <= 0) {
+        // idle prowl: a slow lissajous around mid-field so it never camps one spot
+        let tx = cols * (0.5 + 0.3 * Math.cos(e.t * 0.5));
+        let ty = rows * (0.5 + 0.3 * Math.sin(e.t * 0.7));
+        let bestD = Infinity;
+        if (exposed) for (const m of markers) for (let k = m.trail.length - 1; k >= 0; k -= 3) {
+          const c = m.trail[k], cx = c % cols, cy = (c - cx) / cols;
+          const d = (cx - e.x) * (cx - e.x) + (cy - e.y) * (cy - e.y);
+          if (d < bestD) { bestD = d; tx = cx + 0.5; ty = cy + 0.5; }
+        }
+        const dx = tx - e.x, dy = ty - e.y, d = Math.hypot(dx, dy) || 1;
+        e.vx += dx / d * TUNING.boss.steer * dt * 6 * sp;
+        e.vy += dy / d * TUNING.boss.steer * dt * 6 * sp;
+      }
+      const s = Math.hypot(e.vx, e.vy), mx = TUNING.boss.speed * sp;
+      if (s > mx) { e.vx = e.vx / s * mx; e.vy = e.vy / s * mx; }
+    }
+    if (e.kind === 'ghost') {
+      e.phaseT -= dt;
+      if (e.phaseT <= 0) {
+        e.phase = e.phase ? 0 : 1;
+        e.phaseT = e.phase ? TUNING.ghost.phaseOn : TUNING.ghost.phaseOff;
+      }
+    }
+    if (e.kind === 'bomber') {
+      e.fuse -= dt;
+      if (e.fuse <= 0) { detonate(e); e.fuse = TUNING.bomber.fuse; }
+    }
+
+    const big = (e.kind === 'qix' || e.kind === 'boss');
+    if (big && keepInside(e)) e.bcd = Math.max(e.bcd, TUNING[e.kind].bounceCd);
+    const bounced = moveEnemy(e, dt);
+    if (bounced && big) {
+      e.bcd = TUNING[e.kind].bounceCd;
+      if (e.kind === 'qix') e.dir = Math.atan2(e.vy, e.vx);
+    }
+
+    if (portals.length) {
+      e.pcd = Math.max(0, e.pcd - dt);
+      if (e.pcd === 0) for (let p = 0; p < portals.length; p++) {
+        const P = portals[p];
+        if (Math.abs(e.x - (P.x + 0.5)) < 1.1 && Math.abs(e.y - (P.y + 0.5)) < 1.1) {
+          const Q = portals[(p + 1) % portals.length];
+          e.x = Q.x + 0.5; e.y = Q.y + 0.5; e.pcd = TUNING.portal.cooldown; break;
+        }
+      }
+    }
+
+    // does it touch a live trail / growing wall?
+    const list = enemyCells(e, _ec);
+    for (const c of list) {
+      if (grid[c] === TRAIL) {
+        if (wall && wall.cells.indexOf(c) >= 0) { breakWall(); hit('wall'); }
+        else hit('cut');
+        break;
+      }
+    }
+  }
+  if (cfg.has.wind) windAngle += TUNING.wind.rotate * dt;
+}
+
+function stepSparx(e, dt) {
+  e.acc += TUNING.sparx.steps * cfg.speedMult * dt;
+  const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+  while (e.acc >= 1) {
+    e.acc -= 1;
+    const opts = [];
+    for (const [dx, dy] of dirs) {
+      const nx = e.cx + dx, ny = e.cy + dy;
+      if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+      if (grid[ny * cols + nx] !== CLAIMED) continue;
+      let edge = false;                       // must hug the frontier
+      for (const [ax, ay] of dirs) {
+        const px = nx + ax, py = ny + ay;
+        if (px < 0 || py < 0 || px >= cols || py >= rows) continue;
+        const v = grid[py * cols + px];
+        if (v === EMPTY || v === TRAIL) { edge = true; break; }
+      }
+      if (!edge) continue;
+      const back = (dx === -e.dx && dy === -e.dy);
+      opts.push({ dx, dy, w: (dx === e.dx && dy === e.dy) ? 6 : (back ? 1 : 3) });
+    }
+    if (!opts.length) { e.dx = -e.dx; e.dy = -e.dy; break; }
+    let tot = 0; for (const o of opts) tot += o.w;
+    let pick = Math.random() * tot, ch = opts[0];
+    for (const o of opts) { pick -= o.w; if (pick <= 0) { ch = o; break; } }
+    e.cx += ch.dx; e.cy += ch.dy; e.dx = ch.dx; e.dy = ch.dy;
+    e.x = e.cx + 0.5; e.y = e.cy + 0.5;
+  }
+  for (const m of markers) {
+    if (Math.abs(m.x - e.x) < 0.95 && Math.abs(m.y - e.y) < 0.95) { hit('sparx'); return; }
+  }
+  if (grid[cellAt(e.x, e.y)] === TRAIL) hit('cut');
+}
+
+function detonate(e) {
+  const R = TUNING.bomber.radius;
+  const x0 = Math.max(0, Math.floor(e.x - R)), x1 = Math.min(cols - 1, Math.ceil(e.x + R));
+  const y0 = Math.max(0, Math.floor(e.y - R)), y1 = Math.min(rows - 1, Math.ceil(e.y + R));
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    if (isBorderCell(x, y)) continue;               // outer border never erodes
+    if ((x - e.x) * (x - e.x) + (y - e.y) * (y - e.y) > R * R) continue;
+    const i = y * cols + x;
+    if (grid[i] === CLAIMED) grid[i] = EMPTY;
+  }
+  booms.push({ x: e.x, y: e.y, r: R, t: 0 });
+  spawnParticles(s2gX(e.x), s2gY(e.y), MECH.bomber.color, 18, 2);
+  recount(); gridDirty = true; SFX.boom();
+}
+
+function shrinkTick(dt) {
+  shrinkT += dt;
+  if (shrinkT < TUNING.shrink.interval) return;
+  shrinkT = 0;
+  const edge = [];
+  for (let y = 1; y < rows - 1; y++) for (let x = 1; x < cols - 1; x++) {
+    if (isBorderCell(x, y)) continue;
+    const i = y * cols + x;
+    if (grid[i] !== CLAIMED) continue;
+    if (grid[i - 1] === EMPTY || grid[i + 1] === EMPTY || grid[i - cols] === EMPTY || grid[i + cols] === EMPTY) edge.push(i);
+  }
+  if (!edge.length) return;
+  const n = Math.max(1, Math.round(edge.length * TUNING.shrink.fraction));
+  for (let k = 0; k < n; k++) {
+    const i = edge[(Math.random() * edge.length) | 0];
+    if (grid[i] === CLAIMED) grid[i] = EMPTY;
+  }
+  recount(); gridDirty = true; SFX.shrink();
+}
+
+/* ------------------------------------------------------------ life cycle */
+function hit(reason) {
+  if (invuln > 0 || overlayState) return;
+  lives--;
+  invuln = TUNING.marker.invuln;
+  flashT = 0.4;
+  SFX.death();
+  spawnParticles(s2gX(markers[0].x), s2gY(markers[0].y), THEME.danger, 26, 2.2);
+  spawnParticles(s2gX(markers[0].x), s2gY(markers[0].y), '#fff', 12, 2.6, 0.7);
+  for (const m of markers) {
+    for (const c of m.trail) if (grid[c] === TRAIL) grid[c] = EMPTY;
+    m.trail.length = 0; m.stall = 0; m.fuseAcc = 0;
+    m.x = m.spawnX; m.y = m.spawnY; m.hx = 0; m.hy = 0;
+    if (grid[cellAt(m.x, m.y)] !== CLAIMED) {      // make sure respawn ground is solid
+      let found = false;
+      for (let r = 1; r < 20 && !found; r++) {
+        for (let a = 0; a < 16 && !found; a++) {
+          const ang = a / 16 * Math.PI * 2;
+          const nx = m.spawnX + Math.cos(ang) * r, ny = m.spawnY + Math.sin(ang) * r;
+          if (nx > 0 && ny > 0 && nx < cols && ny < rows && grid[cellAt(nx, ny)] === CLAIMED) {
+            m.x = nx; m.y = ny; found = true;
+          }
+        }
+      }
+    }
+  }
+  breakWall();
+  joy.active = false;
+  gridDirty = true;
+  if (lives <= 0) loseLevel();
+}
+
+function winLevel() {
+  if (overlayState) return;
+  overlayState = 'win';
+  recordClear(cfg.spoke, cfg.ring);
+  mapDirty = true;
+  confetti = [];
+  for (let i = 0; i < 70; i++) confetti.push({
+    x: Math.random() * W, y: -Math.random() * H * 0.6,
+    vx: (Math.random() - 0.5) * 90, vy: 70 + Math.random() * 190,
+    s: 4 + Math.random() * 7, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 9,
+    c: [THEME.gold, THEME.node, THEME.glow, '#26de81', '#ff7675', THEME.player][i % 6]
+  });
+  winFx = { t: 0, rings: [], next: 0 };
+  spawnParticles(W / 2, H * 0.42, THEME.gold, 34, 2.4);
+  spawnParticles(W / 2, H * 0.42, THEME.player, 24, 3);
+  SFX.win();
+}
+function loseLevel() {
+  if (overlayState) return;
+  overlayState = 'lose';
+  SFX.lose();
+}
+function toMap() {
+  screenName = 'map'; overlayState = null; mapBtn.classList.remove('on');
+  preview = null; mapDirty = true; joy.active = false; parts = [];
+}
+
+/* ---------------------------------------------------------------- update */
+function update(dt) {
+  if (screenName !== 'play') return;
+  if (bannerT > 0) bannerT -= dt;
+  if (flashT > 0) flashT -= dt;
+  for (const b of booms) b.t += dt;
+  if (booms.length) booms = booms.filter(b => b.t < 0.5);
+  stepFill(dt);
+  stepParticles(dt);
+  if (overlayState) {
+    if (overlayState === 'win') {
+      for (const p of confetti) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 95 * dt; p.rot += p.vr * dt; }
+      winFx.t += dt;
+      if (winFx.t >= winFx.next && winFx.rings.length < TUNING.fx.winRings) {
+        winFx.next = winFx.t + 0.26;
+        winFx.rings.push({ t: 0, c: winFx.rings.length % 2 ? THEME.player : THEME.gold });
+        spawnParticles(W / 2, H * 0.42, winFx.rings.length % 2 ? THEME.player : THEME.gold, 12, 2);
+      }
+      for (const r of winFx.rings) r.t += dt;
+    }
+    return;
+  }
+  if (paused) return;
+  if (invuln > 0) invuln -= dt;
+  stepMarkers(dt);
+  if (overlayState) return;
+  stepWall(dt);
+  stepEnemies(dt);
+  if (cfg.has.shrink) shrinkTick(dt);
+  if (pct >= cfg.targetPct) winLevel();
+}
+
+/* ------------------------------------------------------------------ draw */
+function paintGrid() {
+  const px = gridPix;
+  for (let y = 0; y < rows; y++) {
+    const row = y * cols, base = claimTable[y];
+    for (let x = 0; x < cols; x++) {
+      const i = row + x;
+      const v = grid[i];
+      if (v === EMPTY) { px[i] = COL.empty; continue; }
+      if (v === WALL)  { px[i] = COL.wall;  continue; }
+      if (v === TRAIL) { px[i] = COL.trail; continue; }
+      const fm = fillMask[i];
+      if (fm === 1) { px[i] = COL.hidden; continue; }     // not revealed yet
+      if (fm === 2) { px[i] = COL.flash;  continue; }     // leading edge of the fill
+      // frontier cells glow brighter than the interior
+      const edge = (x > 0 && grid[i - 1] === EMPTY) || (x < cols - 1 && grid[i + 1] === EMPTY) ||
+                   (y > 0 && grid[i - cols] === EMPTY) || (y < rows - 1 && grid[i + cols] === EMPTY);
+      px[i] = edge ? COL.edge : base;
+    }
+  }
+  gridCtx.putImageData(gridImg, 0, 0);
+  gridDirty = false;
+}
+
+function s2gX(x) { return play.x + x * play.cell; }
+function s2gY(y) { return play.y + y * play.cell; }
+
+function glowCircle(g, x, y, r, col, core, blur) {
+  g.shadowColor = col; g.shadowBlur = blur == null ? 12 : blur;
+  g.fillStyle = col;
+  g.beginPath(); g.arc(x, y, r, 0, 6.283); g.fill();
+  g.shadowBlur = 0;
+  if (core) {
+    g.fillStyle = core;
+    g.beginPath(); g.arc(x, y, r * 0.45, 0, 6.283); g.fill();
+  }
+}
+
+function drawPlay(t) {
+  const g = ctx;
+  bgGradient(g);
+  drawStars(t);
+
+  if (gridDirty) paintGrid();
+  const cell = play.cell;
+
+  // glowing frame around the field
+  g.save();
+  g.shadowColor = cfg.accent; g.shadowBlur = 16;
+  g.strokeStyle = 'rgba(162,155,254,0.55)'; g.lineWidth = 2;
+  g.strokeRect(play.x - 1, play.y - 1, play.w + 2, play.h + 2);
+  g.restore();
+
+  g.imageSmoothingEnabled = false;
+  g.drawImage(gridCanvas, 0, 0, cols, rows, play.x, play.y, play.w, play.h);
+  g.imageSmoothingEnabled = true;
+
+  // portals
+  for (const p of portals) {
+    const x = s2gX(p.x + 0.5), y = s2gY(p.y + 0.5);
+    const rad = cell * 1.7 + Math.sin(t * 0.006) * cell * 0.25;
+    g.save();
+    g.shadowColor = MECH.portal.color; g.shadowBlur = 14;
+    g.strokeStyle = MECH.portal.color; g.lineWidth = 3;
+    g.beginPath(); g.arc(x, y, rad, 0, 6.283); g.stroke();
+    g.shadowBlur = 0;
+    g.strokeStyle = 'rgba(255,255,255,0.5)'; g.lineWidth = 1.5;
+    g.beginPath(); g.arc(x, y, rad * 0.55, 0, 6.283); g.stroke();
+    g.restore();
+  }
+
+  // bomb shockwaves
+  for (const b of booms) {
+    const k = b.t / 0.5;
+    g.strokeStyle = 'rgba(250,177,160,' + (1 - k).toFixed(2) + ')';
+    g.lineWidth = 3;
+    g.beginPath(); g.arc(s2gX(b.x), s2gY(b.y), b.r * cell * (0.4 + k), 0, 6.283); g.stroke();
+  }
+
+  // enemies - glowing orbs with a lighter core, hue by type
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    const x = s2gX(e.x), y = s2gY(e.y), r = Math.max(3, e.r * cell);
+    if (e.kind === 'sparx') {
+      g.save();
+      g.shadowColor = MECH.sparx.color; g.shadowBlur = 12;
+      g.fillStyle = MECH.sparx.color;
+      g.beginPath();
+      g.moveTo(x, y - r * 1.2); g.lineTo(x + r, y); g.lineTo(x, y + r * 1.2); g.lineTo(x - r, y);
+      g.closePath(); g.fill();
+      g.shadowBlur = 0;
+      g.fillStyle = '#fffde7';
+      g.beginPath(); g.arc(x, y, r * 0.35, 0, 6.283); g.fill();
+      g.restore();
+      continue;
+    }
+    if (e.kind === 'qix' || e.kind === 'boss') {
+      const col = e.kind === 'boss' ? MECH.boss.color : MECH.qix.color;
+      g.save();
+      g.globalAlpha = 0.22; g.fillStyle = col;
+      g.beginPath(); g.arc(x, y, r * 1.4, 0, 6.283); g.fill();
+      g.globalAlpha = 1;
+      g.shadowColor = col; g.shadowBlur = 18; g.fillStyle = col;
+      g.beginPath();
+      for (let a = 0; a < 10; a++) {
+        const ang = a / 10 * 6.283 + e.t * 1.6;
+        const rad = r * (0.75 + 0.3 * Math.sin(a * 2.3 + e.t * 4));
+        const px = x + Math.cos(ang) * rad, py = y + Math.sin(ang) * rad;
+        a ? g.lineTo(px, py) : g.moveTo(px, py);
+      }
+      g.closePath(); g.fill();
+      g.shadowBlur = 0;
+      g.fillStyle = mixHex(col, '#ffffff', 0.6);
+      g.beginPath(); g.arc(x, y, r * 0.32, 0, 6.283); g.fill();
+      if (e.kind === 'boss') {
+        g.fillStyle = '#fff';
+        g.beginPath(); g.arc(x - r * 0.32, y - r * 0.16, r * 0.19, 0, 6.283); g.fill();
+        g.beginPath(); g.arc(x + r * 0.32, y - r * 0.16, r * 0.19, 0, 6.283); g.fill();
+        g.fillStyle = '#111';
+        g.beginPath(); g.arc(x - r * 0.3, y - r * 0.13, r * 0.09, 0, 6.283); g.fill();
+        g.beginPath(); g.arc(x + r * 0.34, y - r * 0.13, r * 0.09, 0, 6.283); g.fill();
+      }
+      g.restore();
+      continue;
+    }
+    let col = MECH.classic.color;
+    if (e.kind === 'swarm') col = MECH.swarm.color;
+    if (e.kind === 'gball') col = MECH.gravity.color;
+    if (e.kind === 'split') col = MECH.splitter.color;
+    if (e.kind === 'hunter') col = MECH.hunter.color;
+    if (e.kind === 'bomber') col = MECH.bomber.color;
+    if (e.kind === 'ghost') col = MECH.ghost.color;
+    g.save();
+    if (e.kind === 'ghost') g.globalAlpha = e.phase ? (0.32 + 0.2 * Math.sin(t * 0.05)) : 0.95;
+    glowCircle(g, x, y, r, col, mixHex(col, '#ffffff', 0.65), 11);
+    if (e.kind === 'bomber') {
+      const k = clamp(1 - e.fuse / TUNING.bomber.fuse, 0, 1);
+      g.strokeStyle = THEME.danger; g.lineWidth = 2.5;
+      g.beginPath(); g.arc(x, y, r + 3, -Math.PI / 2, -Math.PI / 2 + k * 6.283); g.stroke();
+    }
+    if (e.kind === 'hunter') {
+      g.strokeStyle = 'rgba(255,255,255,0.5)'; g.lineWidth = 1.5;
+      g.beginPath(); g.arc(x, y, r + 3 + Math.sin(t * 0.01) * 2, 0, 6.283); g.stroke();
+    }
+    g.restore();
+  }
+
+  // markers - player cyan, neon glow, white core
+  for (const m of markers) {
+    const x = s2gX(m.x), y = s2gY(m.y), r = Math.max(4, cell * 0.9);
+    const blink = invuln > 0 && ((t * 0.012) | 0) % 2 === 0;
+    g.save();
+    if (blink) g.globalAlpha = 0.45;
+    const col = m.mirror ? MECH.mirror.color : THEME.player;
+    const pulse = 1 + 0.12 * Math.sin(t * 0.012);
+    g.globalAlpha *= 0.3;
+    g.fillStyle = col;
+    g.beginPath(); g.arc(x, y, r * 2.1 * pulse, 0, 6.283); g.fill();
+    g.globalAlpha = blink ? 0.45 : 1;
+    glowCircle(g, x, y, r * pulse, col, '#ffffff', 18);
+    g.restore();
+  }
+
+  drawParticles();
+
+  if (cfg.has.wind) {
+    const x = play.x + play.w - 26, y = play.y + 22;
+    g.save(); g.translate(x, y); g.rotate(windAngle);
+    g.shadowColor = '#fff'; g.shadowBlur = 8;
+    g.strokeStyle = 'rgba(255,255,255,0.65)'; g.lineWidth = 2.5;
+    g.beginPath(); g.moveTo(-11, 0); g.lineTo(11, 0);
+    g.moveTo(5, -5); g.lineTo(11, 0); g.lineTo(5, 5); g.stroke();
+    g.restore();
+  }
+
+  drawJoypad();
+  drawHUD();
+
+  if (flashT > 0) {
+    g.fillStyle = 'rgba(255,255,255,' + (flashT * 0.3).toFixed(3) + ')';
+    g.fillRect(0, 0, W, H);
+  }
+  if (bannerT > 0) {
+    const a = Math.min(1, bannerT / 0.5);
+    g.globalAlpha = a;
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = 'bold ' + Math.round(clamp(W * 0.05, 18, 36)) + 'px system-ui,sans-serif';
+    g.fillStyle = cfg.accent; g.shadowColor = cfg.accent; g.shadowBlur = 24;
+    const nm = cfg.name.length > 34 ? cfg.name.slice(0, 33) + '…' : cfg.name;
+    g.fillText(nm, W / 2, H / 2 - 14);
+    g.shadowBlur = 0;
+    g.font = 'bold 16px system-ui,sans-serif'; g.fillStyle = 'rgba(255,255,255,0.85)';
+    g.fillText('Ring ' + (cfg.ring + 1) + '  ·  fill ' + cfg.targetPct + '%', W / 2, H / 2 + 20);
+    g.globalAlpha = 1;
+  }
+  if (overlayState) drawResult(t);
+}
+
+/* 4-way joypad, shown wherever the finger lands. Locked to U/D/L/R. */
+function drawJoypad() {
+  if (!joy.active) return;
+  const g = ctx, R = TUNING.marker.padRadius;
+  const [hx, hy] = desiredHeading();
+  g.save();
+  g.globalAlpha = 0.9;
+  g.fillStyle = 'rgba(20,26,60,0.42)';
+  g.beginPath(); g.arc(joy.ax, joy.ay, R, 0, 6.283); g.fill();
+  g.strokeStyle = 'rgba(162,155,254,0.5)'; g.lineWidth = 2;
+  g.beginPath(); g.arc(joy.ax, joy.ay, R, 0, 6.283); g.stroke();
+  const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+  for (const [dx, dy] of dirs) {
+    const on = (hx === dx && hy === dy);
+    const cx = joy.ax + dx * R * 0.62, cy = joy.ay + dy * R * 0.62;
+    g.save(); g.translate(cx, cy); g.rotate(Math.atan2(dy, dx));
+    if (on) { g.shadowColor = THEME.player; g.shadowBlur = 14; g.fillStyle = THEME.player; }
+    else { g.fillStyle = 'rgba(255,255,255,0.34)'; }
+    const s = R * 0.24;
+    g.beginPath(); g.moveTo(s, 0); g.lineTo(-s * 0.6, -s * 0.8); g.lineTo(-s * 0.6, s * 0.8); g.closePath(); g.fill();
+    g.restore();
+  }
+  g.shadowBlur = 0;
+  // thumb dot
+  const d = Math.hypot(joy.dx, joy.dy) || 1, k = Math.min(1, d / (R * 0.9));
+  g.fillStyle = 'rgba(255,255,255,0.4)';
+  g.beginPath(); g.arc(joy.ax + joy.dx / d * R * 0.62 * k, joy.ay + joy.dy / d * R * 0.62 * k, R * 0.2, 0, 6.283); g.fill();
+  g.restore();
+}
+
+function drawHUD() {
+  const g = ctx;
+  const pw = hud.w, px = hud.x, py = hud.y, ph = hud.h;
+  rr(g, px, py, pw, ph, 14);
+  g.fillStyle = 'rgba(10,14,40,0.55)'; g.fill();
+  g.strokeStyle = 'rgba(162,155,254,0.28)'; g.lineWidth = 1; g.stroke();
+
+  g.textAlign = 'left'; g.textBaseline = 'middle';
+  g.font = 'bold 13px system-ui,sans-serif';
+  g.fillStyle = '#fff';
+  const label = cfg.name.length > 28 ? cfg.name.slice(0, 27) + '…' : cfg.name;
+  g.fillText(label, px + 12, py + 15);
+  g.font = 'bold 11px system-ui,sans-serif'; g.fillStyle = 'rgba(255,255,255,0.6)';
+  g.textAlign = 'right';
+  g.fillText('R' + (cfg.ring + 1), px + pw - 12, py + 15);
+
+  const bx = px + 12, by = py + 26, bw = pw - 24, bh = 8;
+  rr(g, bx, by, bw, bh, 4); g.fillStyle = 'rgba(255,255,255,0.12)'; g.fill();
+  const done = pct >= cfg.targetPct;
+  g.save();
+  g.shadowColor = done ? '#26de81' : THEME.glow; g.shadowBlur = 10;
+  rr(g, bx, by, Math.max(2, bw * (pct / 100)), bh, 4);
+  g.fillStyle = done ? '#26de81' : THEME.glow; g.fill();
+  g.restore();
+  const tx = bx + bw * (cfg.targetPct / 100);
+  g.strokeStyle = THEME.gold; g.lineWidth = 2;
+  g.beginPath(); g.moveTo(tx, by - 3); g.lineTo(tx, by + bh + 3); g.stroke();
+
+  g.textAlign = 'left'; g.font = 'bold 12px system-ui,sans-serif';
+  g.fillStyle = THEME.gold;
+  g.fillText(Math.round(pct) + '% / ' + cfg.targetPct + '%', bx, py + 45);
+
+  for (let i = 0; i < lives; i++) {
+    g.fillStyle = THEME.danger;
+    const hx = px + pw - 14 - i * 15, hy = py + 44;
+    g.beginPath(); g.arc(hx - 3, hy - 2, 3.4, 0, 6.283); g.fill();
+    g.beginPath(); g.arc(hx + 3, hy - 2, 3.4, 0, 6.283); g.fill();
+    g.beginPath(); g.moveTo(hx - 6.2, hy - 0.6); g.lineTo(hx, hy + 6); g.lineTo(hx + 6.2, hy - 0.6); g.closePath(); g.fill();
+  }
+  let dx = px + pw / 2 - cfg.mechs.length * 7;
+  for (const m of cfg.mechs) {
+    g.fillStyle = MECH[m].color;
+    g.beginPath(); g.arc(dx, py + 44, 4.2, 0, 6.283); g.fill();
+    dx += 14;
+  }
+}
+
+/* button icons drawn as paths - no font dependency */
+function drawIcon(g, kind, x, y, s, col) {
+  g.save();
+  g.translate(x, y);
+  g.strokeStyle = col; g.fillStyle = col;
+  g.lineWidth = Math.max(2, s * 0.16); g.lineJoin = 'round'; g.lineCap = 'round';
+  if (kind === 'next') {
+    g.beginPath();
+    g.moveTo(-s * 0.5, -s * 0.6); g.lineTo(s * 0.45, 0); g.lineTo(-s * 0.5, s * 0.6);
+    g.closePath(); g.fill();
+  } else if (kind === 'retry') {
+    g.beginPath(); g.arc(0, 0, s * 0.55, 0.7, 5.6); g.stroke();
+    g.beginPath();
+    g.moveTo(s * 0.42, -s * 0.72); g.lineTo(s * 0.62, -s * 0.1); g.lineTo(s * 0.02, -s * 0.28);
+    g.closePath(); g.fill();
+  } else {
+    const q = s * 0.52, gap = s * 0.1;
+    for (const [ix, iy] of [[-1,-1],[1,-1],[-1,1],[1,1]]) {
+      const w = q - gap;
+      g.beginPath();
+      g.rect(ix * (q * 0.55) - w / 2, iy * (q * 0.55) - w / 2, w, w);
+      g.fill();
+    }
+  }
+  g.restore();
+}
+
+function drawResult(t) {
+  const g = ctx;
+  overlayRects = [];
+  g.fillStyle = 'rgba(6,8,26,0.72)'; g.fillRect(0, 0, W, H);
+  const win = overlayState === 'win';
+  const cx = W / 2, cy = H * 0.42;
+
+  if (win) {
+    // radial burst rings
+    for (const r of winFx.rings) {
+      const k = Math.min(1, r.t / 1.15);
+      const rad = 40 + k * Math.max(W, H) * 0.62;
+      g.globalAlpha = (1 - k) * 0.75;
+      g.strokeStyle = r.c; g.lineWidth = 3 + (1 - k) * 6;
+      g.shadowColor = r.c; g.shadowBlur = 18;
+      g.beginPath(); g.arc(cx, cy, rad, 0, 6.283); g.stroke();
+    }
+    g.shadowBlur = 0; g.globalAlpha = 1;
+    for (const p of confetti) {
+      g.save(); g.translate(p.x, p.y); g.rotate(p.rot);
+      g.fillStyle = p.c; g.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.6); g.restore();
+    }
+    drawParticles();
+  }
+
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  const glowPulse = 22 + 16 * Math.sin(t * 0.006);
+  g.font = 'bold ' + Math.round(clamp(W * 0.095, 30, 58)) + 'px system-ui,sans-serif';
+  g.shadowColor = win ? THEME.gold : THEME.danger; g.shadowBlur = win ? glowPulse : 24;
+  g.fillStyle = win ? THEME.gold : THEME.danger;
+  g.fillText(win ? 'Claimed!' : 'Out of Lives', cx, cy - 34);
+  g.shadowBlur = 0;
+  g.font = 'bold 17px system-ui,sans-serif'; g.fillStyle = '#fff';
+  const nm = cfg.name.length > 34 ? cfg.name.slice(0, 33) + '…' : cfg.name;
+  g.fillText(nm + '  ·  Ring ' + (cfg.ring + 1), cx, cy + 12);
+  g.font = 'bold 22px system-ui,sans-serif';
+  g.fillStyle = win ? THEME.player : THEME.glow;
+  g.fillText(win ? (Math.round(pct) + '% filled  (needed ' + cfg.targetPct + '%)')
+                 : (Math.round(pct) + '% of ' + cfg.targetPct + '% needed'), cx, cy + 44);
+
+  const bw = Math.min(258, W * 0.7), bh = 54, bx = (W - bw) / 2;
+  let by = H * 0.6;
+  const nextRing = cfg.ring + 1;
+  const btns = [];
+  if (win && nextRing < RINGS) btns.push({ text:'Next Ring', icon:'next', c1:THEME.node, c2:THEME.glow, fn:() => startLevel(cfg.spoke, nextRing) });
+  if (!win) btns.push({ text:'Try Again', icon:'retry', c1:THEME.node, c2:THEME.glow, fn:() => startLevel(cfg.spoke, cfg.ring) });
+  btns.push({ text:'Wheel Map', icon:'map', c1:'#2d3450', c2:'#5b6488', fn: toMap });
+  for (const b of btns) {
+    rr(g, bx, by, bw, bh, 13);
+    const lg = g.createLinearGradient(bx, by, bx + bw, by + bh);
+    lg.addColorStop(0, b.c1); lg.addColorStop(1, b.c2);
+    g.fillStyle = lg; g.fill();
+    g.strokeStyle = 'rgba(255,255,255,0.28)'; g.lineWidth = 1; g.stroke();
+    drawIcon(g, b.icon, bx + 30, by + bh / 2, 15, '#fff');
+    g.font = 'bold 19px system-ui,sans-serif'; g.fillStyle = '#fff';
+    g.textAlign = 'left';
+    g.fillText(b.text, bx + 54, by + bh / 2 + 1);
+    g.textAlign = 'center';
+    overlayRects.push({ x:bx, y:by, w:bw, h:bh, fn:b.fn });
+    by += bh + 14;
+  }
+}
+
+/* ----------------------------------------------------------------- input */
+function canvasPos(ev) {
+  const r = canvas.getBoundingClientRect();
+  return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+}
+let downHandled = false;
+
+canvas.addEventListener('pointerdown', ev => {
+  ev.preventDefault();
+  ensureAudio();
+  const p = canvasPos(ev);
+  downHandled = false;
+  if (screenName === 'play' && overlayState) {
+    for (const b of overlayRects) if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) {
+      SFX.tap(); b.fn(); downHandled = true; return;
+    }
+    return;
+  }
+  if (screenName === 'map') {
+    for (const b of hubRects) if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) {
+      b.fn(); downHandled = true; return;
+    }
+    preview = hitNode(p.x, p.y);
+    return;
+  }
+  joy.active = true; joy.ax = p.x; joy.ay = p.y; joy.dx = 0; joy.dy = 0;
+  try { canvas.setPointerCapture(ev.pointerId); } catch (e) {}
+}, { passive:false });
+
+canvas.addEventListener('pointermove', ev => {
+  const p = canvasPos(ev);
+  if (screenName === 'map') {
+    if (!downHandled && ev.buttons !== 0) preview = hitNode(p.x, p.y);
+    return;
+  }
+  if (joy.active) {
+    joy.dx = p.x - joy.ax; joy.dy = p.y - joy.ay;
+    const lim = TUNING.marker.padRadius * 1.5;
+    const d = Math.hypot(joy.dx, joy.dy);
+    if (d > lim) { joy.ax = p.x - joy.dx / d * lim; joy.ay = p.y - joy.dy / d * lim; }
+  }
+}, { passive:false });
+
+function pointerEnd(ev) {
+  const p = canvasPos(ev);
+  if (screenName === 'map') {
+    if (!downHandled) {
+      const n = hitNode(p.x, p.y);
+      if (n && preview && n.s === preview.s && n.r === preview.r) {
+        if (isUnlocked(n.s, n.r)) { SFX.tap(); startLevel(n.s, n.r); }
+        else tone(180, 0.12, 'square', 0.05);
+      }
+    }
+    preview = null;
+    return;
+  }
+  joy.active = false; joy.dx = 0; joy.dy = 0;
+}
+canvas.addEventListener('pointerup', pointerEnd);
+canvas.addEventListener('pointercancel', pointerEnd);
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+window.addEventListener('keydown', e => {
+  const k = e.key;
+  if (k === 'ArrowLeft' || k === 'a') keys.left = true;
+  if (k === 'ArrowRight' || k === 'd') keys.right = true;
+  if (k === 'ArrowUp' || k === 'w') keys.up = true;
+  if (k === 'ArrowDown' || k === 's') keys.down = true;
+  if (k === 'Escape' && screenName === 'play') toMap();
+  if (k === 'm') muted = !muted;
+  if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].indexOf(k) >= 0) e.preventDefault();
+});
+window.addEventListener('keyup', e => {
+  const k = e.key;
+  if (k === 'ArrowLeft' || k === 'a') keys.left = false;
+  if (k === 'ArrowRight' || k === 'd') keys.right = false;
+  if (k === 'ArrowUp' || k === 'w') keys.up = false;
+  if (k === 'ArrowDown' || k === 's') keys.down = false;
+});
+mapBtn.addEventListener('click', () => { SFX.tap(); toMap(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { paused = true; joy.active = false; clearKeys(); }
+  else paused = false;
+});
+
+/* ------------------------------------------------------------------ loop */
+let last = 0;
+function frame(t) {
+  if (!last) last = t;
+  let dt = (t - last) / 1000; last = t;
+  if (dt > 0.1) dt = 0.1;                     // long stall: don't teleport
+  let left = dt;
+  const STEP = 1 / 60;
+  let guard = 0;
+  while (left > 0 && guard++ < 4) { const s = Math.min(STEP, left); update(s); left -= s; }
+  if (screenName === 'map') drawMap(t); else drawPlay(t);
+  requestAnimationFrame(frame);
+}
+resize();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
