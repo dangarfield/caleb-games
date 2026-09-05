@@ -1,6 +1,6 @@
 # Games Index
 
-All 67 games in Garfield Boys' Arcade (68 directories — Archers has legacy 2D + current 3D).
+All 68 games in Garfield Boys' Arcade (69 directories — Archers has legacy 2D + current 3D).
 
 | Game | Directory | Description |
 |------|-----------|-------------|
@@ -39,6 +39,7 @@ All 67 games in Garfield Boys' Arcade (68 directories — Archers has legacy 2D 
 | Tate Draw | games/tatedraw/ | Drawing canvas |
 | Tenacity | games/tenacity/ | Precision platformer |
 | Tetris | games/tetris/ | Classic Tetris with SRS rotation |
+| TGRS | games/tgrs/ | 60-second times tables drill with dynamic handicaps |
 | Tower Defense | games/towerdefense/ | Path-based tower defense |
 | Tron | games/tron/ | Light cycle game |
 | Whack-a-Mole | games/whackamole/ | Tap the moles |

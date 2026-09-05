@@ -1,0 +1,1417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<title>TGRS - Garfield Boys' Arcade</title>
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+body { background:#0a0a2e; overflow:hidden; touch-action:none;
+  font-family:'Segoe UI',system-ui,sans-serif; color:#fff; }
+canvas#c { display:block; width:100%; height:100%; position:fixed; inset:0; z-index:1; }
+.hidden { display:none !important; }
+
+#backBtn { position:fixed; top:12px; left:12px; z-index:9999;
+  background:rgba(0,0,0,0.55); color:#fff; text-decoration:none;
+  padding:6px 18px; border-radius:20px;
+  font:bold 15px/1.4 'Segoe UI',system-ui,sans-serif;
+  border:1px solid rgba(255,255,255,0.18);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  transition:background 0.2s; }
+#backBtn:hover { background:rgba(0,0,0,0.75); }
+
+/* ---------- HOME ---------- */
+#home { position:fixed; inset:0; z-index:20; overflow-y:auto; overscroll-behavior:contain;
+  touch-action:pan-y; -webkit-overflow-scrolling:touch;
+  background:linear-gradient(180deg,#0a0a2e 0%,#141452 55%,#1a1a6e 100%);
+  padding:58px 16px 40px; }
+.wrap { max-width:820px; margin:0 auto; }
+.brand { text-align:center; margin-bottom:18px; }
+.brand h1 { font-size:clamp(2.6rem,11vw,4.4rem); letter-spacing:4px; font-weight:900;
+  background:linear-gradient(180deg,#fff,#a29bfe); -webkit-background-clip:text;
+  background-clip:text; color:transparent; text-shadow:0 0 40px rgba(162,155,254,0.35); }
+.brand .sub { font-size:clamp(0.95rem,3.4vw,1.25rem); color:#a0c4ff; letter-spacing:1px; }
+.brand .info { font-size:0.85rem; color:rgba(255,255,255,0.55); margin-top:8px; }
+
+.panel { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1);
+  border-radius:18px; padding:16px; margin-bottom:14px; }
+.panel h2 { font-size:0.8rem; letter-spacing:2px; text-transform:uppercase;
+  color:rgba(255,255,255,0.45); margin-bottom:12px; font-weight:700; }
+
+.chips { display:flex; flex-wrap:wrap; gap:10px; }
+.chip { display:flex; align-items:center; gap:9px; padding:10px 16px; border-radius:999px;
+  background:rgba(255,255,255,0.07); border:2px solid transparent; cursor:pointer;
+  font-weight:700; font-size:1rem; transition:transform .12s,border-color .15s,background .15s; }
+.chip:active { transform:scale(0.96); }
+.chip.sel { border-color:#fff; background:rgba(255,255,255,0.16); }
+.chip .dot { width:14px; height:14px; border-radius:50%; flex:none; }
+.chip .meta { font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.5); }
+.chip .x { width:22px; height:22px; border-radius:50%; background:rgba(231,76,60,0.85);
+  display:grid; place-items:center; font-size:0.8rem; font-weight:900; flex:none; }
+.chip.confirm { background:rgba(231,76,60,0.22); border-color:#e74c3c; }
+.chip.manage { background:transparent; border:2px dashed rgba(255,255,255,0.25);
+  color:rgba(255,255,255,0.6); font-size:0.9rem; }
+.chip.manage.sel { border-style:solid; border-color:#a29bfe; color:#fff;
+  background:rgba(108,92,231,0.2); }
+.badge.prov { background:rgba(162,155,254,0.13); color:#a29bfe;
+  border-color:rgba(162,155,254,0.3); }
+.mini { padding:5px 12px; border-radius:999px; border:1px solid rgba(255,255,255,0.25);
+  background:rgba(255,255,255,0.08); color:#fff; font-size:0.78rem; font-weight:700;
+  cursor:pointer; }
+.mini:active { transform:scale(0.94); }
+.mini.on { background:#6c5ce7; border-color:#a29bfe; }
+.row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.spacer { flex:1; }
+
+#managePanel { margin-top:14px; padding:14px; border-radius:14px;
+  background:rgba(0,0,0,0.25); border:1px solid rgba(162,155,254,0.25); }
+#managePanel .row { margin-bottom:11px; }
+#managePanel .row:last-child { margin-bottom:0; }
+#managePanel .lbl { width:88px; flex:none; }
+.mhead { font-size:0.72rem; letter-spacing:1.5px; text-transform:uppercase;
+  color:#a29bfe; font-weight:800; margin-bottom:12px; }
+#pName { flex:1; min-width:130px; padding:10px 14px; border-radius:12px;
+  border:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.35); color:#fff;
+  font-size:1rem; font-family:inherit; font-weight:700; }
+#pName:focus { outline:2px solid #6c5ce7; }
+.mini.danger { background:rgba(231,76,60,0.18); border-color:rgba(231,76,60,0.5);
+  color:#ff8a8a; }
+.swatches { display:flex; gap:6px; }
+.sw { width:26px; height:26px; border-radius:50%; border:2px solid transparent; cursor:pointer; }
+.sw.sel { border-color:#fff; transform:scale(1.12); }
+
+#playBtn { width:100%; margin-top:14px; padding:18px; font-size:1.35rem; border:none;
+  border-radius:16px; background:linear-gradient(135deg,#6c5ce7,#a29bfe); color:#fff;
+  cursor:pointer; font-weight:800; letter-spacing:1px; font-family:inherit;
+  box-shadow:0 6px 26px rgba(108,92,231,0.45); transition:transform .15s,filter .15s; }
+#playBtn:active { transform:scale(0.97); }
+#playBtn:disabled { filter:grayscale(1) brightness(0.6); cursor:default; }
+
+.panelhead { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+.panelhead h2 { margin:0; flex:1; }
+.seg { display:flex; gap:3px; background:rgba(0,0,0,0.35); padding:3px; border-radius:11px; }
+.segbtn { padding:7px 14px; border-radius:8px; border:none; background:transparent;
+  color:rgba(255,255,255,0.5); font:800 0.8rem 'Segoe UI',system-ui,sans-serif;
+  cursor:pointer; transition:all .16s; }
+.segbtn.on { background:linear-gradient(135deg,#6c5ce7,#a29bfe); color:#fff; }
+.lbl { font-size:0.8rem; color:rgba(255,255,255,0.5); font-weight:700; }
+.diffbtns { display:flex; flex-wrap:wrap; gap:5px; }
+.dbtn { width:34px; height:32px; border-radius:9px; border:1px solid rgba(255,255,255,0.15);
+  background:rgba(255,255,255,0.06); color:rgba(255,255,255,0.75);
+  font:800 0.85rem 'Segoe UI',system-ui,sans-serif; cursor:pointer; }
+.dbtn.on { background:#6c5ce7; border-color:#a29bfe; color:#fff; }
+
+table { width:100%; border-collapse:collapse; font-size:0.88rem; }
+th { text-align:left; font-size:0.66rem; letter-spacing:1px; text-transform:uppercase;
+  color:rgba(255,255,255,0.4); padding:6px 6px; font-weight:700; white-space:nowrap; }
+td { padding:9px 6px; border-top:1px solid rgba(255,255,255,0.07); white-space:nowrap; }
+td.name { font-weight:800; }
+.num { text-align:right; font-variant-numeric:tabular-nums; }
+.gold { color:#ffd32a; font-weight:800; }
+th.gs { color:#ffd32a; }
+td.gs { color:#ffd32a; font-weight:900; font-size:1.35rem; letter-spacing:-0.5px; }
+tr.leader td { background:rgba(255,211,42,0.07); }
+tr.leader td.name { position:relative; }
+td.name .when { font-size:0.62rem; font-weight:600; color:rgba(255,255,255,0.35);
+  letter-spacing:0; margin-top:1px; }
+.explain { font-size:0.76rem; color:rgba(255,255,255,0.45); line-height:1.5;
+  margin:-4px 0 12px; }
+.explain b { color:#ffd32a; font-weight:800; }
+.hc { color:#00e5a0; font-weight:800; }
+.badge { display:inline-block; padding:3px 10px; border-radius:999px; font-size:0.7rem;
+  font-weight:800; background:rgba(255,211,42,0.15); color:#ffd32a;
+  border:1px solid rgba(255,211,42,0.3); }
+.badge.none { background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.5);
+  border-color:rgba(255,255,255,0.15); }
+.tblwrap { overflow-x:auto; }
+@media (max-width:560px) { .opt { display:none; } }
+.legend { display:flex; flex-wrap:wrap; gap:12px; margin-top:10px; font-size:0.8rem;
+  color:rgba(255,255,255,0.7); }
+.legend span { display:flex; align-items:center; gap:6px; }
+.legend i { width:12px; height:3px; border-radius:2px; display:block; }
+.chartbox { width:100%; height:210px; }
+.chartbox canvas { width:100%; height:100%; display:block; }
+.empty { color:rgba(255,255,255,0.4); font-size:0.88rem; text-align:center; padding:26px 10px; }
+.feed { display:flex; flex-direction:column; gap:8px; margin-top:12px; }
+.ev { display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border-radius:12px;
+  background:rgba(0,0,0,0.25); border-left:3px solid #6c5ce7; font-size:0.85rem; }
+.ev .when { color:rgba(255,255,255,0.4); font-size:0.72rem; }
+.ev b { font-weight:800; }
+.up { color:#00e5a0; } .down { color:#ff8a5c; }
+#toast { position:fixed; left:50%; top:14px; transform:translateX(-50%); z-index:9998;
+  background:#e74c3c; color:#fff; padding:10px 18px; border-radius:12px; font-size:0.85rem;
+  font-weight:700; max-width:90vw; text-align:center; box-shadow:0 6px 24px rgba(0,0,0,0.5); }
+
+/* ---------- NUMPAD ---------- */
+#pad { position:fixed; left:0; right:0; bottom:0; height:var(--padH,300px); z-index:12;
+  display:grid; grid-template-columns:repeat(4,1fr); grid-template-rows:repeat(4,1fr);
+  gap:8px; padding:8px; padding-bottom:max(8px,env(safe-area-inset-bottom)); }
+.key { display:grid; place-items:center; border-radius:14px; font-weight:800;
+  font-size:clamp(1.3rem,5.5vw,2rem); color:#fff; user-select:none; cursor:pointer;
+  background:rgba(255,255,255,0.09); border:1px solid rgba(255,255,255,0.14);
+  transition:background .08s,transform .08s; }
+.key:active,.key.down { background:rgba(255,255,255,0.24); transform:scale(0.95); }
+.key.ent { background:linear-gradient(135deg,#6c5ce7,#a29bfe); font-size:clamp(1rem,4vw,1.4rem);
+  letter-spacing:1px; border-color:rgba(255,255,255,0.3); }
+.key.ent:active,.key.ent.down { filter:brightness(1.25); }
+.key.fn { font-size:clamp(1.1rem,4.5vw,1.5rem); color:#a0c4ff; }
+.k7{grid-row:1;grid-column:1}.k8{grid-row:1;grid-column:2}.k9{grid-row:1;grid-column:3}
+.kbs{grid-row:1;grid-column:4}
+.k4{grid-row:2;grid-column:1}.k5{grid-row:2;grid-column:2}.k6{grid-row:2;grid-column:3}
+.k1{grid-row:3;grid-column:1}.k2{grid-row:3;grid-column:2}.k3{grid-row:3;grid-column:3}
+.k0{grid-row:4;grid-column:1/span 2}.kc{grid-row:4;grid-column:3}
+.kent{grid-row:2/span 3;grid-column:4}
+#pad.left .k7{grid-column:2}#pad.left .k8{grid-column:3}#pad.left .k9{grid-column:4}
+#pad.left .kbs{grid-column:1}
+#pad.left .k4{grid-column:2}#pad.left .k5{grid-column:3}#pad.left .k6{grid-column:4}
+#pad.left .k1{grid-column:2}#pad.left .k2{grid-column:3}#pad.left .k3{grid-column:4}
+#pad.left .k0{grid-column:2/span 2}#pad.left .kc{grid-column:4}
+#pad.left .kent{grid-column:1}
+
+#sideBtn { position:fixed; top:12px; right:12px; z-index:9999;
+  background:rgba(0,0,0,0.55); color:#fff; padding:6px 14px; border-radius:20px;
+  font:bold 13px/1.4 'Segoe UI',system-ui,sans-serif; cursor:pointer;
+  border:1px solid rgba(255,255,255,0.18);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+<div id="sideBtn" class="hidden">&#8646; Enter: Right</div>
+<canvas id="c"></canvas>
+
+<div id="pad" class="hidden">
+  <div class="key k7" data-k="7">7</div><div class="key k8" data-k="8">8</div>
+  <div class="key k9" data-k="9">9</div>
+  <div class="key fn kbs" data-k="bs">&#9003;</div>
+  <div class="key k4" data-k="4">4</div><div class="key k5" data-k="5">5</div>
+  <div class="key k6" data-k="6">6</div>
+  <div class="key k1" data-k="1">1</div><div class="key k2" data-k="2">2</div>
+  <div class="key k3" data-k="3">3</div>
+  <div class="key k0" data-k="0">0</div>
+  <div class="key fn kc" data-k="clr">C</div>
+  <div class="key ent kent" data-k="ent">ENTER</div>
+</div>
+
+<div id="home">
+  <div class="wrap">
+    <div class="brand">
+      <h1>TGRS</h1>
+      <div class="sub">Times Garfield Rock Stars</div>
+      <div class="info">60 seconds of times and divides. Type the answer, hit ENTER.</div>
+    </div>
+
+    <div class="panel">
+      <h2>Who's playing?</h2>
+      <div class="chips" id="chips"></div>
+      <div id="managePanel" class="hidden">
+        <div class="mhead" id="mHead">Editing</div>
+        <div class="row"><span class="lbl">Name</span>
+          <input id="pName" type="text" placeholder="Name" maxlength="12" autocomplete="off"></div>
+        <div class="row"><span class="lbl">Colour</span>
+          <div class="swatches" id="swatches"></div></div>
+        <div class="row"><span class="lbl">Tables up to</span>
+          <div class="diffbtns" id="diffBtns"></div></div>
+        <div class="row" id="removeRow">
+          <button class="mini danger" id="removeBtn">Remove player</button></div>
+      </div>
+      <button id="playBtn">START 60 SECONDS</button>
+    </div>
+
+    <div class="panel">
+      <div class="panelhead">
+        <h2 id="boardTitle">Leaderboard</h2>
+        <div class="seg">
+          <button class="segbtn on" data-mode="garfield">Garfield</button>
+          <button class="segbtn" data-mode="score">Score</button>
+        </div>
+      </div>
+      <div class="explain" id="boardExplain"></div>
+      <div class="tblwrap"><table id="boardTbl"></table></div>
+    </div>
+
+    <div class="panel">
+      <h2>Speed &mdash; seconds per answer (lower is better)</h2>
+      <div class="chartbox"><canvas id="speedChart"></canvas></div>
+      <div class="legend" id="speedLegend"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Handicap over time &mdash; last 5 rounds (lower is better)</h2>
+      <div class="chartbox"><canvas id="hcapChart"></canvas></div>
+      <div class="legend" id="hcapLegend"></div>
+      <div class="feed" id="feed"></div>
+    </div>
+  </div>
+</div>
+<script src="js/arcade-store.js"></script>
+<script>
+'use strict';
+
+/* ============================ STORE ============================ */
+// Saves live in IndexedDB through arcade-store.js, not localStorage: localStorage
+// is one ~5 MB quota for the whole origin and it was full in Sept 2026.
+// Keys are unchanged - calebArcadeData:tgrs - just a different cupboard.
+const GAME = 'tgrs';
+const Store = ArcadeStore(GAME);
+const SID = Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
+let gen = 0, storageWarned = false;
+
+const COLOURS = ['#6c5ce7','#00b894','#ffd32a','#e17055','#0984e3','#fd79a8','#00cec9','#a29bfe'];
+
+const LADDER = [
+  ['Rock Hero',1],['Rock Legend',2],['Rock Star',3],['Headliner',4],
+  ['Support Act',5],['Breakthrough Artist',6],['Unsigned Act',7],['Gigger',8],
+  ['Busker',9],['Garage Rocker',10],['Wannabe',Infinity]
+];
+// 1.0 = the handicap closes the WHOLE gap, so par-for-par everyone ties on the
+// same Garfield Score and the round is won by whoever most beats their own recent
+// average. At 0.8 the leftover 20% of a 75-point gap was 15 points - more than
+// Ezra's entire range - so he could not top the board however well he played.
+const HANDICAP_STRENGTH = 1.0;
+const RATING_ROUNDS = 5;        // handicap is set by the mean of a player's last 5 rounds
+const EVENT_THRESHOLD = 2;      // handicap must move this much to be an event
+const ROUND_MS = 60000;
+const MAX_GAMES = 50, MAX_HCAP = 60, MAX_EVENTS = 40;
+const HCAP_POINTS = 5;          // handicap chart window, matching the rating window
+const FEED_ITEMS = 5;           // handicap-change messages shown under the chart
+
+function blank() { return { v: 2, players: [], events: [], lastId: null }; }
+function clampTable(n) { return Math.max(2, Math.min(12, Math.round(n) || 12)); }
+
+function loadData() {
+  const d = Store.get();
+  if (!d || !Array.isArray(d.players)) return blank();
+  gen = d.gen || 0;
+  d.events = Array.isArray(d.events) ? d.events : [];
+  // handicaps were positive before the flip. One positive point anywhere means
+  // the whole series was drawn on a superseded formula, so none of it is
+  // comparable with what follows - including the zeroes.
+  // The temporary dummy players were the only ones ever given ids beginning
+  // "dummy"; a real player's id is "p" + a timestamp. Dropping them clears a
+  // save that still holds the seeded set without touching anyone real. Safe to
+  // delete this block once no save can still contain them.
+  const before = d.players.length;
+  d.players = d.players.filter(p => !/^dummy/.test(p.id || ''));
+  if (d.players.length !== before) {
+    const live = d.players.map(p => p.id);
+    d.events = d.events.filter(e => live.indexOf(e.id) >= 0);
+    if (!d.players.some(p => p.id === d.lastId)) d.lastId = d.players[0] ? d.players[0].id : null;
+  }
+  const legacyHcaps = d.players.some(p => (p.hcapHistory || []).some(h => h.h > 0));
+  d.players.forEach(p => {
+    p.games = Array.isArray(p.games) ? p.games : [];
+    p.hcapHistory = Array.isArray(p.hcapHistory) ? p.hcapHistory : [];
+    p.handicap = Number.isFinite(p.handicap) ? p.handicap : 0;
+    p.enterSide = p.enterSide === 'left' ? 'left' : 'right';
+    p.maxTable = clampTable(p.maxTable);
+    // rounds saved before speed was per-question carry no n
+    p.games.forEach(g => { if (!Number.isFinite(g.n)) g.n = g.score || 0; });
+    // rounds saved before `par` existed carry no handicap basis, which makes
+    // every Garfield Score collapse to the raw score. par is just the mean of
+    // the 5 rounds before it, so it can be rebuilt exactly from the history.
+    p.games.forEach((g, i) => {
+      if (Number.isFinite(g.par)) return;
+      const prev = p.games.slice(Math.max(0, i - RATING_ROUNDS), i);
+      g.par = prev.length ? prev.reduce((sum, x) => sum + x.score, 0) / prev.length : null;
+    });
+    if (legacyHcaps) p.hcapHistory = [];
+    // rating is derived and recomputed on every recompute; this only stops a
+    // hand-edited or half-written save putting NaN into the floor
+    if (!Number.isFinite(p.rating)) p.rating = null;
+  });
+  return d;
+}
+
+// Prune ladder, run before every write rather than after a refusal: round
+// history is the thing the boys actually earned, so the cheapest data goes
+// first and nothing is dropped that is still on a chart.
+function prune(d) {
+  if (d.events.length > MAX_EVENTS) d.events = d.events.slice(-MAX_EVENTS);
+  d.players.forEach(p => {
+    if (p.hcapHistory.length > MAX_HCAP) p.hcapHistory = p.hcapHistory.slice(-MAX_HCAP);
+    if (p.games.length > MAX_GAMES) p.games = p.games.slice(-MAX_GAMES);
+  });
+}
+
+function persist() {
+  if (!Store.working()) { warnNoStorage(); return false; }
+  if (Store.conflict()) {
+    toast('TGRS is open in another tab that has saved more recently — this was not written. Close the other tab and reload.');
+    return false;
+  }
+  prune(data);
+  gen += 1;
+  data.gen = gen; data.sid = SID;
+  Store.set(null, data, { guard: true });
+  return true;
+}
+
+function warnNoStorage() {
+  if (storageWarned) return;
+  storageWarned = true;
+  toast('No storage in this browser — scores will only last until you close the tab. Private window?');
+}
+
+let data = blank();
+
+function toast(msg) {
+  const old = document.getElementById('toast');
+  if (old) old.remove();
+  const el = document.createElement('div');
+  el.id = 'toast'; el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => { if (el.parentNode) el.remove(); }, 7000);
+}
+
+/* ============================ MODEL ============================ */
+function player(id) { return data.players.find(p => p.id === id) || null; }
+function played(p) { return p.games.length > 0; }
+function lastN(p, n) { return p.games.slice(-n); }
+
+// One speed measure everywhere: seconds per answer = 60 / answers in the minute.
+// The status is read off the SAME moving average the handicap is built from, so
+// a player's badge, handicap and place on the board all come from one number.
+const ROUND_SECS = ROUND_MS / 1000;
+function roundSpeed(g) { return g.score > 0 ? ROUND_SECS / g.score : null; }
+function statusSpeed(p) {
+  return (Number.isFinite(p.rating) && p.rating > 0) ? ROUND_SECS / p.rating : null;
+}
+function rockStatus(p) {
+  const avg = statusSpeed(p);
+  if (avg == null) return { name: 'New Artist', idx: -1, need: RATING_ROUNDS, provisional: false };
+  let idx = LADDER.length - 1;
+  for (let i = 0; i < LADDER.length; i++) if (avg <= LADDER[i][1]) { idx = i; break; }
+  // locked in once the moving average is a full window; before that it is a
+  // preview of where they are heading, labelled as one
+  const prov = p.games.length < RATING_ROUNDS;
+  return { name: LADDER[idx][0], idx: idx, avg: avg, provisional: prov,
+           need: prov ? RATING_ROUNDS - p.games.length : 0 };
+}
+function nextStatus(p) {           // what they are chasing, and the speed needed
+  const st = rockStatus(p);
+  if (st.idx <= 0) return null;
+  const target = LADDER[st.idx - 1];
+  return { name: target[0], speed: target[1] };
+}
+
+// Rating = EMA of raw scores. Handicap = strength * (best rating - yours).
+// A player's rating is simply what they have been averaging lately: the mean
+// score of their last RATING_ROUNDS rounds. Plain enough to check off the board.
+function ratingOf(p) {
+  const g = lastN(p, RATING_ROUNDS);
+  if (!g.length) return null;
+  return g.reduce((sum, x) => sum + x.score, 0) / g.length;
+}
+
+function recomputeHandicaps(at, silent) {
+  data.players.forEach(p => { p.rating = ratingOf(p); });
+  const active = data.players.filter(p => played(p) && Number.isFinite(p.rating));
+  if (!active.length) return [];
+  // the WEAKEST player is the zero mark; everyone else carries a penalty
+  const floor = Math.min.apply(null, active.map(p => p.rating));
+  const changes = [];
+  const now = at || Date.now();
+  data.players.forEach(p => {
+    const rated = played(p) && Number.isFinite(p.rating);
+    const before = p.handicap || 0;
+    const after = rated ? Math.min(0, -Math.round(HANDICAP_STRENGTH * (p.rating - floor))) || 0 : 0;   // || 0 kills the -0
+    p.handicap = after;
+    // a point per recompute, not per change: the chart's x axis is rounds, so
+    // every player's line has to advance in step or they are not comparable
+    if (rated && (!silent || !p.hcapHistory.length)) p.hcapHistory.push({ t: now, h: after });
+    if (rated && !silent && Math.abs(after - before) >= EVENT_THRESHOLD) {
+      changes.push({ t: now, id: p.id, name: p.name, colour: p.colour, from: before, to: after });
+    }
+  });
+  return changes;
+}
+
+function recordRound(p, round) {
+  p.games.push(round);   // recomputeHandicaps() re-derives every rating below
+  if (p.games.length > 50) p.games = p.games.slice(-50);
+  const changes = recomputeHandicaps();
+  changes.forEach(c => data.events.push(c));
+  if (data.events.length > 40) data.events = data.events.slice(-40);
+  data.lastId = p.id;
+  persist();
+  return changes;
+}
+
+/* ============================ HOME UI ============================ */
+const homeEl = document.getElementById('home');
+const chipsEl = document.getElementById('chips');
+const padEl = document.getElementById('pad');
+const sideBtn = document.getElementById('sideBtn');
+let selectedId = null;
+let manageOpen = false, manageMode = 'edit', addDraft = null, pendingDelete = null, boardMode = 'garfield';
+
+function fmt1(n) { return (Math.round(n * 10) / 10).toFixed(1); }
+function ago(t) {
+  const s = (Date.now() - t) / 1000;
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+  const d = Math.floor(s / 86400);
+  return d === 1 ? 'yesterday' : d + ' days ago';
+}
+
+function renderChips() {
+  chipsEl.innerHTML = '';
+  if (!data.players.length) {
+    chipsEl.innerHTML = '<div class="empty" style="padding:10px 0">No players yet — press Add.</div>';
+  }
+  data.players.forEach(p => {
+    const el = document.createElement('div');
+    el.className = 'chip' + (p.id === selectedId ? ' sel' : '') + (pendingDelete === p.id ? ' confirm' : '');
+    if (pendingDelete === p.id) {
+      el.innerHTML = '<span>Delete ' + esc(p.name) + '?</span>';
+      const yes = mk('span', 'mini', 'Yes'), no = mk('span', 'mini', 'No');
+      yes.onclick = ev => { ev.stopPropagation(); removePlayer(p.id); };
+      no.onclick = ev => { ev.stopPropagation(); pendingDelete = null; renderAll(); };
+      el.appendChild(yes); el.appendChild(no);
+    } else {
+      const st = rockStatus(p);
+      el.innerHTML = '<span class="dot" style="background:' + p.colour + '"></span>' +
+        '<span>' + esc(p.name) + '</span>' +
+        '<span class="meta">' + (played(p) ? hcapStr(p.handicap) + ' · ' + st.name : 'new') + '</span>';
+      el.onclick = () => {
+        commitDraft();                 // never silently bin a name they typed
+        selectedId = p.id;
+        pendingDelete = null;
+        if (manageOpen) manageMode = 'edit';
+        renderAll();
+      };
+    }
+    chipsEl.appendChild(el);
+  });
+
+  if (!manageOpen) {
+    const edit = mk('div', 'chip manage', '');
+    edit.textContent = data.players.length ? 'Edit' : '+ Add a player';
+    edit.onclick = () => openManage('edit');
+    chipsEl.appendChild(edit);
+  } else {
+    const done = mk('div', 'chip manage sel', 'Done');
+    done.onclick = closeManage;
+    chipsEl.appendChild(done);
+    const add = mk('div', 'chip manage' + (manageMode === 'add' ? ' sel' : ''), '+ Add');
+    add.onclick = () => openManage('add');
+    chipsEl.appendChild(add);
+  }
+}
+
+function openManage(mode) {
+  if (mode === 'add') {
+    commitDraft();
+    if (data.players.length >= 8) { toast('Eight players is the limit.'); return; }
+    addDraft = { name: '', colour: freeColour(), maxTable: 12 };
+  } else if (!player(selectedId)) {
+    // nothing to edit yet - go straight to adding
+    return openManage('add');
+  }
+  manageOpen = true;
+  manageMode = mode;
+  pendingDelete = null;
+  renderAll();
+  const inp = document.getElementById('pName');
+  if (mode === 'add') { inp.focus(); inp.select(); }
+}
+
+function closeManage() {
+  commitDraft();
+  const p = player(selectedId);
+  if (p && !p.name.trim()) p.name = 'Player';   // never leave a nameless chip
+  manageOpen = false;
+  manageMode = 'edit';
+  addDraft = null;
+  pendingDelete = null;
+  persist();
+  renderAll();
+}
+
+// Turn a pending "Add" into a real player. Called before anything that would
+// otherwise throw the draft away, so a typed name is never lost.
+function commitDraft() {
+  if (!addDraft) return;
+  const name = addDraft.name.trim();
+  if (name && data.players.length < 8) {
+    const p = { id: 'p' + Date.now().toString(36) + Math.floor(Math.random() * 999),
+      name: uniqueName(name), colour: addDraft.colour, maxTable: clampTable(addDraft.maxTable),
+      enterSide: 'right', rating: null, handicap: 0, games: [], hcapHistory: [] };
+    data.players.push(p);
+    selectedId = p.id;
+    persist();
+  }
+  addDraft = null;
+  manageMode = 'edit';
+}
+
+function uniqueName(name, skipId) {
+  let out = name.slice(0, 12);
+  const clash = n => data.players.some(x => x.id !== skipId && x.name.toLowerCase() === n.toLowerCase());
+  for (let i = 2; clash(out); i++) out = name.slice(0, 10) + ' ' + i;
+  return out;
+}
+function freeColour() {
+  return COLOURS.find(c => !data.players.some(x => x.colour === c)) || COLOURS[0];
+}
+
+// Whatever the panel is pointed at right now: a draft, or the selected player.
+function editTarget() { return addDraft || player(selectedId); }
+
+function renderManage() {
+  const panel = document.getElementById('managePanel');
+  panel.classList.toggle('hidden', !manageOpen);
+  if (!manageOpen) return;
+  const t = editTarget();
+  if (!t) { panel.classList.add('hidden'); return; }
+
+  document.getElementById('mHead').textContent =
+    addDraft ? 'New player' : 'Editing ' + (t.name || 'player');
+  const inp = document.getElementById('pName');
+  if (document.activeElement !== inp) inp.value = t.name || '';   // do not fight the caret
+  document.getElementById('removeRow').classList.toggle('hidden', !!addDraft);
+
+  const sw = document.getElementById('swatches');
+  sw.innerHTML = '';
+  COLOURS.forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'sw' + (c === t.colour ? ' sel' : '');
+    el.style.background = c;
+    el.onclick = () => { t.colour = c; if (!addDraft) persist(); renderAll(); };
+    sw.appendChild(el);
+  });
+
+  const box = document.getElementById('diffBtns');
+  box.innerHTML = '';
+  for (let n = 2; n <= 12; n++) {
+    const btn = document.createElement('button');
+    btn.className = 'dbtn' + (clampTable(t.maxTable) === n ? ' on' : '');
+    btn.textContent = n;
+    btn.onclick = () => { t.maxTable = n; if (!addDraft) persist(); renderAll(); };
+    box.appendChild(btn);
+  }
+}
+
+function ordinal(n) { const t = n % 100; if (t >= 11 && t <= 13) return n + 'th';
+  return n + ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th'); }
+function hcapStr(h) { return h === 0 ? '0' : (h > 0 ? '+' + h : '\u2212' + Math.abs(h)); }
+function badge(st) {
+  const cls = st.idx < 0 ? 'badge none' : (st.provisional ? 'badge prov' : 'badge');
+  const suffix = st.idx < 0 ? '' : (st.provisional ? '?' : '');   // '?' = not locked in yet
+  return '<span class="' + cls + '">' + st.name + suffix + '</span>';
+}
+function mk(tag, cls, text) { const e = document.createElement(tag); e.className = cls; e.textContent = text; return e; }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c])); }
+
+function removePlayer(id) {
+  data.players = data.players.filter(p => p.id !== id);
+  data.events = data.events.filter(e => e.id !== id);
+  if (selectedId === id) selectedId = data.players[0] ? data.players[0].id : null;
+  if (data.lastId === id) data.lastId = selectedId;
+  pendingDelete = null;
+  manageOpen = false; manageMode = 'edit'; addDraft = null;
+  recomputeHandicaps().forEach(c => data.events.push(c));
+  persist();
+  renderAll();
+}
+
+function renderControls() {
+  document.getElementById('playBtn').disabled = !player(selectedId);
+}
+
+/* ---- board pane ---- */
+function renderBoard() {
+  const tbl = document.getElementById('boardTbl');
+  const title = document.getElementById('boardTitle');
+  const explain = document.getElementById('boardExplain');
+  const garfield = boardMode === 'garfield';
+
+  title.innerHTML = garfield ? 'Leaderboard &mdash; Garfield Score' : 'Leaderboard &mdash; Score';
+  explain.innerHTML = garfield
+    ? '<b>Garfield Score</b> = your last score + your handicap. Your handicap is minus ' +
+      'your average from the <em>5 rounds before</em> it, so beating your own recent form ' +
+      'is what climbs the board &mdash; whatever your raw score is.'
+    : '<b>Score</b> = your moving average, the mean of your last 5 rounds. No handicap, ' +
+      'no allowances &mdash; this is simply who is answering the most in a minute.';
+
+  if (!data.players.length) { tbl.innerHTML = '<tr><td class="empty">Add a player to get started.</td></tr>'; return; }
+  const rows = boardRows(boardMode);
+  let html = '<tr><th></th><th>Player</th><th class="num">Score</th>' +
+    '<th class="num' + (garfield ? ' gs' : '') + '">Garfield</th>' +
+    '<th class="num' + (garfield ? '' : ' gs') + '">Average</th>' +
+    '<th class="num">High</th><th class="num opt">H’cap</th>' +
+    '<th class="num opt">Status</th><th class="num opt">Speed</th></tr>';
+  rows.forEach((r, i) => {
+    const p = r.p, st = rockStatus(p), sp = statusSpeed(p);
+    html += '<tr' + (i === 0 && r.last ? ' class="leader"' : '') + '>' +
+      '<td>' + (i === 0 && r.last ? '\u{1F451}' : '') + '</td>' +
+      '<td class="name" style="color:' + p.colour + '">' + esc(p.name) +
+        (r.last ? '<div class="when">' + ago(r.last.t) +
+          (clampTable(p.maxTable) < 12 ? ' · to ' + clampTable(p.maxTable) : '') + '</div>' : '') + '</td>' +
+      '<td class="num">' + (r.last ? r.last.score : '–') + '</td>' +
+      '<td class="num' + (garfield ? ' gs' : '') + '">' + (r.last ? r.lastAdj : '–') + '</td>' +
+      '<td class="num' + (garfield ? '' : ' gs') + '">' + (Number.isFinite(p.rating) ? fmt1(p.rating) : '–') + '</td>' +
+      '<td class="num">' + (r.high == null ? '–' : r.high) + '</td>' +
+      '<td class="num hc opt">' + hcapStr(r.hcap) + '</td>' +
+      '<td class="num opt">' + badge(st) + '</td>' +
+      '<td class="num opt">' + (sp ? fmt1(sp) + 's' : '–') + '</td>' +
+      '</tr>';
+  });
+  tbl.innerHTML = html;
+}
+
+function ranked(p) { return p.games.filter(x => Number.isFinite(x.par)); }
+function abovePar(g) { return Number.isFinite(g.par) ? g.score - g.par : null; }
+function bestVsPar(p) {
+  const g = ranked(p);
+  return g.length ? Math.max.apply(null, g.map(abovePar)) : null;
+}
+function highScore(p) {
+  return p.games.length ? Math.max.apply(null, p.games.map(g => g.score)) : null;
+}
+
+// TWO handicaps exist, and keeping them apart is what makes the board honest.
+//   * the one a PAST round was played off - from that round's own par, the mean
+//     of the 5 rounds before it, so a round is never in its own handicap;
+//   * the one you carry into your NEXT round - p.handicap, which does include
+//     the round you have just played. That is the number on the player's chip.
+// Both are measured from the same floor: today's weakest rating. Using today's
+// floor for both is what lets rounds played days apart sit on one board - the
+// floor is a shared anchor, so it cancels out of the comparison entirely and the
+// ranking comes down to how far each player beat their own average.
+function currentFloor() {
+  const active = data.players.filter(p => played(p) && Number.isFinite(p.rating));
+  return active.length ? Math.min.apply(null, active.map(p => p.rating)) : 0;
+}
+function hcapForPar(par, floor) {
+  return Number.isFinite(par) ? Math.min(0, -Math.round(par - floor)) : 0;
+}
+function garfieldOf(g, floor) { return g.score + hcapForPar(g.par, floor); }
+
+function boardRows(mode) {
+  const floor = currentFloor();
+  const rows = data.players.slice().map(p => {
+    const g = p.games[p.games.length - 1] || null;
+    return { p: p, last: g, bestVsPar: bestVsPar(p), high: highScore(p),
+             hcap: g ? hcapForPar(g.par, floor) : (p.handicap || 0),
+             lastAdj: g ? garfieldOf(g, floor) : -Infinity };
+  });
+  // Garfield ranks the round you just played; Score ranks the moving average,
+  // which is who is actually quickest with no allowances at all.
+  return (mode === 'score')
+    ? rows.sort((a, b) => (b.p.rating == null ? -Infinity : b.p.rating) - (a.p.rating == null ? -Infinity : a.p.rating))
+    : rows.sort((a, b) => b.lastAdj - a.lastAdj || (b.bestVsPar || -Infinity) - (a.bestVsPar || -Infinity));
+}
+
+/* ---- speed chart ---- */
+function renderSpeed() {
+  const series = data.players
+    .map(p => ({ colour: p.colour, name: p.name,
+                 pts: lastN(p, 12).map(roundSpeed).filter(v => v != null) }))
+    .filter(s => s.pts.length);
+  drawChart(document.getElementById('speedChart'), series, { unit: 's', minSpan: 2, log: true });
+  legend(document.getElementById('speedLegend'), series);
+}
+
+/* ---- handicap pane ---- */
+function renderHcap() {
+  const series = data.players
+    .map(p => ({ colour: p.colour, name: p.name, pts: p.hcapHistory.slice(-HCAP_POINTS).map(h => h.h), step: true }))
+    .filter(s => s.pts.length);
+  drawChart(document.getElementById('hcapChart'), series, { unit: '', integer: true, minSpan: 4 });
+  legend(document.getElementById('hcapLegend'), series);
+
+  const feed = document.getElementById('feed');
+  feed.innerHTML = '';
+  const evs = data.events.slice(-FEED_ITEMS).reverse();
+  if (!evs.length) {
+    feed.innerHTML = '<div class="empty">No handicap changes yet. They fire when someone’s recent average moves a handicap by ' + EVENT_THRESHOLD + ' points or more.</div>';
+    return;
+  }
+  evs.forEach(e => {
+    const easier = e.to > e.from;      // toward zero = the field has caught up
+    const el = document.createElement('div');
+    el.className = 'ev';
+    el.style.borderLeftColor = e.colour || '#6c5ce7';
+    el.innerHTML = '<div><b style="color:' + (e.colour || '#fff') + '">' + esc(e.name) + '</b> ' +
+      (easier ? 'is being reeled in' : 'is pulling away') +
+      ' — handicap <b class="' + (easier ? 'down' : 'up') + '">' + hcapStr(e.from) + ' → ' + hcapStr(e.to) + '</b>' +
+      '<div class="when">' + ago(e.t) + '</div></div>';
+    feed.appendChild(el);
+  });
+}
+
+function legend(box, series) {
+  box.innerHTML = '';
+  series.forEach(s => {
+    const el = document.createElement('span');
+    el.innerHTML = '<i style="background:' + s.colour + '"></i>' + esc(s.name);
+    box.appendChild(el);
+  });
+}
+
+function setBoardMode(m) {
+  boardMode = m;
+  document.querySelectorAll('.segbtn').forEach(t => t.classList.toggle('on', t.dataset.mode === m));
+  renderAll();
+}
+
+
+function renderAll() {
+  renderChips();
+  renderControls();
+  renderManage();
+  renderBoard();
+  renderSpeed();
+  renderHcap();
+}
+
+/* ============================ CHARTS ============================ */
+function drawChart(cv, series, opts) {
+  opts = opts || {};
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const box = cv.parentNode.getBoundingClientRect();
+  const w = Math.max(240, Math.round(box.width)), h = Math.max(140, Math.round(box.height));
+  cv.width = w * dpr; cv.height = h * dpr;
+  const g = cv.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+
+  if (!series.length) {
+    g.fillStyle = 'rgba(255,255,255,0.35)';
+    g.font = '600 14px Segoe UI,system-ui,sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('Play a round to fill this in.', w / 2, h / 2);
+    return;
+  }
+
+  const padL = 40, padR = 12, padT = 12, padB = 22;
+  const pw = w - padL - padR, ph = h - padT - padB;
+  let lo = Infinity, hi = -Infinity, n = 1;
+  series.forEach(s => { n = Math.max(n, s.pts.length); s.pts.forEach(v => { lo = Math.min(lo, v); hi = Math.max(hi, v); }); });
+  if (opts.log) {
+    lo = Math.max(0.1, lo / 1.25); hi = hi * 1.25;
+    const L = Math.log(lo), Hh = Math.log(hi);
+    const Xl = i => n === 1 ? padL + pw / 2 : padL + (i / (n - 1)) * pw;
+    const Yl = v => padT + ph - ((Math.log(Math.max(0.1, v)) - L) / (Hh - L)) * ph;
+    return plot(g, series, Xl, Yl, n, w, h, padL, padR, padB, opts,
+      [0, 1, 2, 3, 4].map(k => Math.exp(L + (Hh - L) * (k / 4))));
+  }
+  const rawLo = lo;
+  if (opts.integer) { lo = Math.floor(lo); hi = Math.ceil(hi); }
+  const span = Math.max(hi - lo, opts.minSpan || 1);
+  const mid = (hi + lo) / 2;
+  lo = mid - span / 2 - span * 0.12; hi = mid + span / 2 + span * 0.12;
+  // only pin the axis at zero when the data itself is non-negative - handicaps
+  // are negative now, and clamping would put the floor above the ceiling
+  if (opts.integer) lo = (rawLo >= 0) ? Math.max(0, Math.floor(lo)) : Math.floor(lo);
+  const X = i => n === 1 ? padL + pw / 2 : padL + (i / (n - 1)) * pw;
+  const Y = v => padT + ph - ((v - lo) / (hi - lo)) * ph;
+  return plot(g, series, X, Y, n, w, h, padL, padR, padB, opts,
+    [0, 1, 2, 3, 4].map(k => lo + (hi - lo) * (k / 4)));
+}
+
+function plot(g, series, X, Y, n, w, h, padL, padR, padB, opts, ticks) {
+  g.strokeStyle = 'rgba(255,255,255,0.08)';
+  g.fillStyle = 'rgba(255,255,255,0.35)';
+  g.font = '600 10px Segoe UI,system-ui,sans-serif';
+  g.textAlign = 'right'; g.textBaseline = 'middle';
+  g.lineWidth = 1;
+  ticks.forEach(v => {
+    const y = Math.round(Y(v)) + 0.5;
+    g.beginPath(); g.moveTo(padL, y); g.lineTo(w - padR, y); g.stroke();
+    const lbl = opts.integer ? Math.round(v) : (Math.round(v * 10) / 10).toFixed(1);
+    g.fillText(lbl + (opts.unit || ''), padL - 6, y);
+  });
+  g.textAlign = 'center'; g.textBaseline = 'top';
+  g.fillStyle = 'rgba(255,255,255,0.3)';
+  g.fillText('oldest', padL + 16, h - padB + 5);
+  g.fillText('latest', w - padR - 16, h - padB + 5);
+
+  series.forEach(s => {
+    const off = n - s.pts.length;
+    g.strokeStyle = s.colour; g.lineWidth = 2.5;
+    g.lineJoin = 'round'; g.lineCap = 'round';
+    g.beginPath();
+    s.pts.forEach((v, i) => {
+      const x = X(off + i), y = Y(v);
+      if (i === 0) g.moveTo(x, y);
+      else if (s.step) { g.lineTo(x, Y(s.pts[i - 1])); g.lineTo(x, y); }
+      else g.lineTo(x, y);
+    });
+    g.stroke();
+    s.pts.forEach((v, i) => {
+      g.beginPath(); g.arc(X(off + i), Y(v), i === s.pts.length - 1 ? 4.5 : 2.8, 0, 6.2832);
+      g.fillStyle = s.colour; g.fill();
+      if (i === s.pts.length - 1) { g.strokeStyle = '#0a0a2e'; g.lineWidth = 2; g.stroke(); }
+    });
+  });
+}
+
+/* ============================ AUDIO ============================ */
+let audioCtx = null;
+function ensureAudio() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  } catch (e) { audioCtx = null; }
+  return audioCtx;
+}
+function tone(freq, dur, type, vol, endFreq, delay) {
+  const ctx = ensureAudio(); if (!ctx) return;
+  const t0 = ctx.currentTime + (delay || 0);
+  const osc = ctx.createOscillator(), gain = ctx.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.setValueAtTime(freq, t0);
+  if (endFreq) osc.frequency.exponentialRampToValueAtTime(Math.max(endFreq, 20), t0 + dur);
+  gain.gain.setValueAtTime(vol || 0.1, t0);
+  gain.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(t0); osc.stop(t0 + dur);
+}
+const sfx = {
+  right(streak) { const b = 523.25 * Math.pow(1.03, Math.min(streak, 12)); tone(b, 0.09, 'sine', 0.10); tone(b * 1.26, 0.11, 'sine', 0.08, null, 0.06); },
+  wrong() { tone(300, 0.18, 'sine', 0.12, 150); },
+  reveal() { tone(220, 0.3, 'triangle', 0.09, 180); },
+  key() { tone(660, 0.03, 'square', 0.03); },
+  count(i) { tone(i === 0 ? 880 : 440, 0.12, 'triangle', 0.09); },
+  tick() { tone(1200, 0.04, 'square', 0.05); },
+  end() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, 'triangle', 0.09, null, i * 0.11)); },
+  best() { [659, 784, 988, 1319, 1568].forEach((f, i) => tone(f, 0.26, 'triangle', 0.1, null, i * 0.09)); }
+};
+
+/* ============================ QUESTIONS ============================ */
+function makeQuestion(avoid, maxTable) {
+  const M = clampTable(maxTable);                  // tables go up to M, 2..12
+  const taken = (avoid || []).map(q => q && q.key);
+  for (let tries = 0; tries < 40; tries++) {
+    const a = 1 + Math.floor(Math.random() * M);
+    const b = 1 + Math.floor(Math.random() * M);
+    const divide = Math.random() < 0.5 && a > 1;   // '35 ÷ 1' is not a times table fact
+    const q = divide
+      ? { text: (a * b) + ' ÷ ' + a, ans: b, key: 'd' + a + 'x' + b }
+      : { text: a + ' × ' + b, ans: a * b, key: 'm' + a + 'x' + b };
+    if (taken.indexOf(q.key) < 0) return q;
+  }
+  return { text: M + ' × ' + M, ans: M * M, key: 'm' + M + 'x' + M };
+}
+
+/* ============================ GAME STATE ============================ */
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0, padH = 0, playH = 0;
+let screen = 'home';       // home | count | play | over
+let G = null, over = null, buttons = [];
+
+function layout() {
+  W = canvas.width = innerWidth;
+  H = canvas.height = innerHeight;
+  padH = Math.round(Math.max(190, Math.min(H * 0.46, 330)));
+  document.documentElement.style.setProperty('--padH', padH + 'px');
+  playH = H - padH;
+  if (screen === 'home') { padH = 0; playH = H; }
+}
+layout();
+addEventListener('resize', () => { layout(); if (screen === 'home') renderAll(); });
+
+function startRound() {
+  const p = player(selectedId);
+  if (!p) return;
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  ensureAudio();
+  padEl.classList.toggle('left', p.enterSide === 'left');
+  const mx = clampTable(p.maxTable);
+  const q0 = makeQuestion([], mx), q1 = makeQuestion([q0], mx), q2 = makeQuestion([q0, q1], mx);
+  G = { p: p, max: mx, queue: [q0, q1, q2], score: 0, wrong: 0, streak: 0, bestStreak: 0,
+        times: [], input: '', attempts: 0, revealUntil: 0, shownAt: 0,
+        flash: 0, flashCol: null, shake: 0, lastTick: 99,
+        countFrom: performance.now(), startAt: 0, endAt: 0 };
+  screen = 'count';
+  layout();
+  homeEl.classList.add('hidden');
+  padEl.classList.remove('hidden');
+  sideBtn.classList.remove('hidden');
+  updateSideBtn();
+  startLoop();
+}
+
+function updateSideBtn() {
+  const p = G ? G.p : player(selectedId);
+  sideBtn.innerHTML = '⇆ Enter: ' + (p && p.enterSide === 'left' ? 'Left' : 'Right');
+}
+
+function beginPlay() {
+  screen = 'play';
+  G.startAt = performance.now();
+  G.endAt = G.startAt + ROUND_MS;
+  G.shownAt = G.startAt;
+}
+
+function advance(correct) {
+  const now = performance.now();
+  const spent = Math.min(20, (now - G.shownAt) / 1000);
+  if (correct) {
+    G.score++; G.streak++;
+    G.bestStreak = Math.max(G.bestStreak, G.streak);
+  } else {
+    G.streak = 0;
+  }
+  // every question that leaves the queue counts toward the speed, right or
+  // wrong - otherwise deliberately failing the hard ones is free
+  G.times.push(spent);
+  G.queue.shift();
+  G.queue.push(makeQuestion(G.queue, G.max));
+  G.input = ''; G.attempts = 0; G.revealUntil = 0;
+  G.shownAt = now;
+}
+
+function submit() {
+  if (screen !== 'play' || G.revealUntil) return;
+  if (!G.input.length) return;
+  const q = G.queue[0];
+  if (parseInt(G.input, 10) === q.ans) {
+    sfx.right(G.streak);
+    G.flash = 1; G.flashCol = '0,230,160';
+    advance(true);
+  } else {
+    G.attempts++;
+    G.wrong++;
+    G.streak = 0;
+    G.input = '';
+    G.flash = 1; G.flashCol = '231,76,60';
+    G.shake = 1;
+    if (G.attempts >= 2) { sfx.reveal(); G.revealUntil = performance.now() + 1200; }
+    else sfx.wrong();
+  }
+}
+
+function key(k) {
+  if (screen === 'over') return;
+  if (screen !== 'play') return;
+  if (G.revealUntil) return;
+  if (k === 'ent') { submit(); return; }
+  if (k === 'bs') { G.input = G.input.slice(0, -1); sfx.key(); return; }
+  if (k === 'clr') { G.input = ''; sfx.key(); return; }
+  if (/^[0-9]$/.test(k)) {
+    if (G.input.length >= 3) return;
+    if (G.input === '' && k === '0') return;
+    G.input += k; sfx.key();
+  }
+}
+
+function endRound() {
+  screen = 'over';
+  sfx.end();
+  padEl.classList.add('hidden');
+  sideBtn.classList.add('hidden');
+  const p = G.p;
+  const speed = G.times.length ? G.times.reduce((a, b) => a + b, 0) / G.times.length : 0;
+  const prevBest = bestVsPar(p);   // before this round is recorded
+  const hcapUsed = p.handicap || 0;
+  // par and handicap are both from BEFORE this round - the mean of the previous 5
+  const parUsed = Number.isFinite(p.rating) ? p.rating : null;
+  const round = { t: Date.now(), score: G.score, wrong: G.wrong, speed: speed,
+                  n: G.times.length, adj: G.score + hcapUsed, hcap: hcapUsed,
+                  par: parUsed, streak: G.bestStreak };
+  const changes = recordRound(p, round);
+  const isBest = Number.isFinite(round.par) && (prevBest == null || (round.score - round.par) > prevBest);
+  const rows = boardRows();                       // after the recompute, so this
+  const mine = rows.find(x => x.p.id === p.id);   // is exactly what the board shows
+  const rank = rows.indexOf(mine) + 1;
+  const total = rows.filter(x => x.last).length;
+  if (isBest) sfx.best();
+  over = { round: round, isBest: isBest, rank: rank, total: total,
+           garfield: mine.lastAdj, hcapShown: mine.hcap,
+           mine: changes.filter(c => c.id === p.id),
+           others: changes.filter(c => c.id !== p.id), status: rockStatus(p),
+           next: nextStatus(p), avg: statusSpeed(p), confetti: [], t0: performance.now() };
+  if (isBest || (rank === 1 && total > 1)) for (let i = 0; i < 70; i++) over.confetti.push({
+    x: Math.random() * W, y: -Math.random() * H * 0.6,
+    vx: (Math.random() - 0.5) * 60, vy: 90 + Math.random() * 180,
+    s: 4 + Math.random() * 6, r: Math.random() * 6.28, vr: (Math.random() - 0.5) * 6,
+    c: COLOURS[Math.floor(Math.random() * COLOURS.length)]
+  });
+}
+
+function goHome() {
+  screen = 'home';
+  G = null; over = null; buttons = [];
+  layout();
+  padEl.classList.add('hidden');
+  sideBtn.classList.add('hidden');
+  homeEl.classList.remove('hidden');
+  homeEl.scrollTop = 0;
+  renderAll();
+}
+
+/* ============================ RENDER ============================ */
+function rr(g, x, y, w, h, r) {
+  g.beginPath();
+  if (g.roundRect) { g.roundRect(x, y, w, h, r); return; }
+  const k = Math.min(r, w / 2, h / 2);
+  g.moveTo(x + k, y); g.arcTo(x + w, y, x + w, y + h, k);
+  g.arcTo(x + w, y + h, x, y + h, k); g.arcTo(x, y + h, x, y, k);
+  g.arcTo(x, y, x + w, y, k); g.closePath();
+}
+function drawBg() {
+  const grd = ctx.createLinearGradient(0, 0, 0, H);
+  grd.addColorStop(0, '#0a0a2e'); grd.addColorStop(0.55, '#141452'); grd.addColorStop(1, '#1a1a6e');
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, W, H);
+}
+function hudTop() { return W < 760 ? 54 : 14; }
+function drawHUD(remain) {
+  const pw = Math.min(W - 24, 420), ph = 54;
+  const x = (W - pw) / 2, y = hudTop();
+  ctx.fillStyle = 'rgba(0,0,0,0.4)'; rr(ctx, x, y, pw, ph, 14); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1; ctx.stroke();
+
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = 'bold 11px Segoe UI,system-ui,sans-serif';
+  ctx.fillText('SCORE', x + 14, y + 20);
+  ctx.fillStyle = '#ffd32a'; ctx.font = 'bold 24px Segoe UI,system-ui,sans-serif';
+  ctx.fillText(String(G.score), x + 14, y + 43);
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = 'bold 11px Segoe UI,system-ui,sans-serif';
+  ctx.fillText('STREAK', x + pw - 14, y + 20);
+  ctx.fillStyle = G.streak >= 5 ? '#00e5a0' : '#fff'; ctx.font = 'bold 24px Segoe UI,system-ui,sans-serif';
+  ctx.fillText(String(G.streak), x + pw - 14, y + 43);
+
+  ctx.textAlign = 'center';
+  const secs = Math.max(0, Math.ceil(remain / 1000));
+  ctx.fillStyle = secs <= 10 ? '#e74c3c' : '#fff';
+  ctx.font = 'bold 26px Segoe UI,system-ui,sans-serif';
+  ctx.fillText(secs + 's', x + pw / 2, y + 38);
+
+  const frac = Math.max(0, Math.min(1, remain / ROUND_MS));
+  ctx.fillStyle = 'rgba(255,255,255,0.12)'; rr(ctx, x + 12, y + ph - 9, pw - 24, 4, 2); ctx.fill();
+  ctx.fillStyle = secs <= 10 ? '#e74c3c' : '#a29bfe';
+  rr(ctx, x + 12, y + ph - 9, (pw - 24) * frac, 4, 2); ctx.fill();
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.font = 'bold 12px Segoe UI,system-ui,sans-serif';
+  ctx.fillText(G.p.name.toUpperCase() + (G.p.handicap ? '  ·  ' + hcapStr(G.p.handicap) + ' HANDICAP' : ''), W / 2, y + ph + 18);
+}
+function drawStack(now) {
+  const F = Math.max(26, Math.min(W * 0.115, playH * 0.155, 62));
+  const top = hudTop() + 82;
+  const cy = top + (playH - top) * 0.46;
+  const shake = G.shake > 0 ? Math.sin(now / 18) * 12 * G.shake : 0;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+
+  for (let i = 2; i >= 1; i--) {
+    const q = G.queue[i]; if (!q) continue;
+    const sc = i === 1 ? 0.5 : 0.36;
+    ctx.globalAlpha = i === 1 ? 0.34 : 0.16;
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold ' + Math.round(F * sc) + 'px Segoe UI,system-ui,sans-serif';
+    ctx.fillText(q.text + ' = ?', W / 2, cy - (i === 1 ? F * 1.15 : F * 1.85));
+  }
+  ctx.globalAlpha = 1;
+
+  const q = G.queue[0];
+  ctx.save();
+  ctx.translate(shake, 0);
+  ctx.shadowColor = 'rgba(162,155,254,0.55)'; ctx.shadowBlur = 24;
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold ' + Math.round(F) + 'px Segoe UI,system-ui,sans-serif';
+  ctx.fillText(q.text + ' =', W / 2, cy);
+  ctx.shadowBlur = 0;
+
+  const bw = F * 3.4, bh = F * 1.5, by = cy + F * 1.25;
+  const revealing = G.revealUntil > now;
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; rr(ctx, W / 2 - bw / 2, by - bh / 2, bw, bh, 14); ctx.fill();
+  ctx.strokeStyle = revealing ? '#e74c3c' : 'rgba(162,155,254,0.7)'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.fillStyle = revealing ? '#e74c3c' : '#ffd32a';
+  ctx.font = 'bold ' + Math.round(F * 0.95) + 'px Segoe UI,system-ui,sans-serif';
+  const shown = revealing ? String(q.ans) : G.input;
+  ctx.fillText(shown, W / 2, by + 1);
+  if (!revealing && Math.floor(now / 480) % 2 === 0) {
+    const tw = ctx.measureText(shown).width;
+    ctx.fillStyle = 'rgba(255,211,42,0.75)';
+    ctx.fillRect(W / 2 + tw / 2 + 6, by - F * 0.42, 3, F * 0.85);
+  }
+  ctx.restore();
+
+  if (revealing) {
+    ctx.fillStyle = '#e74c3c'; ctx.font = 'bold ' + Math.round(F * 0.4) + 'px Segoe UI,system-ui,sans-serif';
+    ctx.fillText('The answer is ' + q.ans, W / 2, by + bh * 0.85 + F * 0.35);
+  } else if (G.score === 0 && G.wrong === 0) {
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.font = 'bold ' + Math.round(F * 0.33) + 'px Segoe UI,system-ui,sans-serif';
+    ctx.fillText('type the answer, then ENTER', W / 2, by + bh * 0.85 + F * 0.3);
+  }
+}
+function drawFlash() {
+  if (G.flash <= 0) return;
+  ctx.fillStyle = 'rgba(' + G.flashCol + ',' + (G.flash * 0.22).toFixed(3) + ')';
+  ctx.fillRect(0, 0, W, H);
+}
+function drawCountdown(now) {
+  const el = now - G.countFrom, step = Math.floor(el / 600);
+  const labels = ['3', '2', '1', 'GO!'];
+  const i = Math.min(3, step);
+  if (G.lastTick !== i) { G.lastTick = i; sfx.count(i === 3 ? 0 : 1); }
+  const local = (el % 600) / 600;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, 1 - local * 0.75);
+  ctx.translate(W / 2, H * 0.42);
+  ctx.scale(1 + local * 0.5, 1 + local * 0.5);
+  ctx.shadowColor = '#a29bfe'; ctx.shadowBlur = 40;
+  ctx.fillStyle = i === 3 ? '#00e5a0' : '#fff';
+  ctx.font = 'bold ' + Math.round(Math.min(W, H) * 0.2) + 'px Segoe UI,system-ui,sans-serif';
+  ctx.fillText(labels[i], 0, 0);
+  ctx.restore();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.font = 'bold 16px Segoe UI,system-ui,sans-serif';
+  ctx.fillText(G.p.name + (G.p.handicap ? '  ·  ' + hcapStr(G.p.handicap) + ' handicap' : '') + (G.max < 12 ? '  ·  tables to ' + G.max : ''), W / 2, H * 0.42 + Math.min(W, H) * 0.16);
+  if (el >= 2400) beginPlay();
+}
+function drawOver(now) {
+  drawBg();
+  const o = over, r = o.round, u = Math.min(W, H) / 100;
+  buttons = [];
+  ctx.globalAlpha = Math.min(1, (now - o.t0) / 380);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+
+  o.confetti.forEach(c => {
+    const dt = Math.min(0.05, (now - (o.lastT || now)) / 1000);
+    c.x += c.vx * dt; c.y += c.vy * dt; c.r += c.vr * dt;
+    if (c.y > H + 20) { c.y = -20; c.x = Math.random() * W; }
+    ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(c.r);
+    ctx.fillStyle = c.c; ctx.globalAlpha = 0.8;
+    ctx.fillRect(-c.s / 2, -c.s / 4, c.s, c.s / 2); ctx.restore();
+  });
+  ctx.globalAlpha = 1;
+  o.lastT = now;
+
+  let y = H * 0.11;
+  ctx.save();
+  ctx.shadowColor = 'rgba(162,155,254,0.8)'; ctx.shadowBlur = 30;
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold ' + Math.round(u * 9) + 'px Segoe UI,system-ui,sans-serif';
+  ctx.fillText('TIME!', W / 2, y);
+  ctx.restore();
+
+  y += u * 7;
+  ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  ctx.font = 'bold ' + Math.round(u * 2.8) + 'px Segoe UI,system-ui,sans-serif';
+  ctx.fillText(G.p.name.toUpperCase() + '  ·  GARFIELD SCORE', W / 2, y);
+
+  y += u * 10;
+  ctx.fillStyle = '#ffd32a';
+  ctx.shadowColor = 'rgba(255,211,42,0.5)'; ctx.shadowBlur = 26;
+  ctx.font = 'bold ' + Math.round(u * 16) + 'px Segoe UI,system-ui,sans-serif';
+  ctx.fillText(String(o.garfield), W / 2, y);
+  ctx.shadowBlur = 0;
+
+  // the absolute score is always on screen, right under the headline
+  y += u * 9;
+  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  ctx.font = 'bold ' + Math.round(u * 3.4) + 'px Segoe UI,system-ui,sans-serif';
+  ctx.fillText(r.score + ' scored  ' + (o.hcapShown < 0 ? '\u2212' : '+') + ' ' + Math.abs(o.hcapShown) + ' handicap', W / 2, y);
+
+  if (Number.isFinite(r.par)) {
+    const d = r.score - r.par, beat = d >= 0;
+    y += u * 5;
+    ctx.fillStyle = beat ? '#00e5a0' : '#ff8a5c';
+    ctx.font = 'bold ' + Math.round(u * 3.2) + 'px Segoe UI,system-ui,sans-serif';
+    ctx.fillText((beat ? '+' : '\u2212') + fmt1(Math.abs(d)) + ' on your average of ' + fmt1(r.par), W / 2, y);
+  }
+
+  if (o.total > 1) {
+    y += u * 5.5;
+    const first = o.rank === 1;
+    ctx.fillStyle = first ? '#ffd32a' : 'rgba(255,255,255,0.5)';
+    ctx.font = 'bold ' + Math.round(u * (first ? 4 : 3)) + 'px Segoe UI,system-ui,sans-serif';
+    ctx.fillText(first ? '\u{1F451} TOP OF THE BOARD' : ordinal(o.rank) + ' of ' + o.total + ' on the board', W / 2, y);
+  }
+
+  y += u * 5.5;
+  ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  ctx.font = 'bold ' + Math.round(u * 2.8) + 'px Segoe UI,system-ui,sans-serif';
+  const rs = roundSpeed(r);
+  ctx.fillText(r.wrong + ' wrong  ·  ' + (rs ? fmt1(rs) + 's per answer' : 'no answers') + '  ·  best streak ' + r.streak, W / 2, y);
+
+  y += u * 7;
+  const bw = Math.min(W - u * 10, u * 66), bh = u * 11;
+  ctx.fillStyle = 'rgba(255,211,42,0.12)';
+  rr(ctx, W / 2 - bw / 2, y - bh / 2, bw, bh, 12); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,211,42,0.35)'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = '#ffd32a';
+  ctx.font = 'bold ' + Math.round(u * 4.2) + 'px Segoe UI,system-ui,sans-serif';
+  ctx.fillText(o.status.name + (o.status.provisional ? '?' : ''), W / 2, y - u * 1.6);
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = 'bold ' + Math.round(u * 2.5) + 'px Segoe UI,system-ui,sans-serif';
+  let sub;
+  if (o.status.idx < 0) sub = 'answer something to get a status';
+  else if (o.status.provisional) sub = fmt1(o.avg) + 's average · ' + o.status.need + ' more round' + (o.status.need === 1 ? '' : 's') + ' to lock it in';
+  else if (o.next) sub = fmt1(o.avg) + 's average · ' + o.next.speed + 's for ' + o.next.name;
+  else sub = fmt1(o.avg) + 's average · top of the ladder';
+  ctx.fillText(sub, W / 2, y + u * 2.8);
+
+  y += u * 10;
+  const banners = o.mine.concat(o.others).slice(0, 2);
+  banners.forEach(c => {
+    const easier = c.to > c.from;
+    ctx.fillStyle = easier ? 'rgba(0,229,160,0.12)' : 'rgba(255,138,92,0.12)';
+    const bw2 = Math.min(W - u * 8, u * 76);
+    rr(ctx, W / 2 - bw2 / 2, y - u * 3.6, bw2, u * 7.2, 10); ctx.fill();
+    ctx.strokeStyle = easier ? 'rgba(0,229,160,0.4)' : 'rgba(255,138,92,0.4)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = easier ? '#00e5a0' : '#ff8a5c';
+    ctx.font = 'bold ' + Math.round(u * 2.7) + 'px Segoe UI,system-ui,sans-serif';
+    ctx.fillText('⚡ ' + c.name + '’s handicap ' + hcapStr(c.from) + ' → ' + hcapStr(c.to), W / 2, y);
+    y += u * 8.4;
+  });
+  if (o.isBest) {
+    ctx.fillStyle = '#00e5a0';
+    ctx.font = 'bold ' + Math.round(u * 3.2) + 'px Segoe UI,system-ui,sans-serif';
+    ctx.fillText('★ YOUR BEST ROUND YET ★', W / 2, y);
+    y += u * 7;
+  }
+
+  const btnW = Math.min(W * 0.4, u * 40), btnH = u * 12, gap = u * 4;
+  const by = Math.min(H - btnH * 0.75 - u * 5, y + u * 7);
+  [['Play Again', -1, '#6c5ce7', '#a29bfe', () => startRound()],
+   ['Dashboard', 1, 'rgba(255,255,255,0.14)', 'rgba(255,255,255,0.06)', () => goHome()]
+  ].forEach(b => {
+    const bx = W / 2 + b[1] * (btnW / 2 + gap / 2) - btnW / 2;
+    const grd = ctx.createLinearGradient(bx, by - btnH / 2, bx + btnW, by + btnH / 2);
+    grd.addColorStop(0, b[2]); grd.addColorStop(1, b[3]);
+    ctx.fillStyle = grd; rr(ctx, bx, by - btnH / 2, btnW, btnH, 12); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold ' + Math.round(u * 3.4) + 'px Segoe UI,system-ui,sans-serif';
+    ctx.fillText(b[0], bx + btnW / 2, by + 1);
+    buttons.push({ x: bx, y: by - btnH / 2, w: btnW, h: btnH, fn: b[4] });
+  });
+  ctx.globalAlpha = 1;
+}
+
+/* ============================ LOOP ============================ */
+let last = 0, loopId = 0;
+function startLoop() {
+  const mine = ++loopId;                     // Play Again must not stack a second chain
+  const step = now => { if (mine !== loopId || screen === 'home') return; frame(now); requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
+function frame(now) {
+  if (screen === 'home') return;
+  const dt = Math.min(0.05, (now - (last || now)) / 1000); last = now;
+  if (screen === 'over') { drawOver(now); return; }
+  drawBg();
+  if (screen === 'count') { drawCountdown(now); return; }
+
+  const remain = G.endAt - now;
+  if (G.revealUntil && now >= G.revealUntil) advance(false);
+  G.flash = Math.max(0, G.flash - dt * 4);
+  G.shake = Math.max(0, G.shake - dt * 5);
+  const secs = Math.ceil(Math.max(0, remain) / 1000);
+  if (secs <= 5 && secs !== G.lastTick && secs > 0) { G.lastTick = secs; sfx.tick(); }
+
+  drawStack(now);
+  drawHUD(remain);
+  drawFlash();
+
+  if (remain <= 0) endRound();
+}
+
+/* ============================ INPUT ============================ */
+padEl.addEventListener('pointerdown', e => {
+  const t = e.target.closest('.key'); if (!t) return;
+  e.preventDefault();
+  t.classList.add('down');
+  key(t.dataset.k);
+});
+padEl.addEventListener('pointerup', () => {
+  padEl.querySelectorAll('.key.down').forEach(k => k.classList.remove('down'));
+});
+padEl.addEventListener('pointercancel', () => {
+  padEl.querySelectorAll('.key.down').forEach(k => k.classList.remove('down'));
+});
+padEl.addEventListener('contextmenu', e => e.preventDefault());
+
+canvas.addEventListener('pointerdown', e => {
+  if (screen !== 'over') return;
+  const x = e.clientX, y = e.clientY;
+  for (const b of buttons) if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) { b.fn(); return; }
+});
+
+addEventListener('keydown', e => {
+  if (screen === 'over') {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startRound(); }
+    else if (e.key === 'Escape') goHome();
+    return;
+  }
+  if (screen === 'home') {
+    return;
+  }
+  if (e.key === 'Enter') { e.preventDefault(); key('ent'); }
+  else if (e.key === 'Backspace') { e.preventDefault(); key('bs'); }
+  else if (e.key === 'Escape') { e.preventDefault(); goHome(); }
+  else if (/^[0-9]$/.test(e.key)) { e.preventDefault(); key(e.key); }
+});
+
+sideBtn.addEventListener('click', () => {
+  const p = G ? G.p : player(selectedId); if (!p) return;
+  p.enterSide = p.enterSide === 'left' ? 'right' : 'left';
+  padEl.classList.toggle('left', p.enterSide === 'left');
+  updateSideBtn();
+  persist();
+});
+
+document.getElementById('playBtn').onclick = startRound;
+document.getElementById('pName').oninput = e => {
+  const t = editTarget(); if (!t) return;
+  t.name = e.target.value.slice(0, 12);
+  if (!addDraft) { t.name = uniqueName(t.name, t.id); persist(); }
+  document.getElementById('mHead').textContent = addDraft ? 'New player' : 'Editing ' + (t.name || 'player');
+  renderChips();                       // live, without rebuilding the input
+};
+document.getElementById('pName').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); closeManage(); } };
+document.getElementById('removeBtn').onclick = () => {
+  if (!player(selectedId)) return;
+  pendingDelete = selectedId;
+  renderAll();
+};
+document.querySelectorAll('.segbtn').forEach(t => t.onclick = () => setBoardMode(t.dataset.mode));
+
+/* ============================ BOOT ============================ */
+// The four of them, with empty profiles - no scores, no history, nothing to
+// unlearn. Created once and stamped, so deleting a player never brings them back.
+const FIRST_RUN = [
+  { name: 'Caleb', colour: COLOURS[0] },
+  { name: 'Ezra',  colour: COLOURS[1] },
+  { name: 'Mummy', colour: COLOURS[5] },
+  { name: 'Daddy', colour: COLOURS[4] }
+];
+
+Store.ready(function () {
+  data = loadData();
+  if (!data.seeded && !data.players.length) {
+    data.players = FIRST_RUN.map((d, i) => ({
+      id: 'p' + Date.now().toString(36) + i, name: d.name, colour: d.colour,
+      enterSide: 'right', maxTable: 12, rating: null, handicap: 0,
+      games: [], hcapHistory: []
+    }));
+    data.lastId = data.players[0].id;
+    data.seeded = 1;
+    persist();
+  }
+  // bring every rating and handicap onto the current formula before anything is
+  // drawn - a save written by an older version would otherwise show stale numbers
+  recomputeHandicaps(null, true);
+  selectedId = (data.lastId && player(data.lastId)) ? data.lastId : (data.players[0] ? data.players[0].id : null);
+  if (!Store.working()) warnNoStorage();   // say so at boot, not after 60 seconds of work
+  renderAll();
+});
+</script>
+</body>
+</html>
