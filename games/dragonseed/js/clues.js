@@ -73,6 +73,23 @@ const Clues = (function () {
         return s.effect === visitor.needs && fitsWho(s, visitor.who); });
     return null;
   }
+  /* Every specimen that would satisfy this visitor. canonical() picks one for
+     the first hint; the second hint has to pick the one the player can
+     actually lay hands on, which needs the whole set to choose from. */
+  function allAnswers(visitor) {
+    if (!visitor) return [];
+    if (visitor.kind === "fork")
+      return (visitor.fork || []).map(function (f) { return specimenById(f.plant); })
+                                 .filter(Boolean);
+    if (visitor.kind === "describe")
+      return (visitor.accepts || []).map(specimenById).filter(Boolean);
+    if (visitor.kind === "effect") return forEffect(visitor.needs, visitor.who);
+    return [];
+  }
+  function forEffect(eff, who) {
+    return SPECIMENS.filter(function (s) { return s.effect === eff && fitsWho(s, who); });
+  }
+
   function speciesText(sp) { return SPECIES_SAY[sp] || sp; }
 
   /* ---- the book filter ------------------------------------------------
@@ -132,6 +149,7 @@ const Clues = (function () {
     specimenById: specimenById, habitatById: habitatById,
     attrText: attrText, chipText: chipText, effectText: effectText,
     answers: answers, forkOutcome: forkOutcome, canonical: canonical,
+    allAnswers: allAnswers, forEffect: forEffect,
     filterCap: filterCap, passesFilter: passesFilter, countMatching: countMatching,
     search: search, effectsIn: effectsIn, offerableChips: offerableChips
   };

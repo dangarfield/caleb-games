@@ -433,6 +433,18 @@ handed over a card with nothing written on it. Fixed; the card is titled
 "<name> takes it" rather than a thank-you, because one of the two ways through a
 fork is usually not a kindness.
 
+**The hint, in two goes.** Press Hint once and the request is restated in the
+game's own words. Press it again on the same customer and you are told the
+answer outright: the plant's name, its picture, and — if it is not on your shelf
+— which place it grows at and its map square, or that the place is shut, or that
+you have not found it yet. A third press repeats that for free. `state.hints`
+counts presses per `day:index:visitorId`, so the next customer starts over. The
+first two cost a pip of confusion each. Where several plants would answer,
+`reachable()` picks the one the player can actually lay hands on: something on
+the shelf beats something at a place you can walk to, which beats something
+behind a shut door. An eight-year-old who is stuck is not helped by a second,
+subtler clue — he is helped by being shown the flower.
+
 **Arrivals.** Whatever a customer hands over gets one card, on their way out:
 the cuttings drawn as colour plates, and the loose leaves drawn as the book's
 own line plates on paper, labelled "leaves for the book". Pages used to land in

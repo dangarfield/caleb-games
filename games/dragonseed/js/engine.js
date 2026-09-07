@@ -21,7 +21,7 @@
 
 const Engine = (function () {
 
-  var BUILD     = "84";   // bumped on every deploy, shown in the saves panel
+  var BUILD     = "85";   // bumped on every deploy, shown in the saves panel
   var SAVE_KEY  = "calebArcadeData:dragonseed";   // the store's own key; see js/store.js
   var Store     = ArcadeStore("dragonseed");
   var SAVE_VER  = 5;   // pots and pages came apart; no old save maps onto this
@@ -88,6 +88,7 @@ const Engine = (function () {
       evening: false,       // the card between the last customer and tomorrow
       eveningReply: null,   // { title, body, artId } - the second panel of that card
       eggPick: null,        // the cutting you have picked up but not handed over yet
+      hints: {},            // { day:index:visitorId -> how many hints taken }
       eveningsSeen: {},     // { day: true }
       items: [],            // things people have handed you that are not plants
       ending: null,         // which of the three you took
@@ -1255,26 +1256,149 @@ const Engine = (function () {
     return !!v && v.kind !== "visit" && v.kind !== "gift" && v.kind !== "lead";
   }
 
-  /* the paid hint */
+  /* ---------------- the paid hint, in two goes ----------------
+   * Pressing Hint once restates the request in the game's own words, which is
+   * the nudge somebody needs when they have read past a detail. Pressing it
+   * again on the SAME customer gives up the answer outright — the picture, the
+   * name, and where to get one if it is not on your shelf. An eight-year-old
+   * who is stuck is not helped by a second, subtler clue; he is helped by being
+   * shown the flower. Both cost a pip.
+   */
+  function hintKey() {
+    var v = visitor();
+    return v ? today().day + ":" + state.visitorIndex + ":" + v.id : "";
+  }
+  function hintLevel() { return (state.hints && state.hints[hintKey()]) || 0; }
+
+  /* Where a cutting of this comes from, said as an instruction. Everything a
+     player can do about a plant they have not got is on the map, so this is
+     always either "you have one" or a place to walk to. */
+  function whereToGet(sp) {
+    if (hasPot(sp.id))
+      return isIdentified(sp.id)
+        ? " You have one on your shelf already."
+        : " You have one on your shelf — it is the unnamed pot you have not placed yet.";
+    var h = Clues.habitatById(sp.habitat);
+    if (!h) return " You have not got one.";
+    if (!exists(h))
+      return " You have not got one, and the place it grows is not on the map yet.";
+    if (!isLocated(h.id))
+      return " You have not got one. It grows at " + h.name
+           + ", which you have not found on the map yet — you need the lead for it first.";
+    if (isShut(h))
+      return " You have not got one. It grows at " + h.name + ", square " + h.cell
+           + ", and that place is shut until you bring it " + h.wants + ".";
+    return " You have not got one. It grows at " + h.name + ", square " + h.cell
+         + " — open the map and go out there.";
+  }
+  function pageNote(sp) {
+    return hasPage(sp.id) ? "" : " Its page is not in your book yet.";
+  }
+  /* the same sentence, joined onto a name with a dash instead of standing alone */
+  function lower1(t) {
+    return t.replace(/^ ([A-Z])/, function (_m, c) { return " " + c.toLowerCase(); });
+  }
+
+  /* Of everything that would answer, the one the player can actually reach:
+     something already on the shelf beats something at a place you can walk to,
+     which beats something behind a shut door. */
+  function reachable(list) {
+    var rank = function (sp) {
+      if (hasPot(sp.id)) return isIdentified(sp.id) ? 0 : 1;
+      var h = Clues.habitatById(sp.habitat);
+      if (!h || !exists(h)) return 5;
+      if (!isLocated(h.id)) return 4;
+      if (isShut(h)) return 3;
+      return 2;
+    };
+    return list.slice().sort(function (a, b) { return rank(a) - rank(b); });
+  }
+
+  /* What the second hint should point at: one plant, or both sides of a fork,
+     or the next thing still missing off a recipe. */
+  function hintTargets(v) {
+    if (v.kind === "fork") return Clues.allAnswers(v);
+    if (v.kind === "recipe") {
+      var got = recipeGot();
+      for (var i = 0; i < v.needs.length; i++) {
+        if (got[i]) continue;
+        var opts = reachable(Clues.forEffect(v.needs[i], v.who));
+        return opts.length ? [opts[0]] : [];
+      }
+      return [];
+    }
+    var all = reachable(Clues.allAnswers(v));
+    if (all.length) return [all[0]];
+    var c = Clues.canonical(v);
+    return c ? [c] : [];
+  }
+
   function hint() {
     var v = visitor();
     if (!v || v.kind === "visit") return;
-    addMuddle();
+    if (!state.hints) state.hints = {};
+    var key = hintKey();
+    var level = (state.hints[key] || 0) + 1;
+    state.hints[key] = level;
+    /* The first two cost a pip each. Pressing it again after that just shows
+       the same answer over — charging for a thing you have already been told
+       is a tax on having closed the card too quickly. */
+    if (level <= 2) addMuddle();
     if (state.dayOver) return;
-    var body;
-    if (v.kind === "describe") {
-      body = "They named " + Object.keys(v.wants).length + " things: " +
-             Object.keys(v.wants).map(function (a) { return Clues.chipText(a, v.wants[a]); }).join(", ") + ".";
-    } else if (v.kind === "effect") {
-      body = "They need something that " + Clues.effectText(v.needs)
-           + ", " + Clues.speciesText(v.who || "human")
-           + ". Search the book for it — every page says what it is for and who for.";
-    } else {
-      body = "Either option is accepted. The difference is what it does to them.";
+
+    if (level === 1) {
+      var body;
+      if (v.kind === "describe") {
+        body = "They named " + Object.keys(v.wants).length + " things: " +
+               Object.keys(v.wants).map(function (a) { return Clues.chipText(a, v.wants[a]); }).join(", ") + ".";
+      } else if (v.kind === "effect") {
+        body = "They need something that " + Clues.effectText(v.needs)
+             + ", " + Clues.speciesText(v.who || "human")
+             + ". Search the book for it — every page says what it is for and who for.";
+      } else {
+        body = "Either option is accepted. The difference is what it does to them.";
+      }
+      announce({ kind: "warn", title: "You think it over", face: v.emoji, pic: v.pic,
+                 body: body + " Press Hint again and I will just tell you which plant it is."
+                     + " That cost you a pip of confusion.", cta: "Right",
+                 strip: "Hint taken — a pip of confusion." });
+      saveSoon();
+      return;
     }
-    announce({ kind: "warn", title: "You think it over", face: v.emoji, pic: v.pic,
-               body: body + " That cost you a pip of confusion.", cta: "Right",
-               strip: "Hint taken — a pip of confusion." });
+
+    /* second press and after: the answer, with a picture of it */
+    var picks = hintTargets(v);
+    if (!picks.length) {
+      announce({ kind: "warn", title: "You think it over", face: v.emoji, pic: v.pic,
+                 body: "Nothing in the book fits this yet. Read what they said again.",
+                 cta: "Right", strip: "Hint taken — a pip of confusion." });
+      saveSoon();
+      return;
+    }
+
+    var title, said;
+    if (picks.length > 1) {
+      title = "It is " + picks[0].name + " or " + picks[1].name;
+      said = "Either one is right, and they do different things. "
+           + picks.map(function (sp) {
+               return sp.name + " —" + lower1(whereToGet(sp)) + pageNote(sp);
+             }).join(" ");
+    } else {
+      var sp = picks[0];
+      title = "It is " + sp.name;
+      said = (v.kind === "recipe"
+               ? "The next thing on the list is something that " + Clues.effectText(v.needs[recipeGot().length]) + ". "
+               : v.kind === "effect"
+                 ? "Anything that " + Clues.effectText(v.needs) + " will do, and " + sp.name + " is one. "
+                 : "They want " + sp.name + ". ")
+           + "It is the one in the picture." + whereToGet(sp) + pageNote(sp);
+    }
+
+    announce({ kind: "warn", title: title, face: v.emoji, pic: v.pic,
+               artId: picks[0].id, artIds: picks.length > 1 ? picks.map(function (p) { return p.id; }) : null,
+               body: said + (level === 2 ? " That cost you another pip of confusion." : ""),
+               cta: "Right",
+               strip: "It is " + picks.map(function (p) { return p.name; }).join(" or ") + "." });
     saveSoon();
   }
 
@@ -1567,7 +1691,7 @@ const Engine = (function () {
     habitatAt: habitatAt, isLocated: isLocated, isLead: isLead, openLeads: openLeads,
     placeOnDesk: placeOnDesk, returnToShelf: returnToShelf, clearDesk: clearDesk, select: select,
     reveal: reveal, revealAll: revealAll, revealedCount: revealedCount, canName: canName, nameAs: nameAs,
-    give: give, probeCell: probeCell, hint: hint, canHint: canHint, dismissVisitor: dismissVisitor,
+    give: give, probeCell: probeCell, hint: hint, canHint: canHint, hintLevel: hintLevel, dismissVisitor: dismissVisitor,
     announce: announce, showModal: showModal, closeModal: closeModal,
     addMuddle: addMuddle, setMessage: setMessage, clearMessage: clearMessage, pushLog: pushLog,
     endDay: endDay, startNextDay: startNextDay,

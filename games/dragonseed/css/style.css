@@ -196,6 +196,9 @@ h1, h2, h3 { font-weight: 700; line-height: 1.2; }
   border: 1px solid #7b5a2c; background: linear-gradient(#3a3121, #2c2519); color: #f0d5a0;
   font-family: var(--sans); font-size: .7rem; font-weight: 800; letter-spacing: .06em;
   text-transform: uppercase; }
+/* the second press is a different offer, so it looks like one */
+.hintbtn--tell { background: linear-gradient(#5c4c28, #3d3320); border-color: var(--brass);
+  color: #ffe6b0; }
 .hintbtn:hover { border-color: #e2b760; background: linear-gradient(#463a24, #342c1c); color: #ffe3ae; }
 .hintbtn:active { transform: translateY(1px); }
 

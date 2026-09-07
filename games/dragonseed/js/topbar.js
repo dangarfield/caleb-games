@@ -57,9 +57,15 @@
 
     /* The hint sits next to the thing it costs. It used to be at the bottom of
        the visitor rail, a long way from the confusion meter that pays for it. */
-    if (Engine.canHint())
-      right.appendChild(Engine.btn("hintbtn", "Hint", Engine.hint,
-                                   "Get a hint — it costs a pip of confusion"));
+    /* The second press on the same customer gives the answer away, so the
+       button says so rather than pretending to be the same button twice. */
+    if (Engine.canHint()) {
+      var told = Engine.hintLevel() >= 1;
+      right.appendChild(Engine.btn("hintbtn" + (told ? " hintbtn--tell" : ""),
+        told ? "Tell me" : "Hint", Engine.hint,
+        told ? "Just tell me which plant it is — it costs a pip of confusion"
+             : "Get a hint — it costs a pip of confusion"));
+    }
 
     root.appendChild(right);
   }
