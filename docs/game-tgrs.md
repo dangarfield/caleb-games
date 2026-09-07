@@ -29,11 +29,17 @@ that is what was asked for.
 - **Forgiving on a wrong answer** — red flash and a shake, try again. After the
   **second** wrong attempt the correct answer is shown for 1.2s and the queue
   moves on, so a 7-year-old can't stall the whole minute on one fact.
-- **Numpad with a togglable ENTER side** — large touch keys; the ENTER column
-  sits on the right or the left, flipped mid-round with the `⇆ Enter` chip and
-  remembered per player. There is deliberately no control for it on the home
-  screen — it is set in the moment, by whoever is holding the tablet. Physical
-  keyboard works too: digits, Backspace, Enter, Escape to bail out.
+- **Numpad, fixed size, phone order** — 124 × 104px keys with an 8px gap, sized
+  in px rather than as a share of the viewport, centred at the bottom of the
+  screen with a 14px gap beneath. They shrink only where the screen genuinely
+  cannot take them: a portrait phone is not four 124px keys wide and a landscape
+  phone is not tall enough for four 104px rows, so the width clamps to the
+  viewport and the height to half of it. Everywhere else the pad is identical.
+  Digits run **1 2 3 on the top row and 7 8 9 on the bottom**, like a phone. The
+  ENTER column flips side mid-round with the `⇆ Enter` chip and is remembered per
+  player; there is deliberately no control for it on the home screen, since it is
+  set in the moment by whoever is holding the tablet. Physical keyboard works
+  too: digits, Backspace, Enter, Escape to bail.
 - **Players** — an **Edit** chip sits at the end of the name row and is the only
   way into player management, so the home screen is otherwise a row of names and
   a start button. Pressing it opens the selected player's settings — name,
@@ -78,7 +84,7 @@ that is what was asked for.
 
 - `games/tgrs/index.html` — the whole game: home/dashboard (DOM), play and
   results (canvas), numpad (DOM), model, charts, audio.
-- `games/tgrs/js/arcade-store.js` — a verbatim copy of `games/potions/js/store.js`.
+- `games/tgrs/js/arcade-store.js` — a verbatim copy of `games/dragonseed/js/store.js`.
   Not modified; do not edit it here.
 
 - **First run creates Caleb, Ezra, Mummy and Daddy** as empty profiles — names
@@ -212,3 +218,14 @@ that is what was asked for.
   not have done it — a save already holding those players would have kept showing
   them, the same way the missing-`par` bug survived a code change earlier. The
   filter can be deleted once no save can still contain them.
+- **The keypad used to scale with the viewport** (`1fr` columns across the full
+  width, height `46vh`), which on a tablet spread the keys so far apart that quick
+  answering meant moving your whole hand between them. `layout()` now computes the
+  key size, the fonts and the reserved canvas height together and writes them to
+  CSS custom properties, so the play area and the pad cannot drift apart the way
+  they would with the numbers written in two places.
+- **The ENTER label overflows before anything else does.** It is five capitals in
+  a key sized for one digit, and it silently spilled at two different key widths
+  during this work. The font is derived from the key's *width* as well as its
+  height, and then shrunk in a loop until `scrollWidth` fits — the arithmetic
+  alone was wrong both times.

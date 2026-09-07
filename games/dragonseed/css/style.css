@@ -1,0 +1,1925 @@
+/* style.css — Dragonseed.
+ *
+ * Two materials, deliberately. The SHOP is dark: stained wood, brass, low light.
+ * The BOOK and the MAP are paper: cream, ink, a serif face. That contrast is
+ * doing the atmospheric work, and it means the thing you stare at longest -
+ * the book - reads like a herbarium rather than a settings screen.
+ *
+ * Layout: the desk is the largest region on the screen, not one of four equal
+ * quarters. Shelves are a full-height rail because they are a list and want
+ * height. Below 860px the three regions become one-at-a-time with a tab bar,
+ * because three columns on a phone gives you 120px each and that is unusable.
+ */
+
+:root {
+  --wood:      #1b1a17;
+  --wood-2:    #232019;
+  --wood-3:    #2c281f;
+  --line:      #3d382c;
+  --brass:     #c49a4e;
+  --brass-dim: #8d6f3a;
+  --ink:       #3a3226;
+  --paper:     #f2ead6;
+  --paper-2:   #e8dfc6;
+  --paper-3:   #fbf6e8;
+  --text:      #e9e2d0;
+  --text-dim:  #a79c85;
+  --good:      #7fa05a;
+  --bad:       #b4574c;
+  --warn:      #c9973f;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  --sans:  system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Paper has its own voices. All system faces — the game runs off a disk with
+     no network, so nothing here may be fetched. Every stack ends somewhere
+     legible, because a seven-year-old has to read it. */
+  --hand:  "Bradley Hand", "Segoe Print", "Chalkboard SE", "Comic Sans MS", "Comic Neue", cursive;
+  --type:  "American Typewriter", "Courier New", Courier, "Nimbus Mono PS", monospace;
+  --poster: "Haettenschweiler", "Arial Narrow", Impact, "Franklin Gothic Bold", var(--sans);
+  --r: 10px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  height: 100%;
+  background: var(--wood);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 16px;
+  overflow: hidden;
+  -webkit-user-select: none; user-select: none;
+}
+body { background-image: radial-gradient(120% 90% at 50% -20%, #2b2720 0%, var(--wood) 62%); }
+
+button, input { font: inherit; color: inherit; }
+h1, h2, h3 { font-weight: 700; line-height: 1.2; }
+:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; border-radius: 4px; }
+[hidden] { display: none !important; }
+.muted { color: var(--text-dim); font-size: .85rem; }
+
+/* ---------------- shared controls ---------------- */
+.primary {
+  display: block; width: 100%; margin-top: 10px;
+  padding: 11px 16px; border: 1px solid var(--brass-dim); border-radius: var(--r);
+  background: linear-gradient(#3a3225, #2b2519); color: var(--text);
+  font-weight: 700; cursor: pointer;
+}
+.primary:hover:not(:disabled) { background: linear-gradient(#463c2b, #332c1e); }
+.primary:disabled { opacity: .45; cursor: default; }
+
+.act {
+  padding: 8px 12px; border: 1px solid #57503a; border-top-color: #6d6448;
+  border-radius: 8px; background: linear-gradient(#3a3425, #2b2619);
+  color: var(--text); font-size: .82rem; font-weight: 700; cursor: pointer;
+  box-shadow: 0 1px 0 rgba(255,236,190,.07) inset, 0 2px 4px rgba(0,0,0,.35);
+}
+.act:hover:not(:disabled) { border-color: var(--brass-dim); background: linear-gradient(#463f2c, #332d1e); }
+.act:active:not(:disabled) { transform: translateY(1px); box-shadow: 0 1px 3px rgba(0,0,0,.4) inset; }
+.act:disabled { opacity: .4; cursor: default; }
+.act--warn { border-color: #7b5a2c; border-top-color: #96702f; color: #f0d5a0;
+  background: linear-gradient(#44351c, #322a18); }
+
+.linkbtn {
+  display: block; margin: 10px auto 0; padding: 4px 6px;
+  background: none; border: none; color: var(--text-dim);
+  font-size: .8rem; text-decoration: underline; cursor: pointer;
+}
+.linkbtn:hover { color: var(--text); }
+
+.iconbtn {
+  width: 30px; height: 30px; flex: 0 0 auto;
+  background: none; border: 1px solid transparent; border-radius: 8px;
+  color: inherit; font-size: 1rem; cursor: pointer; line-height: 1;
+}
+.iconbtn:hover { border-color: currentColor; }
+
+.tool {
+  padding: 7px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--wood-3); color: var(--text); font-size: .84rem; font-weight: 600; cursor: pointer;
+}
+.tool:hover { border-color: var(--brass-dim); }
+.tool--on { background: var(--brass-dim); border-color: var(--brass); color: #1b1a17; }
+.tool--ghost { background: none; color: var(--text-dim); }
+
+/* ---------------- start screen ---------------- */
+#start {
+  position: fixed; inset: 0; z-index: 300; display: grid; place-items: center;
+  padding: 24px; overflow-y: auto;
+  background: radial-gradient(90% 70% at 50% 0%, #2e2820, #14130f 75%);
+}
+.backbtn--start { position: absolute; top: 18px; left: 18px; }
+.start__inner { max-width: 650px; text-align: center; }
+.start__eyebrow { font-family: var(--serif); font-style: italic; color: var(--brass); letter-spacing: .04em; }
+.start__title {
+  font-family: var(--serif); font-size: clamp(2.6rem, 11vw, 4.4rem);
+  letter-spacing: .02em; margin: .1em 0 .4em; color: var(--paper);
+  text-shadow: 0 2px 26px rgba(196,154,78,.28);
+}
+.start__blurb { color: var(--text-dim); line-height: 1.6; margin-bottom: .7rem; }
+.start__blurb + .start__blurb { margin-bottom: 1.1rem; }
+/* The opening screen says what the game IS and nothing about which button to
+   press. How to play is the walkthrough that runs in the shop and the ? in the
+   top bar — teaching it twice, once to somebody who has not seen the shop yet,
+   taught it worse. */
+.start__inner .primary { max-width: 280px; margin: 0 auto; }
+
+/* ---------------- shell ---------------- */
+#app { position: fixed; inset: 0; display: flex; flex-direction: column; }
+
+#topbar {
+  flex: 0 0 auto; display: grid; grid-template-columns: auto 1fr auto;
+  align-items: center; gap: 12px;
+  padding: 8px 12px; border-bottom: 1px solid var(--line);
+  background: linear-gradient(#26221a, #1e1b15);
+}
+.top__left, .top__right { display: flex; align-items: center; gap: 10px; }
+.backbtn {
+  color: var(--text-dim); text-decoration: none; font-size: .82rem; font-weight: 700;
+  border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px;
+}
+.backbtn:hover { color: var(--text); border-color: var(--brass-dim); }
+/* The day sits ABOVE the modal scrim (z 400) on purpose: a card is up at
+   exactly the moment you want the saved states — you just served somebody —
+   and a full-screen scrim was eating the click. */
+.top__day { position: relative; z-index: 450;
+  font-family: var(--serif); font-size: 1.05rem; color: var(--paper);
+  background: none; border: none; padding: 0 2px; cursor: pointer; border-radius: 5px; }
+.top__day:hover { color: #ffd484; background: rgba(226,183,96,.10); }
+.helpbtn { width: 22px; height: 22px; flex: 0 0 auto; border-radius: 50%;
+  border: 1px solid var(--brass-dim); background: none; color: var(--brass);
+  font-weight: 800; font-size: .78rem; line-height: 1; cursor: pointer; }
+.helpbtn:hover { background: var(--brass-dim); color: #1b1a17; }
+.top__weekday { color: var(--text-dim); font-size: .82rem; }
+/* The middle of the strip holds either the day's note or a message, and a
+   message is a pill with a border on it. Letting the row size itself meant the
+   whole top bar — and therefore the whole board — jumped down a few pixels
+   every time something happened. It is a fixed height now, and the two things
+   are centred inside it. */
+.top__mid { min-width: 0; text-align: center; height: 32px;
+  display: flex; align-items: center; justify-content: center; }
+.top__note { font-family: var(--serif); font-style: italic; color: var(--text-dim); font-size: .9rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+.msg {
+  display: inline-flex; align-items: center; height: 30px;
+  max-width: 100%; padding: 0 14px; border-radius: 999px;
+  font-size: .88rem; font-weight: 600; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  border: 1px solid var(--line); background: var(--wood-3);
+}
+/* A message you have not seen before announces itself for about a second and
+   then sits still. It used to slide in with no more emphasis than the note it
+   replaced, and got missed. */
+.msg--new { animation: msgPop .95s cubic-bezier(.2,.9,.3,1.2); }
+@keyframes msgPop {
+  0%   { transform: scale(.86); opacity: 0; }
+  22%  { transform: scale(1.10); opacity: 1; }
+  38%  { transform: scale(1); }
+  0%, 62% { box-shadow: 0 0 0 0 currentColor; }
+  30%  { box-shadow: 0 0 22px 3px currentColor; }
+  100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) { .msg--new { animation: none; } }
+.msg--good { border-color: #4d6b34; background: #26301c; color: #cbe0ac; }
+.msg--bad  { border-color: #7a3a33; background: #33201d; color: #f0bdb6; }
+.msg--warn { border-color: #7a5c2a; background: #322a18; color: #f0d5a0; }
+
+.meter { font-size: .8rem; color: var(--text-dim); display: flex; align-items: center; gap: 5px; }
+.meter b { color: var(--paper); font-size: 1rem; }
+.pips { display: inline-flex; gap: 3px; }
+.pip { width: 9px; height: 9px; border: 1px solid #6d4a44; border-radius: 2px;
+  transform: rotate(45deg); display: block; }
+.pip--on { background: var(--bad); border-color: var(--bad); }
+
+/* the hint, beside the confusion it costs */
+.hintbtn { flex: 0 0 auto; padding: 3px 12px; border-radius: 999px; cursor: pointer;
+  border: 1px solid #7b5a2c; background: linear-gradient(#3a3121, #2c2519); color: #f0d5a0;
+  font-family: var(--sans); font-size: .7rem; font-weight: 800; letter-spacing: .06em;
+  text-transform: uppercase; }
+.hintbtn:hover { border-color: #e2b760; background: linear-gradient(#463a24, #342c1c); color: #ffe3ae; }
+.hintbtn:active { transform: translateY(1px); }
+
+#board {
+  flex: 1 1 auto; min-height: 0;
+  display: grid; grid-template-columns: 196px minmax(0,1fr) 306px; gap: 10px; padding: 10px;
+}
+
+.rail {
+  display: flex; flex-direction: column; min-height: 0; overflow-y: auto;
+  overscroll-behavior: contain;
+  background: linear-gradient(#252118, #1f1c15);
+  border: 1px solid var(--line); border-radius: var(--r); padding: 10px;
+}
+.rail__head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  margin-bottom: 8px; flex: 0 0 auto; }
+.rail__title { font-family: var(--serif); font-size: 1rem; color: var(--paper); font-weight: 600; }
+.rail__count { font-size: .72rem; color: var(--text-dim); white-space: nowrap; flex: 0 0 auto; }
+/* the rail head has three things in it now and 196px to do it in: the title is
+   the one that gives way */
+/* Three things in a 196px rail: the title, the count and the button. It only
+   just fits, so the gap is tight and nothing here grows. */
+.rail__head { flex-wrap: nowrap; gap: 6px; }
+.rail--left .rail__title { font-size: .95rem; }
+.rail--left .rail__count { font-size: .68rem; }
+.rail__head .rail__title { min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
+.rail__empty { color: var(--text-dim); font-size: .85rem; font-style: italic; }
+
+/* ---------------- shelves ---------------- */
+/* The pots scroll, the shelf does not. It used to be the whole panel that
+   scrolled, which took the header and the photograph of the shelving up with
+   it — so a wheel over the shelves looked like it had done nothing but break
+   the picture. Now the rack is the scroller and the shelf stands still. */
+.rack { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px;
+  align-content: start; flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  overscroll-behavior: contain; padding-right: 2px; }
+#shelf { overflow: hidden; }
+.pot {
+  position: relative; cursor: grab; text-align: center; padding: 5px 3px 4px;
+  border: 1px solid var(--line); border-radius: 8px; background: #2a2519;
+}
+.pot:hover { border-color: var(--brass-dim); background: #322c1d; }
+.pot:active { cursor: grabbing; }
+/* the pot on the desk keeps its brightness and says so — dimming it made the
+   one you were actually working on the hardest thing on the rail to find */
+.pot--out { border-color: var(--brass); box-shadow: 0 0 0 2px rgba(196,154,78,.28); }
+.pot__flag { position: absolute; top: -7px; left: 50%; transform: translateX(-50%);
+  z-index: 2; white-space: nowrap; padding: 1px 7px; border-radius: 999px;
+  background: var(--brass); color: #1b1a17; font-size: .56rem; font-weight: 800;
+  letter-spacing: .03em; box-shadow: 0 1px 4px rgba(0,0,0,.5); }
+.pot--sel { border-color: var(--brass); box-shadow: 0 0 0 1px var(--brass) inset; }
+.pot__art { display: grid; place-items: center; background: var(--paper-3);
+  border: 1px solid #cfc3a4; border-radius: 5px; padding: 2px; }
+.pot__name { font-size: .68rem; font-weight: 700; margin-top: 3px; line-height: 1.15;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pot__name--unknown { color: var(--text-dim); font-style: italic; font-weight: 500; }
+/* an identified specimen is the thing you have actually earned. Green, because
+   green is what the tick in the book is, and it wants to be findable at a
+   glance down a rail of forty pots */
+.pot--named { border-color: #6f9450;
+  background: linear-gradient(#33401f, #2a3419);
+  box-shadow: inset 0 1px 0 rgba(190,225,150,.14); }
+.pot--named:hover { border-color: #8ab365; background: linear-gradient(#3c4c25, #31401d); }
+.pot--named .pot__art { background: #f0f6e4; border-color: #a8c088; }
+.pot--named .pot__name { color: #d6e8bd; }
+
+/* ---------------- desk ---------------- */
+#desk { display: flex; flex-direction: column; min-height: 0;
+  background: linear-gradient(#2a251b, #211d16);
+  border: 1px solid var(--line); border-radius: var(--r); padding: 8px; }
+.desk__wrap { flex: 1 1 auto; min-height: 0; display: flex; gap: 10px; }
+
+.surface {
+  position: relative; flex: 1 1 auto; min-width: 0; border-radius: 8px;
+  border: 1px dashed transparent;
+  background:
+    radial-gradient(70% 55% at 45% 35%, rgba(196,154,78,.07), transparent 70%),
+    repeating-linear-gradient(96deg, #2f2a1f 0 22px, #2c271d 22px 44px);
+}
+.surface--tucked { display: none; }
+/* The dashed outline is a drop hint, so it exists only while a plant is
+   actually in the air. The rest of the time the bench is just the bench. */
+body.is-dragging .surface { border-color: #6b5c3a; }
+.surface.is-drop-target { border-color: var(--brass); background-color: #3a3320; }
+.surface__hint { position: absolute; inset: 0; display: grid; place-items: center; padding: 20px;
+  text-align: center; color: var(--text-dim); font-style: italic; font-size: .9rem; }
+
+/* an empty desk: the three things you can open, and nothing else */
+.empty { position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 16px; padding: 20px; }
+.empty__hint { text-align: center; color: var(--text-dim); font-style: italic; font-size: .88rem; }
+.doors { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+.door { position: relative; width: 124px; padding: 12px 10px 10px; border-radius: 12px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+  border: 1px solid var(--brass-dim); background: linear-gradient(#2b2518, #211c12);
+  color: var(--paper); box-shadow: 0 6px 18px rgba(0,0,0,.35); }
+.door:hover { border-color: #e2b760; background: linear-gradient(#37301e, #262014);
+  transform: translateY(-2px); }
+.door:hover .door__icon svg { transform: scale(1.06) rotate(-2deg); }
+.door:active { transform: translateY(0); }
+.door--on { border-color: var(--brass); background: linear-gradient(#3c3320, #2a2416); }
+.door__icon { display: block; width: 76px; height: 76px; }
+.door__icon svg { width: 76px; height: 76px; display: block;
+  transition: transform .14s ease; filter: drop-shadow(0 3px 5px rgba(0,0,0,.45)); }
+.door__label { font-family: var(--sans); font-size: .66rem; font-weight: 800; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--brass); }
+.door--on .door__label { color: #ffe3ae; }
+.door__n { position: absolute; top: -7px; right: -7px; min-width: 21px; height: 21px; padding: 0 5px;
+  display: grid; place-items: center; border-radius: 999px; background: var(--brass); color: #23201a;
+  font-family: var(--sans); font-size: .68rem; font-weight: 800; }
+@media (max-width: 900px) {
+  .door { width: 104px; padding: 10px 8px 8px; }
+  .door__icon, .door__icon svg { width: 62px; height: 62px; }
+}
+
+.stand { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+  cursor: grab; text-align: center; max-width: 92%; }
+.stand:active { cursor: grabbing; }
+.stand__art { display: block; padding: 10px; border-radius: 8px;
+  background: var(--paper-3); border: 1px solid #cfc3a4; box-shadow: 0 10px 26px rgba(0,0,0,.45); }
+.stand--named .stand__art { border-color: var(--brass-dim); box-shadow: 0 0 0 2px rgba(196,154,78,.35), 0 10px 26px rgba(0,0,0,.45); }
+.stand__tag { display: block; margin-top: 8px; font-family: var(--serif); font-size: 1.05rem;
+  font-weight: 700; color: var(--paper); }
+.stand__tag--unknown { font-style: italic; font-weight: 400; color: var(--text-dim); }
+
+/* ---------------- lens ---------------- */
+/* The plate is the only elastic thing in here: it shrinks to whatever height is
+ * left after the observations and the buttons, so the panel does not scroll.
+ * overflow-y:auto is a floor, not the plan — it only bites once the plate has
+ * shrunk to its minimum and the content still will not fit. */
+.lens {
+  flex: 0 0 272px; min-height: 0; overflow-y: auto;
+  display: flex; flex-direction: column;
+  background: linear-gradient(#302a1e, #26221a);
+  border: 1px solid var(--brass-dim); border-radius: var(--r); padding: 11px;
+}
+.lens > * { flex: 0 0 auto; }
+.lens__bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.lens__eyebrow { font-size: .7rem; letter-spacing: .09em; text-transform: uppercase; color: var(--brass); font-weight: 700; }
+.lens__art { flex: 1 1 auto; min-height: 62px; max-height: 300px; overflow: hidden;
+  display: grid; place-items: center; margin: 7px 0 9px; padding: 7px;
+  background: var(--paper-3); border: 1px solid #cfc3a4; border-radius: 8px; }
+/* A 212px square inside a box that has been squeezed to 150px tall used to
+   hang out of the bottom of the frame. min-height:0 lets the grid item shrink,
+   which by default it will not do. */
+.lens__art > * { min-width: 0; min-height: 0; max-width: 100%; max-height: 100%; }
+.lens__art--big { border-color: var(--brass-dim); box-shadow: 0 0 0 1px rgba(196,154,78,.25); }
+.lens__art svg { max-width: 100%; max-height: 100%; width: auto; height: 100%; }
+.lens__name { font-family: var(--serif); font-size: 1.2rem; color: var(--paper); text-align: center; }
+.lens__bin { font-family: var(--serif); font-style: italic; font-size: .82rem; color: var(--brass);
+  text-align: center; margin-bottom: 8px; }
+.lens__obs { display: grid; gap: 3px; margin-bottom: 9px; }
+.feat { display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  padding: 5px 9px; border-radius: 6px; background: rgba(0,0,0,.24); font-size: .82rem; }
+.feat__k { color: var(--text-dim); flex: 0 0 auto; }
+.feat__v { font-weight: 700; text-align: right; }
+.acts { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 4px; }
+.lens__plate { font-family: var(--serif); font-size: .88rem; line-height: 1.5; color: var(--text); margin-bottom: 6px; }
+.lens__useblock { margin-top: 9px; padding: 8px 10px; border-radius: 8px;
+  background: rgba(196,154,78,.10); border: 1px solid rgba(196,154,78,.35); }
+.lens__uselab { font-size: .62rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
+  color: var(--brass); margin-bottom: 2px; }
+.lens__useline { font-family: var(--serif); font-size: 1rem; font-weight: 700; color: #f0dfae; line-height: 1.3; }
+.lens__use { font-family: var(--serif); font-style: italic; font-size: .84rem; line-height: 1.5;
+  color: #cdb789; margin-top: 3px; }
+.lens__cue { margin-top: 10px; padding: 8px 10px; border-radius: 8px;
+  background: rgba(196,154,78,.12); border: 1px dashed var(--brass-dim);
+  font-family: var(--serif); font-style: italic; font-size: .84rem; color: #e0cd9c; text-align: center; }
+
+/* ---------------- counter ---------------- */
+.vis { text-align: center; padding: 10px 6px 12px; border-radius: 8px;
+  background: rgba(0,0,0,.2); border: 1px solid var(--line); flex: 0 0 auto; }
+/* plays once, on arrival — the typing writes into the text node rather than
+   re-rendering, so nothing restarts it mid-sentence */
+.vis--arriving { animation: visIn .42s cubic-bezier(.2,.9,.3,1.1); }
+@keyframes visIn { from { opacity: 0; transform: translateY(-10px); } }
+.vis__line--typing::after { content: "▌"; margin-left: 1px; color: var(--brass);
+  animation: caret .9s steps(1) infinite; }
+@keyframes caret { 50% { opacity: 0; } }
+.reveal { animation: revealIn .5s ease-out both; }
+@keyframes revealIn { from { opacity: 0; transform: translateY(6px); } }
+.vis.is-drop-target { border-color: var(--brass); background: #3a3320; }
+.vis__face { font-size: 42px; line-height: 1; }
+.vis__name { font-family: var(--serif); font-size: 1.1rem; color: var(--paper); margin: 4px 0 6px; }
+.vis__line { font-family: var(--serif); font-size: .96rem; line-height: 1.55; color: var(--text); padding: 0 4px; }
+/* the first four days point at the words that matter */
+.vis__key { color: #ffe9bd; font-weight: 600; text-decoration: underline;
+  text-decoration-color: var(--brass); text-decoration-thickness: 2px;
+  text-underline-offset: 3px; }
+
+/* a fork: two right answers, and what each one does */
+.twoways { margin-top: 9px; padding: 9px 11px; border-radius: 10px;
+  border: 1px solid rgba(226,183,96,.32); background: rgba(226,183,96,.06); }
+.twoways__lab { font-family: var(--sans); font-size: .58rem; font-weight: 800;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--brass); margin-bottom: 6px; }
+.twoways__row { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; }
+.twoways__row + .twoways__row { border-top: 1px solid rgba(226,183,96,.16); }
+.twoways__n { flex: 0 0 auto; width: 18px; height: 18px; display: grid; place-items: center;
+  border-radius: 50%; border: 1px solid var(--brass-dim); color: var(--brass);
+  font-family: var(--sans); font-size: .6rem; font-weight: 800; }
+.twoways__what { flex: 1 1 auto; font-family: var(--serif); font-size: .9rem; color: var(--paper); }
+.twoways__who { flex: 0 0 auto; padding: 0 6px; border-radius: 8px;
+  font-family: var(--sans); font-size: .55rem; font-weight: 800; letter-spacing: .06em;
+  text-transform: uppercase; background: rgba(77,122,70,.16); color: #b6d29e; }
+.twoways__who--dragon { background: rgba(168,85,44,.18); color: #f0b48c; }
+.twoways__foot { margin-top: 6px; font-size: .74rem; font-style: italic; color: var(--text-dim); }
+.vis__acts { display: flex; justify-content: center; margin-top: 8px; flex: 0 0 auto; }
+
+/* Book and Map, under the visitor */
+/* pinned to the foot of the rail whether or not there is a log above it */
+.rail__tools { margin-top: auto; padding-top: 12px; flex: 0 0 auto; }
+.toolrow { display: flex; gap: 6px; }
+.toolrow .tool { flex: 1; text-align: center; }
+
+.give {
+  margin-top: 10px; flex: 0 0 auto; min-height: 92px;
+  display: grid; place-content: center; gap: 2px; text-align: center;
+  border: 2px dashed #6c5a30; border-radius: var(--r); background: rgba(196,154,78,.05);
+}
+.give__label { color: var(--brass); font-weight: 700; font-size: .92rem; }
+.give__sub { color: var(--text-dim); font-size: .76rem; }
+.give.is-drop-target { border-color: var(--brass); border-style: solid; background: rgba(196,154,78,.18); }
+body.is-dragging .give { border-color: var(--brass); animation: pulse 1.1s ease-in-out infinite; }
+@keyframes pulse { 50% { background: rgba(196,154,78,.12); } }
+
+.log { margin-top: 12px; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.log__title { font-size: .7rem; letter-spacing: .09em; text-transform: uppercase;
+  color: var(--brass); margin-bottom: 5px; }
+.log__line { font-size: .78rem; line-height: 1.45; color: var(--text-dim);
+  padding: 5px 0; border-top: 1px solid var(--line); }
+
+.dayend { text-align: center; padding: 6px 2px; }
+.dayend__title { font-family: var(--serif); font-size: 1.5rem; color: var(--paper); margin-bottom: 6px; }
+.dayend__note { font-family: var(--serif); font-style: italic; color: var(--text-dim);
+  line-height: 1.55; margin-bottom: 14px; }
+.dayend__warn { color: #f0bdb6; font-size: .85rem; margin-bottom: 12px; }
+.dayend__stats { display: flex; justify-content: center; gap: 8px; margin-bottom: 14px; }
+.stat { flex: 1; padding: 9px 4px; border: 1px solid var(--line); border-radius: 8px; background: rgba(0,0,0,.2); }
+.stat__n { display: block; font-family: var(--serif); font-size: 1.25rem; color: var(--brass); }
+.stat__k { display: block; font-size: .68rem; text-transform: uppercase; letter-spacing: .07em; color: var(--text-dim); }
+
+/* ================= PAPER: the book and the map ================= */
+/* the map, like the book, is a thing lying ON the desk: only the chart itself
+   is paper, the heading and the notes around it are the shop */
+.sheet {
+  flex: 1 1 auto; min-width: 0; min-height: 0; overflow-y: auto;
+  background: none; border: none; box-shadow: none; padding: 0;
+  color: var(--text); font-family: var(--sans);
+}
+.sheet__bar { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 0 2px 8px; margin-bottom: 9px; border-bottom: 1px solid var(--line); flex: 0 0 auto; }
+.sheet__title { font-family: var(--serif); font-size: 1.15rem; color: var(--paper);
+  font-weight: 600; letter-spacing: .01em; }
+.sheet__tools { margin-bottom: 8px; }
+.search {
+  width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 9px;
+  background: rgba(0,0,0,.3); color: var(--text); font-family: var(--sans); font-size: .9rem;
+  transition: border-color .12s, background .12s, box-shadow .12s;
+}
+.search::placeholder { color: var(--text-dim); }
+/* typing in it is the main verb of the book, so it says so when it has focus */
+.search:focus {
+  outline: none; border-color: #e2b760; background: rgba(0,0,0,.5); color: #fff4dc;
+  box-shadow: 0 0 0 3px rgba(226,183,96,.22), 0 0 18px rgba(226,183,96,.22);
+}
+.search:focus::placeholder { color: rgba(226,183,96,.65); }
+/* the browser's own tiny x is unusable at this size; "clear search" replaces it */
+.search::-webkit-search-cancel-button { display: none; }
+
+/* the field is the input plus its clear link, and it takes the whole row */
+.searchfield { flex: 1 1 auto; min-width: 0; position: relative; display: flex; align-items: center; }
+.searchfield .search { flex: 1 1 auto; min-width: 0; }
+.searchfield__clear {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  margin: 0; padding: 3px 6px; white-space: nowrap; z-index: 2;
+}
+.searchfield--clearable .search { padding-right: 104px; }
+.sheet__count { font-family: var(--serif); font-size: .82rem; color: var(--text-dim);
+  font-style: italic; margin-bottom: 10px; }
+
+.notes { flex: 0 0 auto; border: 1px solid rgba(196,154,78,.38); border-radius: 8px;
+  background: rgba(196,154,78,.10); padding: 9px 11px; margin-bottom: 10px; }
+.notes__lead { font-size: .78rem; color: var(--text-dim); margin-bottom: 6px; }
+.notes__chips { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.notes__warn { margin-top: 7px; font-size: .78rem; color: #e5b86e; font-style: italic; }
+.notes .linkbtn { margin: 7px 0 0; }
+.linkbtn--inline { display: inline; margin: 0; align-self: center; padding: 4px 6px;
+  font-size: .74rem; white-space: nowrap; }
+.chip {
+  border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px;
+  background: var(--wood-3); color: var(--text);
+  font-family: var(--sans); font-size: .76rem; font-weight: 600; cursor: pointer;
+}
+.chip:hover { border-color: var(--brass-dim); }
+.chip--on { background: var(--brass-dim); border-color: var(--brass); color: #1b1a17; }
+
+/* ---- the book: an index at the front, then a page per specimen, two open ---- */
+/* The book is not a sheet of paper laid over the desk — it is a book ON the
+ * desk. Only the open pages are paper; the search, the notes and the footer are
+ * the shop around it, so they take the dark. */
+.book {
+  flex: 1 1 auto; min-width: 0; min-height: 0;
+  display: flex; flex-direction: column;
+  background: none; border: none; box-shadow: none; padding: 0;
+  color: var(--text); font-family: var(--sans);
+}
+.book__bar { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 0 2px 8px; border-bottom: 1px solid var(--line); flex: 0 0 auto; }
+.book__title { font-family: var(--serif); font-size: 1.15rem; color: var(--paper); font-weight: 600; }
+.book__tools { display: flex; gap: 7px; align-items: center; margin: 9px 0 7px; flex: 0 0 auto; }
+
+/* browse by what a plant is for */
+.usebar { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; flex: 0 0 auto; flex-wrap: wrap; }
+.usebar__lab { font-family: var(--sans); font-size: .7rem; font-weight: 700; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--brass); }
+.usesel { flex: 1 1 auto; min-width: 0; max-width: 340px;
+  padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--wood-3); color: var(--text); font-family: var(--sans); font-size: .82rem; cursor: pointer; }
+.usesel:disabled { opacity: .5; cursor: default; }
+.usebar .linkbtn { margin: 0; }
+.book__tools .searchfield { flex: 1 1 auto; }
+.bookbtn { border: 1px solid var(--line); border-radius: 8px; padding: 7px 13px;
+  background: var(--wood-3); color: var(--text); font-family: var(--sans);
+  font-weight: 700; font-size: .8rem; cursor: pointer; white-space: nowrap; }
+.bookbtn:hover:not(:disabled) { background: #35301f; border-color: var(--brass-dim); }
+.bookbtn:disabled { opacity: .35; cursor: default; }
+
+/* an open book: two leaves, a gutter that darkens toward the spine, the block
+   of pages showing under the bottom edge, and a shadow onto the desk */
+.spread {
+  position: relative; perspective: 1700px; touch-action: pan-y;
+  flex: 1 1 auto; min-height: 0; display: flex; align-items: stretch;
+  border-radius: 5px; background: #fdfaf0;
+  box-shadow:
+    /* the block of leaves showing under the two open pages */
+    0  4px 0 -1px #f2ead4,
+    0  8px 0 -2px #e5dcbe,
+    0 12px 0 -3px #d6cba8,
+    0 16px 0 -4px #c6ba93,
+    0 20px 0 -5px #b5a87e,
+    /* the boards, and the whole thing sitting on the desk */
+    0 0 0 1.5px rgba(74,58,28,.75),
+    0 26px 44px rgba(0,0,0,.6);
+}
+.spine { flex: 0 0 14px; align-self: stretch;
+  background: linear-gradient(90deg, rgba(120,98,58,.14) 0%, rgba(92,72,36,.46) 34%,
+                                     rgba(58,44,20,.72) 50%,
+                                     rgba(92,72,36,.46) 66%, rgba(120,98,58,.14) 100%); }
+.leaf { flex: 1 1 50%; min-width: 0; min-height: 0;
+  display: flex; flex-direction: column; padding: 14px 16px 8px;
+  font-family: var(--serif); color: var(--ink); }
+/* the page lifts away from the spine and settles at the outer edge */
+.leaf--left  { padding-right: 11px; border-radius: 5px 0 0 5px;
+  background: linear-gradient(to right,  #fefdf7 0%, #fdfaf0 58%, #eee5ca 100%); }
+.leaf--right { padding-left: 11px;  border-radius: 0 5px 5px 0;
+  background: linear-gradient(to left,   #fefdf7 0%, #fdfaf0 58%, #eee5ca 100%); }
+/* nothing inside a leaf scrolls: the index flows onto the next page, and a
+   plant page shrinks its plate to whatever height is left */
+.leaf__body { flex: 1 1 auto; min-width: 0; min-height: 0; overflow: hidden;
+  display: flex; flex-direction: column; }
+.leaf--index .leaf__body > .index { flex: 0 1 auto; min-height: 0; overflow: hidden; }
+.leaf--blank { /* genuinely blank, like the back of a section */ }
+.leaf__no { flex: 0 0 auto; padding-top: 5px; font-size: .72rem; color: #9a8f72;
+  font-variant-numeric: tabular-nums; }
+.leaf--left  .leaf__no { text-align: left; }
+.leaf--right .leaf__no { text-align: right; }
+.leaf__head { font-size: 1.05rem; margin-bottom: 9px; padding-bottom: 5px;
+  border-bottom: 1px solid #ddd0ae; letter-spacing: .04em; }
+
+/* index */
+/* grid items default to min-width:auto, so a long row would widen the track
+   and push the folio number off the page — pin the track instead */
+.index { list-style: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
+.index__row { min-width: 0; }
+.index__link { display: flex; align-items: center; gap: 8px; width: 100%;
+  background: none; border: none; padding: 2px 5px; border-radius: 5px;
+  color: var(--ink); font-family: inherit; font-size: .84rem; cursor: pointer; text-align: left; }
+.index__link:hover { background: rgba(255,255,255,.7); }
+.index__art { flex: 0 0 auto; display: grid; place-items: center;
+  background: #fdfaf0; border: 1px solid #e0d5b8; border-radius: 3px; }
+.index__name { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.index__link--known .index__name { font-weight: 700; }
+.tick { flex: 0 0 auto; display: inline-grid; place-items: center; width: 15px; height: 15px;
+  margin-left: 5px; border-radius: 50%; background: #5f7a4a; color: #f4f8ec;
+  font-size: .6rem; font-weight: 900; line-height: 1; }
+.idtag { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px;
+  padding: 2px 9px 2px 3px; border-radius: 999px; background: rgba(95,122,74,.18);
+  border: 1px solid rgba(95,122,74,.5); color: #4c5f3a;
+  font-family: var(--sans); font-size: .66rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em; }
+.idtag .tick { margin-left: 0; width: 14px; height: 14px; }
+.leaf__act { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-top: 6px; }
+.leaf__act .idtag { margin-top: 0; }
+.leaf__pick { padding: 4px 13px; border-radius: 999px; cursor: pointer;
+  border: 1px solid #8a6f45; background: linear-gradient(#f3ead2, #e6d9b8); color: #3f3524;
+  font-family: var(--sans); font-size: .66rem; font-weight: 800; letter-spacing: .08em;
+  text-transform: uppercase; box-shadow: 0 1px 0 #fffaf0 inset; }
+.leaf__pick:hover { border-color: #6b5530; background: linear-gradient(#fff7e4, #efe3c4); color: #241f17; }
+.leaf__pick:active { transform: translateY(1px); }
+.index__name--unknown { font-style: italic; color: #6f6650; }
+.index__link--nostock .index__name { color: #6f6650; }
+.index__none { flex: 0 0 auto; margin-left: 6px; padding: 1px 7px; border-radius: 999px;
+  border: 1px dashed #bdae8c; background: rgba(0,0,0,.03);
+  font-family: var(--sans); font-size: .58rem; font-weight: 700; letter-spacing: .05em;
+  text-transform: uppercase; color: #7d7358; white-space: nowrap; }
+.index__dots { flex: 1 1 12px; min-width: 12px; border-bottom: 1px dotted #bdb094; height: .72em; }
+.index__no { flex: 0 0 auto; font-size: .78rem; color: #6f6650; font-variant-numeric: tabular-nums; }
+
+/* a plant page */
+.leaf--plant .leaf__body { text-align: center; }
+.leaf--text .leaf__body { justify-content: center; }
+/* a floor, not the plan: on a very short window the words leaf may still not
+   fit even after the compaction below, and losing the claim button off the
+   bottom would be worse than a scrollbar on that one leaf */
+.leaf--text .leaf__body { overflow-y: auto; }
+/* the plate takes the slack, but only so much of it — a plate stretched to the
+   full leaf leaves the drawing swimming in white with its name at the floor */
+/* No frame and no card: the plate is printed on the page, the way it would be
+   in a real herbal. It used to sit in a little box on the paper, which made
+   the page look like a website about a book. */
+.leaf__plate { flex: 1 1 auto; min-height: 60px; max-height: 44%; min-width: 0;
+  display: grid; place-items: center;
+  margin: 0 auto 8px; padding: 2px; background: none; border: none;
+  border-radius: 0; cursor: zoom-in; }
+.leaf__plate > * { min-width: 0; min-height: 0; max-width: 100%; max-height: 100%; }
+.leaf__plate svg { max-width: 100%; max-height: 100%; width: auto; height: 100%; }
+.leaf--plant .leaf__body > *:not(.leaf__plate) { flex: 0 0 auto; }
+.leaf__plate--big { min-height: 84px; max-height: 62%; }
+.leaf--art .leaf__body { justify-content: center; }
+.leaf__name { font-size: 1.22rem; line-height: 1.15; }
+.leaf__ruled { height: 1.22rem; margin: 0 12% .1rem; border-bottom: 1.5px solid #c4b795; }
+.leaf__bin--blank { color: #a2977c; }
+.leaf__bin { font-style: italic; font-size: .82rem; color: #6a5f45; margin-bottom: 8px; }
+.leaf__plateTxt { font-size: .9rem; line-height: 1.55; text-align: left; }
+.leaf__useblock { margin-top: 11px; padding: 8px 11px; text-align: left;
+  border: 1px solid #c9b98d; border-left-width: 3px; border-radius: 6px; background: rgba(233,223,192,.55); }
+.leaf__uselab { font-family: var(--sans); font-size: .64rem; font-weight: 700; letter-spacing: .09em;
+  text-transform: uppercase; color: #7a6e51; margin-bottom: 2px; }
+.leaf__useline { font-size: .98rem; font-weight: 700; line-height: 1.3; color: #453c26; margin-bottom: 4px; }
+.leaf__use { font-size: .86rem; line-height: 1.5; color: #55492f; font-style: italic; }
+.leaf__unnamed { font-size: .82rem; font-style: italic; color: #6f6650; margin-top: 8px; text-align: left; }
+.leaf__struck { margin-top: 9px; font-size: .8rem; color: #9a4b40; font-style: italic; }
+.leaf__locked { margin-top: 9px; font-size: .78rem; color: #8d5a2c; font-style: italic; }
+.leaf--struck .leaf__name, .leaf--struck .leaf__bin { text-decoration: line-through; }
+.leaf--struck .leaf__plate { opacity: .45; }
+.leaf__tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; justify-content: flex-start; }
+.tag { font-family: var(--sans); font-size: .69rem; font-weight: 600; line-height: 1.5;
+  border: 1px solid #c3b48d; border-radius: 999px; padding: 2px 9px; color: #5f5640;
+  background: rgba(255,255,255,.55); white-space: nowrap; }
+.tag--use { background: #e5dcc0; border-color: #b6a67e; color: #4e4530; }
+.leaf__claim { display: block; width: 100%; margin-top: 12px; padding: 11px 14px;
+  border: 1px solid #4c422c; border-radius: 9px;
+  background: linear-gradient(#5b4f33, #423823); color: #fbf6e8;
+  font-family: var(--sans); font-weight: 800; font-size: .88rem; letter-spacing: .02em;
+  cursor: pointer; box-shadow: 0 1px 0 rgba(255,240,200,.16) inset, 0 3px 7px rgba(90,74,40,.32); }
+.leaf__claim:hover { background: linear-gradient(#6a5c3c, #4e4229); }
+.leaf__claim:active { transform: translateY(1px); box-shadow: 0 2px 5px rgba(90,74,40,.35) inset; }
+
+.book__foot { display: flex; align-items: center; gap: 8px;
+  padding-top: 26px; flex: 0 0 auto; }
+.book__where { font-family: var(--serif); font-size: .82rem; color: var(--text-dim);
+  font-style: italic; text-align: center; flex: 1 1 auto; }
+
+/* ---- the map ---- */
+/* The leads float over the chart rather than sitting above it. In the flow they
+   pushed the squares down by their own height, which is worst on the days you
+   have three of them and most need to see the grid. */
+.sheet--map { position: relative; }
+.leads { position: absolute; z-index: 6; top: 52px; left: 0; width: min(330px, 46%);
+  border: 1px solid rgba(196,154,78,.5); border-radius: 10px;
+  background: rgba(18,15,10,.9); padding: 10px 13px 11px;
+  box-shadow: 0 14px 34px rgba(0,0,0,.5); backdrop-filter: blur(2px); }
+.leads__head { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 5px; }
+.leads__x { flex: 0 0 auto; margin: -2px -4px 0 auto; }
+.leads__title { font-family: var(--serif); font-size: 1rem; color: var(--paper); }
+.leads__note { margin-bottom: 3px; }
+.leads__quote { font-family: var(--serif); font-style: italic; font-size: .93rem;
+  line-height: 1.55; color: #e6d5a8; }
+.leads__hint { font-size: .74rem; font-weight: 600; color: var(--brass); margin-top: 6px; }
+/* The way back to the leads once they are put away. It sits on a photograph of
+   chart paper, so a wash of brass over it read as nothing at all — it gets a
+   solid plate and light type instead. A lead you have not solved yet is the
+   most important thing on this screen, so the button rings while any are
+   outstanding, in the same language the tutorial uses. */
+.leadbtn { flex: 0 0 auto; padding: 6px 14px; border-radius: 999px;
+  border: 1px solid var(--brass); background: #2a2214;
+  color: #ffe6b0; font-family: var(--sans); font-size: .76rem; font-weight: 800;
+  letter-spacing: .05em; text-transform: uppercase; cursor: pointer; white-space: nowrap;
+  animation: coachFlash 1.5s ease-in-out infinite; }
+.leadbtn:hover { background: #3d3218; color: #fff6e2; }
+/* while the panel is open the leads are already in front of you: stop shouting */
+.leadbtn--on { background: var(--brass-dim); border-color: var(--brass);
+  color: #1b1a17; animation: none; }
+
+/* the plot sizes itself to whatever height is going and keeps 10:8; the label
+   strips are in the same grid tracks, so they line up without any arithmetic */
+.mapboard { display: grid; grid-template-columns: 20px auto; grid-template-rows: 17px auto;
+  gap: 2px; justify-content: center; }
+.mapboard__corner { grid-column: 1; grid-row: 1; }
+.mapboard__cols { grid-column: 2; grid-row: 1; display: grid; grid-template-columns: repeat(10, 1fr); }
+.mapboard__rows { grid-column: 1; grid-row: 2; display: grid; grid-template-rows: repeat(8, 1fr); }
+/* A B C down the top and 1..8 down the side. On the dark bench brass was
+   plenty; on chart paper it disappeared, so each one gets a small dark chip. */
+.mapboard__lab { display: grid; place-items: center; font-family: var(--sans);
+  font-size: .68rem; font-weight: 800; color: #ffdc9a; letter-spacing: .06em; }
+.mapboard__lab > span, .mapboard__lab { border-radius: 4px; }
+.mapboard__cols .mapboard__lab, .mapboard__rows .mapboard__lab {
+  background: rgba(18,15,10,.72); margin: 1px; }
+.mapboard__plot { grid-column: 2; grid-row: 2; position: relative;
+  aspect-ratio: 10 / 8; height: min(58vh, 620px); width: auto; max-width: 100%;
+  border-radius: 4px; overflow: hidden;
+  box-shadow: 0 0 0 1.5px rgba(74,58,28,.75), 0 18px 34px rgba(0,0,0,.55); }
+.mapboard__art, .mapart { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.mapgrid { position: absolute; inset: 0; display: grid; }
+
+.mapcell {
+  position: relative; border: none; background: none; cursor: pointer; padding: 0;
+  display: grid; place-items: center; gap: 0; min-width: 0; overflow: hidden;
+  font-family: var(--sans); color: var(--ink);
+}
+.mapcell:hover { background: rgba(255,255,255,.30); box-shadow: inset 0 0 0 1.5px rgba(74,65,48,.55); }
+.mapcell:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+.mapcell__coord { font-size: .6rem; font-weight: 700; color: rgba(74,65,48,.0); letter-spacing: .04em; }
+.mapcell:hover .mapcell__coord { color: rgba(74,65,48,.72); }
+.mapcell__pin { font-size: 15px; line-height: 1; filter: drop-shadow(0 1px 1px rgba(255,255,255,.9)); }
+.mapcell__name { font-size: .52rem; font-weight: 700; line-height: 1.08; text-align: center;
+  max-width: 100%; overflow-wrap: normal; word-break: keep-all; color: #3d3527;
+  text-shadow: 0 1px 0 rgba(255,255,255,.9), 0 0 3px rgba(255,255,255,.95); }
+.mapcell--place { background: rgba(255,248,222,.42); box-shadow: inset 0 0 0 1.5px rgba(150,112,48,.75); }
+.mapcell--place:hover { background: rgba(255,252,236,.75); box-shadow: inset 0 0 0 2px rgba(120,88,32,.95); }
+.mapcell--done { opacity: .62; }
+.mapcell--done:hover { background: rgba(255,255,255,.3); }
+.mapcell--town { cursor: default; background: rgba(255,248,222,.3); }
+.mapcell--town:hover { box-shadow: none; }
+
+.mapkey { text-align: center; font-family: var(--serif); font-size: .82rem;
+  color: var(--text-dim); font-style: italic; margin-top: 10px; }
+.mapkey__n { font-style: normal; font-weight: 700; color: var(--paper); }
+
+/* ---------------- the modal ---------------- */
+#modal:empty { display: none; }
+.scrim {
+  position: fixed; inset: 0; z-index: 400;
+  display: grid; place-items: center; padding: 22px;
+  background: rgba(10,9,7,.66);
+  backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+}
+/* only on the way in — a re-render must not replay it */
+.scrim.is-new { animation: scrimIn .16s ease-out; }
+@keyframes scrimIn { from { opacity: 0; } }
+.modal {
+  width: min(400px, 100%); max-height: 88vh; overflow-y: auto; text-align: center;
+  padding: 20px 22px 18px; border-radius: 14px;
+  background: linear-gradient(#2f2a1e, #241f18);
+  border: 1px solid var(--brass-dim);
+  box-shadow: 0 28px 60px rgba(0,0,0,.7), 0 0 0 1px rgba(0,0,0,.5);
+}
+.modal.is-new { animation: modalIn .18s cubic-bezier(.2,.9,.3,1.2); }
+@keyframes modalIn { from { opacity: 0; transform: translateY(10px) scale(.97); } }
+.modal--good { border-color: #6d8a4c; }
+.modal--bad  { border-color: #9a4f45; }
+.modal--warn { border-color: #9c7736; }
+.modal__face { font-size: 46px; line-height: 1; margin-bottom: 4px; }
+.modal__art { display: inline-grid; place-items: center; padding: 7px; margin-bottom: 10px;
+  background: var(--paper-3); border: 1px solid #cfc3a4; border-radius: 8px; }
+.modal__arts { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-bottom: 10px; }
+.modal__artone { display: inline-grid; place-items: center; padding: 5px;
+  background: var(--paper-3); border: 1px solid #cfc3a4; border-radius: 7px; }
+/* Leaves out of Hester's book, drawn as loose paper: a slight tilt each, and
+   the line plate rather than the colour one, because that is what is printed
+   on a page. */
+.modal__leaflab { font-family: var(--sans); font-size: .62rem; font-weight: 800;
+  letter-spacing: .09em; text-transform: uppercase; color: var(--brass);
+  margin-bottom: 6px; }
+.modal__leaves { display: flex; flex-wrap: wrap; justify-content: center;
+  gap: 5px; margin-bottom: 12px; }
+.modal__leaf { display: inline-grid; place-items: center; padding: 5px 4px 8px;
+  background: var(--paper); border: 1px solid #cabfa2; border-radius: 2px;
+  box-shadow: 1px 2px 0 rgba(0,0,0,.3); }
+.modal__leaf:nth-child(odd)  { transform: rotate(-1.6deg); }
+.modal__leaf:nth-child(even) { transform: rotate(1.4deg); }
+.modal__leaf .plate--art { max-width: 100%; max-height: 100%; }
+.modal__leafmore { align-self: center; font-family: var(--sans); font-size: .78rem;
+  font-weight: 800; color: var(--brass); padding: 0 4px; }
+
+.modal__title { font-family: var(--serif); font-size: 1.35rem; color: var(--paper); line-height: 1.2; }
+.modal--good .modal__title { color: #d3e6b4; }
+.modal--bad  .modal__title { color: #f2c4bd; }
+.modal--warn .modal__title { color: #f0d5a0; }
+.modal__sub { font-family: var(--serif); font-style: italic; font-size: .88rem;
+  color: var(--brass); margin-top: 2px; }
+.modal__body { font-family: var(--serif); font-size: .98rem; line-height: 1.55;
+  color: var(--text); margin-top: 9px; }
+.modal__cta { max-width: 220px; margin: 16px auto 0; }
+
+/* ---- turning a page ----
+   A snapshot of the leaf you are leaving, swung on the spine over the spread
+   that is already rendered underneath. Decoration only: interrupt it any time
+   and the book is still on the right page. */
+.turning {
+  position: absolute; top: 0; bottom: 0; width: calc(50% - 7px);
+  z-index: 5; pointer-events: none; backface-visibility: hidden;
+  border-radius: 5px; overflow: hidden;
+  box-shadow: 0 0 28px rgba(60,46,20,.28);
+}
+.turning > .leaf { width: 100%; height: 100%; }
+.turning__shade { position: absolute; inset: 0; background: rgba(74,58,28,0); }
+.turning--fwd  { right: 0; transform-origin: left center;  animation: turnFwd  .44s cubic-bezier(.42,0,.35,1) forwards; }
+.turning--back { left: 0;  transform-origin: right center; animation: turnBack .44s cubic-bezier(.42,0,.35,1) forwards; }
+.turning--fwd .turning__shade  { animation: shade .44s ease-in forwards; }
+.turning--back .turning__shade { animation: shade .44s ease-in forwards; }
+@keyframes turnFwd  { from { transform: rotateY(0deg); }   to { transform: rotateY(-170deg); } }
+@keyframes turnBack { from { transform: rotateY(0deg); }   to { transform: rotateY(170deg); } }
+@keyframes shade    { from { background: rgba(74,58,28,0); } to { background: rgba(74,58,28,.5); } }
+
+/* ---------------- how to play ---------------- */
+.howto { list-style: none; counter-reset: howto; display: grid; gap: 8px;
+  text-align: left; margin: 14px 0 4px; }
+.howto__step { counter-increment: howto; display: flex; gap: 10px; align-items: flex-start; }
+.howto__n { flex: 0 0 auto; width: 22px; height: 22px; display: grid; place-items: center;
+  border-radius: 50%; background: var(--brass-dim); color: #1b1a17;
+  font-family: var(--sans); font-size: .74rem; font-weight: 900; }
+.howto__n::before { content: counter(howto); }
+.howto__t { font-family: var(--serif); font-size: .95rem; line-height: 1.45; color: var(--text); }
+.modal__foot { margin-top: 14px; padding-top: 11px; border-top: 1px solid var(--line);
+  font-size: .82rem; line-height: 1.5; color: var(--text-dim); text-align: left; }
+
+/* what she changed, on the map */
+/* What she changed overnight — floated bottom-left, for the same reason as
+   everything else on this chart: the squares stay where they were. */
+.changed { position: absolute; z-index: 6; left: 0; bottom: 46px; width: min(320px, 46%);
+  background: rgba(18,15,10,.9); box-shadow: 0 14px 34px rgba(0,0,0,.5);
+  backdrop-filter: blur(2px);
+  border: 1px solid rgba(196,154,78,.4); border-radius: 10px;
+  background: rgba(196,154,78,.09); padding: 9px 11px; margin-bottom: 10px; }
+.changed__title { font-family: var(--sans); font-size: .66rem; font-weight: 800;
+  letter-spacing: .12em; text-transform: uppercase; color: #e2b760; margin-bottom: 6px; }
+.changed__row { font-size: .85rem; line-height: 1.45; color: var(--text); }
+.changed__row + .changed__row { margin-top: 4px; }
+.changed__cell { font-family: var(--sans); font-weight: 800; color: var(--brass);
+  margin-right: 4px; }
+
+/* ---------------- recipes, handovers, evenings, shut places ---------------- */
+/* A recipe is two or three requests in one visit. The checklist IS the
+   interface: a filled step shows the pot you filled it with. */
+.steps { list-style: none; margin: 10px 0 2px; padding: 0; flex: 0 0 auto; }
+.steps__row { display: flex; align-items: flex-start; gap: 9px; padding: 7px 9px;
+  border: 1px solid var(--line); border-radius: 9px; background: rgba(0,0,0,.18); }
+.steps__row + .steps__row { margin-top: 6px; }
+.steps__tick { flex: 0 0 auto; width: 21px; height: 21px; display: grid; place-items: center;
+  border-radius: 50%; border: 1px solid var(--brass-dim); color: var(--brass);
+  font-family: var(--sans); font-size: .72rem; font-weight: 800; }
+.steps__what { font-size: .86rem; line-height: 1.35; color: var(--text); }
+.steps__row--done { border-color: rgba(122,168,116,.5); background: rgba(122,168,116,.12); }
+.steps__row--done .steps__tick { background: #7aa874; border-color: #7aa874; color: #14210f; }
+.steps__row--done .steps__what { font-family: var(--serif); color: #cfe3c8; }
+
+/* somebody handing YOU something */
+.handover { margin: 10px 0 2px; padding: 9px 10px; flex: 0 0 auto;
+  border: 1px dashed var(--brass-dim); border-radius: 10px; background: rgba(196,154,78,.08); }
+.handover__row { display: flex; align-items: center; gap: 9px; }
+.handover__row + .handover__row { margin-top: 7px; padding-top: 7px;
+  border-top: 1px solid rgba(196,154,78,.18); }
+.handover__art { flex: 0 0 auto; width: 34px; display: grid; place-items: center;
+  font-size: 1.1rem; color: var(--brass); }
+.handover__what { font-family: var(--serif); font-size: .9rem; color: #f3e6c4; }
+
+/* the evening: a scene, sometimes a letter, sometimes a choice */
+.dayend__title2 { font-family: var(--serif); font-size: 1.05rem; color: #e2b760;
+  margin-bottom: 6px; }
+.dayend__coda { font-family: var(--serif); font-size: .86rem; line-height: 1.5; color: var(--text-dim);
+  border-left: 2px solid var(--brass-dim); padding-left: 10px; margin-top: 8px; text-align: left; }
+/* the rail's evening card is gone; the evening is full-screen in story.js and
+   dressed in .pro / .eve2 below. .evebtn survives because the choice buttons do. */
+.evebtn { width: 100%; text-align: left; padding: 11px 13px; border-radius: 10px;
+  border: 1px solid var(--brass-dim); background: var(--wood-3); color: var(--paper);
+  font-family: var(--serif); font-size: .95rem; cursor: pointer; }
+.evebtn:hover { border-color: #e2b760; background: #35301f; }
+
+/* a place you have found and cannot get into */
+/* Down in the footer with the tally, not above the chart: it is a standing
+   fact about the map, and above the squares it moved them. */
+.shuttip { grid-column: 1; justify-self: start; margin: 0;
+  font-size: .78rem; color: var(--text-dim); }
+.shuttip__n { color: var(--brass); font-weight: 800; font-family: var(--sans); }
+.shut__x { margin-left: auto; }
+.bookbtn--tiny { padding: 3px 8px; font-size: .74rem; margin: 3px 4px 0 0; }
+/* A place you have found and cannot get into is a card ABOUT the chart, not a
+   row in it. In the flow it pushed the squares down by its own height —
+   picture, reason, drop zone and all — so the map jumped every time you asked
+   what a shut place wanted. It floats over the right of the chart instead, the
+   way the leads float over the left, and scrolls inside itself if it is tall. */
+.shut { position: absolute; z-index: 7; top: 52px; right: 0;
+  width: min(360px, 50%); max-height: calc(100% - 104px); overflow-y: auto;
+  border: 1px solid rgba(196,154,78,.5); border-radius: 10px; padding: 10px 11px 11px;
+  background: rgba(18,15,10,.92); box-shadow: 0 14px 34px rgba(0,0,0,.5);
+  backdrop-filter: blur(2px); }
+.shut__head { display: flex; align-items: center; gap: 8px; }
+.shut__pin { font-size: 1.05rem; }
+.shut__name { font-family: var(--serif); font-size: .96rem; color: var(--paper); font-weight: 600; }
+.shut__why { font-size: .84rem; line-height: 1.45; color: var(--text-dim); margin: 5px 0 8px; }
+.shut__have { font-size: .78rem; color: var(--text-dim); margin-top: 7px; }
+.shut__havelab { color: var(--brass); font-weight: 700; }
+.give--shut { margin: 0; }
+.shut .bookbtn { margin-top: 8px; }
+.mapcell--shut { opacity: .78; }
+.mapcell--shut .mapcell__pin { filter: grayscale(.7); }
+.mapcell--shut::after { content: "shut"; position: absolute; bottom: 1px; left: 0; right: 0;
+  text-align: center; font-size: .46rem; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--brass); }
+
+/* ---------------- the prologue ---------------- */
+#story:empty { display: none; }
+body.is-story #board, body.is-story #topbar, body.is-story #tabs { visibility: hidden; }
+/* The story sits on the same ground the game's front door does: the shop,
+   dimmed right down, so opening a story panel feels like the room going quiet
+   rather than a dialog box arriving. */
+.pro { position: fixed; inset: 0; z-index: 300; display: grid; place-items: center;
+  padding: 26px;
+  background-image: radial-gradient(90% 70% at 50% 0%, rgba(30,26,19,1), rgba(15,13,10,.5) 72%),
+                    url("../art/asset_start_backdrop.webp");
+  background-size: cover; background-position: center; }
+
+/* Picture one side, words the other, and the side swaps every page. Nothing
+   is a card any more — no panel, no border — because the picture IS the page. */
+.pro__card { width: min(1360px, 100%); max-height: 94vh;
+  display: grid; gap: clamp(20px, 3vw, 46px); align-items: center;
+  grid-template-columns: minmax(0, 1.25fr) minmax(300px, .75fr);
+  padding: 0; border: none; background: none; box-shadow: none;
+  animation: proIn .4s cubic-bezier(.2,.9,.3,1); }
+/* Flipping the picture to the other side has to flip the column widths too,
+   or the picture lands in the narrow column and shrinks. */
+.pro__card--flip { grid-template-columns: minmax(300px, .75fr) minmax(0, 1.25fr); }
+.pro__card--flip .pro__scene { order: 2; }
+.pro__card--solo { grid-template-columns: minmax(0, 660px); justify-content: center; }
+.pro__body { min-width: 0; max-height: 94vh; overflow-y: auto;
+  scrollbar-width: thin; padding: 2px 2px 2px 0; }
+.pro__card--solo .pro__body { padding: 30px 34px 26px; border-radius: 14px;
+  border: 1px solid var(--brass-dim); background: linear-gradient(#2a2416, #1d1810);
+  box-shadow: 0 30px 80px rgba(0,0,0,.7); }
+@keyframes proIn { from { opacity: 0; transform: translateY(14px); } }
+.pro__pips { display: flex; gap: 5px; margin-bottom: 18px; }
+.pro__pips .pip { width: 26px; height: 3px; border: none; border-radius: 2px;
+  transform: none; background: rgba(226,183,96,.22); }
+.pro__pips .pip--done { background: rgba(226,183,96,.55); }
+.pro__pips .pip--now { background: #ffd484; }
+.pro__title { font-family: var(--serif); font-size: 1.7rem; color: var(--paper);
+  font-weight: 600; letter-spacing: .01em; margin-bottom: 14px; }
+.pro__p { font-family: var(--serif); font-size: 1.03rem; line-height: 1.68; color: #e8dcc0;
+  margin-bottom: 13px; white-space: pre-wrap; }
+.pro__quote { margin: 16px 0 4px; border-left: 2px solid var(--brass-dim); padding-left: 13px; }
+.pro__quoteline { font-family: var(--serif); font-style: italic; color: #e2b760; line-height: 1.55; }
+.pro__quotewho { font-size: .72rem; color: var(--text-dim); margin-top: 4px; }
+.pro__acts { display: flex; align-items: center; gap: 14px; margin-top: 22px; }
+.pro__acts .primary { margin-left: auto; width: auto; min-width: 190px; }
+.pro__skip { display: block; margin: 14px 0 0; font-size: .74rem; opacity: .65; }
+.pro__kicker { font-family: var(--sans); font-size: .64rem; font-weight: 800;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--brass-dim); margin-bottom: 10px; }
+.pro__prompt { font-family: var(--serif); font-size: .98rem; line-height: 1.6;
+  color: #d8caa6; margin: 16px 0 12px; }
+
+/* the evening, in the same clothes as the opening */
+.eve2__letter { margin: 18px 0 8px; padding: 16px 18px; border-radius: 4px;
+  border: 1px solid rgba(226,183,96,.35); border-left: 3px solid var(--brass);
+  background: var(--paper); box-shadow: 0 10px 28px rgba(0,0,0,.45);
+  transform: rotate(-.35deg); }
+.eve2__letterbody { font-family: var(--serif); font-style: italic; font-size: 1rem;
+  line-height: 1.64; color: #3a3226; white-space: pre-wrap; }
+.eve2__egg { margin: 18px 0 4px; padding: 15px 16px; border-radius: 11px;
+  border: 1px solid rgba(226,183,96,.42); background: rgba(226,183,96,.05); }
+.eve2__eggtitle { font-family: var(--sans); font-size: .64rem; font-weight: 800;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--brass); margin-bottom: 6px; }
+/* what it is doing tonight, before what it wants */
+.eve2__eggasks { font-family: var(--serif); font-size: .96rem; line-height: 1.55;
+  color: var(--text); margin-bottom: 8px; }
+.eve2__eggwhat { font-family: var(--serif); font-size: 1.08rem; color: #fff4dc; margin-bottom: 12px; }
+.eve2__none { font-family: var(--serif); font-size: .95rem; color: var(--text-dim); }
+.eve2__pots { display: flex; flex-wrap: wrap; gap: 7px; max-height: 210px; overflow-y: auto; }
+.eve2__pot { display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--serif); font-size: .92rem; padding: 6px 12px 6px 7px; border-radius: 9px;
+  border: 1px solid var(--brass-dim); background: #2c2618; color: var(--paper); cursor: pointer; }
+.eve2__thumb { width: 30px; height: 30px; display: block; flex: 0 0 auto; }
+.eve2__thumb svg, .eve2__thumb img { width: 30px; height: 30px; display: block; }
+.eve2__pot:hover { border-color: #e2b760; background: #38311e; color: #fff4dc; }
+.eve2__opts { display: flex; flex-direction: column; gap: 9px; }
+.eve2__plate { display: grid; place-items: center; gap: 4px; margin: 4px 0 16px; }
+.eve2__platename { font-family: var(--sans); font-size: .64rem; font-weight: 800;
+  letter-spacing: .13em; text-transform: uppercase; color: var(--brass-dim); }
+
+/* who a thing is for — half of every effect request */
+.leaf__who { margin-left: 8px; padding: 1px 7px; border-radius: 9px;
+  font-family: var(--sans); font-size: .6rem; font-weight: 800; letter-spacing: .07em;
+  text-transform: uppercase; vertical-align: 1px; }
+.leaf__who--human { background: rgba(120,100,60,.18); color: #6b5c38; }
+.leaf__who--dragon { background: rgba(150,70,40,.18);  color: #8d4a26; }
+.leaf__who--both  { background: rgba(70,110,70,.18);  color: #3f6b40; }
+.vis__for { display: inline-block; margin: 2px 0 4px; padding: 2px 9px; border-radius: 10px;
+  background: rgba(226,140,96,.16); border: 1px solid rgba(226,140,96,.45);
+  color: #e8a071; font-family: var(--sans); font-size: .62rem; font-weight: 800;
+  letter-spacing: .08em; text-transform: uppercase; }
+.steps__who { margin-left: auto; align-self: center; padding: 1px 7px; border-radius: 9px;
+  background: rgba(226,140,96,.15); color: #d9915f; font-family: var(--sans);
+  font-size: .58rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+
+/* ---------------- the clues drawer ---------------- */
+.drawertab { position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  z-index: 4; display: flex; align-items: center; gap: 8px;
+  padding: 7px 14px 8px; border-radius: 0 0 12px 12px;
+  border: 1px solid var(--line); border-top: none; background: var(--wood-3);
+  color: var(--paper); font-family: var(--sans); font-size: .8rem; font-weight: 700;
+  cursor: pointer; box-shadow: 0 6px 14px rgba(0,0,0,.35); }
+.drawertab:hover { background: #35301f; border-color: var(--brass-dim); }
+.drawertab--open { background: #3d3520; border-color: var(--brass-dim); }
+.drawertab__pull { color: var(--brass); }
+.drawertab__n { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  display: grid; place-items: center; background: #ffd484; color: #241d0c;
+  font-size: .68rem; font-weight: 900; }
+
+/* Not a grid of cards any more: a drawer with loose paper in it. */
+.drawer { position: relative; width: 100%; height: 100%; overflow: hidden;
+  padding: 7px; }
+
+/* a folded note lying in a drawer */
+.note { position: relative; text-align: left; cursor: pointer;
+  display: flex; flex-direction: column; gap: 3px; min-height: 132px;
+  padding: 11px 12px 30px; border: 1px solid #cabfa2; border-radius: 2px;
+  background: var(--paper); color: #3a3226; font-family: var(--serif);
+  box-shadow: 2px 3px 0 rgba(0,0,0,.28); transition: transform .1s, box-shadow .1s; }
+.note:hover { transform: translate(-1px, -2px); box-shadow: 3px 5px 0 rgba(0,0,0,.32); }
+.note__title { font-size: .92rem; font-weight: 700; line-height: 1.25; }
+.note__by { font-size: .7rem; font-style: italic; color: #7c7160; }
+.note__peek { font-size: .78rem; line-height: 1.4; color: #5b5346; margin-top: 3px;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.note__foot { position: absolute; left: 12px; right: 12px; bottom: 9px; }
+.note__has { font-family: var(--sans); font-size: .6rem; letter-spacing: .07em;
+  text-transform: uppercase; font-weight: 800; color: #8a6d2f; }
+.note__done { font-family: var(--sans); font-size: .6rem; letter-spacing: .07em;
+  text-transform: uppercase; font-weight: 800; color: #4d7a46; }
+/* the paper each kind is written on */
+.note--letter  { background: #f6efdc; }
+.note--journal { background: #efe6cb; }
+.note--handbill{ background: #f3ead2; border-style: double; border-width: 3px; }
+.note--sketch  { background: #f1ecdd; }
+.note--ledger  { background: #eee9d3;
+  background-image: repeating-linear-gradient(transparent 0 21px, rgba(120,100,60,.16) 21px 22px); }
+/* finished with: corner turned down and the whole thing gone quiet */
+.note--done { opacity: .68; box-shadow: 1px 2px 0 rgba(0,0,0,.2); }
+.note--done::after { content: ""; position: absolute; right: 0; bottom: 0;
+  border: 11px solid transparent; border-right-color: #d8cdb0; border-bottom-color: #d8cdb0; }
+.note--done .note__title { text-decoration: line-through; text-decoration-thickness: 1px;
+  text-decoration-color: rgba(90,80,60,.45); }
+
+/* an opened note: an actual sheet, on top of everything, shoveable */
+/* Every note is a fixed shape, so a painted sheet of paper can sit behind it
+   and line up exactly. --pw by --ph is its real size; in the drawer it is
+   drawn at a fraction of that and scaled up when you open it, which is why the
+   size is in pixels and not in percentages. Landscape 4:3 by default. */
+/* The box is the exact shape of the drawn sheet that goes behind it, so the
+   picture is never stretched: landscape sheets are 639x475 (1.345), portrait
+   ones 896x1200 (.747). The painting itself is set from JS, per note, because
+   every note has its own — see Art.note() in desk.js. A note with no painting
+   falls back to plain paper and still fits. */
+.paper { --pw: 560px; --ph: 416px;
+  width: var(--pw); height: var(--ph);
+  display: flex; flex-direction: column; color: #332c21;
+  border: 1px solid #b9ad8d; border-radius: 3px;
+  background: var(--paper) center/100% 100% no-repeat; }
+.paper--letter,
+.paper--handbill { --pw: 450px; --ph: 603px; }
+/* a painted sheet brings its own edges with it */
+.paper.paper--art { border-color: transparent; background-color: transparent; }
+
+/* --fs shrinks every word on the sheet at once. The writing area left by a
+   painted margin is whatever it is, and some notes are longer than others, so
+   desk.js measures and turns this down until the words fit inside the paper
+   rather than spilling over the drawn edge. */
+.paper { --pl: .13; --pr: .12; --pt: .11; --pb: .12; --fs: 1; }
+.paper__body { flex: 1 1 auto; min-height: 0; overflow: hidden;
+  font-size: calc(1rem * var(--fs));
+  padding: calc(var(--ph) * var(--pt)) calc(var(--pw) * var(--pr))
+           calc(var(--ph) * var(--pb)) calc(var(--pw) * var(--pl));
+  display: flex; flex-direction: column; justify-content: center; }
+.paper__body.is-tall { justify-content: flex-start; }
+
+/* Where the writing goes on each drawn sheet.
+ * Every painting has its own margins — a leather cover down the left, a torn
+ * edge, a frame — so the text is inset per note rather than per kind. The four
+ * numbers are fractions of the sheet: left, right, top, bottom, measured off
+ * the artwork itself and then given a little air. Tune one line to move one
+ * note's words; nothing else depends on them.
+ */
+.paper--p_alice1 { --pl: 0.143; --pr: 0.133; --pt: 0.115; --pb: 0.116; }
+.paper--p_alice2 { --pl: 0.160; --pr: 0.144; --pt: 0.136; --pb: 0.132; }
+.paper--p_barrowmap { --pl: 0.117; --pr: 0.094; --pt: 0.090; --pb: 0.090; }
+.paper--p_bill { --pl: 0.286; --pr: 0.283; --pt: 0.200; --pb: 0.374; }
+.paper--p_bramwell { --pl: 0.141; --pr: 0.130; --pt: 0.124; --pb: 0.116; }
+.paper--p_gorge { --pl: 0.128; --pr: 0.078; --pt: 0.084; --pb: 0.103; }
+.paper--p_hester1 { --pl: 0.192; --pr: 0.181; --pt: 0.153; --pb: 0.196; }
+.paper--p_hester2 { --pl: 0.219; --pr: 0.147; --pt: 0.132; --pb: 0.187; }
+.paper--p_hester3 { --pl: 0.236; --pr: 0.175; --pt: 0.177; --pb: 0.193; }
+.paper--p_hester4 { --pl: 0.321; --pr: 0.102; --pt: 0.116; --pb: 0.132; }
+.paper--p_inventory { --pl: 0.335; --pr: 0.217; --pt: 0.132; --pb: 0.198; }
+.paper--p_muster { --pl: 0.132; --pr: 0.100; --pt: 0.104; --pb: 0.132; }
+.paper--p_sketch1 { --pl: 0.141; --pr: 0.115; --pt: 0.107; --pb: 0.109; }
+.paper--p_wanted { --pl: 0.127; --pr: 0.112; --pt: 0.110; --pb: 0.114; }
+
+.paper__body > * { flex: 0 0 auto; }
+.paper__title { font-family: var(--serif); font-size: 1.2em; font-weight: 700; line-height: 1.25; }
+.paper__by { font-family: var(--serif); font-style: italic; font-size: .82em;
+  color: #7c7160; margin: 2px 0 12px; }
+.paper__p { font-family: var(--serif); font-size: 1em; line-height: 1.62; margin-bottom: 11px;
+  white-space: pre-wrap; }
+.paper__got { margin-top: 14px; padding-top: 10px; border-top: 1px dashed rgba(120,100,60,.4);
+  font-family: var(--sans); font-size: .8em; line-height: 1.5; color: #5b5346; }
+.paper__gotlab { font-weight: 800; color: #8a6d2f; }
+
+/* A handbill is printed and shouty, a ledger is typed in columns, a letter and
+   a sketch are somebody's handwriting, and the old notebook is set in the same
+   serif as the book it came out of. */
+.paper--handbill .paper__body { text-align: center; }
+.paper--handbill .paper__title { font-family: var(--poster); font-size: 1.7em;
+  letter-spacing: .04em; text-transform: uppercase; }
+.paper--handbill .paper__p { font-family: var(--poster); font-size: 1.12em;
+  font-weight: 400; letter-spacing: .03em; line-height: 1.5; }
+
+.paper--ledger .paper__title,
+.paper--ledger .paper__p { font-family: var(--type); }
+.paper--ledger .paper__title { font-size: 1.02em; font-weight: 700; }
+.paper--ledger .paper__p { font-size: .92em; line-height: 1.7; }
+
+.paper--letter .paper__title,
+.paper--letter .paper__p,
+.paper--sketch .paper__title,
+.paper--sketch .paper__p { font-family: var(--hand); }
+.paper--letter .paper__p, .paper--sketch .paper__p { font-size: 1.04em; line-height: 1.66; }
+.paper--letter .paper__title, .paper--sketch .paper__title { font-size: 1.24em; }
+
+.paper--journal .paper__p { font-size: .96em; }
+
+/* ---------------- a note lying in the drawer ----------------
+ * Every note is the real sheet, drawn small. It scales about its own centre,
+ * so opening one does not send it skidding across the drawer.
+ */
+.note2 { --k: .34; --rot: 0deg;
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%) rotate(var(--rot)) scale(var(--k));
+  transform-origin: center center;
+  /* No drop shadow. The sheets are cut out with transparent edges, so a shadow
+     is cast by the rectangle rather than by the paper and sits visibly off the
+     torn edge. The painting already has its own shading. */
+  cursor: grab; touch-action: none; user-select: none;
+  transition: transform .3s cubic-bezier(.22,.9,.28,1.05); }
+.note2:hover { --rot: 0deg; z-index: 55 !important; }
+.note2--up { --k: 1; --rot: 0deg; cursor: grab; }
+.note2--moving { transition: none; cursor: grabbing; }
+.note2.is-coached { outline: 3px solid #ffd484; outline-offset: 3px; }
+
+/* Read, and the way to say you have not finished with it after all.
+   Everything inside a note is scaled with the note, so at a third size a
+   30px tick would be ten pixels of nothing. In the pile it counter-scales
+   — dividing by --k cancels the shrink — so it stays a plain, obvious stamp
+   whatever size the paper is. */
+.paper__read { position: absolute;
+  left: calc(var(--pw) * var(--pl) * .5); bottom: calc(var(--ph) * var(--pb) * .4);
+  width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%;
+  border: 1px solid #7d9a5c; background: #dfeccb; color: #3d5a24;
+  font-size: 1rem; font-weight: 900; cursor: pointer;
+  transform-origin: bottom left; }
+.paper__read:hover { background: #cfe3b2; border-color: #5f7a4a; }
+.note2:not(.note2--up) .paper__read {
+  transform: scale(calc(.85 / var(--k)));
+  border-width: 2px; box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+.paper__done { position: absolute;
+  right: calc(var(--pw) * var(--pr) * .5); bottom: calc(var(--ph) * var(--pb) * .4);
+  transform-origin: bottom right;
+  font-family: var(--sans); font-size: .62rem; font-weight: 800; letter-spacing: .1em;
+  text-transform: uppercase; color: #8a8271; }
+.note2:not(.note2--up) .paper__done { transform: scale(calc(.62 / var(--k)));
+  color: rgba(120,112,96,.8); }
+/* Paper is paper: never faded. A note you have taken everything out of says so
+   in words, in the corner, and that is enough. */
+
+@media (max-width: 420px) {
+  .drawer__grid { grid-template-columns: 1fr; }
+  .drawer { padding: 7px; }
+}
+
+/* ---------------- the walkthrough ---------------- */
+/* It sits in the right rail, in the slot the old day-log held: under the
+   counter, above Book and Map. Nothing is behind it, so it can be as loud as
+   it likes — and it is meant to be loud, it is the only thing on screen
+   telling a first-timer what to do. */
+.coach {
+  flex: 0 0 auto; margin: 12px 0 2px; padding: 11px 12px 10px;
+  border-radius: 12px; border: 1px solid var(--brass);
+  background: linear-gradient(#4a3d21, #332b18);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.35), 0 8px 22px rgba(0,0,0,.45),
+              0 0 22px rgba(196,154,78,.16);
+  animation: coachGlow 2.6s ease-in-out infinite;
+}
+.coach--turn { animation: coachIn .34s cubic-bezier(.2,.9,.3,1.1),
+                          coachGlow 2.6s ease-in-out .34s infinite; }
+@keyframes coachIn { from { opacity: 0; transform: translateY(10px) scale(.97); } }
+@keyframes coachGlow {
+  50% { box-shadow: 0 0 0 1px rgba(0,0,0,.35), 0 8px 22px rgba(0,0,0,.45),
+                    0 0 30px rgba(226,183,96,.4); border-color: #e2b760; }
+}
+
+.coach__head { display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; margin-bottom: 9px; }
+.coach__title { font-family: var(--sans); font-size: .64rem; font-weight: 800;
+  letter-spacing: .14em; text-transform: uppercase; color: #e2b760; }
+.coach__pips { display: flex; gap: 4px; }
+.coach__pips .pip { width: 7px; height: 7px; border: none; border-radius: 50%;
+  transform: none; background: rgba(226,183,96,.22); }
+.coach__pips .pip--done { background: rgba(226,183,96,.6); }
+.coach__pips .pip--now  { background: #ffd484; box-shadow: 0 0 7px rgba(255,212,132,.85); }
+
+.coach__step { display: flex; align-items: flex-start; gap: 9px; }
+.coach__step + .coach__step { margin-top: 8px; padding-top: 8px;
+  border-top: 1px dashed rgba(226,183,96,.22); }
+.coach__n { flex: 0 0 auto; width: 23px; height: 23px; display: grid; place-items: center;
+  border-radius: 50%; font-family: var(--sans); font-size: .78rem; font-weight: 900; }
+.coach__text { font-family: var(--serif); line-height: 1.35; }
+
+/* the one you are on, shouting; the one after it, murmuring */
+.coach__step--now .coach__n { background: #ffd484; color: #241d0c;
+  box-shadow: 0 0 12px rgba(255,212,132,.55); }
+.coach__step--now .coach__text { font-size: 1rem; color: #fff4dc; font-weight: 600; }
+.coach__step--next .coach__n { background: none; color: rgba(226,183,96,.75);
+  border: 1px solid rgba(226,183,96,.45); font-weight: 700; }
+.coach__step--next .coach__text { font-size: .84rem; color: rgba(243,230,196,.62); }
+
+.coach__of { font-family: var(--sans); font-size: .62rem; letter-spacing: .05em;
+  text-transform: uppercase; color: rgba(226,183,96,.72); margin-top: 9px; }
+
+/* and the shop flashes the exact control the step wants pressed. One class,
+   `is-coached`, put on by whichever region owns that element. */
+.is-coached {
+  position: relative; z-index: 3;
+  border-radius: 10px;
+  animation: coachFlash 1.15s ease-in-out infinite;
+}
+@keyframes coachFlash {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,212,132,0),    0 0 0 1px rgba(226,183,96,.45); }
+  50%      { box-shadow: 0 0 0 5px rgba(255,212,132,.20), 0 0 0 2px #ffd484,
+                         0 0 16px rgba(255,212,132,.5); }
+}
+
+/* buttons and chips brighten as well as ring, or the ring reads as decoration */
+.tool.is-coached, .act.is-coached, .chip.is-coached, .leaf__claim.is-coached {
+  animation: coachFlash 1.15s ease-in-out infinite, coachLift 1.15s ease-in-out infinite;
+}
+@keyframes coachLift { 50% { filter: brightness(1.28); } }
+
+/* the customer's own words: a ring round a paragraph looks like an error, so
+   this one warms the text and lays a wash behind it instead */
+.vis__line.is-coached {
+  animation: coachRead 1.15s ease-in-out infinite;
+  border-radius: 8px; padding: 6px 8px; margin: 0 -8px;
+}
+@keyframes coachRead {
+  0%, 100% { background: rgba(226,183,96,.05); color: var(--text); }
+  50%      { background: rgba(255,212,132,.16); color: #fff4dc; }
+}
+
+/* a pot is already a framed thing; flash its frame rather than adding another */
+.pot.is-coached { border-radius: 12px; }
+.searchfield.is-coached { border-radius: 10px; }
+.index__link.is-coached { border-radius: 7px; }
+
+#tabs button.is-coached { color: #ffd484; animation: coachFlash 1.15s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .coach, .coach--turn, .is-coached, #tabs button.is-coached { animation: none; }
+  .coach { border-color: #e2b760; }
+  .is-coached { box-shadow: 0 0 0 2px #ffd484; }
+}
+
+/* ---------------- the rite ---------------- */
+.modal--wide { width: min(560px, 100%); }
+body.is-riting { cursor: grabbing; }
+.runes { display: flex; justify-content: center; gap: 8px; margin: 16px 0 10px; flex-wrap: wrap; }
+.rune {
+  position: relative; width: 68px; height: 84px; display: grid; place-items: center;
+  border: 1px solid #4c4534; border-radius: 10px; cursor: grab;
+  background: linear-gradient(#3a3425, #2b2619);
+  box-shadow: 0 1px 0 rgba(255,236,190,.07) inset, 0 2px 5px rgba(0,0,0,.4);
+  touch-action: none; user-select: none;
+}
+.rune:hover { border-color: var(--brass-dim); }
+.rune--held { cursor: grabbing; border-color: var(--brass); transform: scale(1.06); z-index: 2; }
+.rune--set { border-color: #5f7a4a; background: linear-gradient(#2c3720, #232b19); cursor: default; }
+.rune__tick { position: absolute; top: -7px; right: -6px; width: 19px; height: 19px;
+  display: grid; place-items: center; border-radius: 50%;
+  background: #5f7a4a; color: #f4f8ec; font-size: .72rem; font-weight: 900; }
+.rite__count { font-family: var(--sans); font-size: .76rem; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--text-dim); }
+
+/* ---------------- drag ghost ---------------- */
+.ghost {
+  position: fixed; z-index: 9999; transform: translate(-50%,-50%) rotate(-4deg);
+  pointer-events: none; padding: 3px;
+  background: var(--paper-3); border: 1px solid var(--brass); border-radius: 6px;
+  box-shadow: 0 10px 26px rgba(0,0,0,.55); opacity: .96;
+}
+
+/* ---------------- tabs (small screens only) ---------------- */
+#tabs { display: none; flex: 0 0 auto; border-top: 1px solid var(--line); background: #1e1b15; }
+#tabs button { flex: 1; padding: 11px 4px; background: none; border: none;
+  color: var(--text-dim); font-size: .82rem; font-weight: 700; cursor: pointer; }
+#tabs button.on { color: var(--brass); box-shadow: inset 0 2px 0 var(--brass); }
+
+/* ---------------- responsive ---------------- */
+@media (max-width: 1180px) {
+  #board { grid-template-columns: 168px minmax(0,1fr) 272px; }
+  .lens { flex-basis: 240px; }
+}
+
+/* ---------------- landscape only ----------------
+ * The shop is shelves, desk and counter side by side. Stacked into a portrait
+ * phone each of those is about a third of 390px, which is not a game, so the
+ * portrait layout is not a layout at all — it is a card asking for the device
+ * to be turned. A desktop window that happens to be tall and narrow gets it
+ * too, and gets rid of it by being widened.
+ */
+/* On a short landscape phone the opening card is taller than the screen, so
+   the one place in the game that is allowed to scroll is this one. */
+#start { overflow-y: auto; }
+.start__inner { margin: 24px auto; }
+
+#turn { display: none; }
+@media (orientation: portrait) {
+  #turn { display: grid; place-items: center; position: fixed; inset: 0; z-index: 9000;
+    padding: 24px; text-align: center;
+    background: radial-gradient(90% 70% at 50% 0%, rgba(30,26,19,1), rgba(15,13,10,1) 72%); }
+  #start, #app { display: none !important; }
+  .turn__glyph { margin-bottom: 14px; animation: turnHint 2.4s ease-in-out infinite; }
+  .turn__title { font-family: var(--serif); font-size: 1.5rem; color: var(--paper);
+    font-weight: 600; margin-bottom: 8px; }
+  .turn__body { font-size: .92rem; line-height: 1.55; color: var(--text-dim);
+    max-width: 30ch; margin: 0 auto; }
+}
+@keyframes turnHint { 0%, 55%, 100% { transform: rotate(0deg); } 78% { transform: rotate(-12deg); } }
+@media (prefers-reduced-motion: reduce) { .turn__glyph { animation: none; } }
+
+@media (max-width: 860px) {
+  #board { grid-template-columns: 1fr; padding: 8px; }
+  /* On a phone there is no margin to float anything into: a panel pinned over
+     the chart would cover the whole chart. They go back into the flow, where
+     scrolling — which a phone does anyway — is the right answer. */
+  .leads, .shut, .changed { position: static; width: auto; max-height: none;
+    margin-bottom: 9px; box-shadow: none; backdrop-filter: none; }
+  .mapfoot { grid-template-columns: 1fr auto; }
+  .shuttip { grid-column: 1; }
+  .mapfoot .leadbtn { grid-column: 1; justify-self: start; }
+  .sheet--map .mapkey { grid-column: 2; }
+  #tabs { display: flex; }
+  /* one region at a time — three columns on a phone is ~120px each */
+  body.view-shelf   #desk, body.view-shelf   #visitor,
+  body.view-desk    #shelf, body.view-desk   #visitor,
+  body.view-visitor #shelf, body.view-visitor #desk { display: none; }
+  /* the book takes the whole screen and the lens sits under it, still reachable */
+  .desk__wrap { flex-direction: column; }
+  .sheet, .book { flex: 1 1 auto; min-height: 52vh; }
+  /* a phone cannot show a spread; stack the two open pages and scroll */
+  .spread { flex-direction: column; overflow-y: auto; }
+  .leaf { flex: 0 0 auto; padding-bottom: 10px; }
+  .leaf__body { overflow: visible; }
+  .leaf--left, .leaf--right { padding-left: 15px; padding-right: 15px; }
+  .spine { flex: 0 0 1px; height: 1px; width: 100%;
+    background: linear-gradient(90deg, rgba(140,116,70,0), rgba(120,98,58,.42), rgba(140,116,70,0)); }
+  .leaf--blank { display: none; }
+  .lens { flex: 0 0 auto; max-height: none; overflow: visible; }
+  /* a fixed slice on a phone; the column scrolls, so nothing has to shrink */
+  .lens__art { flex: 0 0 auto; height: 150px; max-height: none; }
+  .surface { min-height: 190px; }
+  .rack { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); }
+  .top__note, .top__weekday { display: none; }
+  #topbar { grid-template-columns: auto 1fr auto; gap: 8px; padding: 7px 9px; }
+  .msg { font-size: .8rem; padding: 4px 10px; }
+}
+
+@media (max-width: 420px) {
+  .backbtn { padding: 4px 8px; font-size: .74rem; }
+  .top__day { font-size: .92rem; }
+  .meter { font-size: .72rem; }
+  .hintbtn { padding: 3px 8px; font-size: .62rem; }
+  .sheet { padding: 10px 11px 14px; }
+  .page { gap: 9px; padding: 8px 9px; }
+  .coach { padding: 9px 10px; margin: 10px 0 2px; }
+  .coach__step--now .coach__text { font-size: .94rem; }
+  .mapboard { grid-template-columns: 15px minmax(0,1fr); grid-template-rows: 14px auto; }
+  .mapcell__name { font-size: .48rem; }
+  .mapcell__pin { font-size: 12px; }
+}
+
+/* short windows: the book keeps everything on the page by tightening up rather
+   than by scrolling */
+@media (max-height: 740px) {
+  .leaf { padding: 10px 12px 6px; }
+  .leaf__name { font-size: 1.06rem; }
+  .leaf__bin { font-size: .76rem; margin-bottom: 5px; }
+  .leaf__plateTxt { font-size: .81rem; line-height: 1.42; }
+  .leaf__useblock { padding: 6px 9px; margin-top: 7px; }
+  .leaf__useline { font-size: .88rem; }
+  .leaf__use { font-size: .78rem; line-height: 1.42; }
+  .leaf__uselab { font-size: .6rem; }
+  .leaf__tags { margin-top: 7px; }
+  .leaf__claim { padding: 7px 10px; margin-top: 8px; font-size: .78rem; }
+  .leaf__head { font-size: .95rem; margin-bottom: 6px; }
+  .book__foot { padding-top: 20px; }
+}
+
+@media (max-height: 670px) {
+  .leaf { padding: 8px 11px 5px; }
+  .leaf__plateTxt { font-size: .78rem; line-height: 1.34; }
+  .leaf__useblock { padding: 5px 8px; margin-top: 6px; }
+  .leaf__use { font-size: .75rem; line-height: 1.34; }
+  .leaf__useline { font-size: .84rem; }
+  .leaf__tags { margin-top: 6px; }
+  .leaf__claim { margin-top: 7px; }
+  .book__foot { padding-top: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+  .turning { display: none; }
+}
+
+
+/* the state timeline — a debugging tool behind the day in the top bar */
+#debug:empty { display: none; }
+.dbg { position: fixed; inset: 0; z-index: 500; display: grid; place-items: center;
+  padding: 20px; background: rgba(9,7,4,.78); }
+.dbg__card { width: min(720px, 100%); max-height: 88vh; display: flex; flex-direction: column;
+  padding: 20px 22px 18px; border-radius: 13px; border: 1px solid var(--brass-dim);
+  background: linear-gradient(#241f14, #191509); box-shadow: 0 26px 70px rgba(0,0,0,.7); }
+.dbg__head { display: flex; align-items: baseline; gap: 11px; }
+.dbg__title { font-family: var(--serif); font-size: 1.25rem; color: var(--paper); font-weight: 600; }
+.dbg__sub { font-family: var(--sans); font-size: .7rem; color: var(--text-dim); }
+.dbg__x { margin-left: auto; background: none; border: none; color: var(--text-dim);
+  font-size: 1rem; cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+.dbg__x:hover { color: var(--paper); background: rgba(255,255,255,.07); }
+.dbg__note { font-size: .76rem; line-height: 1.5; color: var(--text-dim); margin: 7px 0 12px; }
+.dbg__storage { margin: 0 0 10px; font-family: var(--sans); font-size: .62rem; letter-spacing: .04em;
+  color: #857a63; }
+.dbg__storage--bad { color: #f0d5a0; font-weight: 700; }
+.dbg__warn { margin: 8px 0 0; padding: 7px 10px; border-radius: 8px; font-size: .76rem;
+  border: 1px solid #7a5c2a; background: #322a18; color: #f0d5a0; }
+.dbg__empty { font-family: var(--serif); color: var(--text-dim); padding: 16px 0; }
+.dbg__list { flex: 1 1 auto; overflow-y: auto; padding-right: 4px; scroll-behavior: smooth; }
+.dbg__day { position: sticky; top: 0; z-index: 1; padding: 7px 2px 5px;
+  background: linear-gradient(#241f14 70%, rgba(36,31,20,0));
+  font-family: var(--sans); font-size: .62rem; font-weight: 800; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--brass); }
+.dbg__row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  margin-bottom: 4px; padding: 7px 10px; border-radius: 8px; cursor: pointer;
+  border: 1px solid transparent; background: rgba(255,255,255,.03); color: var(--text); }
+.dbg__row:hover { border-color: var(--brass-dim); background: rgba(226,183,96,.09); }
+.dbg__row--now { border-color: var(--brass); background: rgba(226,183,96,.13); cursor: default; }
+.dbg__n { flex: 0 0 42px; font-family: var(--sans); font-size: .68rem; color: var(--text-dim);
+  font-variant-numeric: tabular-nums; }
+.dbg__who { flex: 1 1 auto; min-width: 0; font-family: var(--serif); font-size: .95rem;
+  color: var(--paper); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dbg__chips { flex: 0 0 auto; display: flex; flex-wrap: nowrap; gap: 4px; justify-content: flex-end; }
+.dbg__chip { padding: 1px 7px; border-radius: 999px; border: 1px solid rgba(226,183,96,.22);
+  font-family: var(--sans); font-size: .6rem; color: var(--text-dim); white-space: nowrap; }
+.dbg__chip b { color: var(--paper); font-weight: 700; }
+.dbg__time { flex: 0 0 auto; font-family: var(--sans); font-size: .6rem; color: #7c7360;
+  font-variant-numeric: tabular-nums; }
+.dbg__go { flex: 0 0 auto; font-family: var(--sans); font-size: .6rem; font-weight: 800;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--brass-dim); }
+.dbg__row--now .dbg__go { color: var(--brass); }
+.dbg__acts { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+.dbg__acts .primary { width: auto; min-width: 120px; }
+.dbg__acts .bookbtn { margin-left: auto; }
+.dbg__wipe { font-size: .74rem; opacity: .7; }
+@media (max-width: 720px) {
+  .dbg__chips { display: none; }
+}
+
+/* ---------------- the artwork ----------------
+ * 238 painted pictures live in art/. Every rule in this section layers one on
+ * top of a background that already worked on its own, so a missing file leaves
+ * the game looking exactly as it did before the art existed. Nothing here is
+ * load-bearing.
+ */
+
+.art { display: block; max-width: 100%; height: auto; object-fit: contain; }
+
+/* A plate is square and the box it goes in usually is not. Never squash one,
+   and always let the box shrink it — the width/height attributes are the size
+   it would LIKE to be, not a floor. */
+.plate--art { object-fit: contain; display: block; margin: 0 auto;
+  max-width: 100%; max-height: 100%;
+  -webkit-user-drag: none; user-select: none;
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,.45)); }
+.leaf .plate--art { filter: none; }
+.pot__art .plate--art, .index__art .plate--art, .lens__art .plate--art,
+.leaf__plate .plate--art, .modal__art .plate--art, .modal__artone .plate--art,
+.vis__art .plate--art, .stand__art .plate--art { max-width: 100%; max-height: 100%; }
+
+/* the shop itself */
+#desk {
+  background-image: linear-gradient(rgba(28,24,17,.62), rgba(22,19,14,.78)),
+                    url("../art/asset_desk_surface.webp");
+  background-size: cover; background-position: center;
+}
+/* Two shelving photographs cut to the two panels the rail can be: 192x624 for
+   the rail, 992x624 for the whole bench. Drawn to fit, so no stretching and no
+   tiling — and only the lightest scrim, because they are already dark. */
+.rail--left {
+  background-color: #1f1c15;                 /* never see through the shelves */
+  background-image: linear-gradient(rgba(28,24,17,.10), rgba(22,19,14,.42)),
+                    url("../art/asset_shelf_tall.webp");
+  background-size: cover; background-position: center top;
+  background-repeat: no-repeat;
+}
+/* The tile a pot sits on lets the shelf through; the card the plant is drawn
+   on does not — it is a paper label, and paper is not see-through. */
+.pot { background: rgba(42,37,25,.42); }
+.pot:hover { background: rgba(50,44,29,.62); }
+.pot__art { background: var(--paper-3); border-color: #cfc3a4; }
+.pot--named .pot__art { background: #f0f6e4; border-color: #a8c088; }
+/* the counter looks out of the shop window, and it has rained for sixteen days */
+.rail--right {
+  background-image: linear-gradient(rgba(26,23,17,.4), rgba(20,18,13,.9)),
+                    url("../art/asset_window_rain.webp");
+  background-size: cover; background-position: center;
+}
+.surface {
+  background-image: linear-gradient(rgba(26,22,16,.34), rgba(26,22,16,.34)),
+                    url("../art/asset_desk_mat.webp");
+  background-size: cover; background-position: center;
+}
+/* The drawer is pulled out of the bench, so the bench is the inside of the
+   drawer while it is open. Only when nothing is lying on top of it — with the
+   book or the chart out, the bench is a bench again. */
+/* One photograph. Putting the drawer on the desk AND on the bench inside it
+   printed the same picture twice at two different scales. The drawer IS the
+   bench while it is out, so the desk beneath it just goes dark, the bench
+   loses its inset, and the tab sits flush with the top. */
+body[data-desk="drawer"][data-overlay=""] #desk {
+  background-image: none; background-color: #16130e; padding: 0;
+}
+body[data-desk="drawer"][data-overlay=""] .surface {
+  background-image: linear-gradient(rgba(22,18,12,.40), rgba(18,15,10,.56)),
+                    url("../art/asset_drawer_open.webp");
+  background-size: cover; background-position: center;
+  border-radius: 0; border-color: transparent;
+}
+body[data-desk="drawer"][data-overlay=""] .desk__wrap { gap: 0; }
+body[data-desk="drawer"][data-overlay=""] .drawertab { top: 0; border-radius: 0 0 12px 12px; }
+body[data-desk="drawer"][data-overlay=""] .drawer { padding: 7px; }
+
+/* The chart is unrolled on the bench, so the bench is chart paper while it is
+   out — and barely dimmed, because you are meant to be reading it. */
+body[data-overlay="map"] #desk {
+  background-image: linear-gradient(rgba(24,20,14,.18), rgba(20,17,12,.28)),
+                    url("../art/asset_map_paper.webp");
+  background-size: cover; background-position: center;
+}
+#start {
+  background-image: radial-gradient(90% 70% at 50% 0%, rgba(30,26,19,1), rgba(15,13,10,.5) 72%),
+                    url("../art/asset_start_backdrop.webp");
+  background-size: cover; background-position: center;
+}
+/* The open leaves keep their painted gradient. A photograph of a sheet of
+   paper was tried here and thrown out: it brought its own torn edges and its
+   own rectangle, and the book ended up with paper inside paper. */
+
+/* the three things on an empty desk */
+.door__icon img { width: 100%; height: 100%; object-fit: contain;
+  transition: transform .18s ease; }
+.door:hover .door__icon img { transform: scale(1.06) rotate(-2deg); }
+
+/* a customer's face */
+.vis__face--art { font-size: 0; line-height: 0; margin-bottom: 2px; }
+.vis__face--art img { width: 100%; max-width: 150px; height: auto; margin: 0 auto; }
+.modal__face--art { font-size: 0; line-height: 0; margin-bottom: 6px; }
+.modal__face--art img { width: 118px; height: auto; margin: 0 auto; }
+
+/* a place, on the card that says you have got into it */
+.modal__scene { margin: -4px 0 12px; border-radius: 9px; overflow: hidden;
+  border: 1px solid rgba(226,183,96,.28); box-shadow: 0 10px 26px rgba(0,0,0,.5); }
+.modal__scene img { width: 100%; }
+.shut__art { margin: 8px 0 10px; border-radius: 7px; overflow: hidden;
+  border: 1px solid rgba(74,58,28,.5); }
+.shut__art img { width: 100%; height: 168px; object-fit: cover; display: block; }
+
+/* The cutting you have picked up for the egg, before you hand it over: the
+   plant where the scene would be, and its page beside it. */
+/* Doubled up on purpose: .pro__scene is defined further down and would win the
+   cascade at equal specificity. A cutting is not a painting — no frame, no
+   shadow, just the plant standing where the scene would be. */
+.pro__scene.pro__scene--plant { display: grid; place-items: center;
+  border: none; box-shadow: none; background: none; }
+.pro__scene.pro__scene--plant .plate { width: auto; height: auto;
+  max-width: 100%; max-height: 62vh; }
+/* the who-chip is drawn for a paper page; on the night card it is on dark */
+.eve2__what .leaf__who--human  { background: rgba(226,183,96,.16); color: #e9d7a8; }
+.eve2__what .leaf__who--dragon { background: rgba(214,120,70,.20); color: #f0b48c; }
+.eve2__what .leaf__who--both   { background: rgba(120,170,120,.18); color: #b7dbb6; }
+.pro__latin { font-family: var(--serif); font-style: italic; font-size: 1rem;
+  color: var(--text-dim); margin: -6px 0 12px; }
+.eve2__what { border: 1px solid rgba(196,154,78,.35); border-radius: 10px;
+  background: rgba(196,154,78,.07); padding: 10px 13px; margin-bottom: 12px; }
+.eve2__whatlab { display: flex; align-items: center; gap: 8px;
+  font-family: var(--sans); font-size: .66rem; font-weight: 800; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--brass); margin-bottom: 5px; }
+.eve2__whatline { font-family: var(--serif); font-size: 1.02rem; color: var(--paper);
+  line-height: 1.45; }
+.eve2__whatuse { font-size: .88rem; line-height: 1.5; color: var(--text-dim); margin-top: 5px; }
+
+/* the story panels, and the last screen */
+.pro__scene { margin: 0; min-width: 0; border-radius: 10px; overflow: hidden;
+  border: 1px solid rgba(226,183,96,.26); box-shadow: 0 22px 60px rgba(0,0,0,.6);
+  display: grid; place-items: center; }
+.pro__scene img { width: 100%; height: auto; max-height: 92vh; object-fit: contain;
+  display: block; }
+.dayend__art { margin: 0 0 14px; border-radius: 9px; overflow: hidden;
+  border: 1px solid rgba(226,183,96,.26); box-shadow: 0 12px 30px rgba(0,0,0,.5); }
+.dayend__art img { width: 100%; }
+
+/* Too narrow for two columns: the picture goes on top and the page scrolls,
+   which is the one place scrolling is better than shrinking a picture to
+   nothing. */
+@media (max-width: 880px) {
+  .pro { place-items: start center; overflow-y: auto; padding: 16px; }
+  .pro__card, .pro__card--flip {
+    grid-template-columns: minmax(0, 1fr); max-height: none; gap: 16px; }
+  .pro__card--flip .pro__scene { order: 0; }
+  .pro__body { max-height: none; overflow: visible; }
+  .pro__scene img { max-height: 42vh; }
+  .modal__scene { margin-bottom: 12px; }
+  .vis__face--art img { max-width: 120px; }
+}
+
+/* ---------------- the walkthrough, parked in a corner ----------------
+ * It used to sit in the right rail, where it pushed the counter down the
+ * screen and sometimes covered the very button it was telling you to press.
+ * Now it floats over the shop in the bottom-left corner, and hovering or
+ * tapping it sends it to the bottom-right — a card that gets out of your way
+ * when you go near it. It stays where you put it until you go near it again.
+ */
+#coach:empty { display: none; }
+body.is-story #coach { display: none; }   /* #app[hidden] takes care of the start screen */
+
+#coach .coach {
+  position: fixed; bottom: 18px; z-index: 430;
+  width: min(340px, 42vw); margin: 0;
+  transition: left .28s cubic-bezier(.2,.9,.3,1), right .28s cubic-bezier(.2,.9,.3,1);
+}
+#coach .coach--left  { left: 18px;  right: auto; }
+#coach .coach--right { right: 18px; left: auto; }
+.coach__move { margin-top: 8px; font-family: var(--sans); font-size: .58rem;
+  letter-spacing: .06em; text-transform: uppercase; color: rgba(226,183,96,.55); }
+#coach .coach:hover { cursor: pointer; }
+
+@media (max-width: 900px) {
+  #coach .coach { width: min(320px, 86vw); bottom: 68px; }
+}
+
+/* ---------------- look closer ----------------
+ * One picture, or two side by side when the book is open at a page and there
+ * is something standing on the desk. That comparison is the whole game.
+ */
+#look:empty { display: none; }
+.look { position: fixed; inset: 0; z-index: 500; display: grid; place-items: center;
+  padding: 24px; background: rgba(10,9,6,.88);
+  animation: lookIn .18s ease-out; overflow-y: auto; }
+@keyframes lookIn { from { opacity: 0; } }
+.look__row { display: flex; gap: 26px; align-items: flex-start; justify-content: center;
+  flex-wrap: wrap; max-width: 1200px; }
+.look__pane { margin: 0; width: min(440px, 90vw); text-align: center; }
+.look__row--two .look__pane { width: min(400px, 44vw); }
+.look__art { display: grid; place-items: center; padding: 14px; border-radius: 12px;
+  background: var(--paper-3); border: 1px solid #cfc3a4;
+  box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+.look__art .plate { max-width: 100%; height: auto; }
+.look__cap { display: block; margin-top: 12px; text-align: center; }
+.look__kind { display: block; font-family: var(--sans); font-size: .58rem; font-weight: 800;
+  letter-spacing: .13em; text-transform: uppercase; color: var(--brass); }
+.look__name { display: block; font-family: var(--serif); font-size: 1.35rem;
+  font-weight: 700; color: var(--paper); margin-top: 3px; }
+.look__name--unknown { font-style: italic; font-weight: 400; color: var(--text-dim); }
+.look__bin { display: block; font-family: var(--serif); font-style: italic;
+  font-size: .88rem; color: var(--brass); }
+.look__plate { margin-top: 8px; font-family: var(--serif); font-size: .95rem;
+  line-height: 1.5; color: var(--text); }
+.look__use { margin-top: 6px; font-family: var(--serif); font-style: italic;
+  font-size: .88rem; line-height: 1.5; color: rgba(243,230,196,.75); }
+.look__x { position: fixed; top: 18px; right: 20px; width: 40px; height: 40px;
+  font-size: 1.1rem; z-index: 2; }
+
+@media (max-width: 860px) {
+  .look__row { gap: 16px; }
+  .look__row--two .look__pane { width: min(420px, 92vw); }
+}
+
+/* ---------------- the lens floats, the desk stays put ----------------
+ * The photograph under the bench is cropped to the bench's width. Taking a
+ * 272px column out of it for the lens re-cropped it, and the whole shop
+ * appeared to slide sideways every time you picked a plant up. So the lens
+ * now sits ON the desk instead of beside it.
+ */
+.desk__wrap--float { position: relative; }
+.desk__wrap--float .lens {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 272px; flex: none;
+  z-index: 5; box-shadow: -14px 0 34px rgba(0,0,0,.45);
+}
+/* and the specimen stands in the middle of what you can still see */
+.surface--lens .stand { left: calc(50% - 141px); }
+@media (max-width: 1100px) {
+  .desk__wrap--float .lens { width: 240px; }
+  .surface--lens .stand { left: calc(50% - 125px); }
+}
+
+/* ---------------- the things on the desk ----------------
+ * Not buttons on a menu: a book and a folded chart lying on the bench, big
+ * enough that a child reaches for the object rather than reading the label.
+ */
+.doors { gap: 10px; align-items: flex-end; }
+.door { width: auto; padding: 4px; border: none; background: none; box-shadow: none;
+  border-radius: 0; gap: 10px; }
+.door:hover, .door--on { border: none; background: none; box-shadow: none; }
+.door--on .door__icon img, .door--on .door__icon svg { filter: drop-shadow(0 0 18px rgba(255,212,132,.55))
+  drop-shadow(0 14px 26px rgba(0,0,0,.6)); }
+.door:hover { transform: translateY(-4px); }
+.door__icon { width: 225px; height: 250px; }
+.door__icon svg { width: 225px; height: 250px; }
+.door__icon img { filter: drop-shadow(0 14px 26px rgba(0,0,0,.6)); }
+.door:hover .door__icon img { transform: scale(1.05) rotate(-2deg); }
+.door__label { font-size: .7rem; letter-spacing: .16em; }
+.door__n { top: 4px; right: 4px; }
+@media (max-width: 1100px) {
+  .doors { gap: 28px; }
+  .door__icon, .door__icon svg { width: 170px; height: 170px; }
+}
+@media (max-width: 900px) {
+  .doors { gap: 18px; }
+  .door { width: auto; padding: 4px; }
+  .door__icon, .door__icon svg { width: 112px; height: 112px; }
+}
+
+/* ---------------- the shelves, opened out ----------------
+ * Eighty-two plants at 66px is a contact sheet. This is the drawer pulled all
+ * the way out: the rail grows across the bench, the plates go up to 210px, and
+ * picking one puts it on the desk and shuts the drawer behind you.
+ */
+/* The shelves take the bench's column and the desk steps out of the grid for
+   as long as they are open. The counter does not move: somebody is standing at
+   it waiting, and hiding them to look at your own shelves is rude. */
+body.is-shelfbig #shelf { grid-column: 1 / 3; border-color: var(--brass-dim); }
+body.is-shelfbig #desk { display: none; }
+/* Opened out, it is a different photograph — the same shelving drawn wide,
+   rather than the tall one stretched or tiled. */
+body.is-shelfbig #shelf {
+  background-image: linear-gradient(rgba(28,24,17,.10), rgba(22,19,14,.42)),
+                    url("../art/asset_shelf_wide.webp");
+  background-size: cover; background-position: center top;
+  background-repeat: no-repeat;
+}
+.rack--big { grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 14px; }
+.rack--big .pot { padding: 10px 8px 8px; border-radius: 12px; }
+.rack--big .pot__art { padding: 6px; border-radius: 9px; }
+.rack--big .pot__name { font-size: .92rem; margin-top: 7px; white-space: normal; }
+.rack--big .pot__flag { font-size: .62rem; padding: 2px 9px; }
+/* On the end of the header row, so it costs no height: a proper brass button
+   rather than a grey glyph nobody found, but small enough that "Shelves" and
+   the count still fit beside it in 196px. */
+.rack__zoom { flex: 0 0 auto; margin-left: 2px; width: 26px; height: 26px; padding: 0;
+  display: grid; place-items: center;
+  border: 1px solid var(--brass); border-radius: 8px;
+  background: linear-gradient(#4a3d21, #332b18); color: #ffe3ae;
+  font-size: 1.05rem; line-height: 1; cursor: pointer;
+  box-shadow: 0 1px 0 rgba(255,236,190,.14) inset, 0 2px 6px rgba(0,0,0,.4); }
+.rack__zoom:hover { background: linear-gradient(#5c4c28, #3d3320); border-color: #ffd484;
+  color: #fff4dc; transform: translateY(-1px); }
+.rack__zoom--close { font-size: .95rem; }
+
+@media (max-width: 1100px) {
+  .rack--big { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+}
+@media (max-width: 900px) {
+  /* on a phone the shelves are already their own screen — the button just
+     makes the plants bigger, it has nothing to expand across */
+  body.is-shelfbig #shelf { grid-column: auto; }
+  body.is-shelfbig #desk { display: flex; }
+  .rack--big { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+}
+
+/* ---------------- a switch ----------------
+ * One setting so far: easy plant mode. It lives wherever "How to play" does —
+ * on the walkthrough card while that is up, and in the help card afterwards.
+ */
+.switch { display: grid; grid-template-columns: 34px 1fr; gap: 4px 10px;
+  align-items: center; width: 100%; margin-top: 12px; padding: 9px 10px;
+  border: 1px solid var(--line); border-radius: 10px; background: rgba(0,0,0,.22);
+  color: var(--paper); text-align: left; cursor: pointer; }
+.switch:hover { border-color: var(--brass-dim); background: rgba(0,0,0,.32); }
+.switch__track { grid-row: 1 / 3; width: 34px; height: 19px; border-radius: 999px;
+  background: #3b352a; border: 1px solid var(--line); position: relative;
+  transition: background .16s ease, border-color .16s ease; }
+.switch__track::after { content: ""; position: absolute; top: 2px; left: 2px;
+  width: 13px; height: 13px; border-radius: 50%; background: #8d8471;
+  transition: transform .16s cubic-bezier(.2,.9,.3,1.2), background .16s ease; }
+.switch--on .switch__track { background: rgba(226,183,96,.30); border-color: var(--brass); }
+.switch--on .switch__track::after { transform: translateX(15px); background: #ffd484; }
+.switch__label { font-family: var(--sans); font-size: .72rem; font-weight: 800;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--brass); }
+.switch--on .switch__label { color: #ffe3ae; }
+.switch__hint { font-family: var(--serif); font-size: .82rem; color: var(--text-dim); }
+.modal .switch { margin-top: 16px; }
+
+/* ---------------- a card with a place on it ----------------
+ * A 4:3 photograph on top of a 400px card made something two screens tall.
+ * When there is a place, the card goes wide and splits: the place down one
+ * side under its own name, what actually happened down the other.
+ */
+.modal--scene {
+  width: min(900px, 100%); max-height: 86vh; text-align: left;
+  display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(270px, .95fr);
+  gap: 20px; align-items: center; padding: 20px;
+}
+.modal--scene .modal__said { min-width: 0; text-align: center;
+  max-height: 78vh; overflow-y: auto; }
+.modal__place { min-width: 0; }
+.modal__placename { font-family: var(--serif); font-size: 1.15rem; font-weight: 700;
+  color: var(--paper); text-align: center; margin-bottom: 8px; }
+.modal--scene .modal__scene { margin: 0; }
+.modal__placenote { margin-top: 8px; font-family: var(--serif); font-style: italic;
+  font-size: .84rem; line-height: 1.5; color: var(--text-dim); text-align: center; }
+
+@media (max-width: 820px) {
+  .modal--scene { grid-template-columns: minmax(0, 1fr); gap: 12px;
+    max-height: 88vh; overflow-y: auto; }
+  .modal--scene .modal__said { max-height: none; overflow: visible; }
+}
+
+/* The chart's own words now sit on a photograph that is pale in the middle and
+   dark at the edges, so neither ink nor chalk reads everywhere. They get a
+   plate of their own instead, and stay light on it. */
+body[data-overlay="map"] .sheet__bar,
+body[data-overlay="map"] .sheet__count,
+body[data-overlay="map"] .mapkey {
+  background: rgba(18,15,10,.62); border-radius: 9px; padding: 7px 12px;
+  backdrop-filter: blur(1px);
+}
+body[data-overlay="map"] .sheet__bar { border-bottom: none; margin-bottom: 8px; }
+body[data-overlay="map"] .sheet__count { text-align: center; }
+body[data-overlay="map"] .mapkey { display: inline-block; }
+body[data-overlay="map"] .mapkey--wrap { text-align: center; }
+
+/* ---------------- the page you have just filled in ----------------
+ * The naming card used to say "its page is filled in" and then describe the
+ * page. Now it shows it: the real leaf, built by book.js out of the same
+ * parts, laid down the left of a wide card the way a place is.
+ */
+.modal__page { min-width: 0; }
+.leaf--card {
+  display: flex; flex-direction: column; padding: 16px 18px 14px;
+  border-radius: 6px; background: linear-gradient(#fefdf7 0%, #fdfaf0 62%, #eee5ca 100%);
+  color: var(--ink); font-family: var(--serif); text-align: center;
+  box-shadow: 0 0 0 1.5px rgba(74,58,28,.6), 0 18px 40px rgba(0,0,0,.55);
+}
+.leaf--card .leaf__body { display: flex; flex-direction: column; min-height: 0; }
+.leaf--card .leaf__plate { max-height: 240px; margin-bottom: 10px; }
+.modal--page .modal__said { text-align: center; }
+
+/* ---------------- the chart's header row ----------------
+ * Title, what to do, and the way out, in one row: the instruction used to be a
+ * paragraph of its own that pushed the chart down the screen for a sentence
+ * you read once.
+ */
+.sheet--map .sheet__bar { display: grid; grid-template-columns: auto minmax(0,1fr) auto;
+  align-items: center; gap: 14px; }
+.sheet--map .sheet__count { margin: 0; text-align: center; font-style: italic;
+  font-size: .82rem; color: #fdf6e4; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+/* Under the chart: the leads button dead centre, the tally out on the right.
+   Three tracks rather than two, so the button is centred on the map and not on
+   whatever is left over beside the tally. */
+.sheet--map { display: flex; flex-direction: column; }
+.mapfoot { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+  gap: 10px; margin-top: 10px; flex: 0 0 auto; }
+.mapfoot .leadbtn { grid-column: 2; justify-self: center; }
+.sheet--map .mapkey { grid-column: 3; justify-self: end; text-align: right; margin: 0; }
+
+/* the words of the spell, said out loud in the card that asks for it */
+.rite__spell { color: #ffd484; font-weight: 800; letter-spacing: .01em; }
+
+/* ---------------- the runes, while one is in the air ----------------
+ * Picking a rune up lifts it out of the row: a copy follows the pointer, the
+ * gap it would drop into is a dashed slot, and the runes it passes shuffle
+ * along so you can see the row you are about to make. Nothing is committed
+ * until you let go.
+ */
+.rune--shifting { transition: transform .16s cubic-bezier(.2,.9,.3,1); }
+.rune--hole {
+  border: 2px dashed var(--brass); background: rgba(226,183,96,.10);
+  box-shadow: none; cursor: grabbing;
+  animation: holePulse 1.1s ease-in-out infinite;
+}
+.rune--hole-set { border-color: #7fa25c; background: rgba(127,162,92,.14);
+  animation: none; }
+@keyframes holePulse {
+  50% { border-color: #ffd484; background: rgba(226,183,96,.20); }
+}
+.rune__holemark { font-family: var(--sans); font-size: 1.5rem; font-weight: 800;
+  color: rgba(226,183,96,.55); }
+.rune--hole-set .rune__holemark { color: #9dc077; }
+
+/* the copy that follows the pointer */
+/* lifted clear of the pointer so the dashed slot underneath stays visible —
+   the whole point is seeing where it is about to land */
+.ghost--rune { transform: translate(-50%,-108%) rotate(-5deg) scale(1.06); }
+.ghost--rune .rune { cursor: grabbing; border-color: var(--brass);
+  box-shadow: 0 14px 30px rgba(0,0,0,.6), 0 0 0 1px rgba(226,183,96,.5); }
+body.is-riting { cursor: grabbing; }
+
+/* the person, the size a person should be */
+.modal__who { min-width: 0; display: grid; place-items: center; }
+.modal__who img { width: 100%; max-width: 360px; height: auto; }
+.modal--who { grid-template-columns: minmax(0, .95fr) minmax(280px, 1.05fr); }

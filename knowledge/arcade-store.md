@@ -107,7 +107,7 @@ there; it wants a second list from `ArcadeStore.list()`. Until that is done,
 
 ## The file
 
-`games/potions/js/store.js` is the working copy and the reference
+`games/dragonseed/js/store.js` is the working copy and the reference
 implementation. Copy it into `games/<name>/js/arcade-store.js` and change
 nothing.
 
@@ -128,7 +128,7 @@ nothing.
  * every get after that is instant; writes go into memory and are flushed
  * behind you. Nothing else in a game has to know.
  *
- *   var Store = ArcadeStore("potions");     // → keys "calebArcadeData:potions*"
+ *   var Store = ArcadeStore("dragonseed");     // → keys "calebArcadeData:dragonseed*"
  *   Store.ready(function () {
  *     var save = Store.get();               // the game's own item
  *     Store.set(null, save);                // write it back

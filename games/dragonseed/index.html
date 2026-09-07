@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1b1a17">
+<title>Dragonseed — Garfield Boys' Arcade</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body class="view-desk">
+
+<!-- The shop is a desk with shelves to one side and a customer on the other.
+     Stacked into a portrait phone that is three things about 120px wide, which
+     is not a game. Rather than pretend, ask for the device to be turned. CSS
+     shows this and hides everything else while the screen is taller than it is
+     wide; app.js asks the browser to lock landscape where that is allowed. -->
+<div id="turn" aria-hidden="true">
+  <div class="turn__inner">
+    <div class="turn__glyph" aria-hidden="true">
+      <svg viewBox="0 0 124 110" width="132" height="117">
+        <rect x="10" y="6" width="44" height="76" rx="7" fill="none" stroke="#e2b760" stroke-width="4"/>
+        <rect x="66" y="25" width="48" height="38" rx="7" fill="none" stroke="#8a7448" stroke-width="4"/>
+        <path d="M26 96 q34 16 68 -8" fill="none" stroke="#e2b760" stroke-width="4"
+              stroke-linecap="round"/>
+        <path d="M96 78 l6 12 l-13 3 z" fill="#e2b760"/>
+      </svg>
+    </div>
+    <h1 class="turn__title">Turn it sideways</h1>
+    <p class="turn__body">Dragonseed is a shop counter with shelves down one side.
+       It wants a landscape screen.</p>
+  </div>
+</div>
+
+<div id="start">
+  <!-- The arcade back link. Its href must be exactly ../../index.html: GitHub
+       Pages 404s the trailing-slash form. The topbar builds a second one in
+       topbar.js for once the shop is open. -->
+  <a class="backbtn backbtn--start" href="../../index.html">&larr; Games</a>
+  <div class="start__inner">
+    <p class="start__eyebrow">Sixteen days at the plant shop</p>
+    <h1 class="start__title">Dragonseed</h1>
+    <!-- Short sentences on purpose. This is the four-sentence version of the
+         story from STORY-SIMPLE.md, which an eight-year-old has to be able to
+         repeat after reading it once: everybody has a dragon, you have the
+         shop, there is an egg, something is coming for it. The old blurb left
+         out the dragons and the stakes and was coy about the egg, which the
+         first night gives away ninety seconds later anyway. -->
+    <p class="start__blurb">
+      Everybody in this valley keeps a dragon. You keep the plant shop. People
+      come in and describe a plant, or describe a problem. You have to work out
+      which pot they mean.
+    </p>
+    <p class="start__blurb">
+      On your first night you find an egg in the cellar. It is warm, and it is
+      far too big. Something out on the moor is looking for it. You have sixteen
+      days to decide what to do.
+    </p>
+    <button id="startBtn" class="primary" type="button">Open the shop</button>
+    <button id="resetBtn" class="linkbtn" type="button" hidden>Start the sixteen days over</button>
+  </div>
+</div>
+
+<div id="app" hidden>
+  <header id="topbar"></header>
+
+  <main id="board">
+    <aside id="shelf"  class="rail rail--left"  aria-label="Shelves"></aside>
+    <section id="desk" aria-label="Desk"></section>
+    <aside id="visitor" class="rail rail--right" aria-label="Counter"></aside>
+  </main>
+
+  <div id="story"></div>
+  <div id="look"></div>
+  <div id="debug"></div>
+  <div id="coach"></div>
+  <div id="modal" aria-live="assertive"></div>
+
+  <nav id="tabs" aria-label="Sections">
+    <button type="button" data-view="shelf">Shelves</button>
+    <button type="button" data-view="desk">Desk</button>
+    <button type="button" data-view="visitor">Counter</button>
+  </nav>
+</div>
+
+<!-- data -> art -> deduction -> engine -> overlays -> regions -> boot -->
+<script src="js/store.js"></script>
+<script src="js/data.js"></script>
+<!-- The 254 pictures live in art/, served from beside this page. To serve them
+     from somewhere else instead, uncomment the line below and give it a base
+     with a trailing slash. Nine background-image rules in css/style.css point
+     at ../art/ directly and are NOT covered by it. -->
+<!-- <script>window.DRAGONSEED_ART_BASE = "https://example.netlify.app/art/";</script> -->
+<script src="js/art.js"></script>
+<script src="js/plate.js"></script>
+<script src="js/mapart.js"></script>
+<script src="js/clues.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/book.js"></script>
+<script src="js/map.js"></script>
+<script src="js/topbar.js"></script>
+<script src="js/shelf.js"></script>
+<script src="js/desk.js"></script>
+<script src="js/visitor.js"></script>
+<script src="js/coach.js"></script>
+<script src="js/story.js"></script>
+<script src="js/look.js"></script>
+<script src="js/debug.js"></script>
+<script src="js/rite.js"></script>
+<script src="js/modal.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>

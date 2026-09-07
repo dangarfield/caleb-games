@@ -1,0 +1,16 @@
+# Editor auto-snapshots and Finder litter
+.versions/
+.DS_Store
+
+# Where old deploy tarballs get parked before they are thrown away
+_to_delete/
+
+# Test screenshots, if a run is ever pointed back at the folder
+*.png
+!art/*.png
+
+# The Python content pipeline's cache
+__pycache__/
+
+# research/ is already ignored by the repo root: source PSDs, the 170MB asset
+# zip, the art prompt JSON. None of it belongs in the deployed site.
