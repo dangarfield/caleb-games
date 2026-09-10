@@ -1,6 +1,7 @@
 // Scoring and hit reactions. Detection lives in collision.js; what a hit MEANS
 // lives here, so the two can be retuned independently.
 import * as THREE from 'three';
+import { audio } from './audio.js';
 import { PLAYER_FOOT_DROP, PLAYER_PROBE_OFFSET, PLAYER_RADIUS, RIDER_HEIGHT_LOCAL, state } from './config.js';
 
 const FLAP_TIME = 0.32;      // seconds for a flap to swing up and shut
@@ -74,6 +75,9 @@ export class Scoring {
 
             hit.scored = true;
             this.add(hit.spec.paperPoints, hit.role);
+            // The role names double as the sound names: window, mailbox,
+            // target, haybale, npc.
+            audio.play(hit.role);
             if (hit.spec.flap) this.shutFlap(hit);
             if (hit.spec.topple) this.topple(hit);
             if (hit.spec.revealSign) for (const s of hit.signs || []) this.colliders.setVisible(s, true);
@@ -195,6 +199,7 @@ export class Scoring {
                 if (c.scored) continue;
                 c.scored = true;
                 this.add(c.spec.playerPoints, 'pickup');
+                audio.play('pickup');
                 this.colliders.setVisible(c, false);
                 this.confetti?.burst(c.centre);
                 this.onPickup?.(c);

@@ -21,7 +21,7 @@
 
 const Engine = (function () {
 
-  var BUILD     = "85";   // bumped on every deploy, shown in the saves panel
+  var BUILD     = "88";   // bumped on every deploy, shown in the saves panel
   var SAVE_KEY  = "calebArcadeData:dragonseed";   // the store's own key; see js/store.js
   var Store     = ArcadeStore("dragonseed");
   var SAVE_VER  = 5;   // pots and pages came apart; no old save maps onto this

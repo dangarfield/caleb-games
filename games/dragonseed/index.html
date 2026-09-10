@@ -109,5 +109,14 @@
 <script src="js/rite.js"></script>
 <script src="js/modal.js"></script>
 <script src="js/game.js"></script>
+<!-- The theme. There are no controls for it on purpose. One encode, Opus in
+     WebM: everything the boys play on reads it, and a second copy for old
+     Safari would have doubled what the repo carries to serve a browser nobody
+     here uses. preload="none" means nothing is fetched until the first touch of
+     the screen, which is also the first moment it could play. See music() in
+     js/game.js. -->
+<audio id="theme" src="audio/dragonseed-theme.webm" loop preload="none"
+       aria-hidden="true"></audio>
+
 </body>
 </html>

@@ -1,6 +1,6 @@
 # The tests
 
-Sixteen Playwright scripts. There is no runner and no framework: each one is a
+Seventeen Playwright scripts. There is no runner and no framework: each one is a
 plain ES module that opens `index.html` off the filesystem, drives the game
 through a real browser, and prints what it found as JSON. You read the output.
 A failure looks like a thrown exception or an `errs` array that is not empty.
@@ -33,4 +33,5 @@ running the suite never leaves anything in the folder that gets deployed.
 | `debugtest.mjs` | the state timeline behind the day title |
 | `checks2.mjs` | assorted invariants |
 | `hinttest.mjs` | the paid hint in two goes — nudge, then the answer with a picture |
+| `musictest.mjs` | the theme: silent until touched, fades in, no controls |
 | `phone.mjs` | a landscape phone: nothing overflows, nothing collides |

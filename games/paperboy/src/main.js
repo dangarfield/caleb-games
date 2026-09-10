@@ -20,6 +20,7 @@ import { input } from './input.js';
 import { buildGui, buildAnimationGui, refreshAll, refreshLive, toggleGui } from './gui.js';
 import { Ui } from './ui.js';
 import { Session } from './session.js';
+import { audio } from './audio.js';
 import { Mailboxes } from './mailboxes.js';
 import { loadDays } from './days.js';
 
@@ -48,6 +49,12 @@ const enemies = new Enemies(scene, colliders);
 planner.camera = planCamera;
 plan.onChange = () => { planner.refresh(); plannerUI.render(); };
 planner.refresh();
+
+// Browsers will not start audio before the person has touched the page, so the
+// first gesture of any kind opens the context and kicks the theme off.
+for (const ev of ['pointerdown', 'keydown']) {
+    addEventListener(ev, () => audio.unlock(), { once: false, passive: true });
+}
 
 // The run itself: modes, lives, papers, days, and the menu.
 const session = new Session({
@@ -184,7 +191,7 @@ const perf = { n: 0, sim: 0, ray: 0, gui: 0, render: 0, worstFrame: 0, calls: 0,
     } };
 
 console.log(`Paperboy viewer ${VERSION}`);
-window.__pb = { version: VERSION, state, papers, scene, crowd, ui, session, mailboxes, orthoCamera, renderer, terrain, colliders, scoring, confetti, plan, planner, plannerUI, enemies, perf, frame, setPlanner,
+window.__pb = { version: VERSION, state, papers, scene, crowd, ui, session, mailboxes, audio, orthoCamera, renderer, terrain, colliders, scoring, confetti, plan, planner, plannerUI, enemies, perf, frame, setPlanner,
     get player() { return player; }, get level() { return level; } };
 
 // --- Loop ---

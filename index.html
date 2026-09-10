@@ -1361,6 +1361,25 @@
   </div>
 
   <script>
+// Port 3000 is shared with whatever else is being worked on, and a service
+// worker registered there by another project keeps control of this origin —
+// including the arcade. It intercepts every request and throws on the 206
+// Partial Content responses the browser asks for when it streams audio
+// ("Failed to execute 'put' on 'Cache'"). No arcade page registers a worker,
+// so any worker controlling this one is foreign: retire it and reload, once.
+(function () {
+    var sw = navigator.serviceWorker;
+    if (!sw || !sw.controller) return;
+    try {
+        if (sessionStorage.getItem('arcadeSwRetired')) return;
+        sessionStorage.setItem('arcadeSwRetired', '1');
+    } catch (e) { return; }
+    sw.getRegistrations()
+        .then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); })
+        .then(function () { location.reload(); })
+        .catch(function () {});
+})();
+
     // Generate twinkling stars background
     (function () {
       var container = document.getElementById('stars');

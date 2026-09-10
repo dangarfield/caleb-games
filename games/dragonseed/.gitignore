@@ -2,7 +2,8 @@
 .versions/
 .DS_Store
 
-# Where old deploy tarballs get parked before they are thrown away
+# The scratch tarball a deploy is unpacked from, and where old ones get parked
+_deploy.tgz
 _to_delete/
 
 # Test screenshots, if a run is ever pointed back at the folder

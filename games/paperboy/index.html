@@ -97,7 +97,7 @@ canvas.ready { opacity: 1; }
     padding: clamp(12px, 3vw, 24px); pointer-events: none;
 }
 .pad {
-    display: flex; gap: 12px; opacity: 0;
+    display: flex; gap: 18px; opacity: 0;
     transition: transform .5s cubic-bezier(.55, -.3, .8, .4), opacity .3s ease;
 }
 .pad-l { transform: translateX(-170%); }
@@ -109,20 +109,26 @@ canvas.ready { opacity: 1; }
 #pads.in .pad-l { transition-delay: .18s; }
 #pads.in .pad-r { transition-delay: .34s; }
 .padBtn {
-    width: clamp(58px, 15vw, 76px); height: clamp(54px, 13vw, 68px);
+    /* Twice the size they were: thumbs on a tablet, not a mouse. The vw term
+       grows more slowly than the doubled floor so the left pair and the right
+       column still clear each other on a narrow phone. */
+    width: clamp(116px, 22vw, 152px);
+    /* Three of these stack on the right, so the height also yields to a short
+       viewport — a phone in landscape would otherwise push the last one off. */
+    height: min(clamp(108px, 19vw, 136px), 26vh);
     display: flex; align-items: center; justify-content: center;
-    font: 24px/1 var(--font); color: var(--ink); border: none; cursor: pointer;
-    background: var(--paper); border-radius: 14px;
-    box-shadow: 0 4px 0 rgba(0,0,0,.35), 0 8px 20px rgba(0,0,0,.28);
+    font: 34px/1 var(--font); color: var(--ink); border: none; cursor: pointer;
+    background: var(--paper); border-radius: 20px;
+    box-shadow: 0 6px 0 rgba(0,0,0,.35), 0 10px 24px rgba(0,0,0,.28);
     pointer-events: none; user-select: none; -webkit-user-select: none;
     -webkit-tap-highlight-color: transparent; touch-action: none;
     /* Half transparent so they sit over the street without blocking it. */
     opacity: .5;
 }
-.padBtn-icon { padding: 0 4px; }
+.padBtn-icon { padding: 0 8px; }
 .padBtn svg { width: 60%; height: 60%; display: block; }
 #pads.in .padBtn { pointer-events: auto; }
-.padBtn:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.35); background: #fff; opacity: 1; }
+.padBtn:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0,0,0,.35); background: #fff; opacity: 1; }
 
 /* --- GET READY / GO: in from the left with a bounce, out to the right --- */
 #banner {
@@ -225,6 +231,25 @@ canvas.ready { opacity: 1; }
 }
 </script>
 <script>
+// Port 3000 is shared with whatever else is being worked on, and a service
+// worker registered there by another project keeps control of this origin —
+// including the arcade. It intercepts every request and throws on the 206
+// Partial Content responses the browser asks for when it streams audio
+// ("Failed to execute 'put' on 'Cache'"). No arcade page registers a worker,
+// so any worker controlling this one is foreign: retire it and reload, once.
+(function () {
+    var sw = navigator.serviceWorker;
+    if (!sw || !sw.controller) return;
+    try {
+        if (sessionStorage.getItem('arcadeSwRetired')) return;
+        sessionStorage.setItem('arcadeSwRetired', '1');
+    } catch (e) { return; }
+    sw.getRegistrations()
+        .then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); })
+        .then(function () { location.reload(); })
+        .catch(function () {});
+})();
+
 // Served as /games/paperboy with NO trailing slash, the document base is
 // /games/, so every relative URL on this page is wrong by one directory:
 // "./src/main.js" becomes /games/src/main.js (404), and the back button's

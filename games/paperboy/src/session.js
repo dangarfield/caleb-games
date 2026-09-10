@@ -11,6 +11,7 @@
 //   crashed  the continue / game-over panel is up
 import { CLIPS, DAYS, INVULN_TIME, LIVES_PER_RUN, PAPERS_MAX, PLAYER_FOOT_DROP, PLAYER_RADIUS, RIDER_HEIGHT_LOCAL, START, state } from './config.js';
 import { loadProfiles, recordRun } from './profiles.js';
+import { audio } from './audio.js';
 
 const wait = ms => new Promise(res => setTimeout(res, ms));
 
@@ -53,6 +54,9 @@ export class Session {
         this.ui.hideBanner();
         this.ui.fadeTo(false);
         this.startAttract();
+        // Tries to start the theme; blocked until the first gesture, and
+        // audio.unlock() picks it up from there.
+        audio.music(true);
         this.ui.home({ profiles: loadProfiles(), onPick: name => this.begin(name) });
     }
 
@@ -123,6 +127,7 @@ export class Session {
         this.syncHud();
         this.ui.setHudVisible(true);
 
+        audio.play('ready');
         this.ui.showBanner('GET READY!');
         await wait(700);
         if (seq !== this.seq) return;
@@ -130,6 +135,7 @@ export class Session {
         await wait(900);
         if (seq !== this.seq) return;
         this.ui.setBanner('GO!');
+        audio.play('go');
         await wait(500);
         if (seq !== this.seq) return;
         this.ui.hideBanner();
@@ -195,12 +201,14 @@ export class Session {
         state.boyPosition.z = spot.z;
         state.invuln = INVULN_TIME;
         state.mode = 'playing';
+        audio.play('respawn');
         this.player.resume();
     }
 
     gameOver() {
         const done = state.day;
         recordRun(state.player, { score: state.score, day: done });
+        audio.play('gameOver');
         state.mode = 'over';
         state.riding = false;
         this.ui.openPanel({
@@ -220,6 +228,7 @@ export class Session {
         state.mode = 'ready';
         state.riding = false;
         this.player.play(CLIPS.celebrate, { once: true, fade: 0.1 });
+        audio.play('dayDone');
         await wait(900);
         if (seq !== this.seq) return;
 

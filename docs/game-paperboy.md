@@ -29,6 +29,11 @@ is kept at `research/paperboy-prototype-2026-04.html`.
   takes a bridge or jumps them
 - Cheering crowd in the bleachers at the finish with confetti; the mailboxes
   show the current day
+- Sound: a looping theme (`audio/theme.mp3`) plus seventeen synthesised effects
+  — throw, glass, mailbox chime, target flourish, bale thump, a caught
+  pedestrian, pickup, jump, landing, crash, empty bag, get-ready/go, day done,
+  game over, respawn, button clicks. There is no mute control: the theme
+  starts by itself on the first touch or key press and stays on
 - Keyboard or on-screen pads (steer, gears, throw); GET READY / GO intro,
   pause and quit panels, all in the boy's own colours and the Anta typeface
 - Enemy planner (E) for placing and routing obstacles, with import/export
@@ -52,6 +57,17 @@ is kept at `research/paperboy-prototype-2026-04.html`.
 - Crowd and confetti are InstancedMesh; every obstacle model merges its static
   boxes into one vertex-coloured mesh on a shared material. The finish costs
   ~35 draw calls, the street 28-43
+- Sound in `src/audio.js`: one AudioContext opened on the first gesture, effects
+  built from oscillators and filtered noise per `knowledge/audio-patterns.md`
+  (no sample files), and the theme as a streamed `<audio>` element rather than a
+  decoded buffer — two minutes of stereo would be tens of megabytes in memory.
+  The source `research/paperboy-full.mp3` (2.9MB, 195kbps, with cover art) is
+  re-encoded to 96kbps stereo at `audio/theme.mp3` (1.4MB)
+- Both `index.html` files retire any service worker controlling the origin.
+  Nothing in the arcade registers one, so a worker here is always foreign —
+  left over from another project sharing port 3000 — and it breaks audio by
+  trying to `cache.put()` the 206 Partial Content responses the browser asks
+  for when it streams the theme
 - Saves live in `calebArcadeData:paperboy` in localStorage (plan, planner view,
   rider profiles, detail level) — not yet moved to `arcade-store.js`
 

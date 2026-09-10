@@ -16,7 +16,10 @@ arcade conventions, and wire it into the landing page and docs.
 
 ## Inputs
 - The approved concept / the filled `game.spec.md`.
-- `knowledge/` — boilerplate, audio patterns, UX patterns (read just-in-time).
+- `knowledge/` — boilerplate, audio patterns (SFX *and* theme music), UX patterns
+  (read just-in-time).
+- `docs/new-game-guide.md` — the cross-cutting style guide: HTML/CSS boilerplate,
+  palette, back button, start overlay, HUD, theme music. Read it before writing.
 - Optional ported source in `games/<name>/research/` (gitignored).
 
 ## Method

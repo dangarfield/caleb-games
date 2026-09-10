@@ -6,6 +6,7 @@
 // This module owns no game rules — session.js tells it what to show.
 import { DAYS, LIVES_PER_RUN, PAPERS_MAX } from './config.js';
 import { input } from './input.js';
+import { audio } from './audio.js';
 
 // A rolled paper leaving his hand: the throw pad. Black on white, no colour,
 // so it reads at any size.
@@ -158,6 +159,7 @@ export class Ui {
 
     // He tried to throw with nothing left.
     noPapers() {
+        audio.play('nopapers');
         this.noPapersTag.classList.remove('show');
         // Restart the flash even if it is already up.
         void this.noPapersTag.offsetWidth;
@@ -220,7 +222,7 @@ export class Ui {
             const row = el('div', 'panel-actions');
             for (const a of actions) {
                 const b = el('button', `btn tone-${a.tone || 'blue'}`, a.label);
-                b.addEventListener('click', () => a.onClick?.());
+                b.addEventListener('click', () => { audio.play('click'); a.onClick?.(); });
                 row.appendChild(b);
             }
             this.panel.appendChild(row);
@@ -264,7 +266,7 @@ export class Ui {
                 el('span', 'player-stat', `FURTHEST  ${DAYS[Math.min(p.bestDay, DAYS.length - 1)]}`),
                 el('span', 'player-score', `BEST  ${p.highScore.toLocaleString()}`),
             );
-            card.addEventListener('click', () => onPick(name));
+            card.addEventListener('click', () => { audio.play('click'); onPick(name); });
             list.appendChild(card);
         }
         this.openPanel({

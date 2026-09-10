@@ -84,7 +84,7 @@ export const ENTITY_TYPES = {
 export const SPAWN_Y = 0.1;
 // Bumped whenever this bundle changes. Check __pb.version in the console: if it
 // does not match what you expect, the browser is serving cached modules.
-export const VERSION = '2026-09-10 ramp-boxes';
+export const VERSION = '2026-09-10 sound b';
 // localStorage item for this game's saved data (arcade convention).
 export const STORE_KEY = 'calebArcadeData:paperboy';
 

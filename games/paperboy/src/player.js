@@ -1,5 +1,6 @@
 // The boy: transform, steering, and which clip is playing.
 import * as THREE from 'three';
+import { audio } from './audio.js';
 import { CLIPS, CRANK_RATIO, GRAVITY, INVULN_FLASHES, INVULN_TIME, KERB_SAMPLE, KERB_SIDE_PROBE, PLAYER_RADIUS, RANGE, START, WHEEL_RADIUS_LOCAL, YAW_FORWARD, state } from './config.js';
 
 const FADE = 0.18;
@@ -235,6 +236,7 @@ export class Player {
     throwPaper() {
         if (this.throwTimer > 0 || !this.actions[CLIPS.throwLeft]) return null;
         this.throwTimer = state.throwCooldown;
+        audio.play('throw');
         this.throwAction = this.play(CLIPS.throwLeft, { once: true, fade: 0.08 });
 
         const position = new THREE.Vector3();
@@ -249,6 +251,7 @@ export class Player {
         if (this.airborne || !state.riding || state.crashed) return false;   // no hops off the deck
         this.vy = state.jumpVelocity;
         this.airborne = true;
+        audio.play('jump');
         return true;
     }
 
@@ -280,6 +283,7 @@ export class Player {
         this.lastSlope = 0;
         this.surfaceSlope = 0;
         this.throwAction = null;
+        audio.play('crash');
         this.play(CLIPS.fall, { once: true, fade: 0.05 });
         this.onCrashed?.(why);
     }
@@ -353,6 +357,7 @@ export class Player {
             if (past && !this.airborne && this.speed > 1 && state.riding) {
                 this.vy = state.rampLaunch;
                 this.airborne = true;
+                audio.play('jump');
                 this.climb = 0;
                 this.slopePeak = 0;
                 this.lastSlope = 0;
@@ -369,6 +374,8 @@ export class Player {
                 p.y += this.vy * dt;
                 if (gy !== null && p.y <= gy + state.groundOffset && this.vy <= 0) {
                     p.y = gy + state.groundOffset;
+                    // Only the drops worth hearing, or every kerb clicks.
+                    if (this.vy < -2) audio.play('land');
                     this.vy = 0;
                     this.airborne = false;
                 }

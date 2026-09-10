@@ -111,6 +111,8 @@
         Promise.resolve(screen.orientation.lock("landscape")).catch(function () {});
     } catch (e) { /* not allowed here, and that is fine */ }
 
+    music();
+
     // escape closes whatever is open, in the usual order
     document.addEventListener("keydown", function (e) {
       if (e.key !== "Escape" || document.getElementById("app").hidden) return;
@@ -120,6 +122,58 @@
       else if (Engine.state.overlay) Engine.closeOverlay();
       else if (Engine.state.onDesk) Engine.returnToShelf(Engine.state.onDesk);
     });
+  }
+
+  /* ---------------- the theme ----------------
+   * No mute button, no volume slider, no "music: on" in a settings panel. It is
+   * one piece of music that loops, and the only thing that governs it is the
+   * tab being in front of you.
+   *
+   * Nothing is downloaded and nothing is played until the first pointer, touch
+   * or key event anywhere on the document — preload="none" on the element, and
+   * load() here. That is not only politeness about bandwidth: browsers refuse
+   * audio until the page has been interacted with, so the first gesture is the
+   * earliest it could have started anyway. If the browser refuses even then
+   * (some want a click specifically), the listeners go straight back on and the
+   * next gesture tries again.
+   *
+   * It does not fade in. The file is encoded 6dB down, so it comes in at
+   * background level already and a ramp would only be a ramp for its own sake.
+   */
+  function music() {
+    var el = document.getElementById("theme");
+    if (!el) return;
+
+    var LEVEL = 0.5;                // on top of the 6dB already taken off the file
+    var EVENTS = ["pointerdown", "touchstart", "keydown"];
+    var playing = false;            // it has started at least once
+
+    function arm()   { EVENTS.forEach(function (e) { document.addEventListener(e, start, true); }); }
+    function disarm(){ EVENTS.forEach(function (e) { document.removeEventListener(e, start, true); }); }
+
+    function start() {
+      disarm();
+      el.volume = LEVEL;
+      var p;
+      try { el.load(); p = el.play(); } catch (e) { arm(); return; }
+      /* A refused promise means the browser wanted a different kind of gesture,
+         so put the listeners back rather than sitting there silent. */
+      if (p && p.then) p.then(function () { playing = true; }, function () { arm(); });
+      else playing = true;
+    }
+
+    /* Somebody who has tabbed away to something else does not want a plant shop
+       playing at them out of a window they cannot see. */
+    document.addEventListener("visibilitychange", function () {
+      /* `playing` and not `el.paused`: after we have paused it for a hidden tab
+         those two say the same thing, and reading el.paused here left the music
+         off for good once you had tabbed away one time. */
+      if (!playing) return;
+      if (document.hidden) el.pause();
+      else { var p = el.play(); if (p && p.catch) p.catch(function () {}); }
+    });
+
+    arm();
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

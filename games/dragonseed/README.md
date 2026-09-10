@@ -68,6 +68,7 @@ build/artmanifest.py  scans art/ and emits js/art.js. Re-run after adding
                     or removing a picture
 art/                the artwork itself: 254 webp files, 22MB. Named exactly
                     as the prompt files say
+audio/              the theme: one Opus-in-WebM file, 927KB. No controls
 js/story.js         the full-screen story: the three opening panels day one
                     starts on, and every evening between the days
 tests/              fifteen Playwright scripts and how to run them
@@ -432,6 +433,26 @@ does not exist, so all six forks — days 2, 7, 10, 12, 14 and the ending on 16 
 handed over a card with nothing written on it. Fixed; the card is titled
 "<name> takes it" rather than a thank-you, because one of the two ways through a
 fork is usually not a kindness.
+
+**The theme.** One piece of music, looping, with no controls of any kind — no
+mute, no slider, no line in a settings panel. Nothing is fetched and nothing
+plays until the first pointer, touch or key event anywhere on the document:
+`preload="none"` on the element and `load()` in `music()`. That is not only
+politeness about bandwidth — browsers refuse audio until the page has been
+interacted with, so the first gesture is the earliest it could have started
+anyway. If the browser refuses even then, the listeners go back on and the next
+gesture tries. It does not fade in: the file is encoded 6dB down so it arrives at
+background level already, and it plays at `volume` 0.5 on top of that. It pauses
+itself while the tab is in the background (tracked with its own `playing` flag,
+because after that pause `el.paused` can no longer tell "we stopped it" from
+"it never started").
+
+`audio/` holds one encode: Opus in WebM at 48k VBR, 927KB, from a 3.07MB source
+mp3 that had a JPEG cover welded inside it. There is deliberately no AAC
+fallback — the only thing that cannot read WebM is Safari before 16, and
+carrying a second copy of the whole track for it would undo most of the saving.
+The recipe is written up for other games in `docs/new-game-guide.md` and
+`knowledge/audio-patterns.md`.
 
 **The hint, in two goes.** Press Hint once and the request is restated in the
 game's own words. Press it again on the same customer and you are told the
