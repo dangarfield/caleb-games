@@ -84,7 +84,7 @@ export const ENTITY_TYPES = {
 export const SPAWN_Y = 0.1;
 // Bumped whenever this bundle changes. Check __pb.version in the console: if it
 // does not match what you expect, the browser is serving cached modules.
-export const VERSION = '2026-09-10 sound b';
+export const VERSION = '2026-09-12 unlimited';
 // localStorage item for this game's saved data (arcade convention).
 export const STORE_KEY = 'calebArcadeData:paperboy';
 
@@ -262,6 +262,7 @@ export const state = {
     player: '',             // whose run this is
     day: 0,                 // index into DAYS
     lives: LIVES_PER_RUN,
+    unlimited: false,       // the ∞ toggle: crashes cost nothing
     papers: PAPERS_MAX,
     invuln: 0,              // seconds of post-continue grace left
     // --- Ground follow ---

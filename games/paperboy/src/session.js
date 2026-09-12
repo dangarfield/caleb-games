@@ -37,6 +37,13 @@ export class Session {
         this.days = [];            // the seven generated plans; see days.js
         ui.onPause = () => this.pause();
         ui.onCancel = () => this.confirmQuit();
+        // The ∞ toggle. Turning it off mid-run hands back however many lives
+        // were left when it went on, rather than a fresh five.
+        state.unlimited = ui.unlimited;
+        ui.onUnlimited = on => {
+            state.unlimited = on;
+            this.ui.setLives(state.lives);
+        };
     }
 
     get player() { return this.getPlayer(); }
@@ -171,14 +178,18 @@ export class Session {
     crashed(why) {
         if (state.mode !== 'playing') return;
         state.mode = 'crashed';
-        state.lives = Math.max(0, state.lives - 1);
-        this.ui.setLives(state.lives);
-        if (state.lives > 0) {
+        if (!state.unlimited) {
+            state.lives = Math.max(0, state.lives - 1);
+            this.ui.setLives(state.lives);
+        }
+        if (state.unlimited || state.lives > 0) {
             this.ui.openPanel({
                 title: 'CRASHED!',
                 tone: 'red',
                 actions: [{
-                    label: `TRY AGAIN (${state.lives} ${state.lives === 1 ? 'LIFE' : 'LIVES'})`,
+                    label: state.unlimited
+                        ? 'TRY AGAIN'
+                        : `TRY AGAIN (${state.lives} ${state.lives === 1 ? 'LIFE' : 'LIVES'})`,
                     tone: 'blue',
                     onClick: () => this.continueRun(),
                 }],

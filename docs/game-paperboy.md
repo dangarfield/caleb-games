@@ -34,6 +34,11 @@ is kept at `research/paperboy-prototype-2026-04.html`.
   pedestrian, pickup, jump, landing, crash, empty bag, get-ready/go, day done,
   game over, respawn, button clicks. There is no mute control: the theme
   starts by itself on the first touch or key press and stays on
+- Five lives a run, shown as paperboy caps. The ∞ chip in the top right turns
+  on unlimited lives — one cap and an infinity sign instead of five, and the
+  crash panel says just TRY AGAIN. It is remembered between sessions and can be
+  flipped mid-run; turning it off hands back the lives that were left when it
+  went on. Runs still record a best score either way
 - Keyboard or on-screen pads (steer, gears, throw); GET READY / GO intro,
   pause and quit panels, all in the boy's own colours and the Anta typeface
 - Enemy planner (E) for placing and routing obstacles, with import/export

@@ -7,6 +7,7 @@
 import { DAYS, LIVES_PER_RUN, PAPERS_MAX } from './config.js';
 import { input } from './input.js';
 import { audio } from './audio.js';
+import { readStore, writeStore } from './store.js';
 
 // A rolled paper leaving his hand: the throw pad. Black on white, no colour,
 // so it reads at any size.
@@ -45,11 +46,10 @@ export class Ui {
         this.score = el('span', 'val', '0');
         this.day = el('div', 'blk blk-day', DAYS[0]);
         this.lives = el('div', 'hats');
-        for (let i = 0; i < LIVES_PER_RUN; i++) {
-            const hat = el('i', 'hat');
-            hat.innerHTML = HAT;
-            this.lives.appendChild(hat);
-        }
+        // Remembered between sessions, so the younger one does not have to
+        // find the button every time.
+        this.unlimited = readStore().unlimited === true;
+        this.renderLives();
         this.pips = el('div', 'pips');
         for (let i = 0; i < PAPERS_MAX; i++) this.pips.appendChild(el('i', 'pip'));
 
@@ -70,14 +70,22 @@ export class Ui {
         this.hud.id = 'hud';
         this.hud.append(scoreBlk, this.day, livesBlk, papersRow);
 
-        // --- pause and quit ---
+        // --- unlimited lives, pause and quit ---
+        this.infBtn = el('button', 'chip icon', '∞');
+        this.infBtn.title = 'Unlimited lives';
+        this.infBtn.classList.toggle('on', this.unlimited);
+        this.infBtn.setAttribute('aria-pressed', String(this.unlimited));
+        this.infBtn.addEventListener('click', () => {
+            audio.play('click');
+            this.onUnlimited?.(this.setUnlimited(!this.unlimited));
+        });
         this.pauseBtn = el('button', 'chip icon', '⏸');
         this.pauseBtn.title = 'Pause';
         this.cancelBtn = el('button', 'chip icon', '✕');
         this.cancelBtn.title = 'Back to the menu';
         const corner = el('div');
         corner.id = 'topRight';
-        corner.append(this.pauseBtn, this.cancelBtn);
+        corner.append(this.infBtn, this.pauseBtn, this.cancelBtn);
         this.pauseBtn.addEventListener('click', () => this.onPause?.());
         this.cancelBtn.addEventListener('click', () => this.onCancel?.());
 
@@ -154,7 +162,28 @@ export class Ui {
     setScore(n) { this.score.textContent = Math.round(n).toLocaleString(); }
     setDay(i) { this.day.textContent = DAYS[i % DAYS.length]; }
     setLives(n) {
+        if (this.unlimited) return;   // one hat and a sideways eight: nothing to count down
         this.lives.childNodes.forEach((hat, i) => hat.classList.toggle('gone', i >= n));
+    }
+
+    // Five hats normally; one hat and ∞ when crashes are free.
+    renderLives() {
+        this.lives.replaceChildren();
+        for (let i = 0; i < (this.unlimited ? 1 : LIVES_PER_RUN); i++) {
+            const hat = el('i', 'hat');
+            hat.innerHTML = HAT;
+            this.lives.appendChild(hat);
+        }
+        if (this.unlimited) this.lives.appendChild(el('i', 'inf', '∞'));
+    }
+
+    setUnlimited(on) {
+        this.unlimited = !!on;
+        writeStore({ unlimited: this.unlimited });
+        this.infBtn.classList.toggle('on', this.unlimited);
+        this.infBtn.setAttribute('aria-pressed', String(this.unlimited));
+        this.renderLives();
+        return this.unlimited;
     }
 
     // He tried to throw with nothing left.
