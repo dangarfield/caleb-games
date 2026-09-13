@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Deepfold - Garfield Boys' Arcade</title>
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<style>
+/* The game is entirely geometry. This stylesheet is chrome only: the back
+   link, the start card, the control pad's placement and the end-card fade.
+   Arcade purple lives here and nowhere else — everything inside the frame
+   belongs to the paper ramp. */
+:root {
+  --accent: #6c5ce7;
+  --glow: #a29bfe;
+  --gold: #ffd32a;
+  --sub: #a0c4ff;
+  --danger: #e74c3c;
+  --ui: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; }
+body {
+  background: #0a0a2e; overflow: hidden; touch-action: none; user-select: none;
+  font-family: var(--ui); color: #fff;
+}
+canvas { display: block; width: 100%; height: 100%; }
+#c { position: fixed; inset: 0; z-index: 1; }
+/* The readout is a second canvas over the scene, and it must never eat a
+   touch: every drag belongs to the ship. */
+#hud { position: fixed; inset: 0; z-index: 10; pointer-events: none; }
+/* Load-bearing: #deadCard carries this class in the markup AND the hidden
+   attribute, so a stylesheet that fails to load cannot tell a child the game
+   is broken when it is not. */
+.off { display: none !important; }
+
+/* ------------------------------------------------------------- chrome */
+#backBtn {
+  position: fixed; top: 12px; left: 12px; z-index: 60;
+  background: rgba(0,0,0,0.55); color: #fff; text-decoration: none;
+  padding: 6px 18px; border-radius: 20px;
+  font: bold 15px/1.4 var(--ui);
+  border: 1px solid rgba(162,155,254,0.35);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+#backBtn:hover { background: rgba(0,0,0,0.75); }
+body.playing #backBtn { opacity: 0.45; }
+
+/* ----------------------------------------------------------- start card */
+#overlay {
+  position: fixed; inset: 0; z-index: 80; display: grid; place-items: center;
+  background: radial-gradient(ellipse at 50% 38%, rgba(20,22,64,0.72), rgba(6,6,20,0.94));
+  padding: 20px; overflow-y: auto; align-content: center;
+}
+.card {
+  /* 100%, not 94vw: #overlay already holds a 20px gutter, and a card sized
+     against the VIEWPORT inside a padded box overflows it — at 390px that was
+     366px of card in a 350px box, pushing the whole start screen sideways. */
+  width: min(560px, 100%); max-width: 100%; margin: auto; text-align: center;
+  background: linear-gradient(160deg, #16163c, #101028);
+  border: 1px solid rgba(162,155,254,0.28); border-radius: 20px;
+  padding: 26px clamp(18px, 5vw, 36px);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.55);
+  max-height: calc(100vh - 28px); overflow-y: auto;
+}
+.card h1 {
+  font-size: clamp(34px, min(10vw, 10vh), 62px); line-height: 1; letter-spacing: .02em;
+  text-shadow: 0 0 26px rgba(162,155,254,0.55);
+}
+.card h1 em { font-style: normal; color: var(--gold); }
+.card .sub { color: var(--sub); letter-spacing: .12em; text-transform: uppercase;
+  font-size: 13px; margin-top: 8px; }
+.sect { margin: 18px 0 6px; font-size: 11px; letter-spacing: .16em;
+  text-transform: uppercase; color: rgba(255,255,255,0.5); }
+.row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.pick {
+  min-width: 116px; min-height: 52px; padding: 10px 18px; border-radius: 14px; cursor: pointer;
+  border: 2px solid rgba(162,155,254,0.35); background: rgba(255,255,255,0.06);
+  color: #fff; font: 700 17px/1.2 var(--ui);
+}
+.pick.on { background: var(--accent); border-color: var(--glow); box-shadow: 0 0 18px rgba(108,92,231,0.5); }
+.help { margin: 18px auto 4px; max-width: 430px; font-size: 14.5px; line-height: 1.55;
+  color: rgba(255,255,255,0.82); text-align: left; }
+/* The story, in the game's voice. No instructions: the controls are two big
+   buttons and a drag, and a seven-year-old finds those faster by pressing them
+   than by reading about them. */
+.story {
+  margin: 20px auto 6px; max-width: 430px; text-align: left;
+  font-size: 15.5px; line-height: 1.6; color: rgba(255,255,255,0.86);
+}
+.story p { margin-bottom: 10px; }
+.story em { font-style: normal; color: var(--gold); }
+#startBtn {
+  margin-top: 0; padding: 15px 46px; border: none; border-radius: 14px; cursor: pointer;
+  font: 800 20px/1 var(--ui); letter-spacing: .1em; text-transform: uppercase; color: #fff;
+  background: linear-gradient(135deg, var(--accent), #8a7bf2);
+  box-shadow: 0 5px 0 #4b3fc4, 0 10px 26px rgba(0,0,0,0.45);
+}
+#startBtn:active { transform: translateY(3px); box-shadow: 0 2px 0 #4b3fc4; }
+.chip-back {
+  display: inline-block; margin-top: 8px; padding: 13px 30px; border-radius: 12px;
+  background: var(--accent); color: #fff; text-decoration: none;
+  font: 800 16px/1 var(--ui); letter-spacing: .1em; text-transform: uppercase;
+}
+#bestLine { margin-top: 14px; font-size: 13px; color: var(--gold); opacity: .85; }
+
+/* ---- the roster, closed by default -------------------------------------
+   It must never stand between a child and the Launch button, so it is a
+   details/summary that starts shut and its contents are not even built until
+   the first time it is opened. */
+#guide { margin-top: 18px; text-align: left; border-top: 1px solid rgba(162,155,254,.22); }
+#guide > summary {
+  list-style: none; cursor: pointer; padding: 14px 4px 12px;
+  font: 700 12px/1 var(--ui); letter-spacing: .16em; text-transform: uppercase;
+  color: var(--glow); display: flex; align-items: center; justify-content: space-between;
+}
+#guide > summary::-webkit-details-marker { display: none; }
+#guide > summary::after { content: '+'; font-size: 18px; opacity: .8; }
+#guide[open] > summary::after { content: '\2212'; }
+/* No scroller of its own. The CARD scrolls; a panel that scrolls inside a
+   card that also scrolls is two things to drag on a tablet and the inner one
+   always wins the gesture you did not mean. */
+#guideBody { padding-bottom: 6px; }
+.gHead {
+  font: 700 11px/1 var(--ui); letter-spacing: .16em; text-transform: uppercase;
+  color: rgba(255,255,255,.45); margin: 14px 0 8px;
+}
+.gRow { display: flex; gap: 12px; align-items: flex-start; padding: 7px 0; }
+.gPic {
+  flex: 0 0 84px; height: 52px; border-radius: 10px;
+  background: rgba(162,155,254,.10); display: flex; align-items: center; justify-content: center;
+}
+.gPic img { width: 84px; height: 52px; object-fit: contain; display: block; }
+/* Clear of the card's scrollbar, and every line wraps inside the row rather
+   than running out under it. */
+.gTxt { flex: 1 1 auto; min-width: 0; padding-right: 10px; }
+.gTxt b { display: block; font-size: 14.5px; color: #fff; margin-bottom: 2px; }
+.gTxt span, .gNote {
+  display: block; font-size: 12.5px; line-height: 1.45; color: rgba(255,255,255,.72);
+  overflow-wrap: break-word; word-break: break-word; hyphens: auto;
+}
+.gNote { color: var(--sub); padding: 6px 10px 2px 0; }
+
+/* Launch never leaves the screen. It is pinned to the bottom of the card, so
+   opening the roster above it scrolls the card under a button that stays put
+   — on a landscape tablet, where the card is already as tall as the screen,
+   that is the difference between reachable and not. */
+/* The art side's pad is bottom-right. The quiet pair — pause and the infinite
+   lives assist — goes top-right instead, out of the way of both thumbs. */
+#dfcTopPad {
+  top: calc(14px + env(safe-area-inset-top, 0px));
+  bottom: auto;
+  align-items: flex-start;
+}
+.cardFoot {
+  position: sticky; bottom: -1px; z-index: 2; margin-top: 6px; padding: 12px 0 2px;
+  background: linear-gradient(180deg, rgba(17,17,41,0), #121230 26%, #121230 100%);
+}
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+<canvas id="hud"></canvas>
+
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+
+<div id="overlay">
+
+  <!-- Shown only when WebGL will not start at all, so the player gets a
+       sentence and a way back instead of a Launch button that does nothing. -->
+  <div class="card off" id="deadCard" hidden>
+    <h1>Oh no</h1>
+    <div class="sub">This browser will not run the graphics</div>
+    <div class="story">
+      <p>Deepfold needs WebGL. Try a different browser, or close some other
+      tabs and reload &mdash; the rest of the arcade will still work.</p>
+    </div>
+    <a class="chip-back" href="../../index.html">Back to the games</a>
+  </div>
+
+  <div class="card" id="startCard">
+    <h1>Deep<em>fold</em></h1>
+    <div class="sub">Seven folds of a paper sea</div>
+
+    <div class="story">
+      <p>The sea is made of paper, folded new every morning.</p>
+      <p>Something down in the trench has stopped folding and started
+      <em>tearing</em> &mdash; and the tears are spreading up through the reef.</p>
+      <p>Fly down through all seven folds and put it right.</p>
+    </div>
+
+    <div class="sect">Who is flying?</div>
+    <div class="row">
+      <button class="pick" data-role="player" data-value="Caleb">Caleb</button>
+      <button class="pick" data-role="player" data-value="Ezra">Ezra</button>
+    </div>
+
+    <div class="sect">Difficulty</div>
+    <div class="row">
+      <button class="pick" data-role="diff" data-value="easy">Easy</button>
+      <button class="pick" data-role="diff" data-value="normal">Normal</button>
+    </div>
+
+    <details id="guide">
+      <summary>Who you're up against</summary>
+      <div id="guideBody"></div>
+    </details>
+
+    <div class="cardFoot">
+      <button id="startBtn">Launch</button>
+      <div id="bestLine">Best 0</div>
+    </div>
+  </div>
+</div>
+
+<!-- The arcade's save layer: localStorage's manners over IndexedDB. A classic
+     script on purpose — it is shared, unchanged, with every other game that
+     uses it, so it is copied in rather than rewritten as a module. -->
+<!-- The theme. There are no controls for it anywhere, on purpose: one tune,
+     quiet, looping, and the tab being in front of you is the only control.
+     One encode (Opus in WebM, 48k VBR, 6dB taken off the file itself) and
+     preload="none", so nothing is fetched until the first gesture. -->
+<audio id="theme" src="audio/deepfold-theme.webm" loop preload="none" aria-hidden="true"></audio>
+
+<script src="js/arcade-store.js"></script>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

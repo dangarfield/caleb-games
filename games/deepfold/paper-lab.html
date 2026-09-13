@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Paper Lab - Deepfold</title>
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<style>
+/* The page is chrome only. Every coloured thing on screen is geometry built by
+   paper.js — the HTML contributes captions and nothing else, which is the
+   point of the exercise. */
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html, body { height:100%; }
+body {
+  background:#0a0a2e; overflow:hidden; touch-action:none; user-select:none;
+  font-family:'Segoe UI',system-ui,sans-serif; color:#fff;
+}
+canvas { display:block; width:100%; height:100%; }
+
+#backBtn { position:fixed; top:12px; left:12px; z-index:9999;
+  background:rgba(0,0,0,0.55); color:#fff; text-decoration:none;
+  padding:6px 18px; border-radius:20px;
+  font:bold 15px/1.4 'Segoe UI',system-ui,sans-serif;
+  border:1px solid rgba(255,255,255,0.18);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  transition:background 0.2s; }
+#backBtn:hover { background:rgba(0,0,0,0.75); }
+
+#title { position:fixed; top:14px; right:14px; z-index:9999; text-align:right;
+  text-shadow:0 2px 8px rgba(8,16,51,0.8); pointer-events:none; }
+#title b { display:block; font-size:17px; letter-spacing:.14em; text-transform:uppercase; }
+#title span { font-size:12px; opacity:.75; }
+
+/* Ramp switcher — the only interactive thing here. */
+#stages { position:fixed; bottom:12px; left:50%; transform:translateX(-50%);
+  z-index:9999; display:flex; gap:6px; }
+#stages button { font:700 12px/1 'Segoe UI',system-ui,sans-serif; letter-spacing:.1em;
+  text-transform:uppercase; color:#fff; background:rgba(0,0,0,0.45);
+  border:1px solid rgba(255,255,255,0.2); border-radius:14px; padding:8px 14px;
+  cursor:pointer; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
+#stages button.on { background:#6c5ce7; border-color:#a29bfe; }
+
+/* Captions are absolutely positioned each frame from the world position of the
+   thing they label, so they stay put through every resize and rescale. */
+#caps { position:fixed; inset:0; z-index:50; pointer-events:none; }
+.cap { position:absolute; transform:translate(-50%,0);
+  font:700 12px/1.25 'Segoe UI',system-ui,sans-serif;
+  letter-spacing:.1em; text-transform:uppercase; white-space:nowrap;
+  color:#fff; text-shadow:0 1px 0 rgba(8,16,51,.45), 0 2px 10px rgba(8,16,51,.9); }
+.cap.left { transform:translate(0,0); }
+.cap i { display:block; font-style:normal; font-weight:500; font-size:10px;
+  letter-spacing:.04em; text-transform:none; opacity:.8; }
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+<div id="title"><b>Paper Lab</b><span>Deepfold render kit</span></div>
+<canvas id="c"></canvas>
+<div id="caps"></div>
+<div id="stages">
+  <button data-ramp="STAGE1" class="on">Stage 1</button>
+  <button data-ramp="STAGE2">Stage 2</button>
+  <button data-ramp="STAGE3">Stage 3</button>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { createView, worldToScreen } from './src/camera.js';
+import { createBackdrop } from './src/background.js';
+import { roundRectShape, paperPiece, confettiPool, disposeObject, fitTo, mergeShadows } from './src/paper.js';
+import { ramp, rampSwatch, STAGES } from './src/palette.js';
+import {
+  playerShip, forcePod, popcornDrone, chainWorm, spikeMine, gunship,
+  jellyDrifter, wallTurret, bossHulk, terrainSlab,
+  urchin, angler, puffer, ray, baitball, crab, eel, mergeActorShadows,
+} from './src/designs.js';
+
+const view = createView(document.getElementById('c'), { background: ramp('STAGE1', 0.22).getHex() });
+
+/* The gallery is authored in a fixed 168x100 design space and then scaled to
+   whatever the device gives, so a phone sees the same arrangement as an iPad,
+   just smaller. Without this the layout would fall apart the moment the aspect
+   ratio dropped below about 1.7. */
+const DESIGN_W = 168;
+
+const capsEl = document.getElementById('caps');
+let caps = [];      // { el, x, y }
+let gallery = null, backdrop = null, confetti = null, anim = null;
+
+function caption(text, sub, x, y, align) {
+  const el = document.createElement('div');
+  el.className = 'cap' + (align === 'left' ? ' left' : '');
+  el.innerHTML = text + (sub ? '<i>' + sub + '</i>' : '');
+  capsEl.appendChild(el);
+  caps.push({ el, x, y });
+}
+
+function build(rampName) {
+  if (gallery) disposeObject(gallery);
+  if (backdrop) backdrop.dispose();
+  if (confetti) confetti.dispose();
+  capsEl.innerHTML = '';
+  caps = [];
+
+  view.setBackground(ramp(rampName, 0.22).getHex());
+  backdrop = createBackdrop(view.scene, { rampName, seed: 4, width: view.width, height: 100 });
+
+  gallery = new THREE.Group();
+  view.scene.add(gallery);
+
+  /* Everything here is built at the size it flies at — the ship is nine world
+     units nose-to-tail, the enemies six to ten — which at a hundred-unit view
+     height is too small to judge a paint job on. fitTo scales each exhibit to
+     a common width for the gallery AND divides its shadow offsets back down,
+     so the whole picture still has exactly one light in it. */
+  /* `rigid` exhibits get their shadows merged to a single draw — see
+     mergeShadows. The four that animate a sub-part (worm links, jellyfish
+     tentacles, turret gun, boss eye and crown) must not be merged, or the part
+     slides out from under its own shadow. */
+  const show = (obj, x, y, w, z = 2) => {
+    fitTo(obj, w);
+    mergeActorShadows(obj);   // knows which parts of each design move
+    obj.position.set(x, y, z);
+    gallery.add(obj);
+    return obj;
+  };
+
+  // --- hero row -----------------------------------------------------------
+  const ship = show(playerShip({ rampName, len: 9 }), -62, 37, 26);
+  caption('Player ship', 'arrowhead dart, 9u nose-to-tail', -62, 25);
+
+  const pod = show(forcePod({ rampName, radius: 4.5 }), -36, 37, 17);
+  caption('Force pod', 'nested contours', -36, 27);
+
+  const boss = show(bossHulk({ rampName, radius: 18, seed: 101 }), 46, 34, 34);
+  caption('Boss', 'gold weak point', 46, 14);
+
+  // --- enemies, row one ---------------------------------------------------
+  const drone  = show(popcornDrone({ rampName, radius: 3.6, seed: 3 }), -74, 13, 15);
+  const worm   = show(chainWorm({ rampName, beads: 4, radius: 2.4, spread: 4.6, seed: 21 }), -54, 13, 20);
+  const mine   = show(spikeMine({ rampName, radius: 4.2, seed: 33 }), -36, 13, 15);
+  const heavy  = show(gunship({ rampName, len: 9 }), -18, 13, 16);
+  const jelly  = show(jellyDrifter({ rampName, size: 7.5, seed: 61 }), -2, 13, 12);
+  const turret = show(wallTurret({ rampName, size: 8, aim: 0.22 }), 14, 11, 15);
+  caption('Popcorn', 'round', -74, 3);
+  caption('Chain', 'equal beads', -54, 3);
+  caption('Mine', 'spiked', -36, 3);
+  caption('Gunship', 'angular', -18, 3);
+  caption('Drifter', 'bell + ribbons', -2, 3);
+  caption('Turret', 'squat', 14, 3);
+
+  // --- enemies, row two: the deeper water ---------------------------------
+  const urch   = show(urchin({ rampName, radius: 3.6 }), -74, -11, 14);
+  const ang    = show(angler({ rampName, size: 6.5 }), -56, -11, 15);
+  const puff   = show(puffer({ rampName, radius: 3.6 }), -38, -11, 14);
+  const manta  = show(ray({ rampName, size: 5.2 }), -20, -11, 15);
+  const bait   = show(baitball({ rampName, size: 6.2 }), -2, -11, 15);
+  const crustac= show(crab({ rampName, size: 6 }), 16, -11, 15);
+  const moray  = show(eel({ rampName }), 40, -11, 26);
+  caption('Urchin', 'clamps on', -74, -19);
+  caption('Angler', 'lure is the tell', -56, -19);
+  caption('Puffer', 'inflates', -38, -19);
+  caption('Ray', 'wings flap', -20, -19);
+  caption('Baitball', 'scatters', -2, -19);
+  caption('Crab', 'either way up', 16, -19);
+  caption('Eel', 'ten links', 40, -19);
+
+  // --- terrain ------------------------------------------------------------
+  const roof = terrainSlab({ rampName, width: 54, height: 7, seed: 12, bumps: 6, layers: 5, bandWidth: 2.7, ceiling: true });
+  roof.position.set(-56, -34, 1);
+  gallery.add(roof);
+  const floor = terrainSlab({ rampName, width: 54, height: 11, seed: 5, bumps: 7, layers: 6, bandWidth: 3.4 });
+  floor.position.set(-56, -47, 1);
+  gallery.add(floor);
+  caption('Canyon', 'top sheet palest', -83, -24, 'left');
+
+  // --- the seven stage ramps ----------------------------------------------
+  caption('Seven stages, shallows to trench', null, -22, -19, 'left');
+  STAGES.forEach((st, row) => {
+    const y = -24 - row * 4.2;
+    rampSwatch(st.ramp, 9).forEach((col, i) => {
+      const chip = paperPiece(roundRectShape(9.4, 3.4, 0.8), col, { z: 0.2 + i * 0.02 });
+      chip.position.set(-18 + i * 10.4, y, 1);
+      gallery.add(chip);
+    });
+  });
+
+  // --- confetti -----------------------------------------------------------
+  confetti = confettiPool(view.scene, { max: 260, seed: 7 });
+  confetti.group.position.z = 4;
+  const burstColors = rampSwatch(rampName, 6).map((c) => c.getHex());
+
+  // --- idle animation -----------------------------------------------------
+  let t = 0, nextBurst = 1.2;
+  anim = (dt) => {
+    t += dt;
+    backdrop.update(dt, 26);
+
+    ship.position.y = 37 + Math.sin(t * 1.1) * 1.6;
+    ship.rotation.z = Math.sin(t * 1.1) * 0.05;
+    ship.userData.flame.scale.set(0.85 + Math.sin(t * 14) * 0.15, 1, 1);
+
+    pod.rotation.z += dt * 0.45;
+    pod.position.y = 37 + Math.sin(t * 0.9 + 1) * 1.2;
+
+    boss.position.y = 34 + Math.sin(t * 0.55) * 1.8;
+    boss.userData.crown.rotation.z -= dt * 0.16;
+    boss.userData.eye.scale.setScalar(1 + Math.sin(t * 3.1) * 0.10);
+
+    drone.position.y = 13 + Math.sin(t * 2.3) * 1.1;
+    drone.rotation.z = Math.sin(t * 2.3) * 0.12;
+    worm.userData.links.forEach((b, i) => { b.position.y = Math.sin(t * 2.0 - i * 0.8) * 2.2; });
+    mine.rotation.z += dt * 0.5;
+    heavy.position.y = 13 + Math.sin(t * 1.4 + 2) * 1.0;
+    jelly.position.y = 13 + Math.sin(t * 1.0) * 1.8;
+    jelly.userData.tentacles.rotation.z = Math.sin(t * 1.0) * 0.16;
+    turret.userData.gun.rotation.z = 0.35 + Math.sin(t * 0.8) * 0.45;
+
+    nextBurst -= dt;
+    if (nextBurst <= 0) {
+      nextBurst = 1.4 + Math.random() * 1.2;
+      confetti.burst(46, 34, { count: 22, colors: burstColors, speed: 26, size: 1.3, z: 0 });
+    }
+    confetti.update(dt);
+  };
+
+  layout();
+}
+
+/* Scale the gallery to the viewport and re-pin the captions. */
+function layout() {
+  const s = Math.min(1, view.width / DESIGN_W);
+  if (gallery) gallery.scale.setScalar(s);
+  if (backdrop) backdrop.setExtent(view.width);
+  if (confetti) confetti.group.scale.setScalar(s);
+  const px = Math.max(8, Math.round(12 * s));
+  for (const c of caps) c.el.style.fontSize = px + 'px';
+}
+
+function placeCaptions() {
+  const s = Math.min(1, view.width / DESIGN_W);
+  const out = { x: 0, y: 0 };
+  for (const c of caps) {
+    worldToScreen(view, c.x * s, c.y * s, 3, out);
+    c.el.style.left = out.x + 'px';
+    c.el.style.top = out.y + 'px';
+  }
+}
+
+document.getElementById('stages').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  for (const x of document.querySelectorAll('#stages button')) x.classList.toggle('on', x === b);
+  build(b.dataset.ramp);
+});
+
+window.addEventListener('resize', () => { view.resize(); layout(); });
+window.addEventListener('orientationchange', () => { setTimeout(() => { view.resize(); layout(); }, 60); });
+
+build('STAGE1');
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  if (anim) anim(dt);
+  placeCaptions();
+  view.render();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -38,9 +38,15 @@ export class Ui {
         this.fonts = document.fonts?.ready ?? Promise.resolve();
 
         // --- always there: back to the arcade ---
-        const back = el('a', 'chip', '← Games');
-        back.id = 'backBtn';
-        back.href = '../../index.html';
+        // The page ships this anchor in its markup (see index.html), so it
+        // works before the module loads and the pre-commit hook can see it.
+        // Fall back to building one if the element is ever missing.
+        let back = document.getElementById('backBtn');
+        if (!back) {
+            back = el('a', 'chip', '← Games');
+            back.id = 'backBtn';
+            back.href = '../../index.html';
+        }
 
         // --- the corner blocks ---
         this.score = el('span', 'val', '0');

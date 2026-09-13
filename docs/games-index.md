@@ -1,6 +1,6 @@
 # Games Index
 
-All 68 games in Garfield Boys' Arcade (69 directories — Archers has legacy 2D + current 3D).
+All 70 games in Garfield Boys' Arcade (71 directories — Archers has legacy 2D + current 3D).
 
 | Game | Directory | Description |
 |------|-----------|-------------|
@@ -26,6 +26,7 @@ All 68 games in Garfield Boys' Arcade (69 directories — Archers has legacy 2D 
 | InfiniJump | games/infinijump/ | Vertical platformer |
 | Minesweeper | games/minesweeper/ | Classic mine sweeper |
 | Pac-Man | games/pacman/ | Maze chase with ghosts |
+| Deepfold | games/deepfold/ | Cut-paper underwater shooter (Three.js) - 7 folds, 7 bosses |
 | Paperboy | games/paperboy/ | Newspaper delivery |
 | Petri | games/petri/ | Cell growth game |
 | Racer 13 | games/racer13/ | Psychedelic lane racer |
@@ -72,6 +73,7 @@ All 68 games in Garfield Boys' Arcade (69 directories — Archers has legacy 2D 
 | Domino Rally | games/dominoes/ | 3D domino-run builder + toppler (Three.js + Rapier) — drag to draw straight lines or free curves, orbit/pan/select camera tools, a 360° rotation dial on whatever you last placed, 17 trick items in 5 families (obstacles, movers, noise-makers, gadgets, structures; 16 in the tray, Soft Sand is challenge-only) including four impulse-fired launchers (Rocket, Fire Jump, Loop the Loop, Slalom Tower) and a Springboard that comes loaded with the domino it flings, command-pattern undo AND redo, named saves, 22 achievements that unlock tools/tables/skins, 7 teaching challenges, per-device Low/High quality tiering with an adaptive governor, Caleb/Ezra progress |
 | Roadways | games/roadways/ | Mini Motorways-style city-traffic puzzle — drag 8-directional roads (diagonals cost the same tile but drive √2 slower) to connect houses to matching-coloured destinations; cars live at the houses and auto-route out, collect one waiting pin and return, with real congestion (intersection yields, no overtaking, gridlock cascade). Each house has a single free "drive" (one edge, redrawing replaces it). Pins pile up at destinations and past a hidden cap start a radial countdown that ends the run if it empties; square destinations upgrade to circles and demand faster. Monday→Sunday calendar with irregular spawns, Sunday choose-one-of-two bundles (road tiles + motorway or bridge/tunnel), free erase with a ghost-tile that keeps a car's route home; the camera zooms out linearly to reveal the whole city over 7 weeks with the buildable area growing to meet it; starts on one colour and ramps to 5. Ezra/Caleb are player profiles (Easy/Normal tuning) that pick a city (Los Angeles built; more "coming soon"); best score is per city × profile |
 | Caesar's Challenge | games/caesars-challenge/ | Roman-numeral academy — 100 levels in 10 provinces (Latium → Roma), 10–15 procedurally generated puzzles per level across 12 types (decode, encode, + − × ÷, compare, order, forgery-spotting, missing letter, sequence, balance scales, Caesar-shift secret scrolls) with 5 input widgets; laurel streak multiplier, sundial time bonus that can never fail you, teach cards on every miss, 3 stars per level, mosaic reveal, denarii + 10 province trophies, Colosseum rival duels every 10th level; Caleb/Ezra progress |
+| Skate | games/skate/ | 3D skatepark sandbox (Three.js), a close port of Eric Schubert's MIT-licensed Godot_Skate — the original glTF character with all 18 baked animation clips, the upstream Bowlpark and Warehouse geometry read straight from the glTF naming convention (`_Col_Floor` / `_Col_Wall` / `_Col_Pipe` / `_Rail_X`), and the original ten-state character state machine ported line for line. **3 parks** (Bowl Park and The Warehouse from upstream; Street Plaza built from the upstream quarter-pipe module) with a level select on the menu and in settings. Hold Space/JUMP to push and release to ollie; X grinds a rail or stalls a lip and puts you on the balance crescent; F/G flip and grab, with a held direction changing the trick. 15 tricks in 5 families, input-buffer matching, combo scoring with rotation. **THPS-style objectives per park** — score target, collect S-K-A-T-E, smash the barrels, combo length, grind distance or airtime, and one "land a trick here" ring — ticked off permanently and shown on a live checklist. Chase camera by default with the original's fixed Godot camera as a setting (gear icon), shadows toggle, sound always on. Multi-file ES modules under `games/skate/src/` |
 
 ## Naming quirks worth knowing
 

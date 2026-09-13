@@ -85,6 +85,11 @@ is kept at `research/paperboy-prototype-2026-04.html`.
   (loose boxes whose geometry is baked at the world origin, so a pivot group
   alone flung them across the map); and the level's missing tarmac from
   x 174.875 to 221.25.
+- 2026-09-13: the back link is now an `<a>` in `index.html`, adopted by ui.js,
+  not built by it. Building it in JavaScript failed the `back-button-check`
+  pre-commit hook, which reads the markup — and it meant the way out of the
+  game depended on the module loading. Any future game that builds its chrome
+  in script needs the same: ship the back link in the HTML.
 - Known gaps: the revealed target sign is modelled as 250 but a target scores
   200; day progression on crossing the finish is a placeholder until the seven
   days are properly defined.

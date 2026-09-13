@@ -536,6 +536,27 @@
       box-shadow: 0 12px 40px rgba(162, 155, 254, 0.55), 0 4px 12px rgba(0,0,0,0.3);
     }
 
+    .card-deepfold {
+      background: linear-gradient(145deg, #0a0a2e, #2b5fd9, #c026d3);
+      box-shadow: 0 8px 30px rgba(192, 38, 211, 0.4), 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .card-deepfold:hover {
+      box-shadow: 0 12px 40px rgba(34, 211, 238, 0.55), 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    .card-skate {
+      background: linear-gradient(145deg, #2b2d33, #f7860d, #d00005);
+      box-shadow: 0 8px 30px rgba(247, 134, 13, 0.4), 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .card-skate:hover {
+      box-shadow: 0 12px 40px rgba(247, 134, 13, 0.6), 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    /* SKATE-HIDDEN-TEMP: not ready for the hub yet — hide the card without removing it */
+    .card-skate { display: none; }
+
     .card-tgrs {
       background: linear-gradient(145deg, #1a1a6e, #6c5ce7, #ffd32a);
       box-shadow: 0 8px 30px rgba(255, 211, 42, 0.35), 0 2px 8px rgba(0,0,0,0.2);
@@ -1344,6 +1365,18 @@
       <div class="game-icon" aria-hidden="true">&#x1F4F0;</div>
       <div class="game-title">Paperboy</div>
       <div class="game-desc">Deliver newspapers while dodging obstacles!</div>
+    </a>
+
+    <a href="games/deepfold/" class="game-card card-deepfold">
+      <div class="game-icon" aria-hidden="true">&#129724;</div>
+      <div class="game-title">Deepfold</div>
+      <div class="game-desc">Dive seven folds of a paper sea - charge beam, Force pod, seven bosses.</div>
+    </a>
+
+    <a href="games/skate/" class="game-card card-skate">
+      <div class="game-icon" aria-hidden="true">&#128761;</div>
+      <div class="game-title">Skate</div>
+      <div class="game-desc">Drop in, bomb the ramps, grind the rails. Stack a combo and stomp the landing.</div>
     </a>
 
   </div>
