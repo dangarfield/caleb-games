@@ -343,7 +343,7 @@ export const LOOK = {
 /* Stamped when the game is deployed, and shown on the pause screen, so it is
    obvious at a glance whether a change has actually reached the tablet.
    tools/stamp_build.py rewrites this line. */
-export const BUILD = '2026-09-15 20:27';
+export const BUILD = '2026-09-15 22:31';
 
 /* Score band shown on the end-of-combo flash. */
 export const COMBO_COOLDOWN_TIME = 0.5;

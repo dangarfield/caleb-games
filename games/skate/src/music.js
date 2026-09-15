@@ -13,6 +13,11 @@
  */
 
 const FADE = 0.45;         // seconds to fade out under a skip, so it is not a cut
+/* How far into a song "back" stops meaning the previous song and starts
+   meaning the beginning of this one. Every music player does this, and it is
+   the difference between back being useful and back being a way to lose the
+   song you were enjoying. */
+const RESTART_AFTER = 5;   // seconds
 
 export class Music {
   /**
@@ -22,6 +27,16 @@ export class Music {
   constructor(asset, opts = {}) {
     this.asset = asset;
     this.onTrack = opts.onTrack || (() => {});
+    /* fires when going back becomes possible or stops being possible, so the
+       button can show it rather than quietly doing nothing */
+    this.onCanBack = opts.onCanBack || (() => {});
+    /* fires the first time sound actually comes out, which is the only honest
+       signal that the browser has let us start */
+    this.onPlaying = opts.onPlaying || (() => {});
+    this.onTrouble = opts.onTrouble || (() => {});
+    this._couldBack = null;
+    this._misses = 0;          // tracks that failed to load, in a row
+    this._wanted = false;      // a gesture arrived before the manifest did
     this.tracks = [];
     this.order = [];
     this.at = -1;
@@ -38,9 +53,25 @@ export class Music {
       if (!r.ok) return false;
       const j = await r.json();
       this.tracks = (j && j.tracks) || [];
+      /* Ask before we start rather than finding out twelve failures later.
+         This is the one that catches Safari: Web Audio will happily DECODE an
+         Ogg for the sound effects, while <audio> refuses to stream the same
+         container — so the effects can be working fine and the music silent. */
+      const probe = document.createElement('audio');
+      const ext = ((this.tracks[0] || {}).file || '').split('.').pop();
+      const type = ext === 'ogg' ? 'audio/ogg; codecs=opus'
+                 : ext === 'm4a' ? 'audio/mp4; codecs=mp4a.40.2'
+                 : ext === 'webm' ? 'audio/webm; codecs=opus' : '';
+      this.playable = !type || !!probe.canPlayType(type);
+      if (!this.playable) {
+        this.onTrouble('this browser will not play ' + type);
+        return false;
+      }
     } catch (e) {
       this.tracks = [];
     }
+    /* somebody already clicked while we were fetching */
+    if (this.tracks.length && this._wanted) { this._wanted = false; this.start(); }
     return this.tracks.length > 0;
   }
 
@@ -78,8 +109,30 @@ export class Music {
     el.volume = this._gain();
     /* one song at a time, and the next one follows on its own */
     el.addEventListener('ended', () => this.next());
-    /* a missing or unplayable file must not end the party */
-    el.addEventListener('error', () => { if (this.started) this.next(); });
+    /* A file that will not load should be stepped over — but if NOTHING will
+       load, stepping over it just burns through all twelve in a second and
+       deals again, which looks exactly like the playlist restarting itself.
+       So give up after one full pass and say so. */
+    el.addEventListener('error', () => {
+      if (!this.started) return;
+      this._misses++;
+      if (this._misses >= this.tracks.length) {
+        this.started = false;
+        this._pushState();
+        this.onTrouble('cannot play ' + (this.el && this.el.src || '').split('/').pop());
+        return;
+      }
+      this._step(1);
+    });
+    /* sound is genuinely coming out: stop counting failures, and tell whoever
+       is still waiting for a gesture that they can stop listening */
+    el.addEventListener('playing', () => {
+      this._misses = 0;
+      this.onPlaying();
+    });
+    /* roughly four times a second while playing — cheap, and the only thing
+       that can tell us we have crossed the line where back means restart */
+    el.addEventListener('timeupdate', () => this._pushState());
     this.el = el;
     return el;
   }
@@ -88,40 +141,137 @@ export class Music {
      still most of the loudness. Squaring gives the travel a natural taper. */
   _gain() { return Math.max(0, Math.min(1, this.volume)) ** 2; }
 
-  /** Begin, on the first gesture the browser will accept audio from. */
+  /**
+   * Begin, on the first gesture the browser will accept audio from.
+   *
+   * This gets called again on every gesture until sound actually comes out,
+   * because a browser can refuse the first one or two. So it must be safe to
+   * call repeatedly: if an order has already been dealt, retry the song we are
+   * on rather than dealing a new one. Reshuffling on every retry was what made
+   * pressing next look like it was starting a whole new playlist.
+   */
   start() {
-    if (this.started || !this.tracks.length) return;
+    /* The gesture can easily land before the manifest has finished loading —
+       the listener goes on immediately, the fetch takes a moment. Remember
+       that it happened and start the moment there is something to play,
+       rather than making them press twice. The browser keeps the activation,
+       so a play() a beat later is still allowed. */
+    if (!this.tracks.length) { this._wanted = true; return; }
+    if (this.started && this.playing) return;
     this.started = true;
-    this._shuffle();
-    this.next();
+    if (!this.order.length) { this._shuffle(); this._step(1); return; }
+    const el = this._audio();
+    if (!el.src) { this._step(1); return; }
+    const p = el.play();
+    if (p && p.catch) p.catch((err) => this._refused(err));
   }
 
-  next() {
+  /** play() said no. Only an autoplay block means we have to stand down. */
+  _refused(err) {
+    if (err && err.name === 'NotAllowedError') {
+      this.started = false;
+      this._pushState();
+    }
+  }
+
+  /**
+   * Move along the shuffled order and play what we land on.
+   *
+   * Forward off the end draws a new order. Backward off the start wraps to the
+   * end of the one we are in rather than trying to resurrect the order before
+   * it, which is not kept — going back further than the current shuffle is not
+   * a thing anyone is actually asking for.
+   */
+  _step(dir) {
     if (!this.tracks.length) return;
-    this.at++;
-    if (this.at >= this.order.length) this._shuffle(), this.at = 0;
+    this.at += dir;
+    if (this.at >= this.order.length) { this._shuffle(); this.at = 0; }
+    else if (this.at < 0) this.at = this.order.length - 1;
     const t = this.tracks[this.order[this.at]];
     const el = this._audio();
     this._cancelFade();
     el.volume = this._gain();
     el.src = this.asset('music/' + t.file);
     const p = el.play();
-    /* Autoplay can still be refused — the gesture may not have counted. Say
-       nothing and let the next gesture try again, rather than throwing. */
-    if (p && p.catch) p.catch(() => { this.started = false; });
+    /* Two very different failures arrive down the same pipe here.
+       NotAllowedError means the browser refused to make a sound because it has
+       not seen a gesture it trusts — the right answer is to stand down and let
+       the next gesture start us. Everything else, and AbortError in
+       particular, means WE interrupted the load by changing src, which is
+       exactly what skipping does: pressing skip twice quickly used to trip
+       this, clear `started`, and make the following press reshuffle the whole
+       running order out from under you. */
+    if (p && p.catch) p.catch((err) => this._refused(err));
     this.onTrack(t.title);
+    this._pushState();
+  }
+
+  next() { this._step(1); }
+
+  /** Back to the top of this song, or to the one before it. */
+  restart() {
+    const el = this.el;
+    if (!el) return;
+    this._cancelFade();
+    el.volume = this._gain();
+    el.currentTime = 0;
+    el.play().catch(() => {});
+    this.onTrack(this.title);
+    this._pushState();
+  }
+
+  /** how far into the current song we are, in seconds */
+  get elapsed() { return this.el ? this.el.currentTime || 0 : 0; }
+
+  /**
+   * Is there anywhere for "back" to go?
+   *
+   * On the first song of a shuffle there is no song before it — the order that
+   * came before was thrown away and is not coming back. But a few seconds in,
+   * back stops meaning the previous song and starts meaning the top of this
+   * one, which is always somewhere to go. So this flips partway through the
+   * first track, which is why it is pushed out on a signal rather than read
+   * once.
+   */
+  get canGoBack() {
+    if (!this.started) return false;
+    return this.at > 0 || this.elapsed > RESTART_AFTER;
+  }
+
+  _pushState() {
+    const ok = this.canGoBack;
+    if (ok === this._couldBack) return;
+    this._couldBack = ok;
+    this.onCanBack(ok);
   }
 
   /** Skip: duck it out first, or the cut lands like a mistake. */
-  skip() {
+  skip() { this._leave(() => this._step(1)); }
+
+  /**
+   * Back. Within the first few seconds this means the previous song; after
+   * that it means the start of this one — pressing it twice quickly is how you
+   * get to the previous song from halfway through.
+   */
+  back() {
+    if (!this.started) { this.start(); return; }
+    if (!this.canGoBack) return;
+    /* restarting is instant: a fade before jumping to the top of the song you
+       are already listening to just feels slow */
+    if (this.elapsed > RESTART_AFTER) { this.restart(); return; }
+    this._leave(() => this._step(-1));
+  }
+
+  /** fade whatever is playing down to nothing, then do `then` */
+  _leave(then) {
     if (!this.started) { this.start(); return; }
     const el = this.el;
-    if (!el || el.paused) { this.next(); return; }
-    const from = el.volume, step = from / Math.max(1, FADE * 60);
+    if (!el || el.paused) { then(); return; }
+    const step = el.volume / Math.max(1, FADE * 60);
     this._cancelFade();
     this._fade = setInterval(() => {
       el.volume = Math.max(0, el.volume - step);
-      if (el.volume <= 0.001) { this._cancelFade(); this.next(); }
+      if (el.volume <= 0.001) { this._cancelFade(); then(); }
     }, 1000 / 60);
   }
 

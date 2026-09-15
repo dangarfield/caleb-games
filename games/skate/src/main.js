@@ -16,6 +16,7 @@ import { LEVELS, LevelProps } from './levels.js';
 import { loadThpsManifest, offerLevel, thpsLevelDef, prepareThpsLevel, THPS_DIR } from './thps.js';
 import { Carousel } from './carousel.js';
 import { Music } from './music.js';
+import { DressUp } from './dressup.js';
 import { Goals } from './goals.js';
 import { CharacterInput, ACTION_CHIP } from './input.js';
 import { CharacterAnimation } from './anim.js';
@@ -34,6 +35,107 @@ window.__three = THREE;
 const BASE = new URL('../', import.meta.url);
 const asset = (p) => new URL('assets/' + p, BASE).href;
 const GLBS = ['SK_char.glb'];
+
+/**
+ * Paint the skateboard from the skater's own colours.
+ *
+ * The board arrives as ONE mesh with ONE material — deck, trucks, bolts and
+ * wheels all together — so the parts have to be found in the geometry rather
+ * than looked up by name. They are separate closed shells, though, so a
+ * union-find over shared vertices pulls them apart exactly: the deck is the
+ * shell with the most vertices, and the wheels are the four small ones that
+ * sit outboard of the trucks AND touch the ground. Both tests are needed —
+ * the truck hangers reach just as low but straddle the centre line, and the
+ * bolts sit outboard but nowhere near the floor.
+ *
+ * Thresholds are shares of the board's own bounding box, not absolute
+ * numbers, so a re-export at another scale still works.
+ *
+ * Colours go on per TRIANGLE via a non-indexed copy. Per vertex would bleed
+ * across the edge where the underside meets the side of the deck, because
+ * that edge shares its vertices.
+ */
+function paintBoard(mesh, L) {
+  let geo = mesh.geometry;
+  const pos = geo.attributes.position;
+  const idx = geo.index;
+  const triCount = idx ? idx.count / 3 : pos.count / 3;
+  const vAt = (t, k) => (idx ? idx.getX(t * 3 + k) : t * 3 + k);
+
+  /* weld by position: two shells that merely touch are still two shells */
+  const seen = new Map();
+  const rep = new Int32Array(pos.count);
+  for (let i = 0; i < pos.count; i++) {
+    const k = Math.round(pos.getX(i) * 1e4) + ',' +
+              Math.round(pos.getY(i) * 1e4) + ',' +
+              Math.round(pos.getZ(i) * 1e4);
+    let v = seen.get(k);
+    if (v === undefined) { v = seen.size; seen.set(k, v); }
+    rep[i] = v;
+  }
+  const parent = new Int32Array(seen.size);
+  for (let i = 0; i < parent.length; i++) parent[i] = i;
+  const find = (a) => { while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; } return a; };
+  for (let t = 0; t < triCount; t++) {
+    const a = rep[vAt(t, 0)], b = rep[vAt(t, 1)], c = rep[vAt(t, 2)];
+    const ra = find(a), rb = find(b), rc = find(c);
+    if (ra !== rb) parent[rb] = ra;
+    if (find(a) !== rc) parent[rc] = find(a);
+  }
+
+  geo.computeBoundingBox();
+  const bb = geo.boundingBox;
+  const halfW = Math.max(Math.abs(bb.min.x), Math.abs(bb.max.x)) || 1;
+  const height = (bb.max.y - bb.min.y) || 1;
+
+  /* measure every shell */
+  const shell = new Map();
+  for (let i = 0; i < pos.count; i++) {
+    const r = find(rep[i]);
+    let s = shell.get(r);
+    if (!s) { s = { n: 0, ax: Infinity, lo: Infinity }; shell.set(r, s); }
+    s.n++;
+    s.ax = Math.min(s.ax, Math.abs(pos.getX(i)));
+    s.lo = Math.min(s.lo, pos.getY(i));
+  }
+  let deck = -1, best = -1;
+  for (const [r, s] of shell) if (s.n > best) { best = s.n; deck = r; }
+  const isWheel = new Set();
+  for (const [r, s] of shell) {
+    if (r === deck) continue;
+    if (s.ax > halfW * 0.45 && s.lo - bb.min.y < height * 0.12) isWheel.add(r);
+  }
+
+  if (geo.index) { geo = geo.toNonIndexed(); mesh.geometry = geo; }
+  const np = geo.attributes.position;
+  const col = new Float32Array(np.count * 3);
+  const deckC = new THREE.Color(L.boardDeck);
+  const wheelC = new THREE.Color(L.helmet);
+  const underC = new THREE.Color(L.top);
+  const ax = new THREE.Vector3(), bx = new THREE.Vector3(), cx = new THREE.Vector3();
+  const e1 = new THREE.Vector3(), e2 = new THREE.Vector3(), nrm = new THREE.Vector3();
+  for (let t = 0; t < triCount; t++) {
+    const r = find(rep[vAt(t, 0)]);
+    let c = deckC;
+    if (isWheel.has(r)) c = wheelC;
+    else if (r === deck) {
+      ax.fromBufferAttribute(np, t * 3);
+      bx.fromBufferAttribute(np, t * 3 + 1);
+      cx.fromBufferAttribute(np, t * 3 + 2);
+      e1.subVectors(bx, ax); e2.subVectors(cx, ax);
+      nrm.crossVectors(e1, e2).normalize();
+      /* the face you see when the board flips over */
+      if (nrm.y < -0.3) c = underC;
+    }
+    for (let k = 0; k < 3; k++) {
+      col[(t * 3 + k) * 3] = c.r;
+      col[(t * 3 + k) * 3 + 1] = c.g;
+      col[(t * 3 + k) * 3 + 2] = c.b;
+    }
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return { wheels: isWheel.size, shells: shell.size };
+}
 
 /* Character part -> colour: character_data.gd's exported defaults with the
    chosen skater's own colours laid over the top. See SKATERS in config.js. */
@@ -55,8 +157,18 @@ function dressCharacter(root, skater) {
     o.receiveShadow = false;
     o.frustumCulled = false;
     const name = ((o.name || '') + ' ' + ((o.material && o.material.name) || '')).toLowerCase();
-    if (name.includes('skateboard')) {
-      o.material = new THREE.MeshStandardMaterial({ color: LOOK.boardDeck, roughness: 0.55, metalness: 0.1 });
+    /* Tagged on the first pass, because painting the board replaces the
+       material this test reads — without the tag, swapping skater re-dresses
+       the model, fails to recognise the board a second time and hands it the
+       plain grey default. */
+    if (o.userData.isBoard || name.includes('skateboard')) {
+      o.userData.isBoard = true;
+      /* L, not LOOK: the board was being painted from the defaults, so both
+         skaters rode the same one however their own boardDeck was set */
+      o.material = new THREE.MeshStandardMaterial({
+        vertexColors: true, color: 0xffffff, roughness: 0.55, metalness: 0.1
+      });
+      paintBoard(o, L);
       return;
     }
     const spec = pick(name);
@@ -80,7 +192,19 @@ class Game {
     this.hud = new Hud(document.body);
     this.sfx = new Sfx();
     /* the soundtrack is its own thing: streamed, not decoded — see music.js */
-    this.music = new Music(asset, { onTrack: (t) => this._nowPlaying(t) });
+    this.music = new Music(asset, {
+      onTrack: (t) => this._nowPlaying(t),
+      onCanBack: (ok) => {
+        const b = document.getElementById('prevBtn');
+        if (b) b.disabled = !ok;
+      },
+      /* if not one track will play, say so where the title goes rather than
+         sitting there silently */
+      onTrouble: (why) => {
+        console.warn('music:', why);
+        this._nowPlaying('Music unavailable');
+      }
+    });
     this.input = new CharacterInput();
     this.settings = new Settings();
     this.mode = 'boot';       // boot | menu | play | pause | settings
@@ -89,6 +213,8 @@ class Game {
     this.best = 0;
     this.levelId = null;
     this.saved = { levels: {} };
+    /* chosen colours per skater, laid over the defaults in SKATERS */
+    this.looks = {};
     /* filled from assets/thps/levels.json — every level in the game is a
        converted one now; see src/thps.js and _discoverThps */
     this.levels = LEVELS.slice();
@@ -429,6 +555,10 @@ class Game {
         this.Store.ready(() => {
           const s = this.Store.get() || {};
           this.who = SKATERS.some((k) => k.id === s.who) ? s.who : SKATERS[0].id;
+          for (const k of SKATERS) {
+            const saved = ((s.players || {})[k.id] || {}).look;
+            if (saved) this.looks[k.id] = saved;
+          }
           this.settings.load(s.settings);
           this._readPlayer();
           resolve();
@@ -437,7 +567,22 @@ class Game {
     });
   }
 
-  skater() { return SKATERS.find((k) => k.id === this.who) || SKATERS[0]; }
+  /**
+   * A skater, with whatever colours have been chosen for them.
+   *
+   * The defaults live in config.js; a child's own picks live in their save
+   * slot. Both skaters' colours are read at boot, not just the one playing,
+   * because the row shows a dot for each and it should be their dot.
+   */
+  lookFor(id) {
+    const base = (SKATERS.find((k) => k.id === id) || SKATERS[0]).look;
+    return Object.assign({}, base, this.looks[id] || {});
+  }
+
+  skater() {
+    const k = SKATERS.find((x) => x.id === this.who) || SKATERS[0];
+    return { id: k.id, name: k.name, look: this.lookFor(k.id) };
+  }
 
   /** Load whichever skater is chosen into the live fields. */
   _readPlayer() {
@@ -460,6 +605,17 @@ class Game {
     this._renderSkaters();
     if (this.levelId !== before) await this._loadLevel(this.levelId);
     else this._renderLevelCards();
+  }
+
+  /** Change one of the playing skater's colours and remember it. */
+  setColour(part, hex) {
+    const id = this.who;
+    const look = Object.assign({}, this.looks[id] || {});
+    look[part] = hex;
+    this.looks[id] = look;
+    this._writeMine((p) => { p.look = look; });
+    if (this.charModel) dressCharacter(this.charModel, this.skater());
+    this._renderSkaters();
   }
 
   _write(mutate) {
@@ -588,11 +744,21 @@ class Game {
         const b = document.createElement('button');
         b.className = 'who' + (k.id === this.who ? ' on' : '');
         b.dataset.who = k.id;
-        const swatch = (c) => '#' + c.toString(16).padStart(6, '0');
-        b.innerHTML = `<span class="dot" style="background:${swatch(k.look.top)};` +
-                      `border-color:${swatch(k.look.helmet)}"></span>` +
-                      `<span class="nm">${k.name}</span>`;
-        b.addEventListener('click', () => this.setSkater(k.id));
+        const swatch = (c) => '#' + Number(c).toString(16).padStart(6, '0');
+        const look = this.lookFor(k.id);
+        b.innerHTML = `<span class="dot" style="background:${swatch(look.top)};` +
+                      `border-color:${swatch(look.helmet)}"></span>` +
+                      `<span class="nm">${k.name}</span>` +
+                      `<svg class="pen" viewBox="0 0 24 24" aria-hidden="true">` +
+                      `<path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M15.5 4.5l4 4"/></svg>`;
+        b.title = k.name + ' — tap for colours';
+        /* Tapping a name both picks that skater and opens their colours: one
+           action, always the same one, rather than a second button sitting in
+           the row for something you do once in a while. */
+        b.addEventListener('click', async () => {
+          await this.setSkater(k.id);
+          if (this.openColours) this.openColours();
+        });
         host.appendChild(b);
       }
     }
@@ -607,15 +773,30 @@ class Game {
    */
   async _music() {
     const name = document.getElementById('nowPlaying');
+    const prev = document.getElementById('prevBtn');
     const skip = document.getElementById('skipBtn');
     const wrap = document.getElementById('volWrap');
     const btn = document.getElementById('volBtn');
     const slider = document.getElementById('volSlider');
-    if (!name || !skip || !wrap || !btn || !slider) return;
+    if (!name || !prev || !skip || !wrap || !btn || !slider) return;
 
     this.music.setVolume(this.settings.get('musicVolume'));
-    if (!await this.music.load()) return;      // no songs; leave it all hidden
-    for (const el of [name, skip, wrap]) el.hidden = false;
+
+    /* Listen for the first gesture BEFORE fetching the manifest, not after.
+       Waiting meant an early click landed on nothing and you had to press a
+       second time to get any music. */
+    const wake = () => this.music.start();
+    const stop = () => {
+      removeEventListener('pointerdown', wake);
+      removeEventListener('keydown', wake);
+    };
+    this.music.onPlaying = stop;
+    addEventListener('pointerdown', wake);
+    addEventListener('keydown', wake);
+
+    if (!await this.music.load()) { stop(); return; }   // no songs; stay hidden
+    for (const el of [name, prev, skip, wrap]) el.hidden = false;
+    prev.disabled = !this.music.canGoBack;      // nothing behind us yet
 
     const paint = (v) => {
       slider.value = String(v);
@@ -627,17 +808,13 @@ class Game {
     /* Browsers will not make a sound until the person has touched the page,
        so the soundtrack waits for the first thing they do — whatever it is,
        a click on the ring or a key — rather than for Drop In. */
-    const wake = () => {
-      this.music.start();
-      if (this.music.started) {
-        removeEventListener('pointerdown', wake);
-        removeEventListener('keydown', wake);
-      }
-    };
-    addEventListener('pointerdown', wake);
-    addEventListener('keydown', wake);
+    /* Keep offering every gesture until sound actually comes out: the flag on
+       Music goes up the instant we ASK to play, and the browser's refusal
+       arrives a moment later, so only the 'playing' event means it started.
+       The listeners went on above, before the fetch. */
 
     skip.addEventListener('click', () => this.music.skip());
+    prev.addEventListener('click', () => this.music.back());
 
     /* the slider folds away again on its own, so it is not left sitting over
        the corner of the park for the rest of the session */
@@ -669,6 +846,60 @@ class Game {
     });
   }
 
+  /**
+   * The colours panel: two pickers and a little skater standing in front of
+   * them, wearing the change as you drag.
+   *
+   * Everything applies immediately and is saved immediately — there is no OK
+   * and no Cancel. For a seven year old picking a helmet colour, "Done" that
+   * only closes the box is the honest button, and an undo they never asked for
+   * is one more thing to explain.
+   */
+  _colours() {
+    const panel = document.getElementById('colours');
+    const canvas = document.getElementById('colourPreview');
+    const helmet = document.getElementById('pickHelmet');
+    const top = document.getElementById('pickTop');
+    const who = document.getElementById('colourWho');
+    const done = document.getElementById('colourDone');
+    if (!panel || !canvas || !helmet || !top) return;
+
+    const hex = (c) => '#' + Number(c).toString(16).padStart(6, '0');
+    this.dressUp = new DressUp(canvas, asset, dressCharacter);
+
+    const open = () => {
+      const look = this.lookFor(this.who);
+      helmet.value = hex(look.helmet);
+      top.value = hex(look.top);
+      if (who) who.textContent = this.skater().name;
+      panel.classList.remove('off');
+      this.dressUp.show(this.skater());
+    };
+    this.openColours = open;
+    const close = () => {
+      panel.classList.add('off');
+      this.dressUp.hide();
+    };
+    this.closeColours = close;
+
+    if (done) done.addEventListener('click', close);
+    /* clicking the backdrop is the other way everyone tries to close a box */
+    panel.addEventListener('click', (e) => { if (e.target === panel) close(); });
+
+    const live = (input, part) => {
+      const apply = () => {
+        this.setColour(part, parseInt(input.value.slice(1), 16));
+        this.dressUp.recolour(this.skater());
+      };
+      /* 'input' fires while the picker is still open, which is what makes the
+         preview move with the slider rather than after it */
+      input.addEventListener('input', apply);
+      input.addEventListener('change', apply);
+    };
+    live(helmet, 'helmet');
+    live(top, 'top');
+  }
+
   _nowPlaying(t) {
     const el = document.getElementById('nowPlaying');
     if (el) el.textContent = t || '';
@@ -676,17 +907,25 @@ class Game {
 
   _ui() {
     this._music();
-    document.getElementById('playBtn').addEventListener('click', () => {
-      /* the ring may be sitting on a park that is not the loaded one */
-      const want = this.rings && this.rings.menu
-        ? this.rings.menu.items[this.rings.menu.index()] : null;
+    this._colours();
+    /* Drop In, from either screen: whatever park the ring in front of you is
+       showing. From pause that means starting a fresh run there, which is a
+       different thing from Resume sitting above the list. */
+    const dropIn = (which) => () => {
+      const ring = this.rings && this.rings[which];
+      const want = ring ? ring.items[ring.index()] : null;
       if (want && want.id !== this.levelId) this._pickLevel(want.id);
       else this._startRun();
-    });
+    };
+    document.getElementById('playBtn').addEventListener('click', dropIn('menu'));
+    const pauseDrop = document.getElementById('pauseDropBtn');
+    if (pauseDrop) pauseDrop.addEventListener('click', dropIn('pause'));
     document.getElementById('restartBtn').addEventListener('click', () => this._startRun());
-    document.getElementById('resumeBtn').addEventListener('click', () => {
-      this.el.pause.classList.add('off'); this.mode = 'play';
-    });
+    const resume = () => { this.el.pause.classList.add('off'); this.mode = 'play'; };
+    for (const id of ['resumeBtn', 'resumeBtn2']) {
+      const b = document.getElementById(id);
+      if (b) b.addEventListener('click', resume);
+    }
     document.getElementById('pauseBtn').addEventListener('click', () => this._togglePause());
     document.getElementById('pauseTabs').addEventListener('click', (e) => {
       const btn = e.target.closest('button');
@@ -808,6 +1047,10 @@ class Game {
     /* a ring built while its tab was hidden measured zero and guessed its
        radius; now that it is on screen it can measure itself properly */
     if (this.rings && this.rings.pause) this.rings.pause.relayout();
+    /* Resume sits in the row at the top of the Game view; on the other tabs
+       that row is off screen, so the one at the foot of the card takes over. */
+    const foot = document.getElementById('resumeFoot');
+    if (foot) foot.style.display = name === 'main' ? 'none' : '';
   }
 
   _renderTricks() {

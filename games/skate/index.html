@@ -42,6 +42,11 @@ canvas { display: block; width: 100%; height: 100%; }
   box-shadow: 0 3px 0 rgba(0,0,0,.35), 0 6px 18px rgba(0,0,0,.35);
 }
 .chip-btn:hover { background: #fff; }
+/* A control that cannot do anything should look like it. Back is the one that
+   comes and goes: on the first song of a shuffle there is nothing behind it
+   until you are far enough in for back to mean "start this again". */
+.chip-btn:disabled { opacity: .34; cursor: default; box-shadow: none; }
+.chip-btn:disabled:hover { background: var(--paper); }
 #backBtn { position: fixed; top: 12px; left: 12px; z-index: 90; }
 #topRight {
   /* Above the menu and pause panels (95), because the music is not part of
@@ -49,6 +54,9 @@ canvas { display: block; width: 100%; height: 100%; }
      you are sitting on the menu deciding where to skate. */
   position: fixed; top: 12px; right: 12px; z-index: 96;
   display: flex; gap: 8px; align-items: center;
+  /* never wider than the screen: with the slider open on a phone the row
+     would otherwise push the song title off the left edge */
+  max-width: calc(100vw - 24px);
 }
 /* Pausing, on the other hand, only means anything mid-run — and a Pause
    button floating over the pause screen is just confusing. */
@@ -59,6 +67,9 @@ body:not(.playing) #pauseBtn { display: none; }
    you glance at, not something you press, and a second button-shaped box up
    there would read as a third button. */
 #nowPlaying {
+  /* the buttons keep their size and the title gives way, because a truncated
+     title still tells you what is playing and half a button does not */
+  flex: 0 1 auto; min-width: 0;
   max-width: min(30vw, 260px); overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; font: 600 13px/1 var(--ui); letter-spacing: .06em;
   text-transform: uppercase; color: rgba(255,255,255,.82);
@@ -75,6 +86,9 @@ body:not(.playing) #pauseBtn { display: none; }
 }
 /* the volume button grows a slider rather than opening a panel over the game */
 #volWrap { display: flex; align-items: center; gap: 0; }
+/* back and forward are one control in two halves, so they sit closer to each
+   other than to anything else on the row */
+#prevBtn + #skipBtn { margin-left: -4px; }
 #volSlider {
   width: 0; opacity: 0; margin: 0; padding: 0; height: 22px;
   transition: width .18s ease, opacity .18s ease, margin .18s ease;
@@ -508,6 +522,53 @@ body.playing #pads { display: flex; }
 
 /* ---- who is skating ---------------------------------------------------- */
 .whoRow { display: flex; gap: 10px; margin-bottom: 14px; }
+/* The colours button is one of the row, not a thing bolted onto the end, so it
+   borrows the skater button's shape — same height, same corner, same dot. Its
+   dot shows the colours it edits, so the button is its own preview. */
+/* Tapping your own name is how you get your colours, so the skater buttons
+   carry a pencil to say so — there is no separate button to press. */
+.who .pen {
+  width: 13px; height: 13px; opacity: .45; fill: none; margin-left: auto;
+  stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+.who:hover .pen, .who.on .pen { opacity: .85; }
+
+/* The pause card is a good deal narrower than the menu, so everything in this
+   row is sized to fit rather than to fill. */
+.pauseView .goRow { gap: 10px; }
+.pauseView .goRow .whoRow { flex: 0 1 auto; gap: 10px; }
+.pauseView .goRow .who { flex: 0 1 auto; padding: 8px 12px; }
+.pauseView .goRow .who .nm { font-size: 14px; }
+.pauseView .goRow .big { padding: 12px 20px; font-size: 17px; }
+/* ---- the colours panel ---------------------------------------------- */
+.colourCard { width: min(520px, 92vw); }
+.colourRow { display: flex; gap: 18px; align-items: stretch; margin-top: 12px; }
+#colourPreview {
+  width: 232px; height: 288px; flex: none; border-radius: 14px;
+  background: rgba(0,0,0,.25); border: 1px solid rgba(162,155,254,.2);
+}
+.pickers { flex: 1 1 auto; display: flex; flex-direction: column; gap: 14px; justify-content: center; }
+.pick { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.pick > span {
+  font-family: var(--ui); font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; font-size: 14px; color: var(--paper);
+}
+.pick input[type="color"] {
+  width: 74px; height: 44px; padding: 0; cursor: pointer;
+  border: 2px solid rgba(162,155,254,.35); border-radius: 10px;
+  background: transparent;
+}
+.pick input[type="color"]::-webkit-color-swatch-wrapper { padding: 3px; }
+.pick input[type="color"]::-webkit-color-swatch { border: none; border-radius: 7px; }
+.pickers .hint { font-size: 12.5px; opacity: .6; margin: 2px 0 0; line-height: 1.45; }
+/* .menuCard .row carries this on the home screen; this card is not that one,
+   and without it Done sits flush against the bottom of the preview. */
+.colourCard .row { margin-top: 20px; }
+@media (max-width: 560px) {
+  .colourRow { flex-direction: column; align-items: center; }
+  #colourPreview { width: 210px; height: 236px; }
+  .pickers { width: 100%; }
+}
 .who {
   flex: 1 1 0; display: flex; align-items: center; gap: 9px;
   padding: 9px 12px; border-radius: 11px; cursor: pointer;
@@ -541,12 +602,38 @@ body.playing #pads { display: flex; }
 .menuCols { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 .menuCols h1 { flex: none; }
 .goRow {
-  display: flex; align-items: center; justify-content: center; gap: 14px;
+  /* stretch, not center: the skater buttons and the big button have different
+     natural heights, and centring them leaves both edges a few pixels out.
+     Stretching makes every control in the row the same height as the tallest,
+     which is the only way the bottoms actually line up. */
+  display: flex; align-items: stretch; justify-content: center; gap: 14px;
   flex-wrap: wrap;
 }
-.goRow .whoRow { margin: 0; flex: 0 1 380px; }
+.goRow .whoRow { align-items: stretch; }
+.goRow .whoRow { margin: 0; flex: 0 1 300px; }
 .goRow .big { flex: none; }
-@media (max-width: 560px) { .goRow .whoRow { flex: 1 1 100%; } }
+/* On a phone four controls will not fit in a row at full size, and the row
+   silently becoming two is exactly what we were asked to get rid of. So the
+   labels give way before the layout does: the colours button drops its word
+   and keeps its dot and pencil, which is still self-explanatory next to two
+   named skaters, and everything tightens up. */
+@media (max-width: 560px) {
+  /* These have to out-specify the desktop .pauseView .goRow rules above, or
+     the phone keeps the roomy sizes and the row runs off the side of the card
+     instead of fitting in it. */
+  .goRow, .pauseView .goRow { gap: 7px; flex-wrap: wrap; }
+  .goRow .whoRow, .pauseView .goRow .whoRow { flex: 1 1 auto; gap: 7px; min-width: 0; }
+  .goRow .who, .pauseView .goRow .who { padding: 7px 9px; gap: 6px; min-width: 0; }
+  .goRow .who .nm, .pauseView .goRow .who .nm {
+    font-size: 13px; overflow: hidden; text-overflow: ellipsis;
+  }
+  .goRow .who .dot, .pauseView .goRow .who .dot { width: 16px; height: 16px; border-width: 2px; }
+  .goRow .who .pen, .pauseView .goRow .who .pen { display: none; }
+  .goRow .big, .pauseView .goRow .big {
+    padding: 10px 13px; font-size: 14.5px; flex: 0 1 auto;
+    white-space: nowrap; min-width: 0;
+  }
+}
 .menuCols .levelRow { overflow-y: auto; min-height: 0; flex: 1 1 auto; padding-right: 4px; }
 .menuCard .row { margin-top: 14px; }
 
@@ -585,7 +672,9 @@ body.playing #pads { display: flex; }
 }
 .tabs button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 .pauseView.off { display: none; }
-.pauseView[data-view="main"] .whoRow { margin-bottom: 14px; }
+/* The whoRow used to sit on its own under a label here; now it only ever
+   appears inside a goRow, where a bottom margin eats into the stretched
+   height and leaves the row's bottom edge ragged. */
 .pauseView[data-view="main"] .row { margin-bottom: 18px; }
 .pauseView { text-align: center; }
 .pauseView[data-view="settings"], .pauseView[data-view="tricks"] { text-align: left; }
@@ -696,6 +785,9 @@ body.playing #pads { display: flex; }
 <a id="backBtn" class="chip-btn" href="../../index.html">&larr; Games</a>
 <div id="topRight">
   <span id="nowPlaying" hidden></span>
+  <button id="prevBtn" class="chip-btn icon" title="Previous song" aria-label="Previous song" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5l-9 7 9 7V5z"/><rect x="5" y="5" width="3" height="14" rx="1"/></svg>
+  </button>
   <button id="skipBtn" class="chip-btn icon" title="Next song" aria-label="Next song" hidden>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l9 7-9 7V5z"/><rect x="16" y="5" width="3" height="14" rx="1"/></svg>
   </button>
@@ -786,6 +878,29 @@ body.playing #pads { display: flex; }
   </div>
 </div>
 
+<div id="colours" class="panel off">
+  <div class="card colourCard">
+    <h2>Colours</h2>
+    <p class="pickLabel" id="colourWho">Ezra</p>
+    <div class="colourRow">
+      <canvas id="colourPreview" width="260" height="300"></canvas>
+      <div class="pickers">
+        <label class="pick">
+          <span>Helmet</span>
+          <input type="color" id="pickHelmet">
+        </label>
+        <label class="pick">
+          <span>Hoodie</span>
+          <input type="color" id="pickTop">
+        </label>
+        <p class="hint">The wheels take the helmet colour and the underside of
+          the board takes the hoodie.</p>
+      </div>
+    </div>
+    <div class="row"><button id="colourDone" class="big">Done</button></div>
+  </div>
+</div>
+
 <div id="pause" class="panel off">
   <div class="card pauseCard">
     <div class="pauseHead">
@@ -800,15 +915,22 @@ body.playing #pads { display: flex; }
     </div>
     <div class="cardBody" id="pauseBody">
       <div data-view="main" class="pauseView">
-        <div class="pickLabel">Who is skating?</div>
-        <div id="pauseSkaters" class="whoRow"></div>
-        <div class="row"><button id="restartBtn" class="big ghost">Restart this run</button></div>
+        <!-- What to do about the run you are in, first: restart it or get back
+             to it. Both are about THIS run, so they sit above the park list. -->
+        <div class="row goRow">
+          <button id="restartBtn" class="big ghost">Restart this run</button>
+          <button id="resumeBtn2" class="big">Resume</button>
+        </div>
         <!-- the same park list the home screen shows, rendered by the same
              code into the same shape — pausing to switch park should not feel
-             like a different screen from starting in one. It goes UNDER the
-             restart button: restarting is what you came here to do, changing
-             park is what you came here to browse. -->
+             like a different screen from starting in one -->
         <div id="settingsLevels" class="levelRow"></div>
+        <!-- and the bottom row is the home screen's bottom row: who is
+             skating, and the button that drops them into the park above -->
+        <div class="row goRow">
+          <div id="pauseSkaters" class="whoRow"></div>
+          <button id="pauseDropBtn" class="big">Drop In</button>
+        </div>
       </div>
       <div data-view="controls" class="pauseView off">
         <div class="keys">
@@ -863,7 +985,9 @@ body.playing #pads { display: flex; }
     </div>
       </div>
     </div>
-    <div class="row" style="margin-top:16px"><button id="resumeBtn" class="big">Resume</button></div>
+    <!-- Resume lives in the row at the top of the Game view now; this one only
+         shows on the other tabs, where that row is not on screen. -->
+    <div class="row" id="resumeFoot" style="margin-top:16px"><button id="resumeBtn" class="big">Resume</button></div>
   </div>
 </div>
 
