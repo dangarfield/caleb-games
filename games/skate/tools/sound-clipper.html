@@ -1,0 +1,649 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>skate — sound clipper</title>
+<!--
+  sound-clipper.html — trim the four game sounds and set their loop points.
+
+  Open this file straight off disk; it needs nothing and talks to nothing. It
+  cannot be an artifact or a hosted page, because the whole point is that it
+  reads files off your machine and writes files back, and a sandboxed page is
+  not allowed to hand you a download.
+
+  What comes out:
+      ride.wav grind.wav jump.wav crash.wav   trimmed, 22 kHz mono
+      sounds.json                             the loop points, in seconds
+
+  Drop all five into  games/skate/assets/audio/  and the game picks them up on
+  its own — src/audio.js looks for that folder and falls back to the
+  synthesised noises when it is not there.
+
+  The five recordings in games/skate/research/ load on their own when the page
+  is opened through the same local server you run the game on. Opened straight
+  off disk with a file:// URL a page is not allowed to read its neighbours, so
+  in that case drop them in by hand — the slots still take a drag.
+
+  Ride and grind loop, so they get three marks: where the clip starts, and the
+  two ends of the piece that repeats. The loop wants to be a whole number of
+  wheel revolutions or the join ticks; the LOOP ONLY button plays that piece
+  over and over with nothing else, which is the fastest way to hear a tick.
+  Jump and crash are one-shots and get a start and an end.
+-->
+<style>
+  :root {
+    --bg: #14161b; --panel: #1c1f27; --line: #2c313d; --ink: #e8eaf0;
+    --dim: #949cad; --gold: #ffc21a; --blue: #5ab6ff; --green: #56d364;
+    --red: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 20px 16px 120px; background: var(--bg); color: var(--ink);
+    font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header { max-width: 1100px; margin: 0 auto 18px; }
+  h1 { font-size: 20px; margin: 0 0 4px; letter-spacing: .01em; }
+  .sub { color: var(--dim); margin: 0; }
+  main { max-width: 1100px; margin: 0 auto; display: grid; gap: 16px; }
+
+  .slot {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px 16px 16px;
+  }
+  .slot h2 {
+    font-size: 15px; margin: 0 0 2px; display: flex; align-items: baseline; gap: 10px;
+  }
+  .slot h2 .kind { color: var(--dim); font-weight: 400; font-size: 12.5px; }
+  .slot .file { color: var(--dim); font-size: 12.5px; margin: 0 0 10px; }
+  .drop {
+    border: 1px dashed var(--line); border-radius: 8px; padding: 22px 12px;
+    text-align: center; color: var(--dim); cursor: pointer; transition: .12s;
+  }
+  .drop:hover, .drop.over { border-color: var(--blue); color: var(--ink); background: #20242e; }
+  canvas { width: 100%; height: 150px; display: block; border-radius: 6px; cursor: ew-resize; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+  button {
+    font: inherit; color: var(--ink); background: #262b36; border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 12px; cursor: pointer;
+  }
+  button:hover { background: #2f3542; }
+  button.primary { background: #2b5f96; border-color: #3b76b4; }
+  button.primary:hover { background: #336ead; }
+  button:disabled { opacity: .4; cursor: default; }
+  .marks { display: flex; gap: 14px; flex-wrap: wrap; color: var(--dim); font-size: 12.5px; margin-top: 8px; }
+  .marks b { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .m-start b { color: var(--green); } .m-a b { color: var(--gold); }
+  .m-b b { color: var(--blue); } .m-end b { color: var(--red); }
+  .hint { color: var(--dim); font-size: 12.5px; margin-top: 8px; }
+  .bar {
+    position: sticky; bottom: 0; margin-top: 4px; padding: 14px 16px;
+    background: #191c24; border: 1px solid var(--line); border-radius: 10px;
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  }
+  .bar .spacer { flex: 1; }
+  select {
+    font: inherit; color: var(--ink); background: #262b36;
+    border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px;
+  }
+  label.sub { color: var(--dim); }
+  code { background: #232833; padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+</style>
+
+<header>
+  <h1>Sound clipper</h1>
+  <p class="sub">Trim the four game sounds and mark where the looping ones repeat. Everything happens in this page — nothing is uploaded.</p>
+</header>
+
+<main id="slots"></main>
+
+<div class="bar">
+  <button id="exportAll" class="primary" disabled>Export everything</button>
+  <span class="spacer"></span>
+  <span class="sub" id="status">Load a sound to start.</span>
+</div>
+
+<script>
+const SLOTS = [
+  { id: 'ride',  name: 'Riding',  kind: 'loops — start, loop in, loop out' },
+  { id: 'grind', name: 'Grinding', kind: 'loops — start, loop in, loop out' },
+  { id: 'jump',  name: 'Jump',    kind: 'one shot — the pop, first bang in the file' },
+  { id: 'land',  name: 'Land',    kind: 'one shot — the landing, loudest bang in the file' },
+  { id: 'crash', name: 'Crash',   kind: 'one shot — start and end' }
+];
+const LOOPS = { ride: true, grind: true, jump: false, land: false, crash: false };
+
+/* Which bang in the recording a one shot wants. sound-jump.mp3 holds a whole
+   ollie — the tail slap, half a second of air, then the landing — so the same
+   file feeds two slots and they each take a different half of it. The landing
+   is much the louder of the two, which is what makes them separable without
+   anyone having to say where they are. */
+const PICK = { jump: 'first', land: 'loudest', crash: 'loudest' };
+
+/* What is in research/, and which slot each one starts in. The dropdown on a
+   slot swaps its source, so a wrong guess here costs one click. */
+const SOURCES = [
+  'sound-skate.mp3', 'sound-skate2.mp3', 'sound-grind.mp3',
+  'sound-jump.mp3', 'sound-fall.mp3'
+];
+const DEFAULT_SOURCE = {
+  ride: 'sound-skate.mp3',
+  grind: 'sound-grind.mp3',
+  jump: 'sound-jump.mp3',
+  land: 'sound-jump.mp3',
+  crash: 'sound-fall.mp3'
+};
+const RESEARCH = '../research/';
+const OUT_RATE = 22050;          // plenty for a rumble, and a quarter of the bytes
+
+const ctx = new (window.AudioContext || window.webkitAudioContext)();
+const state = {};                // id -> { buf, name, marks:{}, peaks, playing }
+
+/* ------------------------------------------------------- first guess at it */
+
+/** RMS per block, which is all any of this needs */
+function envelope(data, rate, block) {
+  const n = Math.floor(data.length / block);
+  const out = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    let sum = 0;
+    for (let j = i * block; j < (i + 1) * block; j++) sum += data[j] * data[j];
+    out[i] = Math.sqrt(sum / block);
+  }
+  return out;
+}
+
+/** the nearest upward zero crossing, so a loop joins without a step in it */
+function snapZero(data, rate, t, window = 0.02) {
+  const at = Math.round(t * rate);
+  const span = Math.round(window * rate);
+  let best = at, bestD = Infinity;
+  for (let i = Math.max(1, at - span); i < Math.min(data.length, at + span); i++) {
+    if (data[i - 1] <= 0 && data[i] > 0) {
+      const d = Math.abs(i - at);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+  }
+  return best / rate;
+}
+
+/**
+ * Every distinct bang in a recording: runs of blocks over a fraction of the
+ * loudest, with short gaps bridged so one hit does not read as three.
+ */
+function bursts(env, peak, blockSecs) {
+  const GAP = Math.round(0.12 / blockSecs);
+  const out = [];
+  let i = 0;
+  while (i < env.length) {
+    if (env[i] <= peak * 0.12) { i++; continue; }
+    let j = i, quiet = 0;
+    while (j < env.length && quiet < GAP) {
+      quiet = env[j] > peak * 0.12 ? 0 : quiet + 1;
+      j++;
+    }
+    const end = j - quiet;
+    let top = 0;
+    for (let k = i; k < end; k++) if (env[k] > top) top = env[k];
+    out.push({ from: i, to: end, top });
+    i = j;
+  }
+  return out;
+}
+
+/**
+ * Where the marks go before anyone has touched them.
+ *
+ * A one shot is the quiet around one bang — which bang depends on the slot,
+ * because the jump and the landing live in the same recording.
+ * A loop wants the steadiest stretch there is, so this slides a window over
+ * the envelope and takes the one whose level wanders least while still being
+ * loud — a skateboard rolling is meant to be boring, and the boring part is
+ * exactly the part that survives being repeated.
+ */
+function autoMark(id, buf) {
+  const rate = buf.sampleRate;
+  const data = buf.getChannelData(0);
+  if (!LOOPS[id]) {
+    const B = Math.round(rate * 0.01);
+    const env = envelope(data, rate, B);
+    let peak = 0;
+    for (const v of env) if (v > peak) peak = v;
+    const list = bursts(env, peak, 0.01);
+    if (!list.length) return { start: 0, end: buf.duration };
+
+    let pick;
+    if (PICK[id] === 'first') {
+      /* the first one big enough to be a hit rather than a scuff */
+      pick = list.find((b) => b.top >= peak * 0.25) || list[0];
+    } else {
+      pick = list.reduce((a, b) => (b.top > a.top ? b : a));
+    }
+    const which = list.indexOf(pick);
+
+    /* Where the bang starts and stops. A fraction of the bang's OWN peak is
+       the obvious floor and it is not enough on its own: a quiet hit puts that
+       floor under the room tone, and the walk back runs to the top of the
+       file. So the floor never goes below the room itself, measured as the
+       middle of the whole envelope, and neither walk may travel more than a
+       fifth of a second. */
+    const sorted = Array.from(env).sort((x, y) => x - y);
+    const room = sorted[Math.floor(sorted.length * 0.5)] || 0;
+    const floorIn = Math.max(pick.top * 0.08, room * 1.6);
+    const floorOut = Math.max(pick.top * 0.04, room * 1.3);
+    const REACH = Math.round(0.2 / 0.01);
+    let a = pick.from;
+    while (a > 0 && pick.from - a < REACH && env[a] > floorIn) a--;
+    let b = pick.to;
+    while (b < env.length - 1 && b - pick.to < REACH * 3 && env[b] > floorOut) b++;
+    /* do not let the tail run into whatever happens next — for the jump, what
+       happens next is the landing, and it belongs to the other slot */
+    const nextAt = list[which + 1] ? list[which + 1].from : env.length;
+    b = Math.min(b, nextAt - Math.round(0.02 / 0.01));
+    return {
+      start: Math.max(0, (a * B) / rate - 0.03),
+      end: Math.min(buf.duration, ((b + 1) * B) / rate + 0.06)
+    };
+  }
+
+  const B = Math.round(rate * 0.025);
+  const env = envelope(data, rate, B);
+  const WANT = Math.round(1.6 / 0.025);        // 1.6 s of loop is plenty
+  if (env.length <= WANT + 4) {
+    return { start: 0, a: buf.duration * 0.15, b: buf.duration * 0.85 };
+  }
+  let peak = 0;
+  for (const v of env) if (v > peak) peak = v;
+  let bestAt = 0, bestScore = -Infinity;
+  for (let i = 0; i + WANT < env.length; i++) {
+    let mean = 0;
+    for (let j = i; j < i + WANT; j++) mean += env[j];
+    mean /= WANT;
+    if (mean < peak * 0.35) continue;          // too quiet to be the body of it
+    let varr = 0;
+    for (let j = i; j < i + WANT; j++) varr += (env[j] - mean) ** 2;
+    varr = Math.sqrt(varr / WANT);
+    /* steady first, loud second */
+    const score = -varr / (mean || 1e-6) + mean / peak * 0.35;
+    if (score > bestScore) { bestScore = score; bestAt = i; }
+  }
+  const from = (bestAt * B) / rate;
+  const a = snapZero(data, rate, from + 0.12);
+  const b = snapZero(data, rate, from + 0.12 + 1.4);
+  return { start: Math.max(0, a - 0.1), a, b };
+}
+
+/* ------------------------------------------------------------------ build */
+
+const host = document.getElementById('slots');
+for (const s of SLOTS) {
+  const el = document.createElement('section');
+  el.className = 'slot';
+  el.innerHTML = `
+    <h2>${s.name} <span class="kind">${s.kind}</span></h2>
+    <div class="row" style="margin:0 0 8px">
+      <label class="sub" for="src-${s.id}">source</label>
+      <select id="src-${s.id}">
+        <option value="">— pick a file —</option>
+        ${SOURCES.map((f) => `<option value="${f}"${DEFAULT_SOURCE[s.id] === f ? ' selected' : ''}>${f}</option>`).join('')}
+      </select>
+      <span class="file" id="file-${s.id}" style="margin:0">not loaded</span>
+    </div>
+    <div class="drop" id="drop-${s.id}">Drop an audio file here, or click to pick one</div>
+    <canvas id="wave-${s.id}" hidden></canvas>
+    <div class="marks" id="marks-${s.id}" hidden></div>
+    <div class="row" id="row-${s.id}" hidden>
+      <button data-act="whole" data-id="${s.id}">Play whole file</button>
+      <button data-act="clip" data-id="${s.id}">Play clip</button>
+      ${LOOPS[s.id] ? `<button data-act="loop" data-id="${s.id}">Loop only ×6</button>` : ''}
+      <button data-act="stop" data-id="${s.id}">Stop</button>
+      <button data-act="auto" data-id="${s.id}">Re-guess marks</button>
+      <button data-act="zoom" data-id="${s.id}">Zoom to clip</button>
+      <button data-act="wide" data-id="${s.id}">Whole file</button>
+      <span class="spacer"></span>
+      <button data-act="save" data-id="${s.id}">Save ${s.id}.wav</button>
+    </div>
+    <p class="hint" id="hint-${s.id}" hidden>
+      Drag a handle to move it. Click anywhere on the wave to move the nearest one.
+      Hold <code>shift</code> while dragging for fine control.
+    </p>`;
+  host.appendChild(el);
+
+  el.querySelector(`#src-${s.id}`).onchange = (e) => {
+    if (e.target.value) fromResearch(s.id, e.target.value);
+  };
+
+  const drop = el.querySelector(`#drop-${s.id}`);
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = 'audio/*'; input.hidden = true;
+  el.appendChild(input);
+  drop.onclick = () => input.click();
+  input.onchange = () => input.files[0] && load(s.id, input.files[0]);
+  drop.ondragover = (e) => { e.preventDefault(); drop.classList.add('over'); };
+  drop.ondragleave = () => drop.classList.remove('over');
+  drop.ondrop = (e) => {
+    e.preventDefault(); drop.classList.remove('over');
+    const f = e.dataTransfer.files[0];
+    if (f) load(s.id, f);
+  };
+}
+
+/* ------------------------------------------------------------------- load */
+
+async function load(id, file) {
+  return loadBytes(id, await file.arrayBuffer(), file.name);
+}
+
+/** pull one of the recordings out of research/, if the page is being served */
+async function fromResearch(id, name) {
+  try {
+    setStatus(`loading ${name}…`);
+    const res = await fetch(RESEARCH + name, { cache: 'force-cache' });
+    if (!res.ok) throw new Error(res.status);
+    await loadBytes(id, await res.arrayBuffer(), name);
+  } catch (e) {
+    setStatus(`could not read ${name} — open this page through your local server, or drag the file in`);
+  }
+}
+
+async function loadBytes(id, bytes, name) {
+  setStatus(`decoding ${name}…`);
+  const buf = await ctx.decodeAudioData(bytes);
+  state[id] = {
+    buf, name, playing: null, marks: autoMark(id, buf),
+    /* the slice of the file the canvas is showing. A forty second recording
+       drawn whole puts the loop inside four pixels, so there is a zoom. */
+    view: { from: 0, to: buf.duration }
+  };
+  document.getElementById(`file-${id}`).textContent =
+    `${name} — ${buf.duration.toFixed(2)}s, ${buf.numberOfChannels === 1 ? 'mono' : 'stereo'}, ${buf.sampleRate} Hz`;
+  document.getElementById(`drop-${id}`).hidden = true;
+  for (const p of ['wave', 'marks', 'row', 'hint']) document.getElementById(`${p}-${id}`).hidden = false;
+  sizeCanvas(id);
+  draw(id);
+  document.getElementById('exportAll').disabled = false;
+  setStatus('ready — the marks are a first guess, move them if they are wrong');
+}
+
+/* Everything in research/ that has a home, loaded on open. One at a time:
+   decoding a forty second file while four others are in flight makes the page
+   sit there doing nothing visible. */
+(async () => {
+  for (const s of SLOTS) {
+    if (DEFAULT_SOURCE[s.id]) await fromResearch(s.id, DEFAULT_SOURCE[s.id]);
+  }
+})();
+
+/* ------------------------------------------------------------------- draw */
+
+function sizeCanvas(id) {
+  const c = document.getElementById(`wave-${id}`);
+  const dpr = window.devicePixelRatio || 1;
+  c.width = Math.round(c.clientWidth * dpr);
+  c.height = Math.round(150 * dpr);
+  state[id].peaks = null;
+}
+
+/** min/max per pixel column, worked out once and kept */
+function peaks(id) {
+  const s = state[id];
+  const c = document.getElementById(`wave-${id}`);
+  const key = `${c.width}:${s.view.from.toFixed(4)}:${s.view.to.toFixed(4)}`;
+  if (s.peaks && s.peakKey === key) return s.peaks;
+  const data = s.buf.getChannelData(0);
+  const rate = s.buf.sampleRate;
+  const first = Math.floor(s.view.from * rate);
+  const span = Math.max(1, Math.floor((s.view.to - s.view.from) * rate));
+  const per = span / c.width;
+  const out = new Float32Array(c.width * 2);
+  for (let x = 0; x < c.width; x++) {
+    let lo = 1, hi = -1;
+    const from = first + Math.floor(x * per);
+    const to = Math.min(data.length, first + Math.max(from + 1, Math.floor((x + 1) * per)));
+    for (let i = from; i < to; i++) { const v = data[i]; if (v < lo) lo = v; if (v > hi) hi = v; }
+    if (lo > hi) { lo = 0; hi = 0; }
+    out[x * 2] = lo; out[x * 2 + 1] = hi;
+  }
+  s.peaks = out;
+  s.peakKey = key;
+  return out;
+}
+
+const MARK_COLOUR = { start: '#56d364', a: '#ffc21a', b: '#5ab6ff', end: '#ff6b6b' };
+const MARK_LABEL = { start: 'start', a: 'loop in', b: 'loop out', end: 'end' };
+
+function draw(id) {
+  const s = state[id];
+  const c = document.getElementById(`wave-${id}`);
+  const g = c.getContext('2d');
+  const W = c.width, H = c.height, mid = H / 2;
+  g.fillStyle = '#12141a'; g.fillRect(0, 0, W, H);
+
+  /* the kept region, lit; the rest dimmed */
+  const from = time2x(id, s.marks.start, W);
+  const to = time2x(id, s.marks.end !== undefined ? s.marks.end : s.marks.b, W);
+  g.fillStyle = '#1a1f2a'; g.fillRect(from, 0, to - from, H);
+
+  const p = peaks(id);
+  for (let x = 0; x < W; x++) {
+    const inside = x >= from && x <= to;
+    g.fillStyle = inside ? '#7f8ea8' : '#39404e';
+    const lo = p[x * 2], hi = p[x * 2 + 1];
+    g.fillRect(x, mid - hi * mid * 0.95, 1, Math.max(1, (hi - lo) * mid * 0.95));
+  }
+  g.strokeStyle = '#2c313d'; g.beginPath(); g.moveTo(0, mid); g.lineTo(W, mid); g.stroke();
+
+  /* the looping piece gets its own tint so the repeat is obvious */
+  if (LOOPS[id]) {
+    const a = time2x(id, s.marks.a, W), b = time2x(id, s.marks.b, W);
+    g.fillStyle = 'rgba(90,182,255,0.10)'; g.fillRect(a, 0, b - a, H);
+  }
+
+  for (const k of Object.keys(s.marks)) {
+    const x = time2x(id, s.marks[k], W);
+    g.strokeStyle = MARK_COLOUR[k]; g.lineWidth = 2 * (window.devicePixelRatio || 1);
+    g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke();
+    g.fillStyle = MARK_COLOUR[k];
+    g.fillRect(x - 3, 0, 6, 10 * (window.devicePixelRatio || 1));
+  }
+
+  const marks = document.getElementById(`marks-${id}`);
+  marks.innerHTML = Object.keys(s.marks).map((k) =>
+    `<span class="m-${k}">${MARK_LABEL[k]} <b>${s.marks[k].toFixed(3)}s</b></span>`).join('') +
+    (LOOPS[id] ? `<span>loop length <b>${(s.marks.b - s.marks.a).toFixed(3)}s</b></span>` : '') +
+    `<span>clip <b>${(clipEnd(id) - s.marks.start).toFixed(3)}s</b></span>` +
+    `<span>showing <b>${s.view.from.toFixed(2)}–${s.view.to.toFixed(2)}s</b></span>`;
+}
+
+const time2x = (id, t, W) => {
+  const v = state[id].view;
+  return ((t - v.from) / (v.to - v.from)) * W;
+};
+const x2time = (id, x, W) => {
+  const v = state[id].view;
+  return Math.max(0, Math.min(state[id].buf.duration, v.from + (x / W) * (v.to - v.from)));
+};
+const clipEnd = (id) => state[id].marks.end !== undefined ? state[id].marks.end : state[id].marks.b;
+
+/* ---------------------------------------------------------------- dragging */
+
+let dragging = null;
+for (const s of SLOTS) {
+  const c = document.getElementById(`wave-${s.id}`);
+  c.addEventListener('pointerdown', (e) => {
+    if (!state[s.id]) return;
+    const W = c.width, x = (e.offsetX / c.clientWidth) * W;
+    /* whichever handle is nearest takes the click */
+    let best = null, bestD = 1e9;
+    for (const k of Object.keys(state[s.id].marks)) {
+      const d = Math.abs(time2x(s.id, state[s.id].marks[k], W) - x);
+      if (d < bestD) { bestD = d; best = k; }
+    }
+    dragging = { id: s.id, key: best, c };
+    c.setPointerCapture(e.pointerId);
+    move(e);
+  });
+  c.addEventListener('pointermove', (e) => dragging && move(e));
+  c.addEventListener('pointerup', () => { dragging = null; });
+}
+
+function move(e) {
+  const { id, key, c } = dragging;
+  const W = c.width;
+  let t = x2time(id, (e.offsetX / c.clientWidth) * W, W);
+  if (e.shiftKey) {
+    /* fine: a tenth of the movement, measured from where it already is */
+    const now = state[id].marks[key];
+    t = now + (t - now) * 0.1;
+  }
+  const m = state[id].marks;
+  /* keep them in order, a hair apart */
+  const EPS = 0.005;
+  if (key === 'start') t = Math.min(t, (m.a !== undefined ? m.a : m.end) - EPS);
+  if (key === 'a') t = Math.max(m.start + EPS, Math.min(t, m.b - EPS));
+  if (key === 'b') t = Math.max((m.a !== undefined ? m.a : m.start) + EPS, t);
+  if (key === 'end') t = Math.max(m.start + EPS, t);
+  m[key] = t;
+  draw(id);
+}
+
+addEventListener('resize', () => {
+  for (const id of Object.keys(state)) { sizeCanvas(id); draw(id); }
+});
+
+/* --------------------------------------------------------------- playback */
+
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-act]');
+  if (!b) return;
+  const { act, id } = b.dataset;
+  if (act === 'stop') return stop(id);
+  if (act === 'save') return save(id);
+  if (act === 'auto') {
+    state[id].marks = autoMark(id, state[id].buf);
+    state[id].view = { from: 0, to: state[id].buf.duration };
+    return draw(id);
+  }
+  if (act === 'zoom') {
+    const s = state[id], m = s.marks;
+    const pad = Math.max(0.08, (clipEnd(id) - m.start) * 0.25);
+    s.view = {
+      from: Math.max(0, m.start - pad),
+      to: Math.min(s.buf.duration, clipEnd(id) + pad)
+    };
+    return draw(id);
+  }
+  if (act === 'wide') {
+    state[id].view = { from: 0, to: state[id].buf.duration };
+    return draw(id);
+  }
+  play(id, act);
+});
+
+function stop(id) {
+  const s = state[id];
+  if (s && s.playing) { try { s.playing.stop(); } catch (_) {} s.playing = null; }
+}
+
+function play(id, mode) {
+  const s = state[id];
+  if (!s) return;
+  stop(id);
+  if (ctx.state === 'suspended') ctx.resume();
+  const src = ctx.createBufferSource();
+  src.buffer = s.buf;
+  src.connect(ctx.destination);
+  const m = s.marks;
+  if (mode === 'whole') {
+    src.start();
+  } else if (mode === 'loop') {
+    /* the repeating piece on its own, six times: any tick at the join turns
+       into a rhythm you cannot miss */
+    src.loop = true; src.loopStart = m.a; src.loopEnd = m.b;
+    src.start(0, m.a);
+    setTimeout(() => stop(id), (m.b - m.a) * 6000);
+  } else if (LOOPS[id]) {
+    /* the clip as the game plays it: in at the start, then round and round */
+    src.loop = true; src.loopStart = m.a; src.loopEnd = m.b;
+    src.start(0, m.start);
+    setTimeout(() => stop(id), (m.b - m.start + (m.b - m.a) * 3) * 1000);
+  } else {
+    src.start(0, m.start, m.end - m.start);
+  }
+  s.playing = src;
+}
+
+/* ----------------------------------------------------------------- export */
+
+/** the marked region, resampled to OUT_RATE mono */
+function trim(id) {
+  const s = state[id];
+  const from = s.marks.start, to = clipEnd(id);
+  const chans = s.buf.numberOfChannels;
+  const rate = s.buf.sampleRate;
+  const n = Math.max(1, Math.round((to - from) * OUT_RATE));
+  const out = new Float32Array(n);
+  const step = rate / OUT_RATE;
+  const data = [];
+  for (let c = 0; c < chans; c++) data.push(s.buf.getChannelData(c));
+  for (let i = 0; i < n; i++) {
+    const at = (from * rate) + i * step;
+    const i0 = Math.floor(at), frac = at - i0, i1 = Math.min(data[0].length - 1, i0 + 1);
+    let v = 0;
+    for (let c = 0; c < chans; c++) v += data[c][i0] * (1 - frac) + data[c][i1] * frac;
+    out[i] = v / chans;
+  }
+  /* a couple of milliseconds of fade at each end of a one-shot, so it does not
+     start or stop on a step and click */
+  if (!LOOPS[id]) {
+    const f = Math.min(Math.round(OUT_RATE * 0.004), Math.floor(n / 2));
+    for (let i = 0; i < f; i++) { out[i] *= i / f; out[n - 1 - i] *= i / f; }
+  }
+  return out;
+}
+
+function wav(samples, rate) {
+  const buf = new ArrayBuffer(44 + samples.length * 2);
+  const v = new DataView(buf);
+  const str = (off, s) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
+  str(0, 'RIFF'); v.setUint32(4, 36 + samples.length * 2, true); str(8, 'WAVE');
+  str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  str(36, 'data'); v.setUint32(40, samples.length * 2, true);
+  for (let i = 0; i < samples.length; i++) {
+    const x = Math.max(-1, Math.min(1, samples[i]));
+    v.setInt16(44 + i * 2, x < 0 ? x * 0x8000 : x * 0x7FFF, true);
+  }
+  return new Blob([buf], { type: 'audio/wav' });
+}
+
+function download(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+function save(id) {
+  if (!state[id]) return;
+  download(wav(trim(id), OUT_RATE), id + '.wav');
+  setStatus(`saved ${id}.wav`);
+}
+
+document.getElementById('exportAll').onclick = () => {
+  const meta = {};
+  let n = 0;
+  for (const s of SLOTS) {
+    if (!state[s.id]) continue;
+    save(s.id);
+    n++;
+    const m = state[s.id].marks;
+    meta[s.id] = LOOPS[s.id]
+      ? { loop: true, loopStart: +(m.a - m.start).toFixed(4), loopEnd: +(m.b - m.start).toFixed(4) }
+      : { loop: false };
+  }
+  download(new Blob([JSON.stringify(meta, null, 2)], { type: 'application/json' }), 'sounds.json');
+  setStatus(`exported ${n} sound${n === 1 ? '' : 's'} and sounds.json — drop them in games/skate/assets/audio/`);
+};
+
+function setStatus(t) { document.getElementById('status').textContent = t; }
+</script>

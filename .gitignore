@@ -30,3 +30,10 @@ Claude outputs
 # Python bytecode from games/skate/tools
 __pycache__/
 *.pyc
+
+# 600-dpi page renders used to cut the Waypoints icons out of the rules PDF
+games/waypoints/icons/_work/*.png
+
+# the nature kit source (86 MB); tools/build_models.py cuts models/ out of it
+games/waypoints/research/
+games/waypoints/models/_unused/

@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>Skate - Garfield Boys' Arcade</title>
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow+Condensed:wght@500;700&display=swap" rel="stylesheet">
+<style>
+/* The original's HUD is white type with a soft shadow over the game, and the
+   only colours on screen are the park's: charcoal, orange, and the red of the
+   rails. The arcade's purple shows up on the chrome — back button, menus — so
+   the game still belongs to the hub it came from. */
+:root {
+  --ink: #14161a;
+  --paper: #f4f4f6;
+  --orange: #f7860d;
+  --rail: #d00005;
+  --accent: #6c5ce7;
+  --glow: #a29bfe;
+  --gold: #ffd32a;
+  --display: 'Anton', system-ui, sans-serif;
+  --ui: 'Barlow Condensed', system-ui, sans-serif;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; }
+body {
+  background: #0a0a2e; overflow: hidden; font-family: var(--ui);
+  touch-action: none; user-select: none; color: var(--paper);
+}
+canvas { display: block; width: 100%; height: 100%; }
+.off { display: none !important; }
+
+/* ---------------------------------------------------- chrome (top row) */
+.chip-btn {
+  font: 600 16px/1 var(--ui); letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink); background: var(--paper); border: none; border-radius: 10px;
+  padding: 10px 16px; cursor: pointer; text-decoration: none;
+  box-shadow: 0 3px 0 rgba(0,0,0,.35), 0 6px 18px rgba(0,0,0,.35);
+}
+.chip-btn:hover { background: #fff; }
+#backBtn { position: fixed; top: 12px; left: 12px; z-index: 90; }
+#topRight {
+  /* Above the menu and pause panels (95), because the music is not part of
+     the game state: you should be able to skip a song or turn it down while
+     you are sitting on the menu deciding where to skate. */
+  position: fixed; top: 12px; right: 12px; z-index: 96;
+  display: flex; gap: 8px; align-items: center;
+}
+/* Pausing, on the other hand, only means anything mid-run — and a Pause
+   button floating over the pause screen is just confusing. */
+body:not(.playing) #pauseBtn { display: none; }
+/* ---- the jukebox ------------------------------------------------------
+   Right to left: pause the game, music volume, skip the song, and the name
+   of what is playing. The name carries no chrome at all — it is something
+   you glance at, not something you press, and a second button-shaped box up
+   there would read as a third button. */
+#nowPlaying {
+  max-width: min(30vw, 260px); overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; font: 600 13px/1 var(--ui); letter-spacing: .06em;
+  text-transform: uppercase; color: rgba(255,255,255,.82);
+  /* it sits over the park, which can be any colour, so it carries its own
+     contrast rather than a panel */
+  text-shadow: 0 1px 3px rgba(0,0,0,.9), 0 0 14px rgba(0,0,0,.7);
+  padding-right: 2px; pointer-events: none;
+}
+.chip-btn.icon { padding: 10px 12px; display: grid; place-items: center; }
+.chip-btn.icon svg { width: 17px; height: 17px; display: block; }
+.chip-btn.icon svg path, .chip-btn.icon svg rect { fill: currentColor; }
+.chip-btn.icon svg path.w1, .chip-btn.icon svg path.w2 {
+  fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round;
+}
+/* the volume button grows a slider rather than opening a panel over the game */
+#volWrap { display: flex; align-items: center; gap: 0; }
+#volSlider {
+  width: 0; opacity: 0; margin: 0; padding: 0; height: 22px;
+  transition: width .18s ease, opacity .18s ease, margin .18s ease;
+  -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer;
+}
+#volWrap.open #volSlider { width: 108px; opacity: 1; margin: 0 10px 0 2px; }
+#volSlider::-webkit-slider-runnable-track {
+  height: 6px; border-radius: 3px;
+  background: linear-gradient(to right, var(--paper) var(--fill, 80%), rgba(255,255,255,.28) var(--fill, 80%));
+}
+#volSlider::-moz-range-track { height: 6px; border-radius: 3px; background: rgba(255,255,255,.28); }
+#volSlider::-moz-range-progress { height: 6px; border-radius: 3px; background: var(--paper); }
+#volSlider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 16px; height: 16px; margin-top: -5px;
+  border-radius: 50%; background: var(--paper); border: none;
+  box-shadow: 0 2px 6px rgba(0,0,0,.5);
+}
+#volSlider::-moz-range-thumb {
+  width: 16px; height: 16px; border-radius: 50%; background: var(--paper);
+  border: none; box-shadow: 0 2px 6px rgba(0,0,0,.5);
+}
+#volWrap.muted .chip-btn.icon svg path.w1, #volWrap.muted .chip-btn.icon svg path.w2 {
+  opacity: .22;
+}
+@media (max-width: 560px) {
+  #nowPlaying { max-width: 34vw; font-size: 11.5px; }
+  #volWrap.open #volSlider { width: 84px; }
+}
+
+/* the pin tool (press I) — a developer readout, deliberately plain */
+#inspect {
+  position: fixed; left: 12px; bottom: 12px; z-index: 120; max-width: min(720px, 92vw);
+  max-height: 42vh; overflow-y: auto; padding: 9px 11px; border-radius: 10px;
+  background: rgba(10,12,24,.88); border: 1px solid rgba(255,59,208,.55);
+  color: #ffd9f4; font: 11.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  -webkit-user-select: text; user-select: text;
+}
+#inspect b { color: #ff3bd0; letter-spacing: .08em; }
+#inspect .pinRow { margin-top: 4px; word-break: break-word; }
+#inspect .pinRow.dim { opacity: .45; }
+#inspect #inspectLegend { margin-top: 3px; opacity: .85; }
+#inspect .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin: 0 3px 0 7px; }
+#inspect .sw.f { background: #2fd46b; } #inspect .sw.w { background: #ff4d4d; } #inspect .sw.p { background: #4d9bff; }
+
+/* ------------------------------------------------------------ the HUD */
+#hudTop {
+  position: fixed; top: 62px; left: 12px; z-index: 55; pointer-events: none;
+  display: flex; flex-direction: column; gap: 6px; align-items: flex-start;
+}
+.stat {
+  background: rgba(10,10,20,.55); backdrop-filter: blur(6px);
+  border-radius: 10px; padding: 6px 14px; line-height: 1;
+  display: flex; align-items: baseline; gap: 10px;
+}
+.stat .lbl { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; opacity: .6; }
+.stat .val { font-family: var(--display); font-size: 26px; letter-spacing: .02em; }
+.stat.small .val { font-size: 17px; }
+#speedTrack {
+  width: 132px; height: 6px; border-radius: 3px; overflow: hidden;
+  background: rgba(10,10,20,.55);
+}
+#speedFill {
+  width: 100%; height: 100%; transform-origin: left center; transform: scaleX(0);
+  background: linear-gradient(90deg, var(--gold), var(--orange), var(--rail));
+  transition: transform .08s linear;
+}
+
+/* the trick label and its points line — centred, low, two-second life */
+#trickWrap {
+  position: fixed; left: 0; right: 0; bottom: 20vh; z-index: 55;
+  text-align: center; pointer-events: none; padding: 0 8vw;
+}
+#pointsLabel {
+  font-family: var(--display); font-size: clamp(20px, 3.4vw, 34px);
+  letter-spacing: .06em; color: var(--gold); min-height: 1.1em;
+  /* the original leans on one soft drop shadow; over a charcoal park that is
+     not enough, so the label is ringed instead */
+  text-shadow:
+    -2px -2px 0 rgba(10,10,16,.85),  2px -2px 0 rgba(10,10,16,.85),
+    -2px  2px 0 rgba(10,10,16,.85),  2px  2px 0 rgba(10,10,16,.85),
+     0    3px 0 rgba(10,10,16,.85),  0   -3px 0 rgba(10,10,16,.85),
+     3px  0   0 rgba(10,10,16,.85), -3px  0   0 rgba(10,10,16,.85),
+     0    6px 12px rgba(0,0,0,.6);
+}
+#trickLabel {
+  font-family: var(--display); font-size: clamp(26px, 4.6vw, 46px);
+  letter-spacing: .03em; min-height: 1.1em;
+  /* the original leans on one soft drop shadow; over a charcoal park that is
+     not enough, so the label is ringed instead */
+  text-shadow:
+    -2px -2px 0 rgba(10,10,16,.85),  2px -2px 0 rgba(10,10,16,.85),
+    -2px  2px 0 rgba(10,10,16,.85),  2px  2px 0 rgba(10,10,16,.85),
+     0    3px 0 rgba(10,10,16,.85),  0   -3px 0 rgba(10,10,16,.85),
+     3px  0   0 rgba(10,10,16,.85), -3px  0   0 rgba(10,10,16,.85),
+     0    6px 12px rgba(0,0,0,.6);
+}
+#trickLabel.pop { animation: pop .28s cubic-bezier(.2,1.7,.5,1); }
+@keyframes pop { from { transform: scale(.82); opacity: .2; } to { transform: none; opacity: 1; } }
+
+/* the input buffer, as the four controller faces */
+#inputView {
+  position: fixed; left: 0; right: 0; bottom: calc(20vh - 62px); z-index: 55;
+  display: flex; justify-content: center; gap: 8px; pointer-events: none;
+}
+.chip {
+  flex: 0 0 auto;
+  width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+  box-shadow: 0 2px 0 rgba(0,0,0,.4), inset 0 -2px 0 rgba(0,0,0,.25);
+}
+.chip.c-a { background: #4caf50; }
+.chip.c-x { background: #2f6fd0; }
+.chip.c-b { background: #d94242; }
+.chip.c-y { background: #e2b418; color: #3a2b00; }
+.chip.c-d { background: #e9e9ee; color: #23242a; }
+/* SPACE will not fit in a 34px circle; let a chip be a pill when it needs to */
+.chip.c-r { background: #6f6f7a; }
+
+/* --- the balance crescent -------------------------------------------
+   A 46vmin square pinned to the middle of the screen. The arc lives on its
+   LEFT edge; a grind rotates the whole square 90 degrees so the arc lands at
+   the top, exactly as balance_overlay.gd's set_balance_view(true, PI/2) does. */
+#balance {
+  position: fixed; left: 50%; top: 50%; z-index: 54;
+  width: 46vmin; height: 46vmin; pointer-events: none;
+  opacity: 0; transition: opacity .18s ease;
+}
+#balance.on { opacity: 1; }
+#balance svg { width: 100%; height: 100%; overflow: visible; }
+#needle { transform-origin: 512px 512px; }
+#needle polygon { fill: #63b8ff; filter: drop-shadow(0 2px 3px rgba(0,0,0,.45)); }
+
+/* ---------------------------------------------------------- touch pads */
+#pads {
+  position: fixed; inset: auto 0 0 0; z-index: 58; padding: 0 4vw 4vh;
+  display: none; justify-content: space-between; align-items: flex-end;
+}
+body.playing #pads { display: flex; }
+#stick {
+  width: 132px; height: 132px; border-radius: 50%;
+  background: rgba(244,244,246,.13); border: 2px solid rgba(244,244,246,.3);
+  position: relative; touch-action: none;
+}
+#stickKnob {
+  position: absolute; left: 50%; top: 50%; width: 58px; height: 58px;
+  margin: -29px 0 0 -29px; border-radius: 50%;
+  background: rgba(244,244,246,.85); box-shadow: 0 3px 0 rgba(0,0,0,.35);
+  transition: transform .06s linear;
+}
+/* Three tricks in a row with jump underneath them, one thumb's reach apart:
+   flip, grab, grind left to right, matching J K L on the keyboard. */
+#btns { display: grid; grid-template-columns: repeat(3, 68px); gap: 10px; }
+.act {
+  width: 68px; height: 68px; border-radius: 50%; border: none;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; box-shadow: 0 4px 0 rgba(0,0,0,.4); touch-action: none; cursor: pointer;
+}
+.act svg, .chip svg { display: block; }
+.act.on { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.4); }
+.act[data-act="Jump"] {
+  background: #4caf50; grid-column: 1 / span 3; width: auto; height: 62px;
+  border-radius: 31px;
+}
+.act[data-act="Flip"]  { background: #2f6fd0; }
+.act[data-act="Grab"]  { background: #e2b418; color: #3a2b00; }
+.act[data-act="Grind"] { background: #d94242; }
+
+/* -------------------------------------------------------------- panels */
+.panel {
+  position: fixed; inset: 0; z-index: 95; display: grid; place-items: center;
+  backdrop-filter: blur(3px); padding: 24px;
+  /* a phone in portrait cannot fit the whole card; let it scroll rather than
+     clipping the Drop In button off the bottom */
+  overflow-y: auto; align-content: center;
+}
+.panel .card { margin: auto; }
+.card {
+  width: min(560px, 92vw); background: linear-gradient(160deg, #16163c, #101028);
+  border: 1px solid rgba(162,155,254,.28); border-radius: 20px;
+  padding: 28px clamp(20px, 5vw, 40px); text-align: center;
+  box-shadow: 0 24px 60px rgba(0,0,0,.55);
+  /* No card may be taller than the screen. Before this the menu came to 1669px
+     on a 690px-tall laptop and Drop In sat 300px below the fold, unreachable:
+     the panel scrolls, but nothing about the card said so. Whatever is too tall
+     now scrolls inside itself instead. */
+  max-height: calc(100vh - 32px);
+  display: flex; flex-direction: column; min-height: 0;
+}
+.card h1 {
+  font-family: var(--display); line-height: .92;
+  /* sized against the SHORTER axis too — 12vw is 160px on a wide, short laptop */
+  font-size: clamp(38px, min(11vw, 11vh), 76px);
+  letter-spacing: .02em; color: #fff;
+  text-shadow: 0 0 26px rgba(162,155,254,.55);
+}
+.card h1 em { font-style: normal; color: var(--orange); }
+.card h2 { font-family: var(--display); font-size: clamp(26px, 6vw, 38px); letter-spacing: .04em; }
+.card p.sub { color: var(--glow); letter-spacing: .1em; text-transform: uppercase; font-size: 14px; margin-top: 4px; }
+.keys {
+  margin: 20px auto 22px; display: grid; gap: 6px 14px; max-width: 420px;
+  grid-template-columns: auto 1fr; text-align: left; font-size: 16px;
+}
+.keys b {
+  font: 700 13px/1.5 var(--ui); letter-spacing: .06em; color: var(--ink);
+  background: var(--paper); border-radius: 6px; padding: 3px 8px; text-align: center;
+  box-shadow: 0 2px 0 rgba(0,0,0,.4);
+}
+.keys span { opacity: .86; }
+.big {
+  font: 700 20px/1 var(--ui); letter-spacing: .1em; text-transform: uppercase;
+  color: #fff; background: var(--accent); border: none; border-radius: 12px;
+  padding: 15px 42px; cursor: pointer; box-shadow: 0 5px 0 #4b3fc4, 0 10px 24px rgba(0,0,0,.4);
+}
+.big:hover { background: #7d6cf0; }
+.big.ghost { background: transparent; border: 2px solid rgba(162,155,254,.5); box-shadow: none; color: var(--glow); }
+.row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.credit { margin-top: 18px; font-size: 13px; opacity: .55; line-height: 1.5; }
+.credit a { color: var(--glow); }
+
+/* BAIL! — the original's you_died.png, as type */
+#failView {
+  position: fixed; inset: 0; z-index: 70; display: flex;
+  align-items: flex-start; justify-content: center; padding-top: 27vh;
+  text-align: center; pointer-events: none; opacity: 0; transition: opacity .2s ease;
+}
+#failView.on { opacity: 1; }
+#failView div {
+  font-family: var(--display); font-size: clamp(52px, 15vw, 130px); color: var(--rail);
+  letter-spacing: .06em; text-shadow: 0 6px 0 rgba(0,0,0,.4);
+  animation: shake .5s ease-out;
+}
+#failView small {
+  display: block; font-family: var(--ui); font-size: 16px; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--paper); margin-top: 8px; text-shadow: none;
+}
+@keyframes shake {
+  0% { transform: scale(1.5) rotate(-4deg); opacity: 0; }
+  40% { transform: scale(1) rotate(2deg); opacity: 1; }
+  100% { transform: none; }
+}
+
+
+/* --- S-K-A-T-E pips: five letters that light as you collect them ------ */
+#skatePips { display: flex; gap: 5px; }
+.pip {
+  width: 24px; height: 24px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font: 700 13px/1 var(--ui); letter-spacing: .04em;
+  background: rgba(10,10,20,.55); color: rgba(244,244,246,.32);
+  border: 1px solid rgba(244,244,246,.16); transition: all .25s ease;
+}
+.pip.got {
+  background: var(--gold); color: #3a2b00; border-color: var(--gold);
+  box-shadow: 0 0 14px rgba(255,211,42,.6); transform: translateY(-2px);
+}
+
+/* --- the objective checklist ----------------------------------------- */
+#goals {
+  position: fixed; top: 62px; right: 12px; z-index: 55; width: min(258px, 42vw);
+  background: rgba(10,10,20,.55); backdrop-filter: blur(6px);
+  border-radius: 12px; padding: 9px 11px; pointer-events: none;
+}
+#goals header {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+  padding-bottom: 7px; margin-bottom: 6px;
+  border-bottom: 1px solid rgba(244,244,246,.14);
+}
+#levelName { opacity: .72; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#goalCount { font-family: var(--display); font-size: 15px; color: var(--gold); letter-spacing: .02em; }
+#goalList { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+#goalList li {
+  display: flex; align-items: center; gap: 7px; font-size: 13.5px; line-height: 1.25;
+  color: rgba(244,244,246,.82);
+}
+#goalList i {
+  flex: 0 0 auto; width: 13px; height: 13px; border-radius: 4px;
+  border: 1.5px solid rgba(244,244,246,.34); position: relative;
+}
+#goalList li.done { color: rgba(244,244,246,.45); }
+#goalList li.done .gl { text-decoration: line-through; }
+#goalList li.done i { background: #4caf50; border-color: #4caf50; }
+#goalList li.done i::after {
+  content: ''; position: absolute; left: 3px; top: 0px; width: 3.5px; height: 7px;
+  border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(42deg);
+}
+#goalList .gl { flex: 1 1 auto; }
+#goalList .gp { flex: 0 0 auto; font-size: 12px; color: var(--gold); opacity: .9; }
+#goalList li.done .gp { color: #7bd88f; }
+
+/* --- the banner when one ticks --------------------------------------- */
+#toast {
+  position: fixed; left: 50%; top: 11%; z-index: 75; transform: translate(-50%, -14px);
+  padding: 12px 26px; border-radius: 14px; text-align: center; pointer-events: none;
+  background: linear-gradient(160deg, rgba(76,175,80,.95), rgba(46,125,50,.95));
+  box-shadow: 0 12px 34px rgba(0,0,0,.5);
+  opacity: 0; visibility: hidden;
+}
+#toast.on { animation: toastIn 2.6s cubic-bezier(.2,1.5,.5,1) forwards; }
+#toast b { display: block; font-family: var(--display); font-size: 22px; letter-spacing: .04em; }
+#toast span { display: block; font-size: 14px; opacity: .85; margin-top: 2px; }
+@keyframes toastIn {
+  0% { opacity: 0; visibility: visible; transform: translate(-50%, -22px) scale(.9); }
+  10%, 82% { opacity: 1; visibility: visible; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; visibility: hidden; transform: translate(-50%, -10px) scale(1); }
+}
+
+/* --- settings rows and level cards ----------------------------------- */
+.setting { margin: 16px 0; text-align: left; }
+.setting .sl {
+  display: block; font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+  opacity: .6; margin-bottom: 7px;
+}
+.setting .hint { font-size: 13px; opacity: .55; margin-top: 6px; line-height: 1.4; }
+.seg { display: flex; gap: 6px; }
+.seg button {
+  flex: 1 1 0; padding: 10px 8px; border: 1px solid rgba(162,155,254,.3);
+  background: transparent; color: var(--glow); border-radius: 10px; cursor: pointer;
+  font: 700 14px/1 var(--ui); letter-spacing: .08em; text-transform: uppercase;
+}
+.seg button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.pickLabel {
+  font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+  opacity: .55; margin: 4px 0 8px;
+}
+/* A grid rather than wrapping flex: with twenty-odd parks the last row of a
+   flex wrap stretches its few cards to full width and the whole thing looks
+   broken. The list is split into the two games, so the row is now a stack of
+   headed grids rather than one grid. */
+.levelRow { display: block; align-content: start; }
+.lvlGrid {
+  display: grid; gap: 8px; justify-content: center; align-content: start;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+}
+.lvlGroup {
+  display: flex; align-items: baseline; gap: 9px;
+  margin: 14px 2px 7px; padding-bottom: 5px;
+  border-bottom: 1px solid rgba(162,155,254,.22);
+}
+.lvlGroup:first-child { margin-top: 2px; }
+.lvlGroup span {
+  font: 700 12px/1 var(--ui); letter-spacing: .12em; color: var(--gold);
+}
+.lvlGroup em {
+  font-style: normal; font-size: 11.5px; color: var(--glow); opacity: .6;
+}
+
+/* ---- the park ring ----------------------------------------------------
+   A circle of cards lying flat-ish, tipped back so you see the tops of the
+   ones behind. Each card is fixed at its own angle on the circle and the
+   whole circle turns; the parent's rotateY is the only thing that moves. */
+.carousel { --step: 20deg; --radius: 420px; user-select: none; }
+.ringWrap {
+  position: relative; height: 278px; perspective: 1250px;
+  perspective-origin: 50% 50%; cursor: grab; touch-action: pan-y;
+  overflow: hidden;
+  /* the cards at the edge of the frame get sliced by that overflow; fade them
+     out instead, so the ring reads as carrying on past the card */
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 13%, #000 87%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 13%, #000 87%, transparent);
+}
+.carousel.dragging .ringWrap { cursor: grabbing; }
+.ring {
+  position: absolute; inset: 0; transform-style: preserve-3d;
+  transition: none; will-change: transform;
+}
+.ringCard {
+  position: absolute; left: 50%; top: 50%; width: 136px; margin: -42.5px 0 0 -68px;
+  /* --s is the hero scale, 1 out at the sides and 3 in front; the card is just
+     a picture, so it can grow that far without any text coming with it */
+  transform: rotateY(calc(var(--i) * var(--step))) translateZ(var(--radius))
+             scale(var(--s, 1));
+  background: #14142e; border: solid rgba(162,155,254,.24);
+  /* divide by the scale so the border and the corners come out the same
+     thickness on screen whatever size the card is drawn at */
+  border-width: calc(1.4px / var(--s, 1));
+  border-radius: calc(14px / var(--s, 1));
+  padding: 0; overflow: hidden; cursor: pointer;
+  color: var(--paper); font-family: var(--ui); text-align: center;
+  box-shadow: 0 calc(14px / var(--s, 1)) calc(28px / var(--s, 1)) rgba(0,0,0,.45);
+  transition: border-color .18s, box-shadow .18s;
+}
+.ringCard .shot {
+  position: relative; aspect-ratio: 8 / 5; background: #0d0d20;
+  display: grid; place-items: center; overflow: hidden;
+}
+.ringCard .shot img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  filter: saturate(.92) brightness(.95);
+}
+.ringCard .fallback {
+  position: absolute; font-size: calc(30px / var(--s, 1)); opacity: .5;
+}
+.ringCard .shot img + .fallback { display: none; }
+.ringCard.front {
+  border-color: var(--glow);
+  box-shadow: 0 calc(16px / var(--s, 1)) calc(34px / var(--s, 1)) rgba(0,0,0,.5),
+              0 0 0 calc(2px / var(--s, 1)) rgba(162,155,254,.35);
+}
+.ringCard.front .shot img { filter: none; }
+.ringLabel { margin-top: 10px; }
+.ringLabel b {
+  display: flex; justify-content: center; align-items: baseline; gap: .45em;
+  font-family: var(--display); font-size: 25px; letter-spacing: .03em;
+}
+/* the score sits on the name's line at the name's size, in its own colour:
+   it is what the player is actually here to check */
+.ringLabel .pr { color: var(--gold); font-weight: inherit; }
+.ringLabel .pr:empty { display: none; }
+.ringLabel .pr.all { color: #43d9a3; }
+.ringLabel .gm { display: block; font-size: 12px; color: var(--glow); opacity: .7; }
+.ringDots { display: flex; gap: 5px; justify-content: center; margin: 9px 0 2px; flex-wrap: wrap; }
+.ringDots i {
+  width: 6px; height: 6px; border-radius: 50%; background: rgba(162,155,254,.28);
+  transition: background .15s, transform .15s;
+}
+.ringDots i.on { background: var(--gold); transform: scale(1.5); }
+.ringDots i.on.all { background: #43d9a3; }
+@media (max-width: 560px) {
+  .ringWrap { height: 176px; perspective: 980px;
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 5%, #000 95%, transparent);
+    mask-image: linear-gradient(to right, transparent, #000 5%, #000 95%, transparent); }
+  .ringCard { width: 84px; margin: -26.25px 0 0 -42px; }
+  .ringLabel b { font-size: 21px; }
+}
+/* the pause card is narrower and already has a lot in it */
+.pauseView .ringWrap { height: 232px; }
+.pauseView .ringCard { width: 112px; margin: -35px 0 0 -56px; }
+
+/* ---- who is skating ---------------------------------------------------- */
+.whoRow { display: flex; gap: 10px; margin-bottom: 14px; }
+.who {
+  flex: 1 1 0; display: flex; align-items: center; gap: 9px;
+  padding: 9px 12px; border-radius: 11px; cursor: pointer;
+  background: rgba(255,255,255,.05); border: 1.5px solid rgba(162,155,254,.22);
+  color: var(--paper); font-family: var(--ui);
+}
+.who:hover { background: rgba(255,255,255,.09); }
+.who.on { border-color: var(--glow); background: rgba(162,155,254,.16); }
+.who .dot {
+  width: 20px; height: 20px; border-radius: 50%; border: 3px solid #fff; flex: none;
+}
+.who .nm { font-weight: 700; letter-spacing: .02em; font-size: 15px; }
+.lvl {
+  padding: 8px 6px; border-radius: 11px; cursor: pointer;
+  background: rgba(255,255,255,.05); border: 1.5px solid rgba(162,155,254,.22);
+  text-align: center; color: var(--paper); font-family: var(--ui);
+  position: relative;
+}
+.lvl:hover { background: rgba(255,255,255,.09); }
+.lvl.on { border-color: var(--glow); background: rgba(162,155,254,.16); }
+.lvl .ic { font-size: 21px; line-height: 1; }
+.lvl .nm { font-weight: 700; letter-spacing: .02em; margin-top: 3px; font-size: 13px; line-height: 1.2; }
+.lvl .go { font-size: 11.5px; color: var(--gold); margin-top: 3px; }
+/* the game each park came from is the group heading above it now, so the old
+   per-card corner tag is gone */
+
+/* ---- the menu ----------------------------------------------------------
+   Title, who is skating, which park, go. There is nothing to read: the
+   controls live in Pause and the parks say what they are on the cards. */
+.menuCard { width: min(1020px, 94vw); padding: 18px clamp(16px, 3vw, 34px) 16px; }
+.menuCols { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.menuCols h1 { flex: none; }
+.goRow {
+  display: flex; align-items: center; justify-content: center; gap: 14px;
+  flex-wrap: wrap;
+}
+.goRow .whoRow { margin: 0; flex: 0 1 380px; }
+.goRow .big { flex: none; }
+@media (max-width: 560px) { .goRow .whoRow { flex: 1 1 100%; } }
+.menuCols .levelRow { overflow-y: auto; min-height: 0; flex: 1 1 auto; padding-right: 4px; }
+.menuCard .row { margin-top: 14px; }
+
+/* A scrollable area has to look scrollable, or a sentence cut off mid-word
+   just reads as a broken layout. */
+/* faded at the edge you can still scroll towards, so a half-visible row reads
+   as "there is more" rather than as a clipped layout. Toggled from JS, because
+   CSS cannot tell whether a box is actually overflowing. */
+.cardBody.moreBelow, .levelRow.moreBelow { mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent); }
+.cardBody.moreAbove, .levelRow.moreAbove { mask-image: linear-gradient(to bottom, transparent, #000 30px); }
+.cardBody.moreAbove.moreBelow, .levelRow.moreAbove.moreBelow {
+  mask-image: linear-gradient(to bottom, transparent, #000 30px, #000 calc(100% - 30px), transparent);
+}
+/* Every panel is the same shape: a heading that stays, a body that takes
+   whatever height is left and scrolls if it needs to, and a button row pinned
+   at the bottom. That is what keeps Done and Back on the screen at any
+   resolution instead of being pushed off it by a long list. */
+.cardBody { flex: 1 1 auto; min-height: 0; overflow-y: auto; text-align: left; }
+.cardBody > :first-child { margin-top: 0; }
+/* No inner scroller: the card body already scrolls, and two nested ones means
+   reaching the bottom of the park list takes two different gestures. */
+#settingsLevels { max-height: none; overflow: visible; }
+
+/* ---- one pause screen, with everything in it -------------------------- */
+.pauseCard { width: min(720px, 94vw); }
+.pauseHead { display: flex; align-items: baseline; justify-content: center; gap: 12px; flex-wrap: wrap; }
+.pauseHead .ver {
+  font: 600 11px/1 var(--ui); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--glow); opacity: .45;
+}
+.tabs { display: flex; gap: 6px; justify-content: center; margin: 14px 0 12px; flex-wrap: wrap; }
+.tabs button {
+  font: 700 12px/1 var(--ui); letter-spacing: .08em; text-transform: uppercase;
+  color: var(--glow); background: transparent; cursor: pointer;
+  border: 1.5px solid rgba(162,155,254,.3); border-radius: 999px; padding: 8px 16px;
+}
+.tabs button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.pauseView.off { display: none; }
+.pauseView[data-view="main"] .whoRow { margin-bottom: 14px; }
+.pauseView[data-view="main"] .row { margin-bottom: 18px; }
+.pauseView { text-align: center; }
+.pauseView[data-view="settings"], .pauseView[data-view="tricks"] { text-align: left; }
+
+/* ---- the trick list --------------------------------------------------- */
+.trickCard { width: min(680px, 94vw); }
+.trickCard .sub { margin-bottom: 10px; }
+.trickGroup { margin: 0 0 13px; }
+.trickGroup h3 {
+  font: 700 12px/1.4 var(--ui); letter-spacing: .14em; text-transform: uppercase;
+  color: var(--glow); opacity: .8; margin-bottom: 2px;
+  display: flex; align-items: center; gap: 7px;
+}
+.trickGroup h3 .chip { letter-spacing: 0; }
+.trickGroup .when { font-size: 13px; opacity: .5; margin-bottom: 8px; line-height: 1.4; }
+.trickRow {
+  display: flex; align-items: center; gap: 10px; padding: 4px 2px;
+  border-top: 1px solid rgba(162,155,254,.14);
+}
+.trickRow .tn { flex: 1 1 auto; font-weight: 600; font-size: 14.5px; }
+.trickRow .ts { flex: 0 0 auto; display: flex; gap: 5px; align-items: center; }
+.trickRow .plus { opacity: .4; font-size: 12px; }
+.trickRow .pts { font-variant-numeric: tabular-nums; font-weight: 700; color: #ffd166; font-size: 13px; }
+.trickRow .chip {
+  flex: 0 0 auto; position: static; }
+
+.menuCols .levelRow, .cardBody { scrollbar-width: thin;
+  scrollbar-color: rgba(162,155,254,.45) transparent; }
+.menuCols .levelRow::-webkit-scrollbar, .cardBody::-webkit-scrollbar { width: 8px; }
+.menuCols .levelRow::-webkit-scrollbar-thumb, .cardBody::-webkit-scrollbar-thumb {
+  background: rgba(162,155,254,.45); border-radius: 4px;
+}
+.menuCols .levelRow::-webkit-scrollbar-track, .cardBody::-webkit-scrollbar-track { background: transparent; }
+
+/* The tablet paragraph used to be the first thing dropped when the two columns
+   ran short, because the keyboard grid sat beside it. The grid has moved to
+   Pause > Controls and this is now the only thing in the left column, so it
+   stays; the column scrolls if it has to. */
+
+/* One column again once there is no width to spare — and on a phone the right
+   answer is the old one: let the whole card run long and scroll the panel, so
+   the parks sit under the controls in one readable column. Capping the card
+   here would hide the park picker behind an inner scroll with nothing to say
+   it was there. */
+@media (max-width: 860px) {
+  .menuCard { width: min(560px, 92vw); max-height: none; display: block; }
+  .menuCols { display: block; overflow: visible; text-align: center; }
+  .menuCols .levelRow { overflow: visible; }
+  .levelRow.moreBelow, .cardBody.moreAbove, .levelRow.moreAbove { mask-image: none; }
+}
+
+@media (orientation: portrait) {
+  #goals { width: min(230px, 52vw); font-size: 12.5px; }
+}
+/* On a phone the stick and the three buttons want the same 390px of width, and
+   at full size they end up touching. */
+@media (max-width: 470px) {
+  #pads { padding: 0 3vw 3vh; }
+  #btns { grid-template-columns: repeat(3, 58px); gap: 8px; }
+  .act { width: 58px; height: 58px; font-size: 11px; }
+  .act[data-act="Jump"] { height: 52px; border-radius: 26px; }
+  #stick { width: 112px; height: 112px; }
+  #stickKnob { width: 50px; height: 50px; margin: -25px 0 0 -25px; }
+}
+@media (max-height: 620px) {
+}
+@media (max-height: 520px) {
+  #goals { top: 58px; padding: 7px 9px; }
+  #goalList li { font-size: 12px; }
+}
+
+/* loading */
+#loading { position: fixed; inset: 0; z-index: 99; display: grid; place-items: center; background: #0a0a2e; }
+#loadTrack { width: min(320px, 60vw); height: 8px; border-radius: 4px; background: rgba(255,255,255,.14); overflow: hidden; margin-top: 18px; }
+#loadBar { height: 100%; transform-origin: left; transform: scaleX(0); background: linear-gradient(90deg, var(--glow), var(--orange)); transition: transform .25s ease; }
+
+/* portrait: the thumb pads own the bottom third, so the labels sit above them */
+@media (orientation: portrait) {
+  #trickWrap { bottom: 36vh; }
+  #inputView { bottom: calc(36vh - 58px); }
+}
+/* On a phone the stick and the three buttons want the same 390px of width, and
+   at full size they end up touching. */
+@media (max-width: 470px) {
+  #pads { padding: 0 3vw 3vh; }
+  #btns { grid-template-columns: repeat(3, 58px); gap: 8px; }
+  .act { width: 58px; height: 58px; font-size: 11px; }
+  .act[data-act="Jump"] { height: 52px; border-radius: 26px; }
+  #stick { width: 112px; height: 112px; }
+  #stickKnob { width: 50px; height: 50px; margin: -25px 0 0 -25px; }
+}
+@media (max-height: 620px) {
+}
+@media (max-height: 520px) {
+  #trickWrap { bottom: 15vh; }
+  #inputView { bottom: calc(15vh - 52px); }
+  .keys { display: none; }
+  #btns { grid-template-columns: repeat(3, 56px); }
+  .act { width: 56px; height: 56px; }
+  .act[data-act="Jump"] { width: auto; height: 50px; border-radius: 25px; }
+  #stick { width: 108px; height: 108px; }
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<a id="backBtn" class="chip-btn" href="../../index.html">&larr; Games</a>
+<div id="topRight">
+  <span id="nowPlaying" hidden></span>
+  <button id="skipBtn" class="chip-btn icon" title="Next song" aria-label="Next song" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l9 7-9 7V5z"/><rect x="16" y="5" width="3" height="14" rx="1"/></svg>
+  </button>
+  <div id="volWrap" hidden>
+    <input id="volSlider" type="range" min="0" max="1" step="0.01" value="0.8"
+           aria-label="Music volume" title="Music volume">
+    <button id="volBtn" class="chip-btn icon" title="Music volume" aria-label="Music volume" aria-expanded="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4V9z"/><path class="w1" d="M16.5 8.5a5 5 0 010 7"/><path class="w2" d="M19 6a8.5 8.5 0 010 12"/></svg>
+    </button>
+  </div>
+  <button id="pauseBtn" class="chip-btn icon" title="Pause" aria-label="Pause">II</button>
+</div>
+
+<div id="hudTop">
+  <div class="stat"><span class="lbl">Score</span><span class="val" id="scoreVal">0</span></div>
+  <div class="stat small"><span class="lbl">Best</span><span class="val" id="bestVal">0</span></div>
+  <div id="speedTrack"><div id="speedFill"></div></div>
+  <div id="skatePips"></div>
+  <div class="stat small" id="stateRow" style="opacity:.45"><span class="lbl">State</span><span class="val" id="stateVal">-</span></div>
+</div>
+
+<!-- the objective list, THPS-style: always on screen, ticks as you go -->
+<div id="goals">
+  <header><span id="levelName">Bowl Park</span><b id="goalCount">0/6</b></header>
+  <ul id="goalList"></ul>
+</div>
+
+<div id="toast"></div>
+
+<!-- balance_overlay.gd: arc on the left, rotated 90deg for a grind -->
+<div id="balance">
+  <svg viewBox="0 0 1024 1024" aria-hidden="true">
+    <defs>
+      <linearGradient id="balGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#ff2d00"/>
+        <stop offset="28%" stop-color="#c8a000"/>
+        <stop offset="50%" stop-color="#5ec800"/>
+        <stop offset="72%" stop-color="#c8a000"/>
+        <stop offset="100%" stop-color="#ff2d00"/>
+      </linearGradient>
+    </defs>
+    <!-- a crescent: outer arc out at r=430, inner at r=386, spanning +/-45deg -->
+    <path d="M 208 208 A 430 430 0 0 0 208 816 L 239 785 A 386 386 0 0 1 239 239 Z"
+          fill="url(#balGrad)"/>
+    <g id="needle">
+      <polygon points="150,512 208,478 208,546"/>
+    </g>
+  </svg>
+</div>
+
+<div id="trickWrap">
+  <div id="pointsLabel"></div>
+  <div id="trickLabel"></div>
+</div>
+<div id="inputView"></div>
+
+<div id="failView"><div>BAIL!<small>hold W or Space to get back up</small></div></div>
+
+<div id="pads">
+  <div id="stick"><div id="stickKnob"></div></div>
+  <div id="btns">
+    <button class="act" data-act="Flip" aria-label="Flip"></button>
+    <button class="act" data-act="Grab" aria-label="Grab"></button>
+    <button class="act" data-act="Grind" aria-label="Grind"></button>
+    <button class="act" data-act="Jump" aria-label="Jump"></button>
+  </div>
+</div>
+
+<div id="loading" class="panel">
+  <div style="text-align:center">
+    <h1 style="font-family:var(--display);font-size:60px;letter-spacing:.06em">SKATE</h1>
+    <p class="sub">loading the park&hellip;</p>
+    <div id="loadTrack"><div id="loadBar"></div></div>
+  </div>
+</div>
+
+<div id="menu" class="panel off">
+  <div class="card menuCard">
+   <div class="menuCols">
+    <h1>SK<em>A</em>TE</h1>
+    <div id="menuLevels" class="levelRow"></div>
+   </div>
+    <!-- who is skating sits on the same line as the button that starts it -->
+    <div class="row goRow">
+      <div id="menuSkaters" class="whoRow"></div>
+      <button id="playBtn" class="big">Drop In</button>
+    </div>
+  </div>
+</div>
+
+<div id="pause" class="panel off">
+  <div class="card pauseCard">
+    <div class="pauseHead">
+      <h2>Paused</h2>
+      <span class="ver" id="buildVer"></span>
+    </div>
+    <div class="tabs" id="pauseTabs">
+      <button data-tab="main" class="on">Game</button>
+      <button data-tab="tricks">Tricks</button>
+      <button data-tab="controls">Controls</button>
+      <button data-tab="settings">Settings</button>
+    </div>
+    <div class="cardBody" id="pauseBody">
+      <div data-view="main" class="pauseView">
+        <div class="pickLabel">Who is skating?</div>
+        <div id="pauseSkaters" class="whoRow"></div>
+        <div class="row"><button id="restartBtn" class="big ghost">Restart this run</button></div>
+        <!-- the same park list the home screen shows, rendered by the same
+             code into the same shape — pausing to switch park should not feel
+             like a different screen from starting in one. It goes UNDER the
+             restart button: restarting is what you came here to do, changing
+             park is what you came here to browse. -->
+        <div id="settingsLevels" class="levelRow"></div>
+      </div>
+      <div data-view="controls" class="pauseView off">
+        <div class="keys">
+          <b>W</b><span>Push &mdash; also holds you over the lip of a ramp</span>
+          <b>SPACE</b><span>Hold to push, let go to ollie</span>
+          <b>A / D</b><span>Steer (and spin, once you are in the air)</span>
+          <b>S</b><span>Brake and kickturn</span>
+          <b>J / K</b><span>Flip and grab</span>
+          <b>L</b><span>Grind or lip &mdash; then fight the meter with A / D</span>
+          <b>Q</b><span>Switch stance &mdash; swap which end of the board is the nose</span>
+          <b>R</b><span>Get back up &middot; <b style="display:inline-block">ESC</b> Pause</span>
+        </div>
+        <p class="hint" style="margin-top:14px">
+          Ollie at a wall at an angle and the board goes onto it &mdash; JUMP kicks off.
+        </p>
+      </div>
+      <div data-view="tricks" class="pauseView off">
+        <div id="trickBook"></div>
+      </div>
+      <div data-view="settings" class="pauseView off">
+<div class="setting">
+      <span class="sl">Camera</span>
+      <div class="seg" id="camSeg">
+        <button data-cam="follow" class="on">Follow</button>
+        <button data-cam="fixed">Fixed</button>
+      </div>
+      <p class="hint">Fixed is the original Godot camera &mdash; one unchanging angle on the whole park.</p>
+    </div>
+    <div class="setting">
+      <span class="sl">Shadows</span>
+      <div class="seg" id="shadowSeg">
+        <button data-shadow="1" class="on">On</button>
+        <button data-shadow="0">Off</button>
+      </div>
+      <p class="hint">Turn off if an older tablet is struggling.</p>
+    </div>
+    <div class="setting">
+      <span class="sl">Resolution</span>
+      <div class="seg" id="resSeg">
+        <button data-res="full" class="on">Full</button>
+        <button data-res="balanced">Balanced</button>
+        <button data-res="fast">Fast</button>
+      </div>
+      <p class="hint">A 2x tablet screen draws four times the pixels for the same picture. Balanced is a third fewer and hard to tell apart; Fast is a quarter.</p>
+    </div>
+    <div class="setting">
+      <span class="sl">State readout</span>
+      <div class="seg" id="stateSeg">
+        <button data-state="1" class="on">Show</button>
+        <button data-state="0">Hide</button>
+      </div>
+    </div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:16px"><button id="resumeBtn" class="big">Resume</button></div>
+  </div>
+</div>
+
+<script src="js/arcade-store.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
