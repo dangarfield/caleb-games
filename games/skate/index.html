@@ -253,6 +253,16 @@ body.playing #pads { display: flex; }
   background: #4caf50; grid-column: 1 / span 3; width: auto; height: 62px;
   border-radius: 31px;
 }
+/* Double size, as one transform per cluster rather than a second set of
+   sizes: the pads already have three different size rules across the media
+   queries, and doubling each of them by hand would mean six more to keep in
+   step. Each cluster is pinned to the corner it lives in so it grows inwards
+   and upwards, away from the edge of the screen.
+   The stick's maths reads getBoundingClientRect, which is the scaled box, so
+   the thumb still maps to the right place with no change to input.js. */
+body.bigPads #stick { transform: scale(2); transform-origin: bottom left; }
+body.bigPads #btns  { transform: scale(2); transform-origin: bottom right; }
+
 .act[data-act="Flip"]  { background: #2f6fd0; }
 .act[data-act="Grab"]  { background: #e2b418; color: #3a2b00; }
 .act[data-act="Grind"] { background: #d94242; }
@@ -975,6 +985,14 @@ body.playing #pads { display: flex; }
         <button data-res="fast">Fast</button>
       </div>
       <p class="hint">A 2x tablet screen draws four times the pixels for the same picture. Balanced is a third fewer and hard to tell apart; Fast is a quarter.</p>
+    </div>
+    <div class="setting">
+      <span class="sl">Controls size</span>
+      <div class="seg" id="padSeg">
+        <button data-pads="0" class="on">Normal</button>
+        <button data-pads="1">Double</button>
+      </div>
+      <p class="hint">Twice the size for the on-screen stick and buttons. Easier for small hands, and easier to hit without looking down.</p>
     </div>
     <div class="setting">
       <span class="sl">State readout</span>

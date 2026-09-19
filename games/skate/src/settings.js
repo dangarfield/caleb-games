@@ -17,7 +17,9 @@ export const DEFAULTS = {
      a player's save slot: it is how loud the room wants to be, not something
      about Ezra or Caleb. */
   musicVolume: 0.8,
-  musicOn: true
+  musicOn: true,
+  /* Double-size on-screen stick and buttons, for small hands and big screens */
+  bigControls: false
 };
 
 /* The cap each setting puts on devicePixelRatio. 1.5 is about 44% fewer pixels

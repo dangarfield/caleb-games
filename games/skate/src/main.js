@@ -954,6 +954,7 @@ class Game {
     seg('shadowSeg', 'shadow', (v) => { this.settings.set('shadows', v === '1'); this._applySettings(); });
     seg('stateSeg', 'state', (v) => { this.settings.set('showState', v === '1'); this._applySettings(); });
     seg('resSeg', 'res', (v) => { this.settings.set('resolution', v); this._applySettings(); });
+    seg('padSeg', 'pads', (v) => { this.settings.set('bigControls', v === '1'); this._applySettings(); });
 
     this._resize();
   }
@@ -999,6 +1000,8 @@ class Game {
     mark('shadowSeg', 'shadow', s.shadows ? '1' : '0');
     mark('stateSeg', 'state', s.showState ? '1' : '0');
     mark('resSeg', 'res', s.resolution);
+    mark('padSeg', 'pads', s.bigControls ? '1' : '0');
+    document.body.classList.toggle('bigPads', !!s.bigControls);
 
     this.cam.setMode(s.camera);
     if (this.ctrl) this.cam.snap(this.ctrl);
