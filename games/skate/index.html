@@ -246,9 +246,14 @@ body.playing #pads { display: flex; }
   width: 68px; height: 68px; border-radius: 50%; border: none;
   display: flex; align-items: center; justify-content: center;
   color: #fff; box-shadow: 0 4px 0 rgba(0,0,0,.4); touch-action: none; cursor: pointer;
+  /* Sat over the park at full strength these are four solid discs in the
+     corner of the picture. Backed off, they stay easy to find and stop
+     competing with the skating; pressing one brings it fully back, which
+     doubles as the feedback that it registered. */
+  opacity: .6; transition: opacity .12s ease;
 }
 .act svg, .chip svg { display: block; }
-.act.on { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.4); }
+.act.on { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.4); opacity: 1; }
 .act[data-act="Jump"] {
   background: #4caf50; grid-column: 1 / span 3; width: auto; height: 62px;
   border-radius: 31px;
