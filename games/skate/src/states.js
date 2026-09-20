@@ -1009,7 +1009,7 @@ class FallState {
   enter() {
     const { ctrl, hud } = this.c;
     ctrl.setFall();
-    hud.setFailView(true);
+    hud.setFailView(true, Fall.forgiving);
     this.hold = 0.6;   // don't let a still-held key skip the bail instantly
     /* Out of bounds — down one of the Warehouse's floor holes. The bail timer
        is two seconds, which is two seconds of watching the skater drop into

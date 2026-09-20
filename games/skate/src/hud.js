@@ -99,7 +99,23 @@ export class Hud {
     }
   }
 
-  setFailView(on) { this.failView.classList.toggle('on', !!on); }
+  /**
+   * The big red word when you come off.
+   *
+   * In endless mode the only thing that can still stop a run is dropping out
+   * of the park, which is a rescue rather than a bail — calling it BAIL! there
+   * would contradict the mode the player just turned on.
+   */
+  setFailView(on, forgiving = false) {
+    this.failView.classList.toggle('on', !!on);
+    const line = this.failView.firstElementChild;
+    if (!on || !line) return;
+    line.firstChild.nodeValue = forgiving ? 'OOPS!' : 'BAIL!';
+    const sub = line.querySelector('small');
+    if (sub) sub.textContent = forgiving
+      ? 'hold W or Space to get back on'
+      : 'hold W or Space to get back up';
+  }
   setScore(n) { this.scoreVal.textContent = n.toLocaleString('en-GB'); }
 
   /* the state machine's own names are for the console; the HUD gets words */
@@ -108,7 +124,7 @@ export class Hud {
     this.stateVal.textContent = ({
       ground: 'Riding', pipe: 'In the bowl', pipesnap: 'Above the lip',
       air: 'Air', grind: 'Grinding', lip: 'Lip trick', wallride: 'Wallride',
-      fall: 'Bail!', reset: 'Getting up', setup: 'Ready'
+      fall: 'Off the board', reset: 'Getting up', setup: 'Ready'
     })[name] || name;
   }
   showState(on) { if (this.stateRow) this.stateRow.classList.toggle('off', !on); }

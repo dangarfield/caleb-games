@@ -590,6 +590,11 @@ class Game {
     const p = (s.players && s.players[this.who]) || {};
     this.saved = { levels: p.levels || {} };
     this.best = p.best || 0;
+    /* endless mode belongs to the child, not the tablet: one of them may want
+       it on while the other is learning to land things properly */
+    this.noBail = !!p.noBail;
+    Fall.forgiving = this.noBail;
+    this._paintEndless();
     if (p.lastLevel && this.levels.some((l) => l.id === p.lastLevel)) this.levelId = p.lastLevel;
     this.el.best.textContent = this.best.toLocaleString('en-GB');
   }
@@ -605,6 +610,19 @@ class Game {
     this._renderSkaters();
     if (this.levelId !== before) await this._loadLevel(this.levelId);
     else this._renderLevelCards();
+  }
+
+  /** Endless mode on or off for whoever is skating, and remembered for them. */
+  setEndless(on) {
+    this.noBail = !!on;
+    Fall.forgiving = this.noBail;
+    this._writeMine((p) => { p.noBail = this.noBail; });
+    this._paintEndless();
+  }
+
+  _paintEndless() {
+    const b = document.getElementById('endlessBtn');
+    if (b) b.setAttribute('aria-pressed', this.noBail ? 'true' : 'false');
   }
 
   /** Change one of the playing skater's colours and remember it. */
@@ -921,6 +939,8 @@ class Game {
     const pauseDrop = document.getElementById('pauseDropBtn');
     if (pauseDrop) pauseDrop.addEventListener('click', dropIn('pause'));
     document.getElementById('restartBtn').addEventListener('click', () => this._startRun());
+    const endless = document.getElementById('endlessBtn');
+    if (endless) endless.addEventListener('click', () => this.setEndless(!this.noBail));
     const resume = () => { this.el.pause.classList.add('off'); this.mode = 'play'; };
     for (const id of ['resumeBtn', 'resumeBtn2']) {
       const b = document.getElementById(id);

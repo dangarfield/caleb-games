@@ -23,13 +23,30 @@ const _pd = new THREE.Vector3();
 
 /* --------------------------------------------------- character_fall.gd */
 export const Fall = {
+  /**
+   * Endless mode: nothing you do ends a run.
+   *
+   * Every way of coming off the board funnels through this object, so one flag
+   * here covers all of them rather than a check scattered through the state
+   * machine. Losing your balance on a rail or a lip stops counting, and so
+   * does landing sideways.
+   *
+   * Falling out of the park is deliberately NOT included. That is not a bail
+   * you can avoid by skating better — it is the floor of the Warehouse having
+   * a hole in it — and switching it off would leave the skater dropping
+   * through nothing for ever with no way back. It still puts you on your feet.
+   */
+  forgiving: false,
+
   balance(angle, threshold = STATS.balance_threshold) {
+    if (this.forgiving) return false;
     return Math.abs(angle) > Math.PI / threshold;
   },
   /* set from the park's own bounding box at boot; P.RESPAWN_Y is the fallback */
   floorY: P.RESPAWN_Y,
   outOfBounds(pos) { return pos.y < this.floorY; },
   faceplant(fwdHits, up) {
+    if (this.forgiving) return false;
     for (const h of fwdHits) {
       if (h.group === 'floor' || h.group === 'pipe') {
         if (h.normal.dot(up) < 0.75) return true;
@@ -38,6 +55,7 @@ export const Fall = {
     return false;
   },
   landedPerpendicular(body, velocity, up) {
+    if (this.forgiving) return false;
     const fwdVel = forwardVelocity(velocity, up, _t1);
     if (fwdVel.length() <= G.PERPENDICULAR_FALL_THRESHOLD) return false;
     const fwd = _t2.setFromMatrixColumn(body.matrixWorld, 2);
@@ -586,6 +604,14 @@ export class CharacterController {
       || Math.sign(this.balance_angle) === Math.sign(this.balance_dir);
     const runaway = falling ? 1 + G.BALANCE_RUNAWAY * lean * lean : 1;
     this.balance_angle += G.BALANCE_MULTI * dt * this.balance_dir * this.balance_time * runaway;
+    /* With nothing to fall off, the needle would keep travelling past the end
+       of the meter and the skater would lean further and further over. Pin it
+       just inside the edge: it still shows you losing it, it just never goes
+       over. */
+    if (Fall.forgiving) {
+      const edge = limit * 0.97;
+      this.balance_angle = Math.max(-edge, Math.min(edge, this.balance_angle));
+    }
     if (this.hud) this.hud.setBalanceValue(this.balance_angle);
   }
 
