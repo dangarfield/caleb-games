@@ -829,7 +829,9 @@ body.bigPads #btns  { transform: scale(2); transform-origin: bottom right; }
   </div>
   <button id="endlessBtn" class="chip-btn icon toggle" title="Endless mode: never bail"
           aria-label="Endless mode" aria-pressed="false">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path class="inf" d="M8.2 12c0 2-1.4 3.4-3.1 3.4S2 14 2 12s1.4-3.4 3.1-3.4S8.2 10 8.2 12zm7.6 0c0-2 1.4-3.4 3.1-3.4S22 10 22 12s-1.4 3.4-3.1 3.4S15.8 14 15.8 12zm-7.6 0h7.6"/></svg>
+    <!-- Lucide's 'infinity' (ISC) — see CREDITS.md. Hand-rolling a lemniscate
+         from two circles and a bar does not read as one at any size. -->
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path class="inf" d="M12 12c-2-2.67-4-4-6-4a4 4 0 1 0 0 8c2 0 4-1.33 6-4Zm0 0c2 2.67 4 4 6 4a4 4 0 0 0 0-8c-2 0-4 1.33-6 4Z"/></svg>
   </button>
   <button id="pauseBtn" class="chip-btn icon" title="Pause" aria-label="Pause">II</button>
 </div>

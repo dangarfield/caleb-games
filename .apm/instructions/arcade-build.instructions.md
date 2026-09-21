@@ -17,6 +17,8 @@ the *how-to-think* detail (boilerplate, audio recipes, UX patterns) lives in
 ## Touch & viewport
 - Touch-first: `touch-action: none`, pointer events, large tap targets.
 - Viewport meta with `user-scalable=no`.
+- **Target device: a low-performance tablet at 1333×690.** This is the primary way these games are played — design and budget for it, not a desktop. Keep the frame cheap enough to hold up on weak hardware, and make tap targets comfortable at that size.
+- **When you test or verify in a browser, use 1333×690 by default.** Landscape is the norm, but some games are portrait — flip to 690×1333 for those. Match the emulated viewport to how the game is actually meant to be held before trusting what you see.
 
 ## The back button (most-repeated bug — get it right)
 - Every game MUST have a back button whose href is exactly `../../index.html`.

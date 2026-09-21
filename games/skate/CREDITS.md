@@ -27,6 +27,13 @@ This game is a Three.js port of **Godot_Skate** by Eric Schubert (3deric).
   and every trick's input sequence, score and animation, ported line for line
   from the GDScript. Each source file names the `.gd` file it came from.
 
+## Icons
+
+- The infinity symbol on the endless-mode button is the `infinity` icon from
+  **Lucide** (https://lucide.dev), ISC licence, Copyright (c) for portions
+  Lucide Contributors, Copyright (c) for portions of Feather Icons
+  Cole Bemis. Every other icon in the game is drawn here.
+
 ## What is new in this port
 
 - The Three.js renderer, the collide-and-slide (Godot's CharacterBody3D and its
