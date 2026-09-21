@@ -1,0 +1,3622 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Deja Vroom</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<link rel="icon" href="../../favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chicle&family=Pacifico&display=swap" rel="stylesheet">
+<style>
+/* ---------------------------------------------------------------------
+   1974, after dark. Chicle does the shouting, Pacifico does the talking,
+   and everything glows slightly more than it strictly needs to. The
+   fallbacks are real cursive faces, so a tablet with no internet still
+   reads as the same poster rather than as a spreadsheet.
+   --------------------------------------------------------------------- */
+:root{
+  --ink:#fff4e6;  --dim:#c9a9d6;
+  --hot:#ff2e88;  --amber:#ffb03a;  --gold:#ffd964;
+  --aqua:#3fe0d0; --grape:#7b3ff2;  --night:#1a0b2e;
+  --disp:'Chicle',Georgia,'Times New Roman',serif;
+  --hand:'Pacifico','Brush Script MT',cursive;
+}
+.neon{text-shadow:0 0 6px rgba(255,46,136,.9),0 0 18px rgba(255,46,136,.55),0 2px 0 rgba(0,0,0,.6)}
+.neonA{text-shadow:0 0 6px rgba(63,224,208,.9),0 0 18px rgba(63,224,208,.5),0 2px 0 rgba(0,0,0,.6)}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;overflow:hidden;background:#0a0a22;
+  font:14px/1.45 var(--hand);
+  color:var(--ink);-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#stage{position:fixed;inset:0;touch-action:none}
+canvas{display:block;width:100%;height:100%}
+
+/* ---- HUD ---- */
+#hud{position:fixed;inset:0;pointer-events:none;z-index:5}
+#clock{position:absolute;top:10px;left:50%;transform:translateX(-50%);
+  font:400 44px/1 var(--disp);letter-spacing:1px;color:var(--gold);
+  text-shadow:0 0 8px rgba(255,217,100,.85),0 0 26px rgba(255,176,58,.6),0 3px 0 rgba(0,0,0,.55)}
+#clock.low{color:#ff6b6b;text-shadow:0 2px 14px rgba(0,0,0,.8),0 0 34px rgba(255,80,80,.6)}
+#clock small{font-size:22px;opacity:.85}
+/* Where you are, bottom right. The top left is left clear on purpose - the
+   arcade's own "< Games" button lives there. */
+#lvlTag{position:absolute;right:16px;bottom:14px;text-align:right;
+  font:14px/1.5 var(--hand);letter-spacing:.6px;color:var(--dim);
+  text-shadow:0 2px 10px rgba(0,0,0,.8)}
+#lvlTag b{display:block;font:400 20px/1.1 var(--disp);color:var(--ink)}
+#lvlTag i{font-style:normal;color:var(--gold);
+  text-shadow:0 0 8px rgba(255,217,100,.7)}
+
+/* Every arcade game has this, and the href is exactly ../../index.html -
+   GitHub Pages 404s the trailing-slash form in production. */
+/* NB the font is named, not inherited. `font: 700 13px/1 inherit` is an invalid
+   shorthand - `inherit` is only legal as a whole property value, never as the
+   family - so the browser threw the whole declaration away. An <a> then falls
+   back to the body font and looks right by accident; a <button> does not
+   inherit font at all, so the two chips on the right came out in the browser's
+   own UI font. This is the body face, written down. */
+#back{position:absolute;top:14px;left:16px;pointer-events:auto;z-index:9;
+  text-decoration:none;font:700 13px/1 var(--hand);letter-spacing:1px;color:#cdd5f6;
+  background:rgba(12,12,40,.85);border:1px solid rgba(162,155,254,.32);
+  border-radius:9px;padding:10px 13px;transition:background .15s,color .15s}
+#back:hover{background:rgba(108,92,231,.5);color:#fff}
+/* POWER. A bolt and a number, not a percent sign: the figure is how much of the
+   car's top speed you have left, and after a few crashes it is the thing you
+   want back. Gold while it is whole, hot pink the moment a crash has taken a
+   notch off - and pink is the one you can click to have it back. */
+#spd{position:absolute;top:14px;right:66px;pointer-events:auto;cursor:default;
+  display:flex;align-items:center;gap:7px;
+  font:400 19px/1 var(--disp);letter-spacing:.5px;color:var(--gold);
+  background:rgba(12,12,40,.85);border:1px solid rgba(255,217,100,.3);
+  border-radius:9px;padding:7px 12px;transition:background .15s,color .15s,border-color .15s}
+#spd svg{width:15px;height:15px;flex:0 0 auto;fill:currentColor;
+  filter:drop-shadow(0 0 5px rgba(255,217,100,.65))}
+#spd i{font-style:normal;text-shadow:0 0 9px rgba(255,217,100,.5)}
+#spd{cursor:pointer}
+#spd .lk{width:12px;height:12px;opacity:.85;filter:none}
+#spd.lock{color:var(--aqua);border-color:rgba(63,224,208,.5)}
+#spd.lock svg{filter:drop-shadow(0 0 5px rgba(63,224,208,.7))}
+#spd.lock i{text-shadow:0 0 9px rgba(63,224,208,.5)}
+#spd.lock:hover{background:rgba(63,224,208,.18)}
+#spd.cut{color:var(--hot);border-color:rgba(255,46,136,.6);cursor:pointer}
+#spd.cut svg{filter:drop-shadow(0 0 6px rgba(255,46,136,.8))}
+#spd.cut i{text-shadow:0 0 10px rgba(255,46,136,.7)}
+#spd.cut:hover{background:rgba(255,46,136,.22);color:#fff}
+#pause{position:absolute;top:14px;right:16px;pointer-events:auto;cursor:pointer;
+  font:700 15px/1 var(--hand);letter-spacing:2px;color:#cdd5f6;
+  background:rgba(12,12,40,.85);border:1px solid rgba(162,155,254,.32);
+  border-radius:9px;padding:9px 12px;transition:background .15s,color .15s}
+#pause:hover{background:rgba(108,92,231,.5);color:#fff}
+#pause.on{color:#ffd32a;border-color:rgba(255,211,42,.5)}
+#paused{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+  background:rgba(8,8,26,.55);backdrop-filter:blur(2px);z-index:7}
+#paused.on{display:flex}
+#paused b{font:400 44px/1 var(--disp);letter-spacing:3px;color:var(--hot);
+  text-shadow:0 0 10px rgba(255,46,136,.9),0 0 30px rgba(255,46,136,.5)}
+
+/* ---- testing strip: scene jump and a quick save slot ---- */
+#dev{position:absolute;bottom:12px;left:14px;pointer-events:auto;z-index:8;display:flex;align-items:center;gap:8px;
+  font-size:11px;letter-spacing:.4px;color:#8e98c8;opacity:.55;transition:opacity .2s}
+#dev:hover{opacity:1}
+#dev select{font:600 11px/1 var(--hand);color:#cdd5f6;background:rgba(12,12,40,.9);
+  border:1px solid rgba(162,155,254,.3);border-radius:6px;padding:4px 6px;max-width:190px}
+#dev .k{display:inline-block;min-width:15px;text-align:center;padding:2px 4px;border-radius:4px;
+  background:rgba(162,155,254,.2);border:1px solid rgba(162,155,254,.3);color:#cdd5f6;
+  font-weight:700}
+#dev i{font-style:normal;color:#ffd32a;min-width:90px}
+
+/* ---- story card ---- */
+#card{position:absolute;right:26px;bottom:26px;transform:translateY(0);
+  width:min(400px,calc(100% - 32px));background:rgba(12,12,40,.93);
+  border:1px solid rgba(162,155,254,.35);border-radius:14px;padding:16px 20px 18px;
+  box-shadow:0 18px 50px rgba(0,0,0,.6);transition:opacity .35s,transform .35s;
+  backdrop-filter:blur(8px)}
+#card.out{opacity:0;transform:translateY(22px);pointer-events:none}
+#card{display:flex;gap:18px;align-items:flex-start;
+  border-color:rgba(255,46,136,.35);background:rgba(26,11,46,.93);
+  width:min(450px,calc(100% - 32px))}
+#card .side{flex:0 0 150px;text-align:center}
+#card .txt{flex:1;min-width:0}
+/* The driver's portrait: a 150px tile, which is what the generated portraits
+   are cropped to fill. Until a file exists it is the initial on a warm tile,
+   and the img hides itself when there is nothing there. */
+#card .mug{position:relative;width:150px;height:150px;border-radius:18px;
+  background:linear-gradient(150deg,var(--grape),var(--hot));
+  border:1px solid rgba(255,217,100,.45);overflow:hidden;
+  display:flex;align-items:center;justify-content:center}
+#card .mug span{font:400 72px/1 var(--disp);color:var(--gold);
+  text-shadow:0 2px 6px rgba(0,0,0,.5)}
+#card .mug img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#card .where{font:400 13px/1 var(--disp);letter-spacing:1.2px;
+  color:var(--aqua);margin-bottom:6px;text-shadow:0 0 8px rgba(63,224,208,.5)}
+#card .who{margin-top:7px;font:400 19px/1.15 var(--disp);color:var(--gold);
+  text-shadow:0 0 9px rgba(255,217,100,.6)}
+#card .blurb{font-size:18px;color:#fff;line-height:1.55}
+/* the reel-complete card: the same frame in the winning colour, with a tick
+   where the driver's face goes and the place name as the headline */
+#card.done{border-color:rgba(63,224,208,.5);background:rgba(8,30,44,.94)}
+#card.done .mug{background:linear-gradient(150deg,#0b3b4a,var(--aqua));
+  border-color:rgba(63,224,208,.6)}
+#card.done .mug span{color:#06202b;font-size:86px;text-shadow:none}
+#card.done .who{color:var(--aqua);text-shadow:0 0 9px rgba(63,224,208,.6)}
+#card.done .blurb{font:400 27px/1.2 var(--disp);color:#fff;
+  text-shadow:0 0 14px rgba(63,224,208,.45)}
+#card.done .blurb i{display:block;margin-top:8px;font:400 15px/1.4 var(--hand);
+  font-style:normal;color:var(--dim);text-shadow:none}
+/* the reel-opening card: the place announced, in gold */
+#card.place{border-color:rgba(255,217,100,.45);background:rgba(34,16,8,.94)}
+#card.place .mug{background:linear-gradient(150deg,var(--grape),var(--amber))}
+#card.place .mug span{color:#2b1400;font-size:76px;text-shadow:none}
+#card.place .who{color:var(--amber);font-size:15px;letter-spacing:.5px}
+#card.place .blurb{font:400 27px/1.15 var(--disp);color:var(--gold);
+  text-shadow:0 0 14px rgba(255,217,100,.4)}
+#card.place .blurb i{display:block;margin-top:9px;font:400 15px/1.45 var(--hand);
+  font-style:normal;color:var(--ink);text-shadow:none}
+@keyframes pulse{0%,100%{opacity:.45}50%{opacity:1}}
+
+/* ---- the tape being wound back ----
+   Scanlines, a tracking bar crawling up the picture, a shivering frame and a
+   washed-out tint. All CSS, so it costs nothing per frame. */
+#vhs{position:absolute;inset:0;pointer-events:none;opacity:0;z-index:6;
+  transition:opacity .18s}
+#vhs.on{opacity:1}
+#vhs::before{content:'';position:absolute;inset:-2%;
+  background:repeating-linear-gradient(to bottom,
+    rgba(255,255,255,.055) 0 1px, rgba(0,0,0,.13) 1px 3px);
+  animation:vhsRoll .22s linear infinite}
+#vhs::after{content:'';position:absolute;left:0;right:0;height:13%;
+  background:linear-gradient(to bottom, rgba(255,255,255,0),
+    rgba(255,255,255,.16) 40%, rgba(120,190,255,.1) 60%, rgba(255,255,255,0));
+  filter:blur(1px);animation:vhsTrack 1.15s linear infinite}
+#vhs .rew{position:absolute;left:22px;top:18px;font:700 15px/1 var(--hand);
+  font-style:normal;letter-spacing:3px;color:#fff;text-shadow:0 2px 10px #000;
+  animation:vhsBlink .5s steps(1) infinite}
+@keyframes vhsRoll{from{transform:translateY(0)}to{transform:translateY(3px)}}
+@keyframes vhsTrack{from{top:104%}to{top:-16%}}
+@keyframes vhsBlink{0%,49%{opacity:1}50%,100%{opacity:.25}}
+#stage.rew #cv{filter:saturate(1.5) contrast(1.16) brightness(1.04) hue-rotate(-7deg);
+  animation:vhsShake .09s steps(2) infinite}
+@keyframes vhsShake{0%{transform:translateX(0)}50%{transform:translateX(1.5px)}
+  100%{transform:translateX(-1px)}}
+
+/* ---- centre banner ---- */
+#banner{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);
+  text-align:center;transition:opacity .3s;opacity:0}
+#banner.on{opacity:1}
+#banner b{display:block;font:400 54px/1.1 var(--disp);letter-spacing:.5px;
+  text-shadow:0 0 12px rgba(255,46,136,.7),0 4px 24px rgba(0,0,0,.75)}
+#banner span{display:block;margin-top:8px;font-size:15px;color:var(--dim);letter-spacing:.8px}
+#banner.win b{color:var(--aqua);text-shadow:0 0 12px rgba(63,224,208,.8),0 4px 24px rgba(0,0,0,.7)}
+#banner.lose b{color:var(--hot)}
+
+/* ---- boot / error ---- */
+#boot{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:14px;background:#0a0a22;z-index:20;text-align:center;padding:30px}
+#boot h1{font:400 40px/1 var(--disp);letter-spacing:.5px;margin:0;color:var(--hot);
+  text-shadow:0 0 10px rgba(255,46,136,.8),0 0 28px rgba(255,46,136,.4)}
+#boot h1 i{color:var(--gold);font-style:normal;
+  text-shadow:0 0 10px rgba(255,217,100,.8)}
+#boot p{margin:0;color:var(--dim);font-size:14px;max-width:480px;line-height:1.7}
+#boot a{color:#a29bfe}
+#boot.gone{display:none}
+.bar{width:220px;height:4px;border-radius:3px;background:#1c1c4a;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:#6c5ce7;transition:width .2s}
+/* ---- the title screen, and the pause menu that borrows its furniture ---- */
+.sheet{position:fixed;inset:0;z-index:15;display:none;overflow:auto;
+  background:radial-gradient(120% 80% at 50% 0%,#3b1055 0%,#1a0b2e 55%,#0a0520 100%)}
+.sheet.on{display:flex;align-items:center;justify-content:center}
+/* the road stripes running off the bottom of the sunset */
+.sheet .in:after{content:'';position:absolute;left:50%;bottom:-40px;width:140%;height:120px;
+  transform:translateX(-50%);pointer-events:none;
+  background:repeating-linear-gradient(90deg,
+    rgba(255,46,136,.30) 0 6%, transparent 6% 12%);
+  -webkit-mask-image:linear-gradient(180deg,transparent,#000);
+  mask-image:linear-gradient(180deg,transparent,#000)}
+/* the sunset: three fat bands behind everything, because it is 1974 */
+.sheet:before{content:'';position:absolute;left:50%;top:6%;width:min(620px,92vw);
+  aspect-ratio:1;transform:translateX(-50%);border-radius:50%;
+  background:linear-gradient(180deg,var(--gold) 0%,var(--amber) 38%,var(--hot) 72%,transparent 73%);
+  opacity:.22;filter:blur(1px)}
+.sheet:after{content:'';position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(180deg,rgba(0,0,0,.20) 0 2px,transparent 2px 4px);
+  opacity:.5}
+.sheet .in{position:relative;z-index:2;max-width:860px;margin:0 auto;padding:30px 24px 46px;
+  text-align:center}
+.sheet h1{margin:0;font:400 clamp(52px,10vw,104px)/1 var(--disp);color:var(--hot);
+  text-shadow:0 0 12px rgba(255,46,136,.85),0 0 40px rgba(255,46,136,.45),0 5px 0 rgba(0,0,0,.35)}
+.sheet h1 i{font-style:normal;color:var(--gold);
+  text-shadow:0 0 12px rgba(255,217,100,.9),0 0 40px rgba(255,176,58,.5),0 5px 0 rgba(0,0,0,.35)}
+.sheet h2{margin:0 0 16px;font:400 30px/1.2 var(--disp);color:var(--aqua);
+  text-shadow:0 0 10px rgba(63,224,208,.6)}
+.sheet .story{margin:6px auto 22px;max-width:660px;font-size:20px;line-height:1.65;color:var(--ink)}
+/* every game in the arcade has this in the same corner */
+.homeback{position:absolute;left:22px;top:22px;z-index:4;text-decoration:none;
+  font:400 20px/1 var(--disp);color:var(--ink);padding:11px 18px;border-radius:12px;
+  border:1px solid rgba(255,46,136,.5);background:rgba(0,0,0,.25)}
+.homeback:hover{background:rgba(255,46,136,.22)}
+/* who is driving */
+.pickrow{display:flex;gap:12px;justify-content:center;margin-bottom:24px}
+.pick{pointer-events:auto;cursor:pointer;font:400 26px/1 var(--disp);
+  padding:13px 30px;border-radius:14px;color:var(--dim);
+  background:rgba(255,255,255,.05);border:2px solid rgba(255,46,136,.3)}
+.pick.on{color:#fff;border-color:var(--hot);background:rgba(255,46,136,.28);
+  box-shadow:0 0 22px rgba(255,46,136,.5)}
+/* Best times: the eight places you play, four to a row, always all eight. A
+   board with gaps in it is a to-do list - it says which ones you have not done
+   yet, which is the point. The ninth reel is the ending and is not timed. */
+.scores{max-width:900px;margin:26px auto 0;
+  display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.hs{padding:10px 12px 11px;border-radius:11px;background:rgba(255,255,255,.05);
+  border:1px solid rgba(162,155,254,.14);text-align:left}
+.hs b{display:block;font:400 17px/1.15 var(--disp);color:var(--ink);
+  margin-bottom:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hs i{display:flex;justify-content:space-between;gap:8px;font-style:normal;
+  color:var(--dim);font-size:15px;line-height:1.5}
+.hs i em{font-style:normal;opacity:.75}
+.hs i.me{color:var(--gold);text-shadow:0 0 9px rgba(255,217,100,.45)}
+.hs i.me em{opacity:1}
+@media (max-width:720px){ .scores{grid-template-columns:repeat(2,1fr)} }
+.btn{display:inline-block;cursor:pointer;pointer-events:auto;border:none;
+  font:400 34px/1 var(--disp);letter-spacing:1px;color:#2b0a1c;
+  background:linear-gradient(180deg,var(--gold),var(--amber));
+  padding:17px 52px;border-radius:16px;
+  box-shadow:0 0 22px rgba(255,176,58,.55),0 6px 0 rgba(0,0,0,.35);
+  transition:transform .12s,box-shadow .12s}
+.btn:hover{transform:translateY(-2px);box-shadow:0 0 30px rgba(255,176,58,.8),0 8px 0 rgba(0,0,0,.35)}
+.btn:active{transform:translateY(2px);box-shadow:0 0 18px rgba(255,176,58,.5),0 3px 0 rgba(0,0,0,.35)}
+.btn.ghost{background:none;color:var(--ink);border:1px solid rgba(255,46,136,.5);
+  font-size:19px;padding:11px 22px;box-shadow:none}
+.btn.ghost:hover{background:rgba(255,46,136,.18);box-shadow:none;transform:none}
+.sheet .foot{margin-top:18px;font-size:12.5px;color:var(--dim);line-height:1.8}
+/* the row of switches the pause menu is made of */
+.rows{max-width:430px;margin:0 auto 18px;text-align:left}
+.row{display:flex;align-items:center;gap:10px;padding:11px 14px;margin-bottom:9px;
+  border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,46,136,.22)}
+.row .lab{flex:1}
+.row .lab b{display:block;font:400 19px/1.2 var(--disp);color:var(--ink)}
+.row .lab span{font-size:13.5px;color:var(--dim)}
+.seg{display:flex;gap:4px;background:rgba(0,0,0,.35);padding:3px;border-radius:10px}
+.seg button{pointer-events:auto;cursor:pointer;border:none;background:none;color:var(--dim);
+  font:400 17px/1 var(--disp);padding:9px 15px;border-radius:8px;transition:.12s}
+.seg button.on{background:linear-gradient(180deg,var(--hot),#c4176b);color:#fff;
+  box-shadow:0 0 14px rgba(255,46,136,.55)}
+#touchL,#touchR{position:absolute;top:0;bottom:0;width:50%;pointer-events:none}
+#touchL{left:0} #touchR{right:0}
+/* Shown on the first run of the first reel and never again: a quarter of the
+   screen down each side, with the turn it makes. No words - an eight-year-old
+   with a thumb on it works this out in about a second. */
+#teach{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .5s;z-index:6}
+#teach.on{opacity:1}
+#teach div{position:absolute;top:0;bottom:0;width:25%;display:flex;
+  flex-direction:column;align-items:center;justify-content:center;gap:14px}
+#teach .l{left:0} #teach .r{right:0}
+/* The wash behind each side breathes as well as the arrow. It is on its own
+   layer rather than on the panel so the two can pulse independently - the
+   panel carries the flex layout, and animating its opacity would have dragged
+   the arrow and the label along with it. */
+#teach div:before{content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,rgba(255,46,136,.34),transparent);
+  animation:teachBg 1.6s ease-in-out infinite}
+#teach .r:before{background:linear-gradient(270deg,rgba(255,46,136,.34),transparent)}
+#teach .r:before,#teach .r b{animation-delay:.8s}
+#teach b{position:relative;z-index:1;font:400 111px/1 var(--disp);color:var(--gold);
+  text-shadow:0 0 18px rgba(255,217,100,.95),0 0 54px rgba(255,176,58,.55);
+  animation:teach 1.6s ease-in-out infinite}
+#teach span{position:relative;z-index:1;font:400 26px/1 var(--disp);color:#fff;
+  letter-spacing:1px;text-shadow:0 2px 10px rgba(0,0,0,.8)}
+@keyframes teach{0%,100%{transform:translateY(0);opacity:.7}50%{transform:translateY(-11px);opacity:1}}
+@keyframes teachBg{0%,100%{opacity:.45}50%{opacity:1}}
+#touchL.lit,#touchR.lit{background:radial-gradient(ellipse at center,rgba(162,155,254,.16),transparent 70%)}
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="cv"></canvas></div>
+<div id="hud">
+  <div id="touchL"></div><div id="touchR"></div>
+  <div id="teach">
+    <div class="l"><b>&#8634;</b><span>hold this side</span></div>
+    <div class="r"><b>&#8635;</b><span>hold this side</span></div>
+  </div>
+  <div id="paused"><b>Paused</b></div>
+  <div id="clock">60<small>.0</small></div>
+  <a id="back" href="../../index.html">&larr; Games</a>
+  <button id="spd" title="power"><i>100</i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.6 2 4.8 13.7h5.3L9.5 22l8.7-11.7h-5.3z"/></svg></button>
+  <button id="pause" title="pause (P)">&#10073;&#10073;</button>
+  <div id="lvlTag"></div>
+  <div id="dev">
+    <select id="devScene" title="jump straight to a scene"></select>
+    <select id="devModel" title="which driving model">
+      <option value="arcade">arcade handling</option>
+      <option value="sim">simulated handling</option>
+    </select>
+    <span class="k">S</span> save <span class="k">L</span> load
+    <i id="devMsg"></i>
+  </div>
+  <div id="vhs"><i class="rew">&#9664;&#9664; REW</i></div>
+  <div id="banner"><b></b><span></span></div>
+  <div id="card" class="out">
+    <div class="side">
+      <div class="mug"><span></span><img alt=""></div>
+      <div class="who"></div>
+    </div>
+    <div class="txt">
+      <div class="where"></div>
+      <div class="blurb"></div>
+    </div>
+  </div>
+</div>
+<!-- the title screen: the premise in four lines, the eight reels, and one
+     enormous button. Also where the music is allowed to start, because a
+     browser will not play anything until somebody has touched the page. -->
+<div id="home" class="sheet">
+  <a class="homeback" href="../../index.html">&larr; Games</a>
+  <div class="in">
+    <h1>D&eacute;j&agrave; <i>Vroom</i></h1>
+    <p class="story" id="homeStory"></p>
+    <div class="pickrow" id="homeWho"></div>
+    <button class="btn" id="playBtn">Roll the tape</button>
+    <div class="scores" id="homeScores"></div>
+  </div>
+</div>
+
+<!-- paused: the same furniture, fewer words -->
+<div id="menu" class="sheet">
+  <a class="homeback" href="../../index.html">&larr; Games</a>
+  <div class="in">
+    <h2>Paused</h2>
+    <div class="rows" id="menuRows"></div>
+    <button class="btn" id="resumeBtn">Back to it</button>
+  </div>
+</div>
+
+<!-- One file, and MP3 is the one to keep: every browser decodes it, including
+     the plain Chromium builds that ship no AAC decoder and refuse an .m4a
+     outright ("no supported sources"). -->
+<audio id="music" loop preload="auto" src="assets/deja-vroom.mp3"></audio>
+
+<div id="boot">
+  <h1>DEJA <i>VROOM</i></h1>
+  <p id="bootMsg">Loading the city&hellip;</p>
+  <div class="bar"><i id="bootBar"></i></div>
+</div>
+
+<script src="js/arcade-store.js"></script>
+<script src="lib/three.min.js"></script>
+<script src="lib/GLTFLoader.js"></script>
+<script src="lib/ConvexHull.js"></script>
+<script src="lib/cannon.js"></script>
+<script>
+'use strict';
+/* ==========================================================================
+   DEJA VROOM
+
+   Everything the game needs was authored in mapper.html and lives in the same
+   IndexedDB this page can open (same origin): the city under the key `city`,
+   the routes under `routes`. Nothing here is generated.
+
+   World: Y-up, ground is XZ, 1 unit = 1 Kenney road tile. A heading of 0
+   degrees faces +X, exactly as the mapper's arrows do.
+   ========================================================================== */
+
+/* The models the game actually uses, cut out of the 87MB of Kenney kits in
+   research/ (which is gitignored) and committed next to the game. The mapper
+   still browses the full kits from research/ - it is an authoring tool and
+   lives on the machine that has them. */
+var MODEL_ROOT='models/';
+function glbUrl(kit,name){ return encodeURI(MODEL_ROOT+kit+'/'+name+'.glb'); }
+var TINTS={grass:'#5f9e3f', sand:'#d9c089', water:'#3f7fa6'};
+
+var STAGE_SECONDS=60;
+/* Everything the mapper's Config tab can move. Defaults here are what the game
+   uses when nothing has been configured. */
+var GCFG={rewind:1.4,        // the wind-back after a crash
+          winRewind:1.6,     // the wind-back after finishing a level
+          crashCool:0.8, crashDrop:0.6, stallFor:1.0, rollFor:0.6,
+          gravity:24};
+/* 120Hz, not 60. A 0.3-unit car needs a stiff suspension to stand up in a
+   world with 1-unit road tiles, and at 60Hz that spring is numerically
+   unstable: it rings at twice its own frequency, the wheels skip, and the car
+   never gets traction. Measured on Dan's city: 1/60 gives 0.043 of height
+   wobble and zero forward speed, 1/120 gives 0.000 and full speed. */
+var TICK=1/120;
+var REC_HZ=30;                       // path samples per second for the replays
+
+/* Per-vehicle handling. Every entry is the same for now, on purpose - the
+   game already reads them, so tuning one car never means touching the loop. */
+/* Lengths here are multiples of the car's own length, not world units. The
+   mapper scales vehicles independently of the city - Dan's world runs at 0.125,
+   so a sedan is 0.32 units long on 1-unit road tiles - and every hard-coded
+   constant written for a 2.5-unit car falls apart at that size. */
+var STEER_MIN=0.10, STEER_MAX=0.30;   // radians of wheel lock, for the look of it
+var YAW_MIN=0.9, YAW_MAX=3.2;         // radians a second the 0-1 dial spans
+var MAX_SLIP=0.78;                    // 45 degrees, past which it is a spin
+/* Grip drives the tyres as well as the slip control. Measured: below about
+   0.35 of tyre friction the wheels can no longer put the power down either -
+   0 to full speed goes from 1.4 seconds to 8 - so the mapping keeps enough
+   bite to drive while a low grip still lets the back move around. */
+function tyreOf(s){ return Math.max(0.35, Math.min(6, 0.35+s.grip*2)); }
+var BASE={ lift:0,        // VISUAL only: raise or drop the model on screen
+          mass:380, grip:0.8, accel:1, turn:1, maxYaw:2.6, scrub:0.45,
+          yawSnap:26,
+          topSpeedPerLen:7,    // car lengths per second at full chat
+          reachTopIn:7.0,      // seconds from a standstill
+          brakePerLen:6,
+          steer:0.7, steerFloor:0.45,
+          wheelOfHeight:0.23,  // wheel radius as a fraction of car height
+          restOfWheel:1.6};    // suspension travel relative to the wheel
+var VSTATS={};
+/* The mapper's Config tab writes three layers: stage-wide settings, the
+   defaults every vehicle inherits, and a sparse per-vehicle override. Anything
+   it has not set keeps the built-in value above. */
+function applyConfig(c){
+  if(!c) return;
+  if(c.global){
+    ['rewind','winRewind','crashCool','crashDrop','stallFor','rollFor','gravity'].forEach(function(k){
+      if(typeof c.global[k]==='number') GCFG[k]=c.global[k]; });
+    if(typeof c.global.stageSeconds==='number') STAGE_SECONDS=c.global.stageSeconds;
+    var m={camHeight:'height', camBack:'back', camSide:'side', camLag:'lag'};
+    for(var k in m) if(typeof c.global[k]==='number') CHASE[m[k]]=c.global[k];
+    if(typeof c.global.camTween==='number') TWEEN_SECS=Math.max(0.05,c.global.camTween);
+    var sm={grassGrip:['grass','grip'], grassSpeed:['grass','speed'],
+            sandGrip:['sand','grip'],  sandSpeed:['sand','speed'],
+            waterGrip:['water','grip'], waterSpeed:['water','speed']};
+    for(var q in sm) if(typeof c.global[q]==='number')
+      SURFACE[sm[q][0]][sm[q][1]]=c.global[q];
+  }
+  if(c.base) for(var b in c.base) if(typeof c.base[b]==='number') BASE[b]=c.base[b];
+  if(c.cars) for(var v in c.cars) VSTATS[v]=c.cars[v];
+  if(c.abase) for(var ab in c.abase) if(typeof c.abase[ab]==='number') ABASE[ab]=c.abase[ab];
+  if(c.acars) for(var av in c.acars) AVSTATS[av]=c.acars[av];
+  if(c.global&&(c.global.model==='arcade'||c.global.model==='sim')){
+    DRIVE_MODEL=c.global.model;
+    try{ localStorage.setItem('dejavroom-model',DRIVE_MODEL); }catch(e){}
+  }
+}
+/* How far this vehicle's MODEL is nudged up or down on screen. Nothing else
+   sees it: the body, the rays, the collisions and the recorded path are all
+   exactly where they were. It is there because some models - the karts - sit
+   a shade low in their own file, and the fix belongs in the picture, not in
+   the physics. */
+function liftFor(model){
+  var v=(DRIVE_MODEL==='arcade') ? arcStatsFor(model) : statsFor(model);
+  return v.lift||0;
+}
+/* What fraction of its normal top speed the car is allowed right now. One
+   number, so both models and the badge in the corner agree. */
+function speedFactor(){
+  var base=(DRIVE_MODEL==='arcade') ? arcStatsFor(G.car?G.car.model:'sedan').maxSpeed : ABASE.maxSpeed;
+  if(!base) return easyFactor();
+  return easyFactor()*Math.max(HANDICAP.floor, base-(G.slow||0))/base;
+}
+function statsFor(model){
+  var s=VSTATS[model]||{}, out={};
+  for(var k in BASE) out[k]=(s[k]!==undefined)?s[k]:BASE[k];
+  return out;
+}
+
+
+/* ==========================================================================
+   The tape: story, sound and the two sheets of UI
+
+   Everything in here is presentation. It reads the game's state and never
+   changes it, apart from the three switches at the bottom - and those are
+   plain numbers the driving code already understood.
+   ========================================================================== */
+var STORY=null;
+function loadStory(){
+  return fetch('data/story.json',{cache:'no-cache'})
+    .then(function(r){ return r.ok?r.json():null; })
+    .catch(function(){ return null; });
+}
+/* what this reel is called, and what this driver is doing in it */
+function placeOf(i){
+  if(!STORY||!STORY.locations) return null;
+  return STORY.locations[i] || null;
+}
+function reelWord(){ return (STORY&&STORY.sceneWord)||'Reel'; }
+function runWord(){ return (STORY&&STORY.levelWord)||'Run'; }
+function driverOf(model){
+  var d=STORY&&STORY.drivers&&STORY.drivers[model];
+  return d || {name:model.replace(/-/g,' '), persona:'', img:''};
+}
+function taskOf(model, sceneIdx){
+  var pl=placeOf(sceneIdx);
+  var t=STORY&&STORY.tasks&&STORY.tasks[model];
+  return (t && pl && t[pl.key]) || '';
+}
+/* THE SPINE. Every reel opens and closes with the sedan, because the sedan is
+   how you get from one place to the next - so Margo gets two lines a reel
+   instead of one, and hers run in sequence across the whole tape: arriving
+   somewhere, then setting off for wherever the next reel is. Her closing line
+   in one reel sets up the next place and her opening line there picks the
+   thread up, which is why they are written as pairs and never repeat each
+   other. Everyone else has one line per place and no idea they are in a story.
+*/
+function arcOf(sceneIdx){
+  var pl=placeOf(sceneIdx);
+  return (STORY&&STORY.arc&&pl&&STORY.arc[pl.key]) || null;
+}
+/* Which line belongs on the card for this run: Margo's thread if she is
+   opening or closing the reel, then anything Dan has written on the Routes tab
+   (real prose only - a row of keyboard mash is not a story), then the driver's
+   own line for this place. */
+function lineFor(sceneIdx, levelIdx){
+  var sc=ROUTES&&ROUTES.scenes&&ROUTES.scenes[sceneIdx];
+  var lv=sc&&sc.levels[levelIdx]; if(!lv) return '';
+  var model=lv.veh.model, a=arcOf(sceneIdx), last=sc.levels.length-1;
+  if(a && model==='sedan'){
+    if(levelIdx===0 && a['in']) return a['in'];
+    if(levelIdx===last && a.out) return a.out;
+  }
+  var own=(lv.blurb||'').trim();
+  if(own.length>12 && own.indexOf(' ')>0) return own;
+  return taskOf(model, sceneIdx) || own;
+}
+
+/* ---- sound: one small synth, no files, deliberately quiet ---- */
+var SND={ac:null, on:true, music:true, gain:null, engine:null, engGain:null};
+function audioUp(){
+  if(SND.ac) return SND.ac;
+  var AC=window.AudioContext||window.webkitAudioContext;
+  if(!AC) return null;
+  SND.ac=new AC();
+  SND.gain=SND.ac.createGain(); SND.gain.gain.value=0.55; SND.gain.connect(SND.ac.destination);
+  return SND.ac;
+}
+function blip(freq, len, type, vol, slideTo){
+  if(!SND.on) return;
+  var ac=audioUp(); if(!ac) return;
+  var o=ac.createOscillator(), g=ac.createGain();
+  o.type=type||'sine'; o.frequency.setValueAtTime(freq, ac.currentTime);
+  if(slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, ac.currentTime+len);
+  g.gain.setValueAtTime(0.0001, ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(vol||0.06, ac.currentTime+0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime+len);
+  o.connect(g); g.connect(SND.gain); o.start(); o.stop(ac.currentTime+len+0.02);
+}
+function noise(len, vol, cut){
+  if(!SND.on) return;
+  var ac=audioUp(); if(!ac) return;
+  var n=Math.floor(ac.sampleRate*len), buf=ac.createBuffer(1,n,ac.sampleRate), d=buf.getChannelData(0);
+  for(var i=0;i<n;i++) d[i]=(Math.random()*2-1)*(1-i/n);
+  var src=ac.createBufferSource(); src.buffer=buf;
+  var f=ac.createBiquadFilter(); f.type='lowpass'; f.frequency.value=cut||900;
+  var g=ac.createGain(); g.gain.value=vol||0.05;
+  src.connect(f); f.connect(g); g.connect(SND.gain); src.start();
+}
+var SFX={
+  go:     function(){ blip(420,0.10,'triangle',0.05); setTimeout(function(){ blip(660,0.14,'triangle',0.05); },90); },
+  win:    function(){ [523,659,784,1047].forEach(function(f,i){
+            setTimeout(function(){ blip(f,0.16,'triangle',0.05); }, i*85); }); },
+  crash:  function(){ noise(0.26,0.07,500); blip(90,0.22,'sawtooth',0.045,55); },
+  splash: function(){ noise(0.45,0.05,1600); blip(260,0.3,'sine',0.03,120); },
+  rewind: function(){ blip(1200,0.42,'sawtooth',0.022,220); noise(0.42,0.02,2600); },
+  tap:    function(){ blip(880,0.05,'square',0.035); },
+  stage:  function(){ [392,523,659,784,1047].forEach(function(f,i){
+            setTimeout(function(){ blip(f,0.2,'triangle',0.055); }, i*110); }); }
+};
+/* the engine: one quiet sawtooth whose pitch follows the car, started on the
+   first run and left running - it is cheaper than making one per level and it
+   never gets loud enough to notice until you listen for it */
+function engineUp(){
+  if(SND.engine||!SND.on) return;
+  var ac=audioUp(); if(!ac) return;
+  var o=ac.createOscillator(), g=ac.createGain(), f=ac.createBiquadFilter();
+  o.type='sawtooth'; o.frequency.value=70;
+  f.type='lowpass'; f.frequency.value=420;
+  g.gain.value=0;
+  o.connect(f); f.connect(g); g.connect(SND.gain); o.start();
+  SND.engine=o; SND.engGain=g;
+}
+function engineAt(sp, top){
+  if(!SND.engine) return;
+  var k=Math.max(0,Math.min(1, sp/Math.max(0.001,top)));
+  SND.engine.frequency.value = 62 + k*135;
+  SND.engGain.gain.value = (SND.on && G.phase==='driving') ? 0.006+k*0.030 : 0;
+}
+function musicGo(){
+  var el=document.getElementById('music');
+  if(!el||!SND.music) return;
+  el.volume=0.32;
+  var pr=el.play();
+  if(pr&&pr.catch) pr.catch(function(){});   /* a browser may still say no */
+}
+function musicSet(on){
+  SND.music=on;
+  var el=document.getElementById('music'); if(!el) return;
+  if(on) musicGo(); else el.pause();
+}
+
+/* ---- who is driving, and their best times ----
+   IndexedDB through arcade-store, not localStorage: the arcade shares one
+   five-megabyte localStorage quota across seventy games and it has run out
+   before now. Key: calebArcadeData:dejavroom. */
+var PLAYERS=[{id:'caleb',name:'Caleb'},{id:'ezra',name:'Ezra'}];
+var Store=(typeof ArcadeStore==='function') ? ArcadeStore('dejavroom') : null;
+var SAVE={who:'caleb', best:{}};          // best[player][reel] = seconds
+function saveLoad(cb){
+  if(!Store) return cb();
+  Store.ready(function(){
+    var s=Store.get();
+    if(s&&typeof s==='object'){ SAVE.who=s.who||SAVE.who; SAVE.best=s.best||{}; }
+    cb();
+  });
+}
+function savePut(){ if(Store) Store.set(null, {who:SAVE.who, best:SAVE.best}); }
+function bestFor(who,reel){
+  var b=SAVE.best[who], v=b&&b[reel];
+  return (typeof v==='number')?v:null;
+}
+function recordTime(reel, secs){
+  var who=SAVE.who;
+  if(!SAVE.best[who]) SAVE.best[who]={};
+  var b=SAVE.best[who][reel], beat=(typeof b!=='number')||secs<b;
+  if(beat){ SAVE.best[who][reel]=+secs.toFixed(1); savePut(); }
+  return beat;
+}
+function whoName(){
+  for(var i=0;i<PLAYERS.length;i++) if(PLAYERS[i].id===SAVE.who) return PLAYERS[i].name;
+  return 'Player';
+}
+
+/* ---- the switches ---- */
+/* Difficulty is a level, not a flag: 0 normal, 1 easy, 2 easiest. The others
+   are plain switches. */
+var OPT={diff:0, perf:false, debug:false, lock:false};
+var OPT_KEY='dejavroom-opt';
+/* THE SWITCHES BELONG TO WHOEVER IS DRIVING. One boy wants the music on and
+   easy mode, the other does not, and neither should have to set it back every
+   time. So the file holds one set per player, plus `who` - the last player to
+   touch anything. That last bit is not bookkeeping: the real choice of driver
+   lives in the arcade store, which is read asynchronously, long after the debug
+   switch has had to decide where the city is loaded from. `who` is what boot
+   goes on, and the answer from the store is applied the moment it arrives.
+
+   A file written before this change is one flat set of switches. It becomes the
+   starting point for both of them rather than being thrown away. */
+function optBlob(){
+  try{ var b=JSON.parse(localStorage.getItem(OPT_KEY)||'{}');
+       return (b&&typeof b==='object')?b:{}; }catch(e){ return {}; }
+}
+function optSet(b, who){
+  if(b.players && b.players[who]) return b.players[who];
+  var old={}, any=false;                       // the pre-per-player file
+  for(var k in OPT) if(typeof b[k]==='boolean'){ old[k]=b[k]; any=true; }
+  if(typeof b.sound==='boolean'){ old.sound=b.sound; any=true; }
+  if(typeof b.music==='boolean'){ old.music=b.music; any=true; }
+  return any?old:{};
+}
+function optLoad(who){
+  var b=optBlob(), o=optSet(b, who||b.who||SAVE.who);
+  for(var k in OPT) if(typeof OPT[k]==='boolean')
+    OPT[k]=(typeof o[k]==='boolean')?o[k]:false;
+  /* difficulty was a boolean before there were three of them */
+  OPT.diff=(typeof o.diff==='number') ? Math.max(0,Math.min(2,o.diff|0))
+                                      : (o.easy===true?1:0);
+  SND.on   =(typeof o.sound==='boolean')?o.sound:true;
+  SND.music=(typeof o.music==='boolean')?o.music:true;
+}
+function optSave(){
+  var b=optBlob(), keep=(b.players&&typeof b.players==='object')?b.players:{};
+  keep[SAVE.who]={diff:OPT.diff, perf:OPT.perf, debug:OPT.debug,
+                  lock:OPT.lock, sound:SND.on, music:SND.music};
+  try{ localStorage.setItem(OPT_KEY, JSON.stringify({who:SAVE.who, players:keep})); }catch(e){}
+}
+/* Put the loaded switches into effect. Called on a driver change and once the
+   arcade store has said who is actually driving. */
+function optApply(){
+  applyPerf(); applyDebug();
+  musicSet(SND.music);
+  if(!SND.on && SND.engGain) SND.engGain.gain.value=0;
+}
+/* EASY is simply a slower car - the same handicap the crash counter uses, so
+   there is only ever one place that decides how fast the thing goes. Both eased
+   levels drive at four fifths; what separates them is the slide. */
+function easyFactor(){ return OPT.diff?0.8:1; }
+/* EASIEST also QUADRUPLES the lateral drag, which is the one knob that decides
+   how long a slide lasts: the sideways part of the velocity is what a slide is,
+   and drag is how fast it dies. Four times the drag kills it in about a third
+   of the time, so the car simply goes where it is pointed and a corner taken
+   badly still comes back. Nothing else changes - same top speed as easy, same
+   steering, same everything.
+
+   It is deliberately a big multiplier. Most of the fleet is already glued down
+   at 0.06 and doubling that is barely felt; the four karts sit at 0.0001 with a
+   road grip of 0.005, so their slide is governed by road grip rather than drag
+   and this knob will not tame the boats however far it is pushed. */
+function slideFactor(){ return OPT.diff>=2 ? 4 : 1; }
+/* PERFORMANCE MODE. Shadows are the expensive part of this scene by a mile:
+   turning them off takes the whole shadow pass out, and dropping to one
+   device pixel quarters the fill. The see-through buildings STAY: they are a
+   handful of objects a frame, and a tablet that needs performance mode is
+   exactly the one you do not want losing the car behind a tree. */
+function applyPerf(){
+  if(!ren) return;
+  ren.shadowMap.enabled=!OPT.perf;
+  if(SUN) SUN.castShadow=!OPT.perf;
+  ren.setPixelRatio(OPT.perf?1:Math.min(devicePixelRatio,1.75));
+  resize();
+}
+function applyDebug(){
+  var d=document.getElementById('dev');
+  if(d) d.style.display=OPT.debug?'flex':'none';
+}
+
+/* ---- the two sheets ---- */
+function sheet(id,on){ var e=document.getElementById(id); if(e) e.classList.toggle('on',!!on); }
+function buildHome(){
+  if(STORY) document.getElementById('homeStory').textContent=STORY.premise||'';
+  /* who is driving */
+  var pick=document.getElementById('homeWho'); pick.innerHTML='';
+  PLAYERS.forEach(function(P){
+    var b=document.createElement('button');
+    b.className='pick'+(SAVE.who===P.id?' on':'');
+    b.textContent=P.name;
+    b.onclick=function(){ SFX.tap(); SAVE.who=P.id; savePut();
+      optLoad(P.id); optSave(); optApply();   // this driver's switches, and they are now the last to pick
+      buildHome(); };
+    pick.appendChild(b);
+  });
+  /* Best times: every reel you can score, in the order you drive them, whether
+     anybody has finished it or not. An empty slot is a dash - the board is the
+     same shape on day one as it is when the pair of them have filled it in. */
+  var hs=document.getElementById('homeScores'); hs.innerHTML='';
+  var scenes=(ROUTES?ROUTES.scenes:[]);
+  scenes.forEach(function(sc,i){
+    if(i===scenes.length-1) return;             // the last reel is the ending
+    var pl=placeOf(i);
+    var row=document.createElement('div'); row.className='hs';
+    row.innerHTML='<b>'+esc((pl&&pl.name)||sc.name||(reelWord()+' '+(i+1)))+'</b>';
+    PLAYERS.forEach(function(P){
+      var t=bestFor(P.id,i);
+      var e=document.createElement('i');
+      if(P.id===SAVE.who) e.className='me';
+      e.innerHTML='<em>'+esc(P.name)+'</em><span>'+
+                  (t===null ? '\u2014' : t.toFixed(1)+'s')+'</span>';
+      row.appendChild(e);
+    });
+    hs.appendChild(row);
+  });
+  sheet('home',true);
+}
+function esc(t){ return String(t==null?'':t).replace(/[<>&]/g,function(c){
+  return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]; }); }
+
+function seg(label, hint, opts, get, set){
+  var row=document.createElement('div'); row.className='row';
+  var lab=document.createElement('div'); lab.className='lab';
+  lab.innerHTML='<b>'+esc(label)+'</b><span>'+esc(hint)+'</span>';
+  row.appendChild(lab);
+  var s=document.createElement('div'); s.className='seg';
+  opts.forEach(function(o){
+    var b=document.createElement('button'); b.textContent=o.t;
+    b.onclick=function(){ SFX.tap(); set(o.v); optSave(); buildMenu(); };
+    if(get()===o.v) b.className='on';
+    s.appendChild(b);
+  });
+  row.appendChild(s); return row;
+}
+function buildMenu(){
+  var host=document.getElementById('menuRows'); if(!host) return;
+  host.innerHTML='';
+  host.appendChild(seg('Difficulty','easy is four fifths the speed \u2014 easiest hardly slides at all',
+    [{t:'Normal',v:0},{t:'Easy',v:1},{t:'Easiest',v:2}],
+    function(){ return OPT.diff; }, function(v){ OPT.diff=v; }));
+  host.appendChild(seg('Performance mode','no shadows and fewer pixels',
+    [{t:'Off',v:false},{t:'On',v:true}],
+    function(){ return OPT.perf; }, function(v){ OPT.perf=v; applyPerf(); }));
+  host.appendChild(seg('Music','the Deja Vroom tape',
+    [{t:'On',v:true},{t:'Off',v:false}],
+    function(){ return SND.music; }, function(v){ musicSet(v); }));
+  host.appendChild(seg('Sound','engine and bumps',
+    [{t:'On',v:true},{t:'Off',v:false}],
+    function(){ return SND.on; }, function(v){ SND.on=v; if(!v&&SND.engGain) SND.engGain.gain.value=0; }));
+  host.appendChild(seg('Debug readout','the corner line \u2014 and plays the mapper tabs instead of the shipped city',
+    [{t:'Off',v:false},{t:'On',v:true}],
+    function(){ return OPT.debug; }, function(v){ OPT.debug=v; applyDebug(); debugReload(); }));
+}
+/* The switch also decides where the city, the routes and the handling are read
+   from, and all three are read once, at boot - so on its own the flip would
+   leave the strip naming one source while the game ran on the other. Reload
+   instead, but only when it would change anything: with an empty mapper store
+   both settings play the shipped files, and there is no reason to restart. */
+function debugReload(){
+  optSave();
+  kvAll().then(function(kv){
+    if(kv.config || (kv.city&&kv.city.placed&&kv.city.placed.length) ||
+       (kv.routes&&kv.routes.scenes&&kv.routes.scenes.length)) location.reload();
+  }).catch(function(){});
+}
+
+function boot(msg,pct){
+  document.getElementById('bootMsg').innerHTML=msg;
+  if(pct!==undefined) document.getElementById('bootBar').style.width=Math.round(pct*100)+'%';
+}
+function fail(msg){
+  document.getElementById('boot').classList.remove('gone');
+  document.getElementById('bootMsg').innerHTML=msg;
+  document.getElementById('bootBar').parentNode.style.display='none';
+}
+
+/* ==========================================================================
+   Where the city and the routes come from
+
+   Two sources, on purpose, and the DEBUG SWITCH picks between them.
+
+   Switch off - the arcade. The files in data/ are what ships: they travel with
+   the game, they are the same on every machine, and nothing a browser happens
+   to be holding can change what the boys sit down to play.
+
+   Switch on - the workshop. The city, the routes and the handling come from the
+   mapper's own IndexedDB instead, so the tab just saved next door is the one
+   being driven. An empty store falls back to the files, so turning the switch
+   on in a fresh browser still gives a game.
+
+   Either way the dev strip names what is actually loaded.
+   ========================================================================== */
+var DATA_SRC='files', CFG_SRC='none';
+/* The exported file is loaded first either way, so the game always has Dan's
+   tuning wherever it runs. With the debug switch on, the mapper's own copy then
+   goes on top of it, field by field, so the number changed a minute ago is the
+   number being driven. With the switch off nothing overrides the file. */
+function loadConfig(){
+  return fetch('data/deja-vroom-config.json',{cache:'no-cache'})
+    .then(function(r){ return r.ok?r.json():null; })
+    .then(function(c){
+      c=cfgFromExport(c);
+      if(c){ applyConfig(c); CFG_SRC='data/'; }
+    })
+    .catch(function(){});
+}
+function loadFiles(){
+  function grab(u){ return fetch(u,{cache:'no-cache'}).then(function(r){
+    if(!r.ok) throw new Error(u+' '+r.status); return r.json(); }); }
+  return Promise.all([grab('data/deja-vroom-city.json'),
+                      grab('data/deja-vroom-routes.json')])
+    .then(function(a){ return fromExport(a[0],a[1]); });
+}
+/* The config export spells its sections out in full; inside, they are the same
+   four short names the game has always used. */
+function cfgFromExport(c){
+  if(!c) return null;
+  return {global:Object.assign({}, c.global||{}, c.model?{model:c.model}:{}),
+          base:c.vehicleDefaults||{}, cars:c.vehicles||{},
+          abase:c.arcadeDefaults||{}, acars:c.arcadeVehicles||{}};
+}
+/* The mapper's export is a tidied, self-describing shape - full words, nested
+   objects, the model paths spelled out. Inside, everything is short and flat.
+   This is the one place that knows both. */
+function fromExport(city, routes){
+  var placed=(city.placements||[]).map(function(q,i){
+    var sc=q.scale||{};
+    return {id:i+1, kit:q.kit, name:q.model, tint:q.tint||'',
+            x:q.position.x, y:q.position.y||0, z:q.position.z,
+            rot:q.rotationY||0,
+            sx:sc.x===undefined?1:sc.x, sy:sc.y===undefined?1:sc.y,
+            sz:sc.z===undefined?1:sc.z};
+  });
+  var scenes=(routes.scenes||[]).map(function(s,si){
+    return {id:si+1, name:s.name||('Scene '+(si+1)),
+            cam:s.camera?{x:s.camera.x, z:s.camera.z, w:s.camera.width}:null,
+            levels:(s.levels||[]).map(function(l,li){
+              return {id:li+1, who:l.character||'', blurb:l.blurb||'',
+                      offset:l.startOffset||0, water:!!l.onWater,
+                      veh:{model:l.vehicle.model, x:l.vehicle.x, z:l.vehicle.z,
+                           rot:l.vehicle.headingDeg||0},
+                      goal:{x:l.goal.x, z:l.goal.z, rot:l.goal.headingDeg||0}};
+            })};
+  });
+  return {city:{placed:placed},
+          routes:{scenes:scenes,
+                  vehScale:(typeof routes.vehicleScale==='number')?routes.vehicleScale:1}};
+}
+/* ==========================================================================
+   the mapper's store
+   ========================================================================== */
+/* Read-only, and careful about it. Opening a database that is not there
+   CREATES it - empty, at version 1 - and an empty version 1 is poison for the
+   mapper: the mapper opens version 1 too, so it never gets the upgrade event
+   it would have created its 'kv' store in, and every save silently fails
+   afterwards. Playing the game must not be able to break the mapper, so if
+   this open turns out to have been a creation it is torn straight back down
+   and reported as what it is: nothing saved yet. */
+function kvAll(){
+  return new Promise(function(res,rej){
+    var rq=indexedDB.open('dejavroom-mapper'), mine=false;
+    rq.onupgradeneeded=function(){ mine=true; };   // fires only when WE made it
+    rq.onerror=function(){ rej(rq.error); };
+    rq.onsuccess=function(){
+      var db=rq.result;
+      if(mine || !db.objectStoreNames.contains('kv')){
+        db.close();
+        if(mine) try{ indexedDB.deleteDatabase('dejavroom-mapper'); }catch(e){}
+        return rej(new Error('no kv store'));
+      }
+      var keys=['city','routes','config'];
+      var t=db.transaction('kv','readonly').objectStore('kv'), out={}, left=keys.length;
+      keys.forEach(function(k){
+        var g=t.get(k);
+        g.onsuccess=function(){ out[k]=g.result; if(!--left) res(out); };
+        g.onerror=function(){ if(!--left) res(out); };
+      });
+    };
+  });
+}
+
+/* ==========================================================================
+   scene, physics world
+   ========================================================================== */
+var scene,cam,ren,world,clockEl=document.getElementById('clock');
+var GROUND_MAT,CAR_MAT;
+
+function initWorld(){
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x1a0b2e);
+  scene.fog=new THREE.Fog(0x2a1140, 70, 260);
+
+  /* near/far are sized to the world, not guessed: the whole map is about 70
+     units across and the camera never sits more than ~20 above it, so a ratio
+     of ~1300 leaves plenty of depth precision. The logarithmic depth buffer
+     that used to be here was the cause of the shimmering on the road: three
+     r128 computes it per-VERTEX unless EXT_frag_depth is present, and the road
+     tiles are huge two-triangle quads, so the depth across them was wrong
+     between the corners and the surfaces fought each other. */
+  cam=new THREE.PerspectiveCamera(42,1,0.3,400);
+  ren=new THREE.WebGLRenderer({canvas:document.getElementById('cv'),antialias:true,
+                               powerPreference:'high-performance'});
+  ren.setPixelRatio(Math.min(devicePixelRatio,1.75));
+  ren.outputEncoding=THREE.sRGBEncoding;
+  ren.shadowMap.enabled=true; ren.shadowMap.type=THREE.PCFSoftShadowMap;
+
+  scene.add(new THREE.HemisphereLight(0xffe8cf,0x3a2340,0.85));
+  /* A 70s look without a post-processing pass: the sun is warmed towards
+     late afternoon and the sky cooled a touch behind it, which is the golden
+     hour every film from 1974 was shot in. It costs nothing - the colours are
+     constants - and unlike a colour grade it cannot slow the tablet down. */
+  var key=new THREE.DirectionalLight(0xffd9a0,0.95);
+  key.position.set(-60,90,40); key.castShadow=true;
+  /* The old box was 68 units across - most of the map - for a car a third of a
+     unit long, so 1024 pixels of shadow map worked out at about 15 texels per
+     car and everything in it was re-rendered every frame. Sized to what the
+     chase camera can actually see instead: sharper, and far less to draw. */
+  key.shadow.mapSize.set(1024,1024);
+  var d=13;
+  key.shadow.camera.left=-d; key.shadow.camera.right=d;
+  key.shadow.camera.top=d;  key.shadow.camera.bottom=-d;
+  key.shadow.camera.near=40; key.shadow.camera.far=170;
+  key.shadow.bias=-0.0004; key.shadow.normalBias=0.02;
+  scene.add(key); scene.add(key.target);
+  SUN=key;
+  var fill=new THREE.DirectionalLight(0x93a9ff,0.25);
+  fill.position.set(45,30,-50); scene.add(fill);
+
+  world=new CANNON.World();
+  world.gravity.set(0,-GCFG.gravity,0);
+  world.broadphase=new CANNON.SAPBroadphase(world);
+  world.defaultContactMaterial.friction=0.35;
+  world.solver.iterations=7;
+  world.allowSleep=true;
+
+  GROUND_MAT=new CANNON.Material('ground');
+  CAR_MAT=new CANNON.Material('car');
+  world.addContactMaterial(new CANNON.ContactMaterial(GROUND_MAT,CAR_MAT,
+    {friction:0.28, restitution:0.08}));
+
+  var g=new CANNON.Body({mass:0, material:GROUND_MAT,
+        shape:new CANNON.Box(new CANNON.Vec3(2000,1,2000))});
+  g.position.set(0,-1,0);
+  world.addBody(g);
+  GROUND_BODY=g;
+}
+var SUN=null, GROUND_BODY=null;
+
+/* ==========================================================================
+   loading models
+   ========================================================================== */
+THREE.Cache.enabled=true;
+var LOADER=new THREE.GLTFLoader(), MCACHE={};
+/* Every model in a Kenney kit paints from the same colormap image, but each GLB
+   arrives with its own copy of it - 54 models meant 54 texture objects that the
+   renderer could not tell apart, so nothing could be batched together. One
+   texture per image, shared, and the city collapses into a handful of draws. */
+var TEXCACHE={};
+function shareTextures(root,kit){
+  root.traverse(function(m){
+    if(!m.isMesh||!m.material) return;
+    var mats=Array.isArray(m.material)?m.material:[m.material];
+    mats.forEach(function(mat){
+      if(!mat.map||!mat.map.image) return;
+      /* A texture out of a GLB has no src - the image arrives as raw bytes - so
+         it is keyed by the kit and the image's dimensions instead. Each Kenney
+         kit ships exactly one colormap, so that is enough to tell them apart
+         while letting every model in a kit share one texture object. */
+      var im=mat.map.image;
+      var key=kit+'|'+(im.width||0)+'x'+(im.height||0)+'|'+
+              mat.map.encoding+'|'+mat.map.flipY;
+      var have=TEXCACHE[key];
+      if(!have){ TEXCACHE[key]=mat.map; return; }
+      if(have!==mat.map){ mat.map.dispose(); mat.map=have; mat.needsUpdate=true; }
+    });
+  });
+}
+function loadModel(kit,name){
+  var k=kit+'/'+name;
+  if(MCACHE[k]) return MCACHE[k];
+  MCACHE[k]=new Promise(function(res,rej){
+    LOADER.load(glbUrl(kit,name),function(g){
+      shareTextures(g.scene,kit);
+      res(g.scene);
+    },null,rej);
+  });
+  return MCACHE[k];
+}
+
+/* A flat piece is scenery you drive over - the ground plane already holds the
+   car up, so giving it a collider only creates a lip to trip on. Everything
+   else collides on its real geometry, as a convex hull. */
+var RAMP=/ramp|slant|bridge/, RAMP_GROUP=4, RAMP_BODIES=[], DECK_BODIES=[];
+function colliderKind(name, size, high){
+  /* A bridge carries a road over a road: its own deck on top, another way
+     through underneath, the two at right angles. Both are surfaces to drive
+     on, so it collides as its real triangles like a ramp does - a hull would
+     seal the underpass, and nothing at all left the deck with no floor, which
+     is why a car that got up there dropped straight through to the road below. */
+  if(/bridge/.test(name)) return 'ramp';
+  /* A flat piece on the ground needs no collider - the floor under the whole
+     map already holds the car up at zero. A flat piece laid ON something,
+     though, is the top of a bridge, and without a collider of its own there is
+     nothing there to drive on: the car stays at ground level while the road
+     sits half a unit over its head. Those get a deck. */
+  if(size.y<0.22) return high ? 'deck' : 'none';
+  /* Things you pass UNDER. A convex hull cannot have a hole in it, so a sign
+     gantry on legs or a bridge deck on piers comes out as a solid wall across
+     the road. Those are scenery. Ramps and slants keep their hull, because the
+     point of them is driving UP. */
+  if(/sign/.test(name)) return 'none';
+  return 'hull';
+}
+/* Why a hull and not the triangle mesh: cannon 0.6.2 never registers the
+   CONVEXPOLYHEDRON|TRIMESH narrowphase pair - it is commented out in the
+   library - so a Trimesh produces ZERO contacts against the car's box chassis
+   and the car sails straight through it. Measured: 0 contacts on a trimesh
+   wall, 20 on the same wall as a convex hull. A hull is the most faithful
+   shape cannon will actually collide with, and it follows the real silhouette
+   - roof slopes, setbacks, spires - rather than squaring the model off. It
+   does fill in concave detail, so anything you are meant to drive THROUGH or
+   UNDER needs splitting into parts in the kit. */
+function pointsOf(root){
+  var pts=[];
+  root.updateMatrixWorld(true);
+  root.traverse(function(m){
+    if(!m.isMesh||!m.geometry||!m.geometry.attributes.position) return;
+    var P=m.geometry.attributes.position, v=new THREE.Vector3();
+    for(var i=0;i<P.count;i++)
+      pts.push(v.fromBufferAttribute(P,i).applyMatrix4(m.matrixWorld).clone());
+  });
+  return pts;
+}
+function hullOfPoints(pts){
+  if(pts.length<4) return null;
+  /* how big this point set is, so "zero area" means zero at ITS scale - a thin
+     slab's real faces are small and must not be mistaken for slivers */
+  var ex=0, mnp=[1e9,1e9,1e9], mxp=[-1e9,-1e9,-1e9];
+  pts.forEach(function(q){
+    mnp[0]=Math.min(mnp[0],q.x); mxp[0]=Math.max(mxp[0],q.x);
+    mnp[1]=Math.min(mnp[1],q.y); mxp[1]=Math.max(mxp[1],q.y);
+    mnp[2]=Math.min(mnp[2],q.z); mxp[2]=Math.max(mxp[2],q.z); });
+  ex=Math.max(mxp[0]-mnp[0], mxp[1]-mnp[1], mxp[2]-mnp[2]);
+  var epsA=Math.max(1e-12, ex*ex*1e-6);
+  var hull;
+  try{ hull=new THREE.ConvexHull().setFromPoints(pts); }catch(e){ return null; }
+  if(!hull||!hull.faces||hull.faces.length<4) return null;
+  /* three's hull walks each face's edge loop counter-clockwise seen from
+     outside, which is exactly the winding cannon wants. */
+  var verts=[], faces=[], seen={};
+  for(var f=0;f<hull.faces.length;f++){
+    var face=[], e=hull.faces[f].edge, guard=0, q, A, B, C;
+    do{
+      var q=e.head().point;
+      var k=q.x.toFixed(4)+'|'+q.y.toFixed(4)+'|'+q.z.toFixed(4);
+      if(!(k in seen)){ seen[k]=verts.length; verts.push(new CANNON.Vec3(q.x,q.y,q.z)); }
+      if(face.indexOf(seen[k])<0) face.push(seen[k]);
+      e=e.next;
+    } while(e!==hull.faces[f].edge && ++guard<64);
+    if(face.length<3) continue;
+    /* cannon takes each face's normal from its FIRST THREE vertices only, so a
+       sliver triangle (three points in a line) hands it a garbage axis - and a
+       garbage separating axis is a contact it can get wrong. Quickhull leaves a
+       few of these on almost every building. Rotate each loop so it starts on
+       its widest corner, and drop any face that has no non-degenerate corner at
+       all: a zero-area face adds nothing to a convex shape. */
+    var bestK=-1, bestA=0;
+    for(var q=0;q<face.length;q++){
+      var A=verts[face[q]], B=verts[face[(q+1)%face.length]], C=verts[face[(q+2)%face.length]];
+      var ux=B.x-A.x, uy=B.y-A.y, uz=B.z-A.z, vx=C.x-A.x, vy=C.y-A.y, vz=C.z-A.z;
+      var a=Math.sqrt(Math.pow(uy*vz-uz*vy,2)+Math.pow(uz*vx-ux*vz,2)+Math.pow(ux*vy-uy*vx,2));
+      if(a>bestA){ bestA=a; bestK=q; }
+    }
+    if(bestA<epsA) continue;                       // a face with no area at all
+    if(bestK>0) face=face.slice(bestK).concat(face.slice(0,bestK));
+    faces.push(face);
+  }
+  if(verts.length<4||faces.length<4) return null;
+  /* Centre the hull on its own middle and hand the offset back. cannon assumes
+     a convex shape straddles its body's origin: it measures the boundingSphere
+     from there (so an off-centre hull gets a sphere big enough to reach the
+     world origin, and broadphase then pairs it with half the map), and its
+     normal check tests against the origin too. */
+  /* the average of the hull's own vertices, which is a convex combination of
+     them and so is always strictly inside - a bounding-box centre is not. */
+  var off=new CANNON.Vec3(0,0,0);
+  verts.forEach(function(v){ off.x+=v.x/verts.length; off.y+=v.y/verts.length;
+                             off.z+=v.z/verts.length; });
+  verts.forEach(function(v){ v.x-=off.x; v.y-=off.y; v.z-=off.z; });
+  try{ return {shape:new CANNON.ConvexPolyhedron(verts,faces), at:off}; }
+  catch(e){ return null; }
+}
+/* One convex hull per piece. A hull cannot have a hole in it, so anything you
+   are meant to drive UNDER - a bridge deck on piers, a sign gantry on legs -
+   comes out solid. Splitting such a piece into slabs was tried and made things
+   worse: the slabs are thin enough for the car to tunnel through, and the
+   bridge stayed sealed anyway. The honest fix is in the kit, not the physics -
+   author a drive-under piece as separate deck and pier models and the hulls
+   follow. Everything else, buildings included, is close enough to convex that
+   one hull is the real silhouette. */
+function hullsOf(root){
+  var h=hullOfPoints(pointsOf(root));
+  return h? [h] : [];
+}
+function trimeshOf(root){
+  var verts=[], idx=[], base=0;
+  root.updateMatrixWorld(true);
+  root.traverse(function(m){
+    if(!m.isMesh||!m.geometry) return;
+    var g=m.geometry.index?m.geometry.toNonIndexed():m.geometry;
+    var P=g.attributes.position, v=new THREE.Vector3();
+    for(var i=0;i<P.count;i++){
+      v.fromBufferAttribute(P,i).applyMatrix4(m.matrixWorld);
+      verts.push(v.x,v.y,v.z);
+    }
+    for(var j=0;j<P.count;j++) idx.push(base+j);
+    base+=P.count;
+  });
+  return (verts.length&&idx.length)? new CANNON.Trimesh(verts,idx) : null;
+}
+
+var CITY=null, ROUTES=null, WORLD_BODIES=[], SOLID_BODIES=[], HULL_FAIL=0;
+
+/* What you are driving ON. The flat pieces get no collider - you roll over the
+   ground plane - so the surface is looked up from the map instead: every flat
+   tile paints its footprint into a half-unit grid, and the car asks the grid
+   where it is. Tinted tiles are the tell: the mapper's grass, sand and water
+   variants of tile-low carry their tint through to here. */
+var SURF={}, SURF_CELL=0.25;
+var SURFACE={road:{grip:1, speed:1}, grass:{grip:0.45, speed:0.9},
+             sand:{grip:0.75, speed:0.62},
+             water:{grip:0.3, speed:0.5, hole:true, wet:true},  // drive in and you go under
+             off:{grip:0.6, speed:0.9},
+             /* dry land, seen from a boat */
+             dryhole:{grip:0.6, speed:0.9, hole:true}};
+function surfKindOf(p){
+  if(p.tint&&SURFACE[p.tint]) return p.tint;
+  if(/grass|park|field/.test(p.name)) return 'grass';
+  if(/sand|beach|desert/.test(p.name)) return 'sand';
+  if(/water|river|canal/.test(p.name)) return 'water';
+  return 'road';
+}
+/* Tiles overlap - a road is laid on top of the ground it crosses - so the
+   HIGHEST piece in a cell is the one you are driving on, not the last one
+   placed. Without this the grass underneath wins and the whole map is slippery. */
+function paintSurface(g,p){
+  var bb=new THREE.Box3().setFromObject(g);
+  var k=surfKindOf(p), top=bb.max.y;
+  /* A cell counts as covered when its CENTRE falls inside the piece. Stepping
+     out from the minimum and rounding, as this used to, spread every tile up to
+     half a cell past its own edge - which for water meant the hole reached a
+     quarter of a unit onto the road beside it and swallowed cars that were
+     still on tarmac. Water is inset by a further cell on top of that, because
+     falling in should need you to actually be in it. */
+  var inset=(k==='water')? SURF_CELL : 0;
+  /* Water is ALSO recorded over its full footprint, separately from the
+     business above. That record is what a boat floats on, and it has to be
+     kept apart for two reasons: the inset above would strand a boat a quarter
+     of a unit from every bank, and the highest-piece rule would take the water
+     away entirely wherever a bridge, a slant or a road crosses over it - so a
+     boat sank every time it passed underneath one. Water is water even with
+     something built above it. */
+  /* A bridge takes the place of the tile it spans, so the water tiles stop at
+     its edge and start again on the other side. Mark its footprint, and the
+     pass below carries the river through the gap - but only where there really
+     is river on either side. */
+  if(/bridge/.test(p.name)){
+    var bi0=Math.ceil(bb.min.x/SURF_CELL), bi1=Math.floor(bb.max.x/SURF_CELL);
+    var bj0=Math.ceil(bb.min.z/SURF_CELL), bj1=Math.floor(bb.max.z/SURF_CELL);
+    for(var bi=bi0;bi<=bi1;bi++) for(var bj=bj0;bj<=bj1;bj++){
+      var bk=bi+','+bj;
+      (SURF[bk] || (SURF[bk]={k:'road', y:top})).b=true;
+    }
+  }
+  if(k==='water'){
+    var wi0=Math.ceil(bb.min.x/SURF_CELL), wi1=Math.floor(bb.max.x/SURF_CELL);
+    var wj0=Math.ceil(bb.min.z/SURF_CELL), wj1=Math.floor(bb.max.z/SURF_CELL);
+    for(var wi=wi0;wi<=wi1;wi++) for(var wj=wj0;wj<=wj1;wj++){
+      var wk=wi+','+wj, c=SURF[wk];
+      if(!c) c=SURF[wk]={k:'water', y:top};
+      c.w=true;
+      if(c.wy===undefined || top>c.wy) c.wy=top;     // the water's own surface
+    }
+  }
+  var i0=Math.ceil((bb.min.x+inset)/SURF_CELL), i1=Math.floor((bb.max.x-inset)/SURF_CELL);
+  var j0=Math.ceil((bb.min.z+inset)/SURF_CELL), j1=Math.floor((bb.max.z-inset)/SURF_CELL);
+  for(var i=i0;i<=i1;i++) for(var j=j0;j<=j1;j++){
+    var key=i+','+j, had=SURF[key];
+    /* Normally the highest piece in a cell is the one you drive on. Water is
+       the exception: it is a hole, and a hole cannot be paved over by a road
+       tile stacked above it. */
+    /* The highest piece in a cell is the one you drive on - lay a road or a
+       driveway across the water and it is road, not a hole. Water only keeps a
+       cell when nothing has been built over it; on a dead heat the solid piece
+       wins, because a surface drawn on top of the water is meant to be driven
+       on. */
+    if(!had || top>had.y+1e-4 ||
+       (Math.abs(top-had.y)<=1e-4 && had.k==='water' && k!=='water')){
+      if(had){ had.k=k; had.y=top; }                 // keep the water record
+      else SURF[key]={k:k, y:top};
+    }
+  }
+}
+function surfCell(x,z){
+  return SURF[Math.round(x/SURF_CELL)+','+Math.round(z/SURF_CELL)];
+}
+/* Carry the water under the bridges. A bridged cell with river on one side
+   becomes river itself, and repeating that a few times walks the channel right
+   through the gap - while a bridge over a road, with no water anywhere near
+   it, stays dry. */
+function bridgeWater(){
+  for(var pass=0; pass<10; pass++){
+    var grew=0;
+    for(var key in SURF){
+      var c=SURF[key];
+      if(!c.b || c.w) continue;
+      var ij=key.split(','), i=+ij[0], j=+ij[1];
+      var n=SURF[(i+1)+','+j] || SURF[(i-1)+','+j] ||
+            SURF[i+','+(j+1)]  || SURF[i+','+(j-1)];
+      var src=[SURF[(i+1)+','+j],SURF[(i-1)+','+j],SURF[i+','+(j+1)],SURF[i+','+(j-1)]]
+              .filter(function(q){ return q&&q.w; })[0];
+      if(src){ c.w=true; c.wy=src.wy||0; grew++; }
+    }
+    if(!grew) break;
+  }
+}
+/* the height of the water at a point, or null if there is none there */
+function waterYAt(x,z){
+  var c=surfCell(x,z);
+  return (c&&c.w) ? (c.wy||0) : null;
+}
+function surfaceAt(x,z){
+  var c=surfCell(x,z);
+  var s=(c&&SURFACE[c.k])||SURFACE.off;
+  /* A level flagged "on water" in the mapper is a boat, and the whole thing
+     turns inside out: the water is the road, and everything else - tarmac,
+     grass, sand, the ground itself - is the hole. So the water is handed back
+     with the road's grip and speed (its own numbers are for a CAR touching
+     water, which is a different thing entirely) and dry land is handed back as
+     a hole to fall into. */
+  if(!onWaterLevel()) return s;
+  return (c&&c.w) ? SURFACE.road : SURFACE.dryhole;
+}
+/* is the level being played a boat level? */
+function onWaterLevel(){
+  var sc=G&&G.scene, lv=sc&&sc.levels&&sc.levels[G.levelIdx];
+  return !!(lv&&lv.water);
+}
+
+function buildCity(placed,onProgress){
+  var group=new THREE.Group(); scene.add(group);
+  var keys={}; placed.forEach(function(p){ keys[p.kit+'/'+p.name]=1; });
+  var names=Object.keys(keys), done=0;
+  return Promise.all(names.map(function(k){
+    var bits=k.split('/');
+    return loadModel(bits[0],bits[1]).then(function(src){
+      done++; if(onProgress) onProgress(done/names.length);
+      return src;
+    }).catch(function(){ done++; return null; });
+  })).then(function(){
+    placed.forEach(function(p){
+      var src=null;
+      MCACHE[p.kit+'/'+p.name].then(function(s){ src=s; });
+    });
+    // everything is cached now, so resolve synchronously in order
+    return Promise.all(placed.map(function(p){
+      return MCACHE[p.kit+'/'+p.name].then(function(src){ return {p:p,src:src}; })
+                                      .catch(function(){ return null; });
+    }));
+  }).then(function(list){
+    list.forEach(function(it){
+      if(!it||!it.src) return;
+      var p=it.p, o=it.src.clone(true);
+      if(p.tint&&TINTS[p.tint]){
+        var col=new THREE.Color(TINTS[p.tint]);
+        o.traverse(function(m){ if(!m.isMesh) return;
+          m.material=m.material.clone(); m.material.map=null; m.material.color=col; });
+      }
+      o.traverse(function(m){ if(m.isMesh){ m.castShadow=true; m.receiveShadow=true; } });
+      /* Anything tall enough to stand between the camera and the car is kept
+         OUT of the merge below, so it can be faded on its own when it does.
+         Everything else - roads, paths, kerbs, flat scenery - merges as before,
+         which is where the draw calls were saved. */
+      /* Anything that STANDS UP can get between the camera and the car, so it
+         stays its own object and can turn to glass on its own. The flat ground
+         you drive on - roads, driveways, paths, tiles - merges, because a
+         merged mesh cannot fade one piece of itself and tarmac should never
+         vanish anyway. No height test: a solar panel on a pole and a tree are
+         both in the way, whatever they measure. */
+      var tall=!FLAT_GROUND.test(p.name);
+      var g=new THREE.Group(); g.add(o);
+      /* its plan position is kept on it, so the near-the-car filter is a
+         distance check and never has to touch the geometry */
+      if(tall){ g.userData.tall=true; g.userData.cx=p.x; g.userData.cz=p.z; TALL.push(g); }
+      /* Roads draw over driveways and paths: coplanar flat pieces, so which
+         one shows where they overlap is down to the depth buffer and flickers
+         as the camera moves. A few thousandths of lift on anything called
+         "road" settles it - well under the climb allowance and invisible. */
+      g.position.set(p.x, (p.y||0)+(/road/.test(p.name)?0.004:0), p.z);
+      g.rotation.y=(p.rot||0)*Math.PI/180;
+      g.scale.set(p.sx===undefined?1:p.sx, p.sy===undefined?1:p.sy, p.sz===undefined?1:p.sz);
+      group.add(g);
+      addCollider(p,it.src);
+      paintSurface(g,p);
+    });
+    bridgeWater();                     // the river runs on under the bridges
+    mergeStatic(group);
+    return group;
+  });
+}
+/* The city never moves, so every placement sharing a material can collapse
+   into one mesh. 277 pieces is 240-odd draw calls otherwise; this takes it to
+   one per material. */
+function mergeStatic(root){
+  root.updateMatrixWorld(true);
+  var byMat={}, keep=[];
+  root.traverse(function(m){
+    if(!m.isMesh||!m.geometry) return;
+    for(var q=m; q; q=q.parent) if(q.userData&&q.userData.tall) return;   // faded on its own
+    var mat=Array.isArray(m.material)?m.material[0]:m.material;
+    /* Group by what the material LOOKS like, not by which instance it is.
+       Every Kenney kit paints from one shared colormap, so dozens of separate
+       material objects are pixel-for-pixel identical - keying on uuid left 74
+       draw calls for a city that only needs a handful. */
+    var key=(mat.map?mat.map.uuid:'-')+'|'+(mat.color?mat.color.getHexString():'-')+
+            '|'+(mat.transparent?1:0)+'|'+(mat.opacity||1).toFixed(2)+
+            '|'+mat.side+'|'+(mat.emissive?mat.emissive.getHexString():'-')+
+            '|'+(mat.type||'');
+    (byMat[key]||(byMat[key]={mat:mat,list:[]})).list.push(m);
+  });
+  var merged=new THREE.Group();
+  Object.keys(byMat).forEach(function(k){
+    var grp=byMat[k], pos=[], nor=[], uv=[];
+    var nm=new THREE.Matrix3();
+    grp.list.forEach(function(m){
+      var geo=m.geometry.index?m.geometry.toNonIndexed():m.geometry;
+      var P=geo.attributes.position, N=geo.attributes.normal, U=geo.attributes.uv;
+      var v=new THREE.Vector3(); nm.getNormalMatrix(m.matrixWorld);
+      for(var i=0;i<P.count;i++){
+        v.fromBufferAttribute(P,i).applyMatrix4(m.matrixWorld);
+        pos.push(v.x,v.y,v.z);
+        if(N){ v.fromBufferAttribute(N,i).applyMatrix3(nm).normalize(); nor.push(v.x,v.y,v.z); }
+        else nor.push(0,1,0);
+        if(U) uv.push(U.getX(i),U.getY(i)); else uv.push(0,0);
+      }
+    });
+    if(!pos.length) return;
+    var g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+    g.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));
+    g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+    g.computeBoundingSphere();
+    var mesh=new THREE.Mesh(g,grp.mat);
+    mesh.castShadow=true; mesh.receiveShadow=true;
+    merged.add(mesh);
+  });
+  TALL.forEach(function(g){ if(g.parent===root) keep.push(g); });
+  while(root.children.length) root.remove(root.children[0]);
+  root.add(merged);
+  keep.forEach(function(g){ root.add(g); });
+}
+
+/* ==========================================================================
+   Seeing through the buildings
+
+   A tower between the camera and the car is the one thing the fixed chase view
+   cannot solve by moving, so anything caught in the way turns to glass while
+   it is there. A ray from the camera to the car finds them; each one swaps to
+   a see-through copy of its own material and swaps back a moment after it
+   stops blocking, the delay being what stops a corner clipping the ray from
+   flickering. Only the tall pieces are tested, and only while you are driving.
+   ========================================================================== */
+/* The flat ground you drive on. Everything else stands up, and anything that
+   stands up can be in the way. */
+var FLAT_GROUND=/^(road|driveway|path|tile|crossing|pavement)/;
+/* NEAR is how far from the camera-to-car line a piece has to be before it is
+   worth testing at all: 2 units in plan, which around here is six car lengths.
+   Height never comes into it. An earlier version tried to decide by how tall a
+   thing was and got the hospital reel wrong twice over - its 347 trees measured
+   0.77 against a 0.8 line and merged away, and its solar panels are flat plates
+   standing a whole unit up in the air. What a piece measures says nothing about
+   whether it is between you and the camera; only the ray knows that. */
+var SEE_THRU={near:2, opacity:0.05, hold:0.25}, TALL=[], GHOSTS={}, seeRay=null;
+function ghostOf(mat){
+  var k=mat.uuid;
+  if(!GHOSTS[k]){
+    var m=mat.clone();
+    m.transparent=true; m.opacity=SEE_THRU.opacity; m.depthWrite=false;
+    GHOSTS[k]=m;
+  }
+  return GHOSTS[k];
+}
+function seeThrough(dt){
+  if(!TALL.length) return;
+  if(!seeRay) seeRay=new THREE.Raycaster();
+  var clear = !G.car || G.phase!=='driving';
+  if(!clear){
+    var p=G.car.body.position;
+    var from=cam.position, dir=new THREE.Vector3(p.x,p.y,p.z).sub(from);
+    var far=dir.length(); dir.normalize();
+    /* Only the pieces near the line from the camera to the car are worth
+       casting against - a handful out of a thousand. The measure is distance in
+       plan to the SEGMENT, not to the car: the camera sits two and a half units
+       behind, so a building right behind you is nowhere near the car and square
+       in the way. */
+    var ax=from.x, az=from.z, bx=p.x, bz=p.z;
+    var dx=bx-ax, dz=bz-az, L2=(dx*dx+dz*dz)||1e-6, R=SEE_THRU.near, near=[];
+    for(var i=0;i<TALL.length;i++){
+      var u=TALL[i].userData;
+      var t=Math.max(0,Math.min(1,((u.cx-ax)*dx+(u.cz-az)*dz)/L2));
+      var ox=ax+dx*t-u.cx, oz=az+dz*t-u.cz;
+      if(ox*ox+oz*oz<=R*R) near.push(TALL[i]);
+    }
+    if(near.length){
+      seeRay.set(from, dir); seeRay.far=far; seeRay.near=0.01;
+      var hits=seeRay.intersectObjects(near, true);
+      for(var h=0;h<hits.length;h++){
+        for(var q=hits[h].object; q; q=q.parent)
+          if(q.userData&&q.userData.tall){ q.userData.fade=SEE_THRU.hold; break; }
+      }
+    }
+  }
+  for(var j=0;j<TALL.length;j++){
+    var g=TALL[j], want;
+    if(clear) g.userData.fade=0;
+    else if(g.userData.fade>0) g.userData.fade-=dt;
+    want = g.userData.fade>0;
+    if(want===!!g.userData.ghosted) continue;        // already as it should be
+    g.userData.ghosted=want;
+    g.traverse(function(m){
+      if(!m.isMesh) return;
+      if(want){ m.userData.solidMat=m.material; m.material=ghostOf(m.material); }
+      else if(m.userData.solidMat){ m.material=m.userData.solidMat; }
+    });
+  }
+}
+/* Colliders are built once per model-and-scale and reused: the hull of a
+   5000-triangle building is not something to recompute for all 640 placements.
+   Position and rotation live on the body, so one cached shape serves every
+   copy of a piece. */
+var SHAPE_CACHE={};
+function shapesFor(p,src){
+  var sx=p.sx===undefined?1:p.sx, sy=p.sy===undefined?1:p.sy, sz=p.sz===undefined?1:p.sz;
+  var high=(p.y||0)>0.05;                       // laid on top of something
+  var key=p.kit+'/'+p.name+'|'+sx+'|'+sy+'|'+sz+(high?'|hi':'');
+  if(key in SHAPE_CACHE) return SHAPE_CACHE[key];
+  var t=new THREE.Group(); t.add(src.clone(true));
+  t.scale.set(sx,sy,sz); t.updateMatrixWorld(true);
+  var bb=new THREE.Box3().setFromObject(t), size=bb.getSize(new THREE.Vector3());
+  var out, kind=colliderKind(p.name,size,high);
+  if(kind==='none') out=null;
+  else if(kind==='deck') out={box:new CANNON.Vec3(size.x/2,size.y/2,size.z/2),
+                              at:bb.getCenter(new THREE.Vector3()), deck:true};
+  else if(RAMP.test(p.name)){
+    /* A ramp is the one place a convex hull is actively wrong. These slants
+       curve as they rise, so the hull cuts the corner and its surface at the
+       low end sits 0.2 units up - a lip that does not exist in the model at
+       all, and one the car cannot climb. Ramps therefore collide as their real
+       triangles, which rise from nothing. cannon cannot push a box out of a
+       trimesh, but it never has to: ramps are raycast-only, and raycasting a
+       trimesh works perfectly well. */
+    var tm=trimeshOf(t);
+    out = tm ? {mesh:tm} : null;
+  }
+  else{
+    var hulls=hullsOf(t);
+    out = hulls.length ? {hulls:hulls}
+        : {box:new CANNON.Vec3(size.x/2,size.y/2,size.z/2),
+           at:bb.getCenter(new THREE.Vector3())};
+  }
+  SHAPE_CACHE[key]=out;
+  return out;
+}
+function addCollider(p,src){
+  var sh=shapesFor(p,src);
+  if(!sh) return;
+  var rot=(p.rot||0)*Math.PI/180, ca=Math.cos(rot), sa=Math.sin(rot);
+  /* the model's local frame turned into the world: three's rotation.y = rot is
+     Ry(rot), so local (x,z) lands at (x*cos + z*sin, -x*sin + z*cos) */
+  var place=function(v){ return new CANNON.Vec3(p.x + v.x*ca + v.z*sa,
+                                                (p.y||0) + v.y,
+                                                p.z - v.x*sa + v.z*ca); };
+  var body=new CANNON.Body({mass:0, material:GROUND_MAT});
+  body.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0), rot);
+  /* A ramp is a surface, not an obstacle. Its convex hull has a vertical face
+     at the bottom of the slope and the chassis box hits that before the wheels
+     ever reach the incline, so you stop dead at the foot of the thing you are
+     meant to drive up. A ramp is therefore put in a collision group of its own
+     that nothing else shares: the narrowphase never pairs it with the car, so
+     there is nothing to bump into, while the suspension rays still find it and
+     carry the car up. (Turning collision response off instead does NOT work -
+     cannon's rays skip those bodies, so the wheels stop seeing the ramp too.) */
+  if(RAMP.test(p.name)){ body.collisionFilterGroup=RAMP_GROUP;
+                         body.collisionFilterMask=RAMP_GROUP;
+                         RAMP_BODIES.push(body); }
+  /* a deck is a surface too: something to drive on, never something to bump
+     into - otherwise the underside of a bridge is a wall across the road */
+  if(sh.deck){ body.collisionFilterGroup=RAMP_GROUP;
+               body.collisionFilterMask=RAMP_GROUP;
+               DECK_BODIES.push(body); }
+  if(sh.mesh){
+    body.addShape(sh.mesh);
+    body.position.set(p.x, p.y||0, p.z);
+  } else if(sh.box){
+    body.addShape(new CANNON.Box(sh.box));
+    body.position.copy(place(sh.at));
+    if(!sh.deck) HULL_FAIL++;
+  } else {
+    var base=sh.hulls[0].at;
+    body.position.copy(place(base));
+    sh.hulls.forEach(function(h){
+      body.addShape(h.shape,
+        new CANNON.Vec3(h.at.x-base.x, h.at.y-base.y, h.at.z-base.z));
+    });
+  }
+  world.addBody(body); WORLD_BODIES.push(body);
+  if(body.collisionFilterGroup!==RAMP_GROUP) SOLID_BODIES.push(body);
+}
+
+/* ==========================================================================
+   TWO DRIVING MODELS
+
+   'sim'    - the original: a cannon.js RaycastVehicle with springs, tyre
+              friction and a rigid body. Everything below marked Car.prototype
+              .drive / .hold / climbStep belongs to it.
+
+   'arcade' - the model from the drift game, which is not a simulation at all.
+              The car is a point with a heading and a 2D velocity vector, and
+              the two are INDEPENDENT. Steering turns the heading directly - no
+              torque, no inertia, no lag. Each frame the velocity is split into
+              the part along the nose and the part across it; the forward part
+              accelerates, the sideways part decays at a rate set by grip, and
+              the two are put back together. Nothing creates the slide: it
+              appears because the heading rotates while the velocity does not.
+
+              Every constant below is drift's own, kept in its units (pixels
+              per 60Hz frame) and converted through the car's length, so the
+              feel is identical. Decays use pow(base, frames) so they behave
+              the same at any frame rate.
+
+   Drift is flat. This is not, so the arcade model adds a height channel:
+   the ground under the car is sampled every step, the car rides it up and
+   down slopes and bridges, and when the ground falls away faster than gravity
+   the car is simply airborne until it meets it again - which is a jump.
+   ========================================================================== */
+var DRIVE_MODEL='arcade';
+/* Pixels to a car length.  The drift game drew a 36px car, but this game ran
+   the arcade move TWICE every frame and nobody noticed: driveArcade writes the
+   body position itself AND hands cannon a velocity, and world.step integrated
+   that same velocity a second time - position += velocity*dt, the identical
+   displacement again.  So every arcade car always travelled at exactly double
+   its own speed reading, and the whole 21-car table was tuned against that.
+   Dropping world.step from this path (4.3ms a frame over 968 bodies, doing
+   nothing else for a model that moves itself) took the doubling away with it,
+   so the calibration moves here instead: 18 pixels to a car length is the same
+   motion, arrived at honestly and only once.  x3.33 gives lengths a second. */
+var ARC={ carPx:18, wallScrub:0.97, bogDown:0.12 };
+/* Keep crashing on a level and the car gets a little slower for your next go,
+   so a corner you cannot take eventually comes to you. The first few go free -
+   everyone bins it now and then, and having the car change under you for one
+   mistake is worse than the mistake. After that it is a tenth off the arcade
+   model's own top speed each time, never below a crawl. Clear the level (or
+   press the badge by the pause button) and it is back to normal. */
+var HANDICAP={free:3, step:0.1, floor:1.2};     // drift's car is 36px long; ours is about 0.32 units
+/* The arcade numbers, per vehicle, exactly as the drift game has them and in
+   its units (pixels per 60Hz frame). The mapper's Config tab edits these when
+   the handling is set to arcade; the simulated model's numbers in BASE are
+   left completely alone. */
+var ABASE={
+  maxSpeed:6.2,           // px per frame
+  accel:0.07,
+  steerRate:0.045,        // radians per frame at a crawl
+  steerSpeedFactor:0.45,  // how quickly steering tightens off with speed
+  lateralDrag:0.0105,     // THE grip knob - how fast a slide dies away
+  gripBlend:0.02,         // drift keeps a second one; two knobs tune better
+  forwardDrag:0.001,
+  driftFriction:0.009,    // speed scrubbed off while sideways
+  driftThreshold:0.09,    // ~5 degrees before it counts as a drift
+  roadGrip:0.85,          // the base the surfaces multiply
+  gravity:26,             // world units per second squared, for jumps
+  lift:0,                 // VISUAL only: raise or drop the model on screen
+  stepUp:1.4,             // the steepest climb it will take, rise / run
+  mass:380                // collisions only, same as the other model
+};
+var AVSTATS={};
+function arcStatsFor(model){
+  var o=AVSTATS[model]||{}, out={};
+  for(var k in ABASE) out[k]=(o[k]!==undefined)?o[k]:ABASE[k];
+  return out;
+}
+
+/* The highest solid thing under a point - road, ramp, bridge or the ground
+   plane. This is what gives the arcade car its slopes. */
+var groundRay=null, groundRes=null;
+function groundAt(x,z,from){
+  if(!groundRay){ groundRay=new CANNON.Ray(); groundRes=new CANNON.RaycastResult();
+                  groundRay.mode=CANNON.Ray.CLOSEST; }
+  var top=(from===undefined?4:from);
+  groundRes.reset();
+  groundRay.from.set(x, top, z);
+  groundRay.to.set(x, -3, z);
+  groundRay.intersectBodies(nearBodies(WORLD_BODIES,'world',x,z,x,z), groundRes);
+  var best=groundRes.hasHit ? groundRes.hitPointWorld.y : null;
+  if(GROUND_BODY){
+    groundRes.reset();
+    groundRay.from.set(x, top, z);
+    groundRay.to.set(x, -3, z);
+    groundRay.intersectBodies([GROUND_BODY], groundRes);
+    if(groundRes.hasHit && (best===null || groundRes.hitPointWorld.y>best))
+      best=Math.max(0, groundRes.hitPointWorld.y);
+  }
+  return best;
+}
+/* ==========================================================================
+   Where the rays look
+
+   cannon's intersectBodies walks the list it is handed, so casting against the
+   city meant an AABB test per piece per ray: eight rays a frame across 2206
+   pieces is eighteen thousand tests, and it measured 2.2 ms inside the driving
+   step alone. The city never moves, so it goes into a grid once and a ray only
+   ever asks the cells it actually crosses - a handful of pieces instead of all
+   of them.
+   ========================================================================== */
+var GRID_CELL=4, GRIDS={}, gridMark=0;
+function gridOf(list){
+  var g={cells:{}, list:list};
+  for(var i=0;i<list.length;i++){
+    var b=list[i];
+    b.computeAABB();
+    var lo=b.aabb.lowerBound, hi=b.aabb.upperBound;
+    for(var ix=Math.floor(lo.x/GRID_CELL); ix<=Math.floor(hi.x/GRID_CELL); ix++)
+      for(var iz=Math.floor(lo.z/GRID_CELL); iz<=Math.floor(hi.z/GRID_CELL); iz++){
+        var k=ix+','+iz;
+        (g.cells[k]||(g.cells[k]=[])).push(b);
+      }
+  }
+  return g;
+}
+function gridFor(list,key){
+  if(!GRIDS[key] || GRIDS[key].n!==list.length){
+    GRIDS[key]=gridOf(list); GRIDS[key].n=list.length;
+  }
+  return GRIDS[key];
+}
+/* the pieces whose cells the segment passes through, each one once */
+var nearOut=[];
+function nearBodies(list,key,x0,z0,x1,z1){
+  var g=gridFor(list,key);
+  nearOut.length=0; gridMark++;
+  var i0=Math.floor(Math.min(x0,x1)/GRID_CELL), i1=Math.floor(Math.max(x0,x1)/GRID_CELL);
+  var j0=Math.floor(Math.min(z0,z1)/GRID_CELL), j1=Math.floor(Math.max(z0,z1)/GRID_CELL);
+  for(var i=i0;i<=i1;i++) for(var j=j0;j<=j1;j++){
+    var c=g.cells[i+','+j];
+    if(!c) continue;
+    for(var k=0;k<c.length;k++){
+      if(c[k]._seen===gridMark) continue;
+      c[k]._seen=gridMark; nearOut.push(c[k]);
+    }
+  }
+  return nearOut;
+}
+
+/* Did the car sweep into something solid between where it was and where it
+   wants to be? Four corners, swept - the same idea as drift's four point
+   samples, but it cannot skip through a thin wall. Ramps are not solid.
+
+   It hands back the face it hit, flattened into the ground plane, so the
+   caller can slide along the wall instead of stopping dead against it. */
+var hitRay=null, hitRes=null;
+/* The cars from your earlier runs. They are kinematic bodies the physics
+   engine knows about, which is enough for the simulated model but nothing at
+   all to the arcade one - that never asks the engine anything, it casts its
+   own rays, and it was only ever casting them at the scenery. So you drove
+   clean through your own ghosts. They go in the same swept test as the walls.
+   A car that has finished its run has collisionResponse off and is skipped,
+   which is what makes a completed run stop being an obstacle. */
+function liveCars(){
+  var out=[];
+  if(!G||!G.ghosts) return out;
+  for(var i=0;i<G.ghosts.length;i++){
+    var g=G.ghosts[i];
+    if(g.body && g.live && g.body.collisionResponse) out.push(g.body);
+  }
+  return out;
+}
+function sweptHit(c, x0,z0, x1,z1, ang){
+  if(!hitRay){ hitRay=new CANNON.Ray(); hitRes=new CANNON.RaycastResult();
+               hitRay.mode=CANNON.Ray.CLOSEST; }
+  var hw=c.half.x*0.9, hl=c.half.z*0.9;
+  var ca=Math.cos(ang), sa=-Math.sin(ang);
+  var y=c.body.position.y+c.half.y*0.5;
+  var corners=[[ hl, hw],[ hl,-hw],[-hl, hw],[-hl,-hw]];
+  for(var i=0;i<corners.length;i++){
+    var lx=corners[i][0], lz=corners[i][1];
+    var ox=ca*lx - sa*lz, oz=sa*lx + ca*lz;
+    hitRes.reset();
+    hitRay.from.set(x0+ox, y, z0+oz);
+    hitRay.to.set(x1+ox, y, z1+oz);
+    hitRay.intersectBodies(nearBodies(SOLID_BODIES,'solid',hitRay.from.x,hitRay.from.z,
+                                      hitRay.to.x,hitRay.to.z), hitRes);
+    if(!hitRes.hasHit){
+      var cars=liveCars();
+      if(cars.length) hitRay.intersectBodies(cars, hitRes);
+    }
+    if(hitRes.hasHit){
+      var n=hitRes.hitNormalWorld, len=Math.hypot(n.x,n.z);
+      /* a perfectly flat face (a kerb top caught edge-on) gives no usable
+         sideways normal - treat that as a dead end rather than a wall */
+      return len>1e-4 ? {x:n.x/len, z:n.z/len} : {x:0, z:0};
+    }
+  }
+  return null;
+}
+
+/* Is the ground where the car is about to be too high a step to drive onto?
+   This is what gives a ramp exactly one entrance. Its low end tapers from
+   nothing, so approaching it the right way the ground rises a few hundredths
+   of a unit per frame and the car rides up. Every other side of it - and the
+   side of a bridge deck - is a sheer face half a unit tall, which is not a
+   climb at any speed. Anything higher than this frame's allowance but lower
+   than the car's own roof is therefore a wall; anything higher than the roof
+   is something to drive UNDER, and is ignored. */
+function stepBlocked(c, x, z, footY, rise){
+  var top=groundAt(x, z, footY + c.height*0.9);
+  return top!==null && top > footY + rise + 1e-3;
+}
+
+/* ==========================================================================
+   the car
+   ========================================================================== */
+function Car(model,stats){
+  this.stats=stats; this.model=model;
+  this.body=null; this.vehicle=null; this.mesh=null; this.wheels=[];
+}
+/* The mapper's heading is 0 = facing +X. A Kenney car is modelled nose along
+   +Z, and RaycastVehicle wants forward on +Z too, so one quarter turn lines
+   the whole lot up: yaw = heading + 90 degrees. */
+function yawFromHeading(deg){ return (deg+90)*Math.PI/180; }
+
+Car.prototype.spawn=function(x,z,headingDeg,scaleMul){
+  var self=this, s=this.stats, sc=scaleMul||1;
+  return loadModel('cars',this.model).then(function(src){
+    var proto=src.clone(true);
+    proto.scale.setScalar(sc);
+    proto.updateMatrixWorld(true);
+    var bb=new THREE.Box3().setFromObject(proto), size=bb.getSize(new THREE.Vector3());
+    var hw=size.x/2, hh=size.y/2, hl=size.z/2;
+    var drop=-bb.min.y;                  // where the model's lowest point sits
+
+    /* The wheels carry the car, so the chassis box must clear the ground by
+       itself - put it in the top of the silhouette and hang the wheels below.
+       Resting height is exactly radius + rest length, so nothing drops on the
+       first physics step. */
+    /* every dimension comes off the model, so the rig fits whatever size the
+       mapper's vehicle multiplier has produced */
+    var wr=Math.max(0.01, size.y*s.wheelOfHeight);
+    var REST=wr*s.restOfWheel;
+    /* cannon's spring force is stiffness * compression * chassisMass, so the
+       compression needed to hold the car up is gravity/(4*stiffness) - a fixed
+       distance, whatever the car's size. At a shared stiffness a 0.03-travel
+       suspension needs 0.08 to stand up and simply bottoms out. Tie stiffness
+       to the travel and static sag is always a quarter of it. */
+    var STIFF=24/REST;
+    s.len=size.z;
+    s.topSpeed=s.topSpeedPerLen*s.len;
+    s.engine=s.mass*(s.topSpeed/s.reachTopIn);
+    s.brake=s.mass*s.brakePerLen*s.len/10;
+    /* cannon's spring force is stiffness * compression * chassisMass, so the
+       sag needed to hold the car up is gravity/(4*stiffness) whatever it
+       weighs. At 30 that was 0.2 of the 0.3 travel - the springs sat almost
+       bottomed out and the wheels pushed through the floor under load. */
+    var SAG=REST/4;
+    var rideH=wr+REST-SAG;                // spawn already settled, so nothing drops
+
+    var body=new CANNON.Body({mass:s.mass, material:CAR_MAT});
+    body.addShape(new CANNON.Box(new CANNON.Vec3(hw*0.92, hh*0.45, hl*0.94)),
+                  new CANNON.Vec3(0, hh*0.55, 0));
+    body.angularDamping=0.5;
+    body.position.set(x, rideH, z);
+    body.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0), yawFromHeading(headingDeg));
+
+    var v=new CANNON.RaycastVehicle({chassisBody:body,
+      indexRightAxis:0, indexUpAxis:1, indexForwardAxis:2});
+    var wo={radius:wr, directionLocal:new CANNON.Vec3(0,-1,0),
+      suspensionStiffness:STIFF, suspensionRestLength:REST,
+      frictionSlip:tyreOf(s),
+      /* cannon's damper is  force -= damping * springVelocity , against a
+         spring of  stiffness * compression , so critical damping is
+         2*sqrt(stiffness). The old 0.42/0.80 factors sat at a fifth of that
+         and the car pogoed at 4.4Hz. */
+      dampingRelaxation:1.5*Math.sqrt(STIFF), dampingCompression:1.8*Math.sqrt(STIFF),
+      /* A wheel can push at most a few times the car's own weight. Left at 1e6
+         a stiff damper hitting a bump becomes a catapult - it threw the car
+         seven car-heights into the air. */
+      maxSuspensionForce:s.mass*24*3, rollInfluence:0.05,
+      axleLocal:new CANNON.Vec3(1,0,0), maxSuspensionTravel:REST,
+      customSlidingRotationalSpeed:-30, useCustomSlidingRotationalSpeed:true,
+      chassisConnectionPointLocal:new CANNON.Vec3()};
+    var ax=hw*0.8, az=hl*0.62;
+    [[ ax,  az],[-ax,  az],[ ax, -az],[-ax, -az]].forEach(function(q){
+      wo.chassisConnectionPointLocal=new CANNON.Vec3(q[0], 0, q[1]);
+      v.addWheel(wo);
+    });
+    v.addToWorld(world);
+
+    var mesh=new THREE.Group();
+    proto.position.y=drop-rideH;         // wheels of the model land on the ground
+    mesh.add(proto);
+    mesh.traverse(function(m){ if(m.isMesh){ m.castShadow=true; } });
+    scene.add(mesh);
+
+    self.body=body; self.vehicle=v; self.mesh=mesh; self.model3d=proto;
+    self.half={x:hw,y:hh,z:hl}; self.rideH=rideH; self.height=size.y;
+    self.lift=liftFor(self.model);          // visual nudge, in world units
+    self.wr=wr; self.drop=drop; self.rest=REST; self.sag=SAG;
+    return self;
+  });
+};
+Car.prototype.speed=function(){
+  if(DRIVE_MODEL==='arcade') return this.arcadeSpeed();
+  var v=this.body.velocity; return Math.sqrt(v.x*v.x+v.z*v.z);
+};
+Car.prototype.drive=function(throttle,steer,dt){
+  dt=dt||1/120;
+  var s=this.stats, v=this.vehicle, b=this.body;
+  var sp=this.speed();
+
+  /* Lock falls away with speed. A flat steering angle is what turned this into
+     a spinning top: 15 degrees at 26 units/s is a 5-unit turning circle, about
+     two car lengths. */
+  /* Steering is a 0-1 dial, not an angle. Measured on Dan's car: anything past
+     about 0.3 radians of lock turns the front wheels into brakes - the car
+     scrubs off its speed and turns no faster for it, and by 1 radian it simply
+     stops. So the dial spans the range that actually works, and 1 means the
+     sharpest turn that still holds full speed rather than a self-defeating one. */
+  var surf=surfaceAt(b.position.x,b.position.z);
+  var lock=STEER_MIN+Math.max(0,Math.min(1,s.steer))*(STEER_MAX-STEER_MIN);
+  var fade=Math.max(s.steerFloor, 1-sp/(s.topSpeed*0.85));
+  var st=steer*lock*s.turn*fade;
+  v.setSteeringValue(st,0); v.setSteeringValue(st,1);
+
+  // cornering costs you speed, so you cannot hold a powered slide forever
+  var scrub=1-s.scrub*Math.abs(steer)*Math.min(1,sp/s.topSpeed);
+  var top=s.topSpeed*surf.speed*speedFactor();
+  var force = throttle>0 ? -s.engine*s.accel*scrub*(sp>top?0:1) : 0;
+  v.applyEngineForce(force,2); v.applyEngineForce(force,3);
+  var br = throttle<0 ? s.brake : 0;
+  for(var i=0;i<4;i++) v.setBrake(br,i);
+
+  /* ------------------------------------------------------------------
+     How it corners.
+
+     The tyre model underneath cannot do this on its own. Measured on the
+     sedan at this scale: the car is 0.32 units long and tops out near 2 units
+     a second, so the sideways force a corner asks for is a fraction of what
+     any sane friction value supplies. Sweeping grip from 12 down to 0.05
+     moved the peak slide angle from 1.9 degrees to 8.9 - the tyres never
+     break away, so "grip" did nothing you could feel.
+
+     Cornering is therefore driven directly, the way arcade racers do it:
+     STEERING sets how fast the car rotates, GRIP sets how closely the
+     direction it is actually travelling chases the way its nose points.
+     Grip 1 is a kart on rails, grip 0.2 is a rally car hanging the back out.
+     The physics still owns everything else - suspension, jumps, collisions.
+     ------------------------------------------------------------------ */
+  /* Hills. The engine is sized to reach a modest top speed in a few seconds -
+     282 newtons on Dan's sedan - while the car weighs 9120 under this game's
+     heavy arcade gravity. On a 12 degree ramp the slope pulls 1896 newtons
+     backwards, nearly seven times what the engine makes, so the car slid back
+     down every ramp on the map no matter how the collider was built. The slope
+     is therefore paid for: the part of gravity that acts along the ground is
+     cancelled out, so a hill costs you nothing and the engine does the same job
+     it would on the flat. Arcade, deliberately. */
+  var grounded=0, nx=0, ny=0, nz=0, onRamp=0;
+  for(var w=0;w<v.wheelInfos.length;w++){
+    var wi=v.wheelInfos[w];
+    if(!wi.isInContact) continue;
+    grounded++;
+    var rb=wi.raycastResult.body;
+    if(rb && rb.collisionFilterGroup===RAMP_GROUP){
+      onRamp++;
+      var n=wi.raycastResult.hitNormalWorld;
+      if(n){ nx+=n.x; ny+=n.y; nz+=n.z; }
+    }
+  }
+  /* Only on a ramp, and nowhere else. Applied whenever the ground was merely
+     not-quite-level it cost the car half its acceleration on the flat - 0 to
+     90% went from 1.4 seconds to 3.2 - because a contact normal is never
+     exactly straight up. */
+  if(onRamp>0){
+    var nl=Math.sqrt(nx*nx+ny*ny+nz*nz);
+    if(nl>1e-6){
+      nx/=nl; ny/=nl; nz/=nl;
+      var dot=-ny;                        // gravity (0,-1,0) dotted with the normal
+      var tx=-(0-dot*nx), ty=-(-1-dot*ny), tz=-(0-dot*nz);
+      var gv=-world.gravity.y*s.mass;     // weight
+      b.applyForce(new CANNON.Vec3(tx*gv, ty*gv, tz*gv), b.position);
+    }
+  }
+  if(grounded>=3 && sp>0.02){
+    /* the turn rate the steering dial asks for, in radians a second */
+    var full=YAW_MIN+Math.max(0,Math.min(1,s.steer))*(YAW_MAX-YAW_MIN);
+    var rate=steer*full*s.turn*fade*Math.min(1,sp/(s.topSpeed*0.3));
+    if(rate>s.maxYaw) rate=s.maxYaw; else if(rate<-s.maxYaw) rate=-s.maxYaw;
+    var ay=b.angularVelocity;
+    ay.y += (rate-ay.y)*Math.min(1, dt*s.yawSnap);
+
+  }
+  if(Math.abs(b.angularVelocity.y)>s.maxYaw)
+    b.angularVelocity.y=(b.angularVelocity.y<0?-1:1)*s.maxYaw;
+};
+/* Run AFTER the world step, not before it. Slide is the angle between where
+   the nose points and where the car is actually going, and it is set here
+   rather than left to the tyres: turning their friction down far enough to
+   slide also takes away the traction that gets the car moving - measured, 0 to
+   full speed went from 1.4 seconds to 8. So friction stays high for drive, and
+   GRIP decides how quickly the direction of travel catches the nose up. High
+   grip pins the two together; low grip lets the back hang out. Done before the
+   step the tyres simply undid it again within the same step. */
+Car.prototype.hold=function(dt){
+  var s=this.stats, b=this.body, v=this.vehicle;
+  var sf=surfaceAt(b.position.x,b.position.z);
+  for(var q=0;q<v.wheelInfos.length;q++){
+    var wq=v.wheelInfos[q];
+    if(wq.suspensionStiffness===0) continue;      // this corner is over the hole
+    wq.frictionSlip=tyreOf(s)*sf.grip;
+    if(wq.keep) wq.keep.fs=wq.frictionSlip;
+  }
+  /* Hills. The engine is sized to reach a modest top speed in a few seconds -
+     282 newtons on Dan's sedan - while the car weighs 9120 under this game's
+     heavy arcade gravity. On a 12 degree ramp the slope pulls 1896 newtons
+     backwards, nearly seven times what the engine makes, so the car slid back
+     down every ramp on the map no matter how the collider was built. The slope
+     is therefore paid for: the part of gravity that acts along the ground is
+     cancelled out, so a hill costs you nothing and the engine does the same job
+     it would on the flat. Arcade, deliberately. */
+  var grounded=0, nx=0, ny=0, nz=0, onRamp=0;
+  for(var w=0;w<v.wheelInfos.length;w++){
+    var wi=v.wheelInfos[w];
+    if(!wi.isInContact) continue;
+    grounded++;
+    var rb=wi.raycastResult.body;
+    if(rb && rb.collisionFilterGroup===RAMP_GROUP){
+      onRamp++;
+      var n=wi.raycastResult.hitNormalWorld;
+      if(n){ nx+=n.x; ny+=n.y; nz+=n.z; }
+    }
+  }
+  /* Only on a ramp, and nowhere else. Applied whenever the ground was merely
+     not-quite-level it cost the car half its acceleration on the flat - 0 to
+     90% went from 1.4 seconds to 3.2 - because a contact normal is never
+     exactly straight up. */
+  if(onRamp>0){
+    var nl=Math.sqrt(nx*nx+ny*ny+nz*nz);
+    if(nl>1e-6){
+      nx/=nl; ny/=nl; nz/=nl;
+      var dot=-ny;                        // gravity (0,-1,0) dotted with the normal
+      var tx=-(0-dot*nx), ty=-(-1-dot*ny), tz=-(0-dot*nz);
+      var gv=-world.gravity.y*s.mass;     // weight
+      b.applyForce(new CANNON.Vec3(tx*gv, ty*gv, tz*gv), b.position);
+    }
+  }
+  if(grounded<3) return;
+  var vel=b.velocity, was=Math.hypot(vel.x,vel.z);
+  if(was<0.02) return;
+  var hc=this.headingDeg()*Math.PI/180, hv=Math.atan2(-vel.z,vel.x);
+  var sl=((hv-hc+Math.PI*3)%(Math.PI*2))-Math.PI;        // signed slip angle
+  sl+=b.angularVelocity.y*dt;                            // the nose ran ahead
+  var surf=surfaceAt(b.position.x,b.position.z);
+  sl*=Math.max(0,1-Math.min(1,dt*s.grip*surf.grip*12));  // travel catches up
+  if(sl>MAX_SLIP) sl=MAX_SLIP; else if(sl<-MAX_SLIP) sl=-MAX_SLIP;
+  var a2=hc+sl;
+  vel.x=Math.cos(a2)*was; vel.z=-Math.sin(a2)*was;
+};
+/* Physics runs at a fixed 120Hz and the screen does not, so a frame almost
+   never lands on a step boundary - some frames get two steps, some one, and
+   drawing the raw body position makes that stutter visible. Each step remembers
+   where the car was, and the frame draws between the last two by how far
+   through the current step it is. */
+Car.prototype.mark=function(){
+  if(!this.p0) this.p0=new THREE.Vector3();
+  this.p0.copy(this.body.position);
+};
+/* ---- the arcade model ---------------------------------------------------
+   Drift's update, step for step, with a height channel bolted on. */
+Car.prototype.driveArcade=function(dt, steerIn){
+  var s=this.stats, b=this.body, A=this.arcStats||(this.arcStats=arcStatsFor(this.model));
+  var a=this.arc || (this.arc={vx:0, vz:0, ang:0, vy:0, air:false, init:false});
+  if(!a.init){ a.ang=this.headingDeg()*Math.PI/180; a.pitch=0; a.init=true; }
+  var f=dt*60;                                   // drift counts in 60Hz frames
+  var PX=s.len/ARC.carPx;                        // pixels -> world units
+  var surf=surfaceAt(b.position.x,b.position.z);
+  var grip=A.roadGrip*surf.grip;
+  var maxSpeed=Math.max(HANDICAP.floor, A.maxSpeed-(G.slow||0))*surf.speed*easyFactor();
+  var speed=Math.hypot(a.vx,a.vz);
+
+  /* steering turns the nose directly - the whole reason this feels sharp */
+  var steerEff=1/(1+speed*A.steerSpeedFactor);
+  a.ang += steerIn*A.steerRate*steerEff*f*Math.max(speed,0.5);
+
+  /* split the velocity into along-the-nose and across-it */
+  var fx=Math.cos(a.ang), fz=-Math.sin(a.ang);   // forward
+  var px=-fz, pz=fx;                             // across
+  var fwd=a.vx*fx + a.vz*fz;
+  var lat=a.vx*px + a.vz*pz;
+
+  fwd=(fwd + A.accel*f) * Math.pow(1-A.forwardDrag, f);
+  lat=lat * Math.pow(1-A.lateralDrag*slideFactor()*grip, f) * Math.pow(1-grip*A.gripBlend, f);
+
+  var slip=Math.abs(Math.atan2(lat, Math.abs(fwd)));
+  this.drifting = slip>A.driftThreshold && speed>0.8;
+  if(this.drifting){
+    var m=Math.pow(1-A.driftFriction*(slip/Math.PI), f);
+    fwd*=m; lat*=m;
+  }
+  /* Forward is capped, sideways is not. The cap is eased into rather than
+     snapped to: crossing from road onto sand cuts the ceiling by nearly forty
+     per cent, and taking that off in a single frame looks exactly like hitting
+     a wall - which is what the crash detector called it. Sand should bog you
+     down over a few tenths of a second, not stop you. */
+  if(fwd>maxSpeed) fwd=Math.max(maxSpeed, fwd-(fwd-maxSpeed)*Math.min(1,f*ARC.bogDown));
+  if(fwd<0) fwd*=Math.pow(0.95,f);
+
+  a.vx=fx*fwd + px*lat;
+  a.vz=fz*fwd + pz*lat;
+
+  var nx=b.position.x + a.vx*PX*f;
+  var nz=b.position.z + a.vz*PX*f;
+
+  /* Walls are slid along, not crashed into. Stopping dead on any contact made
+     every graze a full stop, and a full stop is what the crash detector reads
+     as a head-on - so clipping a kerb on the way to the finish rewound the
+     whole level. Now only the part of the velocity going INTO the wall is
+     taken away; whatever runs along it survives, minus a little scrub. Hit
+     something square and there is nothing left to run along, which stops the
+     car and counts as a crash exactly as it should. */
+  /* how much height this frame's travel is allowed to buy: a gradient, so a
+     slope is a slope whatever your speed. The floor under it lets a stopped
+     car still creep onto a kerb instead of being welded to the spot. */
+  var footY=b.position.y-this.rideH;
+  var run=Math.max(Math.hypot(nx-b.position.x, nz-b.position.z), s.len*0.3);
+  var rise=run*A.stepUp;
+
+  var boat=onWaterLevel();
+  var wall=sweptHit(this, b.position.x, b.position.z, nx, nz, a.ang);
+  if(!wall && !a.air && !boat && stepBlocked(this, nx, nz, footY, rise)){
+    /* into the side of a ramp or a deck: a face, not a climb. Stopping dead
+       is what the crash detector reads as an impact, which is the point. */
+    a.vx=0; a.vz=0;
+  }
+  else if(!wall){ b.position.x=nx; b.position.z=nz; }
+  else {
+    var wn=wall.x*a.vx + wall.z*a.vz;          // into the face if positive
+    if(wn>0){ wall.x=-wall.x; wall.z=-wall.z; wn=-wn; }
+    a.vx-=wall.x*wn; a.vz-=wall.z*wn;          // kill only the into-wall part
+    a.vx*=ARC.wallScrub; a.vz*=ARC.wallScrub;
+    nx=b.position.x + a.vx*PX*f; nz=b.position.z + a.vz*PX*f;
+    if(sweptHit(this, b.position.x, b.position.z, nx, nz, a.ang) ||
+       (!a.air && !boat && stepBlocked(this, nx, nz, footY, rise))){ a.vx=0; a.vz=0; }
+    else { b.position.x=nx; b.position.z=nz; }
+  }
+
+  /* ---- height: slopes, decks and jumps ----
+     The probe starts only as far above the wheels as this frame's climb
+     allowance, so a road half a unit over your head is invisible to it and you
+     drive under the bridge instead of being yanked onto it. In the air it
+     starts at the roof, because then anything below you is somewhere to land. */
+  var wet=surfaceAt(b.position.x,b.position.z).hole;
+  var probe=a.air ? b.position.y+this.height : (b.position.y-this.rideH)+rise+0.01;
+  /* A boat rides on the WATER, not on whatever the rays find. The river is
+     flat, so there is nothing to climb, and the bridges, slants and roads
+     crossing above it are things to pass under rather than obstacles or
+     surfaces - it simply floats at the water's own height until it runs out of
+     water, and then the hole rule takes over. */
+  var gy = boat ? (wet ? null : waterYAt(b.position.x,b.position.z))
+                : (wet ? null : groundAt(b.position.x, b.position.z, probe));
+  var want=(gy===null)? null : gy+this.rideH;
+  var maxRise=rise;
+  if(want!==null && !a.air && want-b.position.y<=maxRise){
+    /* on the ground: follow it. Rising is instant (that is the ramp), falling
+       is instant only for small drops - a bigger one means you have left the
+       ground and are in the air. */
+    if(want>=b.position.y-this.height*0.35){
+      b.position.y=want; a.vy=0;
+    } else { a.air=true; }
+  } else {
+    a.air=true;
+  }
+  if(a.air){
+    a.vy-=A.gravity*dt;
+    b.position.y+=a.vy*dt;
+    if(want!==null && b.position.y<=want){
+      b.position.y=want; a.vy=0; a.air=false;              // landed
+    }
+  }
+
+  /* ---- pitch: sit on the slope, not through it ----
+     A probe under the nose and another under the tail, and the angle between
+     them is how far the car should be tipped. This is what makes a slant look
+     like a slant to drive up rather than a step the car floats over, and it
+     costs two rays. Smoothed, so a seam between two tiles does not snap it. */
+  var hl=s.len*0.5, px2=Math.cos(a.ang), pz2=-Math.sin(a.ang);
+  var lift=Math.max(rise, this.height*0.6)+0.01;
+  var noseY=groundAt(b.position.x+px2*hl, b.position.z+pz2*hl, b.position.y-this.rideH+lift);
+  var tailY=groundAt(b.position.x-px2*hl, b.position.z-pz2*hl, b.position.y-this.rideH+lift);
+  var slope=(!a.air && !boat && noseY!==null && tailY!==null)
+            ? Math.atan2(noseY-tailY, s.len) : 0;   // a boat sits flat
+  if(slope> 0.9) slope= 0.9;
+  if(slope<-0.9) slope=-0.9;
+  if(a.pitch===undefined) a.pitch=0;
+  a.pitch += (slope-a.pitch)*Math.min(1, dt*12);
+
+  /* everything else in the game reads the body, so keep it honest */
+  b.velocity.set(a.vx*PX*60, a.vy, a.vz*PX*60);
+  var qy=new CANNON.Quaternion(), qp=new CANNON.Quaternion();
+  qy.setFromAxisAngle(new CANNON.Vec3(0,1,0), yawFromHeading(a.ang*180/Math.PI));
+  qp.setFromAxisAngle(new CANNON.Vec3(1,0,0), -a.pitch);
+  qy.mult(qp, b.quaternion);
+  b.angularVelocity.set(0,0,0);
+};
+Car.prototype.arcadeSpeed=function(){
+  if(!this.arc) return 0;
+  return Math.hypot(this.arc.vx,this.arc.vz)*(this.stats.len/ARC.carPx)*60;
+};
+Car.prototype.placeArcade=function(x,z,headingDeg){
+  this.arc={vx:0, vz:0, ang:headingDeg*Math.PI/180, vy:0, air:false, init:true};
+};
+Car.prototype.sync=function(alpha){
+  if(!this.mesh) return;
+  /* Position only. Slerping the rotation as well turned the whole car into NaN
+     and it vanished: cannon hands back a quaternion whose length is a hair over
+     1, so three's slerp took the square root of a very small negative number.
+     Eight milliseconds of rotation is invisible anyway - it is the position
+     that shows as judder - so the rotation is simply copied. */
+  this.mesh.quaternion.copy(this.body.quaternion);
+  if(this.p0 && alpha>0 && alpha<1)
+    this.mesh.position.lerpVectors(this.p0, this.body.position, alpha);
+  else
+    this.mesh.position.copy(this.body.position);
+  this.mesh.position.y += (this.lift||0);        // picture only
+  /* The body rides lower as the springs compress, so a fixed offset buries the
+     model in the road. Hang it off the live suspension instead. */
+  var w=this.vehicle.wheelInfos, n=0, sum=0;
+  for(var i=0;i<w.length;i++){ if(w[i].isInContact){ sum+=w[i].suspensionLength; n++; } }
+  var len=n? sum/n : (this.rest-this.sag);
+  /* Averaged, then low-passed. Taking the single most compressed corner made
+     the body copy every wheel's twitch, which reads as bobbling even when the
+     chassis itself is steady. */
+  this.susSmooth = (this.susSmooth===undefined) ? len : this.susSmooth+(len-this.susSmooth)*0.18;
+  this.model3d.position.y=this.drop-(this.wr+this.susSmooth);
+};
+Car.prototype.headingDeg=function(){
+  if(DRIVE_MODEL==='arcade'&&this.arc&&this.arc.init)
+    return this.arc.ang*180/Math.PI;
+  var f=new CANNON.Vec3(0,0,1);
+  this.body.quaternion.vmult(f,f);
+  return Math.atan2(-f.z, f.x)*180/Math.PI;
+};
+Car.prototype.remove=function(){
+  if(this.vehicle) this.vehicle.removeFromWorld(world);
+  if(this.mesh) scene.remove(this.mesh);
+};
+
+/* ---- a finished run, replayed and solid ---- */
+function Ghost(model,path,offset,scaleMul){
+  this.path=path; this.offset=offset; this.model=model; this.sc=scaleMul||1;
+  this.body=null; this.mesh=null; this.live=false;
+}
+Ghost.prototype.load=function(){
+  var self=this;
+  return loadModel('cars',this.model).then(function(src){
+    var o=src.clone(true); o.scale.setScalar(self.sc); o.updateMatrixWorld(true);
+    var pb=new THREE.Box3().setFromObject(o); o.position.y=-pb.min.y;
+    o.traverse(function(m){ if(m.isMesh){ m.castShadow=true;
+      m.material=m.material.clone(); m.material.transparent=true; m.material.opacity=0.92; }});
+    o.updateMatrixWorld(true);
+    var bb=new THREE.Box3().setFromObject(o), size=bb.getSize(new THREE.Vector3());
+    var mesh=new THREE.Group(); mesh.add(o); mesh.visible=false; scene.add(mesh);
+    var body=new CANNON.Body({mass:0, type:CANNON.Body.KINEMATIC, material:CAR_MAT});
+    body.addShape(new CANNON.Box(new CANNON.Vec3(size.x/2,size.y/2,size.z/2)),
+                  new CANNON.Vec3(0,size.y/2,0));
+    body.collisionResponse=true;
+    world.addBody(body);
+    self.body=body; self.mesh=mesh; self.half=size.y/2;
+    self.len=Math.max(size.x,size.z);       // for the nose and tail probes
+    self.lift=liftFor(self.model);          // the same visual nudge as the car
+    self.pitch=0;
+    self.park();
+    return self;
+  });
+};
+Ghost.prototype.park=function(){ this.body.position.set(0,-500,0); this.mesh.visible=false; this.live=false; };
+/* where a recorded run was at time t, interpolated between samples */
+function sampleRec(p,rt){
+  if(!p||!p.length) return null;
+  var last=p[p.length-1], done=false;
+  if(rt>last.t){ rt=last.t; done=true; }
+  var i=Math.min(p.length-1, Math.max(0, Math.floor(rt*REC_HZ)));
+  var a=p[i], b=p[Math.min(p.length-1,i+1)];
+  var span=(b.t-a.t)||1e-6, k=Math.max(0,Math.min(1,(rt-a.t)/span));
+  var d=((b.h-a.h+540)%360)-180;
+  return {x:a.x+(b.x-a.x)*k, y:a.y+(b.y-a.y)*k, z:a.z+(b.z-a.z)*k,
+          h:a.h+d*k, done:done};
+}
+/* hold: keep the car on screen at the start of its path instead of parking it
+   out of sight. The rewind winds the clock back past every car's start time,
+   and the point of watching it is seeing them all retrace their runs - not
+   seeing them wink out one by one until only yours is left. */
+Ghost.prototype.at=function(t,hold){
+  var p=this.path, rt=t-this.offset;
+  if(!p.length){ if(this.live) this.park(); return; }
+  if(rt<0){ if(!hold){ if(this.live) this.park(); return; } rt=0; }
+  var at=sampleRec(p,rt);
+  var x=at.x, y=at.y, z=at.z, h=at.h;
+  /* A run that has already finished is parked at its goal. It must stop being
+     something to crash into, or the finish line fills up with wrecks. */
+  this.body.collisionResponse=!at.done;
+  this.body.collisionFilterMask=at.done?0:1;
+  /* Tilt to the ground, the same way the car you are driving does - a probe
+     under the nose and one under the tail. Without it the replay cars sail up
+     the ramps and over the bridge perfectly level, which reads as floating.
+     The probe starts just above the recorded height, so a car under a bridge
+     measures the road it is on and not the deck over its head. */
+  var hr=h*Math.PI/180, fx=Math.cos(hr), fz=-Math.sin(hr), hl=this.len*0.5;
+  var lift=y+this.len*0.35;
+  var ny=groundAt(x+fx*hl, z+fz*hl, lift), ty=groundAt(x-fx*hl, z-fz*hl, lift);
+  var want=(ny!==null&&ty!==null) ? Math.atan2(ny-ty, this.len) : 0;
+  if(want> 0.9) want= 0.9;
+  if(want<-0.9) want=-0.9;
+  /* snap on a big change - that is a rewind scrubbing, not a slope */
+  this.pitch = Math.abs(want-this.pitch)>0.5 ? want : this.pitch+(want-this.pitch)*0.35;
+
+  var qy=new CANNON.Quaternion(), qp=new CANNON.Quaternion();
+  qy.setFromAxisAngle(new CANNON.Vec3(0,1,0), yawFromHeading(h));
+  qp.setFromAxisAngle(new CANNON.Vec3(1,0,0), -this.pitch);
+  this.body.position.set(x,y,z);
+  qy.mult(qp, this.body.quaternion);
+  this.mesh.position.set(x,y+(this.lift||0),z);        // picture only
+  this.mesh.quaternion.copy(this.body.quaternion);
+  this.mesh.visible=true; this.live=true;
+};
+Ghost.prototype.remove=function(){ world.removeBody(this.body); scene.remove(this.mesh); };
+
+/* ==========================================================================
+   markers - the goal plate, its chevrons, and the "go this way" arrow
+   ========================================================================== */
+function flat(w,d,col,y,op){
+  var m=new THREE.Mesh(new THREE.PlaneGeometry(w,d),
+    new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op===undefined?1:op,
+      depthWrite:false,side:THREE.DoubleSide}));
+  m.rotation.x=-Math.PI/2; m.position.y=y; return m;
+}
+function chevron(col){
+  var s=new THREE.Shape();
+  s.moveTo(0,0.55); s.lineTo(0.62,-0.18); s.lineTo(0.38,-0.42);
+  s.lineTo(0,0.06); s.lineTo(-0.38,-0.42); s.lineTo(-0.62,-0.18);
+  s.closePath();
+  var m=new THREE.Mesh(new THREE.ShapeGeometry(s),
+    new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.95,depthWrite:false}));
+  m.rotation.x=-Math.PI/2; return m;
+}
+/* The finish is the RED LINE, not the plate. The plate is 3 long by 1 wide in
+   its own frame, and the red band lies across the far short end at local x =
+   GOAL_LINE. You win by crossing that line, travelling the way the chevrons
+   point, inside the plate's width. Drawing and detection share these numbers
+   so the line you see is exactly the line you have to cross. */
+var GOAL_LINE=1.4, GOAL_BAND=0.2, GOAL_HALF=0.55;
+/* where the three chevrons sit along the plate, in its own frame */
+var CHEV_STEP=2/3, CHEV_0=-1.5+0.5*CHEV_STEP;
+function buildGoal(goal,water){
+  var g=new THREE.Group();
+  /* Nothing is drawn where the line is - it is invisible, and the three low
+     chevrons over the approach are the only marker. The line is still exactly
+     where GOAL_LINE says, and crossing it is still what wins. */
+  var chevs=new THREE.Group();
+  for(var i=0;i<3;i++){
+    var c=chevron(0xffd32a);
+    c.rotation.z=-Math.PI/2;                 // point along +X
+    c.scale.setScalar(0.55);
+    c.position.set(CHEV_0+i*CHEV_STEP, 0.09, 0);
+    c.userData.i=i; chevs.add(c);
+  }
+  g.add(chevs); g.userData.chevs=chevs;
+  g.position.set(goal.x,0,goal.z);
+  g.rotation.y=(goal.rot||0)*Math.PI/180;
+  scene.add(g);
+  return g;
+}
+/* A point along the goal plate's own axis, in world space. 0 is the plate's
+   centre, GOAL_LINE is the middle of the red line. */
+function goalAxis(goal, at){
+  var t=(goal.rot||0)*Math.PI/180;
+  return {x:goal.x + at*Math.cos(t), z:goal.z - at*Math.sin(t)};
+}
+/* The middle of the red line - the point you are actually driving at. */
+function goalPoint(goal){ return goalAxis(goal, GOAL_LINE); }
+/* The FIRST of the three chevrons, where the approach begins. The little
+   arrow by the car aims here rather than at the line itself: you want to be
+   sent to the mouth of the run-in, lined up with it, not cutting across the
+   scenery to the finish. */
+function goalMouth(goal){ return goalAxis(goal, CHEV_0); }
+/* What the little arrow by the car should be aiming at right now. Far out it
+   sends you to the mouth of the run-in, so you arrive lined up with the
+   chevrons rather than cutting across the scenery. Once you are there - level
+   with the first chevron and roughly between its edges, or simply close to it
+   - the mouth has done its job and the arrow hands over to the middle of the
+   line, which is the thing you actually have to cross. */
+var HINT_HANDOVER=1.2;
+function hintTarget(goal, pos){
+  var q=goalLocal(pos), m=goalMouth(goal);
+  if((q.lx>=CHEV_0 && Math.abs(q.lz)<=GOAL_HALF+0.65) ||
+     Math.hypot(pos.x-m.x, pos.z-m.z)<HINT_HANDOVER) return goalPoint(goal);
+  return m;
+}
+/* A small chevron that hangs off the car while you drive, pointing at the goal.
+   Deliberately faint - it is a glance, not a HUD. */
+function buildHint(){
+  var g=new THREE.Group();
+  var c=chevron(0xffd32a);
+  c.rotation.z=-Math.PI/2;
+  c.material.opacity=0.3;
+  g.add(c); g.visible=false;
+  scene.add(g); return g;
+}
+function placeHint(g,car,goal){
+  if(!g||!car) return;
+  var p=car.body.position, len=car.stats.len;
+  var dx=goal.x-p.x, dz=goal.z-p.z, d=Math.hypot(dx,dz);
+  if(d<1e-4){ g.visible=false; return; }
+  var ux=dx/d, uz=dz/d, r=len*2.4;             // just off the car's nose
+  g.position.set(p.x+ux*r, len*0.55, p.z+uz*r);
+  g.rotation.y=Math.atan2(-uz,ux);
+  g.children[0].scale.setScalar(len*0.9);
+  g.visible=true;
+}
+/* the intro arrow: a dashed run of chevrons from the car to the goal */
+function buildGuide(from,to){
+  var g=new THREE.Group(), dx=to.x-from.x, dz=to.z-from.z;
+  var len=Math.hypot(dx,dz), ang=Math.atan2(-dz,dx);
+  var n=Math.max(18,Math.min(156,Math.round(len/2.6)*6));
+  for(var i=0;i<n;i++){
+    var c=chevron(0xffd32a);
+    c.scale.setScalar(0.28125);
+    c.rotation.z=-Math.PI/2;
+    /* the route to the goal is guidance, not scenery: draw it over everything,
+       so a building or a bridge between you and the goal cannot hide it */
+    c.material.depthTest=false;
+    c.material.depthWrite=false;
+    c.renderOrder=999;
+    var k=(i+1)/(n+1);
+    c.position.set(from.x+dx*k, 0.3, from.z+dz*k);
+    c.rotation.y=0;
+    c.userData.i=i; c.userData.n=n;
+    var holder=new THREE.Group();
+    holder.position.copy(c.position); c.position.set(0,0,0);
+    holder.rotation.y=ang; holder.add(c); holder.userData.i=i; holder.userData.n=n;
+    g.add(holder);
+  }
+  scene.add(g); return g;
+}
+function pulseChevrons(group,t,spacing){
+  group.children.forEach(function(h){
+    var m=h.children[0]||h;
+    var ph=(t*1.6 - (h.userData.i||0)*(spacing||0.22))%1;
+    if(ph<0) ph+=1;
+    var a=0.25+0.75*Math.max(0,1-Math.abs(ph-0.25)*3);
+    (m.material||{}).opacity=a;
+    m.position.y=(m.position.y||0);
+  });
+}
+
+/* ==========================================================================
+   camera
+   ========================================================================== */
+var CAM_ASPECT=1333/690;
+var VIEW={mode:'macro', x:0, y:60, z:0, tx:0, tz:0, tween:0};
+/* The chase rig is a FIXED offset from the car, measured in car lengths so it
+   holds at any vehicle scale. The camera never turns - it only slides - so the
+   world keeps one orientation for the whole run and "up the screen" is always
+   -z, exactly as in the zoomed-out view. Tilt is set by back/height alone:
+   atan(8.25/9), a little over 40 degrees off vertical. */
+var CHASE={height:9, back:8.25, side:0, lag:0.12};
+var TWEEN_SECS=1.0;   // macro <-> micro, both ways
+
+/* ==========================================================================
+   Two views, and one rule that ties them together: the scene camera's
+   rectangle is the whole of the world you are ever shown.
+
+   MACRO sits directly over the rectangle's centre looking straight down, at
+   exactly the height where its top and bottom edges land on the top and bottom
+   edges of the viewport.
+
+   MICRO holds a fixed offset from the car and never turns, and is slid along z
+   until nothing above the rectangle's top edge or below its bottom edge is in
+   frame - the clamp is on what the camera can SEE, not on where it sits.
+
+   Both are described as {pos, look, up} so the switch between them is a
+   one-second tween of three vectors.
+   ========================================================================== */
+function vfov(){ return cam.fov*Math.PI/180; }
+
+function macroPlace(L){
+  var h=L.cam.w/CAM_ASPECT;                    // the rectangle's depth in z
+  /* straight down: the ground height in view is 2*d*tan(fov/2), so the height
+     that puts the rectangle's two edges exactly on the viewport's two edges */
+  var d=h/(2*Math.tan(vfov()/2));
+  return {pos:new THREE.Vector3(L.cam.x, d, L.cam.z),
+          look:new THREE.Vector3(L.cam.x, 0, L.cam.z),
+          up:new THREE.Vector3(0,0,-1)};       // -z is up the screen
+}
+
+/* How far in front of and behind the camera the ground is visible, given the
+   fixed tilt. A ray leaving the camera at depression angle t reaches the
+   ground H/tan(t) away, so the top of the screen is the shallow ray and the
+   bottom of the screen is the steep one. */
+function microReach(H,B){
+  var f=vfov()/2, phi=Math.atan2(H,B), lo=phi-f, hi=phi+f;
+  var TOO_FAR=1e6;
+  return {ahead: lo>0.02 ? H/Math.tan(lo) : TOO_FAR,   // toward -z, top of screen
+          behind: H/Math.tan(Math.min(hi, Math.PI/2-0.01))};
+}
+function microPlace(L,car){
+  var p=car.body.position, len=car.stats.len;
+  var OX=CHASE.side*len, H=Math.max(2,CHASE.height*len), B=Math.max(2,CHASE.back*len);
+  var r=microReach(H,B);
+  /* what the camera would see if it sat straight behind the car */
+  var want=p.z+B;
+  /* top of screen is at (z - ahead), bottom at (z - behind); keep both inside */
+  var lo=Math.min(L.zLo,L.zHi), hi=Math.max(L.zLo,L.zHi);
+  var min=lo+r.ahead, max=hi+r.behind;
+  var z = (min<=max) ? Math.max(min,Math.min(max,want))
+                     : (min+max)/2;            // band too shallow to fit: centre it
+  return {pos:new THREE.Vector3(p.x+OX, H, z),
+          look:new THREE.Vector3(p.x+OX, 0, z-B),
+          up:new THREE.Vector3(0,1,0)};
+}
+
+/* the smoothed camera state, so a cut never happens mid-run */
+var VIEW={pos:new THREE.Vector3(), look:new THREE.Vector3(), up:new THREE.Vector3(0,1,0),
+          live:false};
+function applyPlace(q){
+  cam.position.copy(q.pos);
+  cam.up.copy(q.up).normalize();
+  cam.lookAt(q.look);
+}
+function blendPlace(a,b,k){
+  var up=new THREE.Vector3().lerpVectors(a.up,b.up,k);
+  if(up.lengthSq()<1e-6) up.copy(b.up);
+  return {pos:new THREE.Vector3().lerpVectors(a.pos,b.pos,k),
+          look:new THREE.Vector3().lerpVectors(a.look,b.look,k),
+          up:up.normalize()};
+}
+function ease(k){ return k<0.5 ? 4*k*k*k : 1-Math.pow(-2*k+2,3)/2; }
+
+/* Follow the car with a little lag, but only once the tween has landed - while
+   the view is still swinging out of macro the tween owns the camera. */
+function chaseCam(L,car,dt,snap){
+  var want=microPlace(L,car);
+  if(snap||!VIEW.live){ VIEW.pos.copy(want.pos); VIEW.look.copy(want.look); VIEW.live=true; }
+  else{
+    var k=1-Math.pow(0.001,dt/Math.max(0.0001,CHASE.lag));
+    VIEW.pos.lerp(want.pos,k); VIEW.look.lerp(want.look,k);
+  }
+  VIEW.up.copy(want.up);
+  return {pos:VIEW.pos.clone(), look:VIEW.look.clone(), up:VIEW.up.clone()};
+}
+function macroCam(L){ applyPlace(macroPlace(L)); VIEW.live=false; }
+
+/* ==========================================================================
+   game state
+   ========================================================================== */
+var G={
+  scene:null, levelIdx:0, phase:'intro',      // intro | driving | won | lost | done
+  clock:0, runT:0, slow:0, bumps:0,
+  car:null, ghosts:[], goal:null, goalAt:null, guide:null, hint:null, camT:0, wonAt:0, crashFrom:0, clockAt:0, paused:false, onRamp:false, hop:null, nextScene:null,
+  rec:[], recAt:0, runs:[], stall:0, roll:0, wasSp:0, cool:0, flash:0,
+  steer:0, started:false, vehScale:1,
+  open:false                                 // the reel's title card is waiting
+};
+
+/* One camera per SCENE, not per level: it is the opening view for every run in
+   the scene, and its own top and bottom edges are how far the chase camera may
+   travel. Nothing else sets the limits. */
+function sceneCam(sc){
+  if(sc.cam) return sc.cam;
+  /* an older save: the camera lived on the levels, with separate z bounds */
+  var first=(sc.levels||[]).filter(function(l){ return l.cam; })[0];
+  if(first) return (sc.cam={x:first.cam.x, z:first.cam.z, w:first.cam.w});
+  var top=(sc.zTop===undefined?-14:sc.zTop), bot=(sc.zBot===undefined?14:sc.zBot);
+  return (sc.cam={x:0, z:(top+bot)/2, w:Math.max(4,Math.abs(bot-top)*CAM_ASPECT)});
+}
+function levelBounds(sc){
+  var c=sceneCam(sc), h=c.w/CAM_ASPECT;
+  return {zLo:c.z-h/2, zHi:c.z+h/2, cam:c};
+}
+
+/* Scene and level, written to the corner and to the card between levels */
+function reelName(){
+  var pl=placeOf(G.sceneIdx||0);
+  return pl ? pl.name : ((G.scene&&G.scene.name)||reelWord());
+}
+function whereText(){
+  if(!G.scene) return '';
+  return reelName()+' \u00b7 '+runWord()+' '+(G.levelIdx+1)+
+         ' of '+G.scene.levels.length;
+}
+function setWhere(){
+  var e=document.getElementById('lvlTag');
+  if(!e||!G.scene) return;
+  e.innerHTML='<b>'+runWord()+' '+(G.levelIdx+1)+' / '+G.scene.levels.length+'</b>'+
+              '<i>'+reelWord()+' '+((G.sceneIdx||0)+1)+' \u00b7 '+esc(reelName())+'</i>';
+}
+function showCard(){
+  var c=document.getElementById('card');
+  var lv=G.scene&&G.scene.levels[G.levelIdx];
+  var model=(lv&&lv.veh&&lv.veh.model)||'sedan';
+  var d=driverOf(model);
+  c.querySelector('.where').textContent=whereText();
+  c.querySelector('.who').textContent=d.name||'Someone';
+  c.querySelector('.blurb').textContent=
+    lineFor(G.sceneIdx||0, G.levelIdx) ||
+    'No story yet \u2014 add a line for this driver in data/story.json.';
+  c.querySelector('.mug span').textContent=(d.name||'?').charAt(0).toUpperCase();
+  var im=c.querySelector('.mug img');
+  im.onerror=function(){ this.style.display='none'; };
+  im.style.display='';
+  im.src=d.img||'';
+  c.classList.remove('done','place'); c.classList.remove('out');
+}
+/* THE TITLE BEAT. A reel is a place, so it gets announced like one before the
+   first driver turns up: where you are, what sort of place it is, and the one
+   line the location carries. It waits. Nothing in the story moves itself on -
+   every beat is a press, so a reader as slow or as quick as they like is never
+   hurried and never left behind. The press that clears it does not also set the
+   car off; that is the next press. */
+function showPlace(){
+  var c=document.getElementById('card'), pl=placeOf(G.sceneIdx||0);
+  if(!pl){ G.open=false; return; }
+  c.querySelector('.where').textContent=
+    reelWord()+' '+((G.sceneIdx||0)+1)+' of '+ROUTES.scenes.length;
+  c.querySelector('.who').textContent=pl.kind||'';
+  c.querySelector('.blurb').innerHTML=esc(pl.name)+'<i>'+esc(pl.line||'')+'</i>';
+  c.querySelector('.mug span').textContent=String((G.sceneIdx||0)+1);
+  var im=c.querySelector('.mug img'); im.style.display='none'; im.src='';
+  c.classList.remove('done'); c.classList.add('place'); c.classList.remove('out');
+}
+/* The same card, at the end of a reel: <place> complete, with the reel's own
+   time under it and a tick instead of a face. */
+/* The very end: no time, no target, no best - just how it turned out. */
+function showEnd(){
+  var c=document.getElementById('card'), a=arcOf(G.sceneIdx||0);
+  c.querySelector('.where').textContent='The end';
+  c.querySelector('.who').textContent=driverOf('sedan').name||'';
+  c.querySelector('.blurb').innerHTML=
+    esc((a&&a.end)||'Everybody got where they were going.')+
+    '<i>press to go back to the arcade</i>';
+  c.querySelector('.mug span').textContent='\u2605';
+  var im=c.querySelector('.mug img'); im.style.display='none'; im.src='';
+  c.classList.remove('place'); c.classList.add('done'); c.classList.remove('out');
+}
+function showDone(secs, pb){
+  var c=document.getElementById('card');
+  c.querySelector('.where').textContent=
+    reelWord()+' '+((G.sceneIdx||0)+1)+' of '+ROUTES.scenes.length+
+    '  \u00b7  '+G.runs.length+' '+runWord().toLowerCase()+(G.runs.length===1?'':'s');
+  c.querySelector('.who').textContent=secs.toFixed(1)+'s';
+  c.querySelector('.blurb').innerHTML=esc(reelName())+' complete'+
+    '<i>'+(pb ? whoName()+'\u2019s best here yet' : 'watching the whole reel back')+'</i>';
+  c.querySelector('.mug span').textContent='\u2713';
+  var im=c.querySelector('.mug img'); im.style.display='none'; im.src='';
+  c.classList.add('done'); c.classList.remove('out');
+}
+function hideCard(){
+  var c=document.getElementById('card');
+  c.classList.add('out'); c.classList.remove('done','place');
+}
+/* the teaching overlay: first run of the first reel, until the first steer */
+function teachShow(on){
+  var e=document.getElementById('teach'); if(e) e.classList.toggle('on',!!on);
+}
+function teachCheck(){
+  teachShow(G.phase==='driving' && (G.sceneIdx||0)===0 && G.levelIdx===0 &&
+            !G.steer && G.runT<6);
+}
+function banner(text,sub,cls){
+  var b=document.getElementById('banner');
+  b.querySelector('b').textContent=text;
+  b.querySelector('span').textContent=sub||'';
+  b.className=(cls||'')+' on';
+}
+function hideBanner(){ document.getElementById('banner').className=''; }
+var SPD_LOCK='<svg class="lk" viewBox="0 0 24 24" aria-hidden="true">'+
+  '<path d="M12 1.6a4.6 4.6 0 0 0-4.6 4.6V9H6.3A1.3 1.3 0 0 0 5 10.3v10.4A1.3 1.3 0 0 0 6.3 22h11.4a1.3 1.3 0 0 0 1.3-1.3V10.3A1.3 1.3 0 0 0 17.7 9h-1.1V6.2A4.6 4.6 0 0 0 12 1.6zm0 2.2a2.4 2.4 0 0 1 2.4 2.4V9H9.6V6.2A2.4 2.4 0 0 1 12 3.8z"/></svg>';
+var SPD_BOLT='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.6 2 4.8 13.7h5.3L9.5 22l8.7-11.7h-5.3z"/></svg>';
+/* The badge beside the pause button: how much of its top speed the car has
+   left. Normally silent at 100%; once a crash has taken a notch off it goes
+   amber and clicking it hands the speed straight back. */
+/* What the badge counts is the HANDICAP, not the difficulty. Easy mode is a
+   choice, not damage: with easyFactor in here the badge sat at 80 from the
+   moment you picked Easy, wore the damaged colour all game and could never be
+   locked, because every click read as "give me my speed back". */
+function powerPct(){
+  var base=(DRIVE_MODEL==='arcade') ? arcStatsFor(G.car?G.car.model:'sedan').maxSpeed : ABASE.maxSpeed;
+  if(!base) return 100;
+  return Math.round(Math.max(HANDICAP.floor, base-(G.slow||0))/base*100);
+}
+function setSpeedTag(){
+  var e=document.getElementById('spd'); if(!e) return;
+  var pc=powerPct(), cut=(G.slow||0)>0;
+  /* lock on the left, number, bolt on the right */
+  e.innerHTML=(OPT.lock?SPD_LOCK:'')+'<i>'+pc+'</i>'+SPD_BOLT;
+  e.classList.toggle('cut', cut);
+  e.classList.toggle('lock', !!OPT.lock && !cut);
+  e.title = cut
+    ? 'power '+pc+' after '+(G.bumps||0)+' crashes on this level \u2014 click to give it back'
+    : OPT.lock
+      ? 'power locked \u2014 crashes will not slow you down. Click to unlock.'
+      : 'power'+(G.bumps ? ' \u2014 '+G.bumps+' of '+HANDICAP.free+' free crashes used' : '')+
+        ' \u2014 click to lock it here';
+}
+function setClock(v){
+  var t=Math.max(0,v);
+  clockEl.innerHTML=Math.floor(t)+'<small>.'+Math.floor((t*10)%10)+'</small>';
+}
+
+function clearLevel(){
+  if(G.car) G.car.remove();
+  G.ghosts.forEach(function(g){ g.remove(); });
+  if(G.goal) scene.remove(G.goal);
+  if(G.guide) scene.remove(G.guide);
+  if(G.hint) scene.remove(G.hint);
+  G.car=null; G.ghosts=[]; G.goal=null; G.guide=null; G.hint=null;
+}
+
+function startStage(sc){
+  G.scene=sc; G.sceneIdx=ROUTES.scenes.indexOf(sc);
+  G.levelIdx=0; G.clock=0; G.runs=[]; G.slow=0; G.bumps=0;
+  setWhere();
+  /* The last reel is the ending, not a stage: it is one run, it is not timed
+     and nothing about it goes in the high scores. */
+  document.getElementById('clock').style.display=isFinale()?'none':'';
+  G.open=true; showPlace();
+  var sel=document.getElementById('devScene');
+  if(sel) sel.value=String(ROUTES.scenes.indexOf(sc));
+  loadLevel();
+}
+
+/* ==========================================================================
+   A testing strip, not a feature: jump to a scene, and one save slot on S / L
+   that remembers where you were and the runs you had already banked, so a
+   later level can be tried again without driving the earlier ones each time.
+   ========================================================================== */
+function setPaused(on){
+  G.paused=!!on;
+  /* Nothing should still be making a noise behind the pause menu. The engine is
+     a held tone rather than a one-shot, and while paused the frame loop turns
+     round before it reaches engineAt, so the last value it was given would sit
+     there droning for as long as the menu is up. The bumps and blips are all
+     shorter than the press that opened the menu, and the tape keeps playing on
+     purpose - it is the one thing that should not stop. */
+  if(G.paused && SND.engGain) SND.engGain.gain.value=0;
+  if(G.paused) buildMenu();
+  sheet('menu',G.paused);
+  document.getElementById('paused').classList.toggle('on',false);
+  document.getElementById('pause').classList.toggle('on',G.paused);
+  document.getElementById('pause').innerHTML=G.paused?'&#9654;':'&#10073;&#10073;';
+}
+
+var SLOT='dejavroom-quicksave';
+function devSay(t,stick){
+  var e=document.getElementById('devMsg');
+  e.textContent=t; clearTimeout(devSay.t);
+  if(stick){ devSay.home=t; return; }      // the data-source line stays put
+  devSay.t=setTimeout(function(){ e.textContent=devSay.home||''; },1800);
+}
+function quickSave(){
+  if(!G.scene) return;
+  try{
+    localStorage.setItem(SLOT, JSON.stringify({
+      scene:ROUTES.scenes.indexOf(G.scene),
+      level:G.levelIdx,
+      clock:G.clock, slow:G.slow||0, bumps:G.bumps||0,
+      runs:G.runs                       // the laps already banked as traffic
+    }));
+    devSay('saved \u00b7 level '+(G.levelIdx+1));
+  }catch(e){ devSay('save failed'); }
+}
+function quickLoad(){
+  var raw=null;
+  try{ raw=localStorage.getItem(SLOT); }catch(e){}
+  if(!raw){ devSay('nothing saved'); return; }
+  var d;
+  try{ d=JSON.parse(raw); }catch(e){ devSay('save unreadable'); return; }
+  var sc=ROUTES.scenes[d.scene];
+  if(!sc){ devSay('that scene is gone'); return; }
+  vhs(false);
+  G.scene=sc;
+  G.levelIdx=Math.min(d.level||0, sc.levels.length-1);
+  G.clock=(typeof d.clock==='number')?d.clock:0;
+  G.slow=d.slow||0; G.bumps=d.bumps||0;
+  G.runs=Array.isArray(d.runs)?d.runs:[];
+  setWhere();
+  document.getElementById('devScene').value=String(d.scene);
+  loadLevel();
+  devSay('loaded \u00b7 level '+(G.levelIdx+1)+' \u00b7 '+G.runs.length+' cars');
+}
+function buildDev(){
+  var md=document.getElementById('devModel');
+  try{ DRIVE_MODEL=localStorage.getItem('dejavroom-model')||'arcade'; }catch(e){}
+  md.value=DRIVE_MODEL;
+  md.onchange=function(){
+    DRIVE_MODEL=this.value;
+    try{ localStorage.setItem('dejavroom-model',DRIVE_MODEL); }catch(e){}
+    devSay(DRIVE_MODEL==='arcade'?'arcade handling':'simulated handling');
+    this.blur();
+    loadLevel();                       // restart the level on the new model
+  };
+  document.getElementById('pause').onclick=function(e){
+    e.stopPropagation(); setPaused(!G.paused); this.blur();
+  };
+  /* The badge does two jobs, and which one depends on whether you have lost
+     anything yet. Down on power, a click hands it back. Full, a click locks it
+     there - crashes stop costing you anything at all, which is the difference
+     between a corner you cannot take and an afternoon you cannot enjoy. The
+     lock is one of the driver's own switches, so it stays put between goes. */
+  document.getElementById('spd').onclick=function(e){
+    e.stopPropagation(); this.blur();
+    if(G.slow){ G.slow=0; G.bumps=0; setSpeedTag(); devSay('power restored'); return; }
+    OPT.lock=!OPT.lock; optSave(); setSpeedTag();
+    devSay(OPT.lock?'power locked \u2014 crashes cost nothing':'power unlocked');
+  };
+  /* The strip only shows with the switch on, so the mapper is what it WANTED
+     to load - saying data/ here means the store was empty and it fell back. */
+  devSay('city: '+(DATA_SRC==='mapper'?'mapper':'data/ \u2014 mapper store empty')+
+         '  \u00b7  handling: '+CFG_SRC, true);
+  var sel=document.getElementById('devScene');
+  sel.innerHTML='';
+  ROUTES.scenes.forEach(function(sc,i){
+    var o=document.createElement('option');
+    o.value=String(i);
+    var pl=placeOf(i);
+    o.textContent=reelWord()+' '+(i+1)+' \u00b7 '+((pl&&pl.name)||sc.name||'')+
+                  '  ('+sc.levels.length+')';
+    sel.appendChild(o);
+  });
+  sel.onchange=function(){ startStage(ROUTES.scenes[+this.value]); this.blur(); };
+}
+function loadLevel(){
+  clearLevel();
+  var sc=G.scene, lv=sc.levels[G.levelIdx];
+  if(!lv){ finishStage(true); return; }
+  /* A press held over from the last run does not carry into this one - the
+     player has to let go and press again to steer. */
+  G.phase='intro'; G.runT=0; G.rec=[]; G.recAt=0; G.started=false; G.steer=0;
+  if(window.dropHeld) dropHeld();
+  G.goalAt=null;
+  G.stall=0; G.roll=0; G.wasSp=0; G.lastSoft=undefined; G.cool=0; G.flash=0;
+  G.bounds=levelBounds(sc);
+  setWhere();
+  G.clockAt=G.clock;                   // what a crash on this level winds back to
+  G.bumps=0; G.slow=0; setSpeedTag();  // and the handicap is per level
+  G.goal=buildGoal(lv.goal, lv.water);
+  /* The run of chevrons on the opening view ends at the MOUTH of the goal -
+     the first of the three big arrows - not at the line itself, so it reads as
+     "come in this way" rather than "cut across to the finish". The little
+     arrow while you drive starts there too and hands over to the line once you
+     have arrived; see hintTarget. */
+  G.guide=buildGuide({x:lv.veh.x,z:lv.veh.z}, goalMouth(lv.goal));
+  G.hint=buildHint();
+  setClock(G.clock);
+  macroCam(G.bounds);
+
+  var jobs=[new Car(lv.veh.model, statsFor(lv.veh.model))
+              .spawn(lv.veh.x, lv.veh.z, lv.veh.rot||0, G.vehScale)
+              .then(function(c){ G.car=c; })];
+  G.runs.forEach(function(r){
+    var g=new Ghost(r.model,r.path,r.offset,G.vehScale);
+    jobs.push(g.load().then(function(){ G.ghosts.push(g); }));
+  });
+  Promise.all(jobs).then(function(){
+    /* Put the other cars on the board straight away. Nothing moves them until
+       you set off, so without this the opening view of a level shows an empty
+       road and the runs you banked look lost. */
+    G.ghosts.forEach(function(g){ g.at(G.runT,true); });
+    if(!G.open) showCard();           // the reel's title beat comes first
+  });
+}
+
+function beginRun(){
+  if(G.phase!=='intro'||!G.car) return;
+  G.phase='driving'; G.started=true; G.runT=0;
+  engineUp(); SFX.go();
+  hideCard(); teachCheck();
+  if(G.guide){ scene.remove(G.guide); G.guide=null; }
+  VIEW.live=false;                  // the chase starts from where the tween lands
+  G.camT=0;                         // 0 = macro, 1 = micro
+}
+
+/* Where a world point sits in the goal plate's own frame. The plate is drawn
+   with rotation.y = t, so world = Ry(t) * local and the way back in is Ry(t)
+   itself, not Ry(-t) - getting that sign wrong put the line on the far side. */
+function goalLocal(p){
+  var g=G.scene.levels[G.levelIdx].goal;
+  var dx=p.x-g.x, dz=p.z-g.z, t=(g.rot||0)*Math.PI/180;
+  return {lx:dx*Math.cos(t)-dz*Math.sin(t), lz:dx*Math.sin(t)+dz*Math.cos(t)};
+}
+/* Crossing, not touching. We test the line against the SEGMENT the car covered
+   this step, so a fast car cannot step straight over the band, and we take the
+   width at the point it actually cut the line rather than where it ended up. */
+function reachedGoal(){
+  var was=G.goalAt, now=goalLocal(G.car.body.position);
+  G.goalAt=now;
+  if(!was) return false;                               // first step, nothing to sweep
+  if(was.lx>=GOAL_LINE || now.lx<GOAL_LINE) return false;   // not a forward crossing
+  var k=(GOAL_LINE-was.lx)/(now.lx-was.lx);
+  return Math.abs(was.lz+(now.lz-was.lz)*k)<=GOAL_HALF;
+}
+function levelWon(){
+  G.phase='won'; SFX.win();
+  var lv=G.scene.levels[G.levelIdx];
+  G.runs.push({model:lv.veh.model, offset:lv.offset||0, path:G.rec});
+  banner('Made it','','win');
+  /* Your car has arrived, so it parks and stops being something to hit - the
+     next run must be able to drive over the line without piling into you. */
+  var b=G.car.body;
+  b.velocity.set(0,0,0); b.angularVelocity.set(0,0,0);
+  b.collisionResponse=false; b.collisionFilterMask=0; b.type=CANNON.Body.KINEMATIC;
+  b.sleep();
+  G.wonAt=G.runT;                       // the traffic carries on from here
+  G.dolly={t:0, from:{pos:cam.position.clone(),
+                      look:VIEW.look.clone(),
+                      up:cam.up.clone()}};
+}
+/* ==========================================================================
+   The rewind. Once the camera is back overhead, the whole scene runs
+   backwards to the start of the stage - every car, yours included, retraces
+   its own path - dressed up as a tape being wound back.
+   ========================================================================== */
+
+function vhs(on){
+  document.getElementById('vhs').classList.toggle('on',!!on);
+  document.getElementById('stage').classList.toggle('rew',!!on);
+}
+function playBack(t){
+  G.ghosts.forEach(function(g){ g.at(t,true); });
+  if(!G.car) return;
+  var lv=G.scene.levels[G.levelIdx];
+  var at=sampleRec(G.rec, t-(lv.offset||0));
+  if(!at) return;
+  G.car.body.position.set(at.x, Math.max(at.y,G.car.rideH), at.z);
+  G.car.body.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0), yawFromHeading(at.h));
+  G.car.sync();
+}
+function rewindStage(dt){
+  var span=Math.max(0.001, G.wonAt);
+  G.runT=Math.max(0, G.runT - dt*(span/Math.max(0.05,GCFG.winRewind)));
+  playBack(G.runT);
+  applyPlace(macroPlace(G.bounds));
+  if(G.runT<=0){
+    vhs(false); hideBanner();
+    G.levelIdx++;
+    if(G.levelIdx>=G.scene.levels.length) finishStage();
+    else loadLevel();
+  }
+}
+/* ==========================================================================
+   THE ENCORE
+
+   The last run of a reel is in, so every car that ever drove here is on the
+   board at once - and this is the only moment you get to see that. So before
+   the camera leaves for the next place it plays the lot back from above: all of
+   them away from their start lines together, the whole weave of near misses
+   you built one run at a time, then the tape takes the lot back and it goes
+   again, and again, for as long as you let it. Nothing times out here - the tape
+   goes round until somebody presses.
+
+   The forward leg is squeezed into ENCORE.play seconds when the reel is long -
+   fifteen runs can span half a minute and nobody wants that at walking pace
+   every time round - but it never plays SLOWER than it happened.
+   ========================================================================== */
+var ENCORE={play:5};
+/* How long the whole reel lasts on the shared clock: not just the last run,
+   because an earlier one may have started later or gone on longer. */
+function reelSpan(){
+  var s=G.wonAt||0;
+  (G.runs||[]).forEach(function(r){
+    if(r.path&&r.path.length)
+      s=Math.max(s,(r.offset||0)+r.path[r.path.length-1].t);
+  });
+  return Math.max(0.5,s);
+}
+function startEncore(){
+  var t=G.clock;
+  G.enc={t:0, back:false, loops:0, span:reelSpan()};
+  G.phase='encore';
+  hideBanner(); vhs(false);
+  SFX.stage();
+  if(isFinale()){ G.encPB=false; showEnd(); return; }
+  /* every other reel banks its own time here, which is what the title screen's
+     high scores are keyed on */
+  G.encPB=recordTime(G.sceneIdx||0, t);
+  showDone(t, G.encPB);
+}
+function encore(dt){
+  var e=G.enc, sp=e.span;
+  if(!e.back){
+    e.t+=dt*Math.max(1, sp/ENCORE.play);
+    if(e.t>=sp){ e.t=sp; e.back=true; vhs(true); SFX.rewind(); }
+  }else{
+    e.t-=dt*(sp/Math.max(0.05,GCFG.winRewind));
+    if(e.t<=0){ e.t=0; e.back=false; vhs(false); e.loops++; }
+  }
+  G.runT=e.t;
+  playBack(e.t);
+  applyPlace(macroPlace(G.bounds));
+}
+/* What used to happen the moment the last run landed, now that the encore has
+   had its turn: on to the next place, or the end of the game. */
+function encoreDone(){
+  vhs(false); hideCard(); hideBanner();
+  if(isFinale()){ goHome(); return; }
+  var next=ROUTES.scenes[ROUTES.scenes.indexOf(G.scene)+1];
+  if(!next){ finishStage(G.encPB); return; }
+  G.nextScene=next;
+  G.hop={t:0, from:macroPlace(G.bounds), to:macroPlace(levelBounds(next))};
+  G.phase='hopping';
+  banner(reelWord()+' clear',
+         (placeOf(ROUTES.scenes.indexOf(next))||{}).name||next.name||'', 'win');
+}
+/* The last reel is the end of the story rather than another stage: one run, no
+   clock, nothing scored. Keyed on being last so it stays true if Dan adds a
+   reel - whatever is at the end of the tape is the ending. */
+function isFinale(){
+  return !!(ROUTES&&ROUTES.scenes&&ROUTES.scenes.length&&
+            (G.sceneIdx||0)===ROUTES.scenes.length-1);
+}
+/* Out of the game and back to the title screen, with the tape rewound to the
+   top so the big button starts a fresh run through. buildHome redraws the high
+   scores on the way, so the times just set are already up there. */
+function goHome(){
+  vhs(false); hideCard(); hideBanner();
+  document.getElementById('clock').style.display='';
+  startStage(ROUTES.scenes[0]);
+  setPaused(false);
+  buildHome();
+}
+function levelLost(why){
+  G.phase='lost';
+  banner("Out of time", why||'tap to try the stage again','lose');
+}
+function finishStage(pb){
+  G.phase='done'; SFX.stage();
+  /* The clock counts up, so the number IS the score. The stage's own time is
+     the target to beat rather than a limit to survive. */
+  var t=G.clock, par=STAGE_SECONDS;
+  /* the encore has usually banked the time already - don't score it twice */
+  if(pb===undefined) pb=recordTime(G.sceneIdx||0, t);
+  banner(pb ? (whoName()+'\u2019s best yet') : (reelWord()+' clear'), t.toFixed(1)+'s' +
+         (par>0 ? (t<=par ? '  \u00b7  under the '+par+'s target by '+(par-t).toFixed(1)
+                          : '  \u00b7  '+(t-par).toFixed(1)+'s over the '+par+'s target')
+                : ''), 'win');
+}
+
+/* ==========================================================================
+   input
+   ========================================================================== */
+(function input(){
+  var st=document.getElementById('stage');
+  var held={};                                   // which buttons / pointers are down
+
+  function apply(){
+    var l=false,r=false;
+    for(var k in held){ if(held[k]<0) l=true; if(held[k]>0) r=true; }
+    G.steer = (l&&r)?0:(l?-1:(r?1:0));
+    if(G.steer) teachShow(false);
+    document.getElementById('touchL').classList.toggle('lit',l);
+    document.getElementById('touchR').classList.toggle('lit',r);
+  }
+  /* Returns false when the press was swallowed by a story beat or a restart.
+
+     The press that SETS OFF is swallowed on purpose. It is a tap to go, not a
+     tap to turn: counting it as a steer meant every run began with the car
+     veering to whichever side you happened to touch. Keep holding and nothing
+     happens either - let go and press again to steer.
+
+     ONE PRESS, ONE BEAT, and the latch that guarantees it is not paranoia. A
+     single touch reaches this twice: pointerdown fires, and then - unless that
+     event was cancelled - the browser synthesises the compatibility mousedown
+     behind it, which lands on the mouse handler and calls this again. Both
+     paths are wanted (a mouse steers with its two buttons, a finger by the half
+     of the screen it lands on), so the fix is here: whichever arrives first
+     takes the beat and the other finds it gone. Without it, one tap ate the
+     place card AND the driver's card and the run set off before you had read
+     either. Released on the way back up. */
+  var beatUsed=false;
+  function beatFree(){ beatUsed=false; }
+  function begin(){
+    var beat = G.open || G.phase==='intro' || G.phase==='won' ||
+               G.phase==='lost' || G.phase==='done' || G.phase==='encore';
+    if(!beat) return true;              // driving, rewinding, hopping: a steer
+    if(beatUsed) return false;
+    beatUsed=true;
+    if(G.open){ G.open=false; showCard(); return false; }   // on to the driver
+    if(G.phase==='intro'){ beginRun(); return false; }
+    if(G.phase==='lost'||G.phase==='done'){ startStage(G.scene); return false; }
+    if(G.phase==='encore'){ encoreDone(); return false; }   // seen enough
+    return false;                       // 'won': the camera is pulling out
+  }
+
+  /* A mouse steers with its own two buttons, wherever the cursor is. They go
+     through mousedown/mouseup rather than pointer events: pointerdown only
+     fires for the FIRST button held, so chording both would never cancel. */
+  st.addEventListener('mousedown',function(e){
+    if(!begin()) return;
+    var d = e.button===2 ? 1 : (e.button===0 ? -1 : 0);
+    if(d) held['m'+e.button]=d;
+    apply(); e.preventDefault();
+  });
+  addEventListener('mouseup',function(e){ beatFree(); delete held['m'+e.button]; apply(); });
+
+  /* A finger steers by the half of the screen it lands on. */
+  st.addEventListener('pointerdown',function(e){
+    if(e.pointerType==='mouse') return;            // handled above
+    /* first, and whatever happens next: cancelling pointerdown is what stops
+       the browser firing a compatibility mousedown after it */
+    e.preventDefault();
+    if(!begin()) return;
+    var r=st.getBoundingClientRect();
+    held['p'+e.pointerId]=(e.clientX-r.left)<r.width/2 ? -1 : 1;
+    apply(); e.preventDefault();
+  });
+  function lift(e){ beatFree();
+    if(e&&e.pointerType==='mouse') return;
+    if(e&&e.pointerId!==undefined) delete held['p'+e.pointerId]; else held={};
+    apply(); }
+  addEventListener('pointerup',lift);
+  addEventListener('pointercancel',lift);
+
+  window.dropHeld=function(){ held={}; apply(); };   // a new level starts clean
+  st.addEventListener('contextmenu',function(e){ e.preventDefault(); });
+  addEventListener('blur',function(){ beatFree(); held={}; apply(); });
+  /* Keys go through the same held map as the mouse and the screen halves, so
+     they light the same indicators, combine the same way, and a steer press is
+     itself enough to set off. */
+  function keyDir(k){
+    if(k==='ArrowLeft'||k==='a'||k==='A') return -1;
+    if(k==='ArrowRight'||k==='d'||k==='D') return 1;
+    return 0;
+  }
+  addEventListener('keydown',function(e){
+    if(e.repeat) return;
+    var d=keyDir(e.key);
+    if(d){ if(!begin()) return; held['k'+d]=d; apply(); e.preventDefault(); return; }
+    if(e.key==='p'||e.key==='P'||e.key==='Escape'){ setPaused(!G.paused); e.preventDefault(); return; }
+    if(e.key==='s'||e.key==='S'){ quickSave(); e.preventDefault(); return; }
+    if(e.key==='l'||e.key==='L'){ quickLoad(); e.preventDefault(); return; }
+    /* the same gate as a tap, so the keyboard cannot double up either */
+    if(e.key===' '||e.key==='Enter'){ begin(); e.preventDefault(); }
+  });
+  addEventListener('keyup',function(e){
+    beatFree();
+    var d=keyDir(e.key);
+    if(d){ delete held['k'+d]; apply(); }
+  });
+})();
+
+/* ==========================================================================
+   loop
+   ========================================================================== */
+var lastT=0, acc=0, animT=0;
+function resize(){
+  var r=document.getElementById('stage').getBoundingClientRect();
+  ren.setSize(r.width,r.height,false);
+  cam.aspect=r.width/Math.max(1,r.height); cam.updateProjectionMatrix();
+}
+addEventListener('resize',resize);
+
+function frame(now){
+  requestAnimationFrame(frame);
+  /* real seconds, for the camera tween and the rewind. Clamped too, just far
+     more loosely than the physics: one stalled frame - a tab switch, a garbage
+     collection - must not skip an entire second-long move in a single step. */
+  var raw=Math.min(0.1,(now-lastT)/1000||0);
+  var dt=Math.min(0.05,raw); lastT=now;  // clamped, so one slow frame cannot
+                                         // snowball the physics
+  animT+=dt;
+
+  /* Paused: keep drawing, stop everything else. */
+  if(G.paused){ ren.render(scene,cam); return; }
+
+  if(G.phase==='driving'){
+    acc=Math.min(acc+dt, TICK*10);       // one slow frame must not snowball
+    var steps=0;
+    while(acc>=TICK && steps<10 && G.phase==='driving'){
+      stepPhysics(TICK); acc-=TICK; steps++;
+    }
+  } else { acc=0; }
+
+  if(G.flash>0){ G.flash-=dt; if(G.flash<=0&&G.phase==='driving') hideBanner(); }
+
+  // chevrons breathe whatever the phase
+  if(G.goal) pulseChevrons(G.goal.userData.chevs, animT, 0.18);
+  if(G.guide) pulseChevrons(G.guide, animT, 0.1);
+  if(G.hint){
+    if(G.phase==='driving'&&G.car){
+      placeHint(G.hint, G.car,
+                hintTarget(G.scene.levels[G.levelIdx].goal, G.car.body.position));
+      G.hint.children[0].material.opacity=0.2+0.16*(0.5+0.5*Math.sin(animT*3.4));
+    } else G.hint.visible=false;
+  }
+
+  /* the other cars are placed here, on a clock that runs smoothly between
+     physics steps, rather than jumping with them */
+  if(G.phase==='driving') G.ghosts.forEach(function(g){ g.at(G.runT+acc); });
+  if(G.car) G.car.sync(G.phase==='driving' ? acc/TICK : undefined);
+
+  if(G.phase==='intro'&&G.bounds) macroCam(G.bounds);
+  else if(G.phase==='driving'&&G.car){
+    G.camT=Math.min(1, G.camT+raw/TWEEN_SECS);
+    var micro=chaseCam(G.bounds,G.car,dt,G.camT<1);
+    applyPlace(G.camT>=1 ? micro
+             : blendPlace(macroPlace(G.bounds), micro, ease(G.camT)));
+  }
+  else if(G.phase==='won'&&G.car) dollyOut(raw);
+  else if(G.phase==='rewinding'&&G.car) rewindStage(raw);
+  else if(G.phase==='encore'&&G.car) encore(raw);
+  else if(G.phase==='hopping') hopScene(raw);
+  else if(G.phase==='crashback'&&G.car) crashBack(raw);
+
+  if(SUN&&G.car){ var cp=G.car.body.position;
+    SUN.position.set(cp.x-40, 60, cp.z+28);
+    SUN.target.position.set(cp.x,0,cp.z); SUN.target.updateMatrixWorld();
+    SUN.shadow.camera.updateProjectionMatrix(); }
+
+  if(G.car) engineAt(G.car.speed(), G.car.stats.topSpeed);
+  if(G.phase!=='driving'||G.runT>6||G.steer) teachShow(false);
+  /* Runs in performance mode too. It used to be switched off with the shadows,
+     on the grounds that a transparent pass costs fill - but the pass is at most
+     a handful of objects a frame, and losing sight of your own car behind a
+     tree is not a trade worth making on the machine that needs the help most. */
+  seeThrough(dt);
+  ren.render(scene,cam);
+}
+function stepPhysics(dt){
+  G.runT+=dt;
+  G.clock+=dt;                    // counts UP: the scene's time is the score
+  setClock(G.clock);
+
+  var lv=G.scene.levels[G.levelIdx], off=lv.offset||0;
+  var mine=G.runT>=off;
+
+  G.car.mark();
+  if(DRIVE_MODEL==='arcade'){
+    if(mine){
+      G.car.driveArcade(dt, -G.steer);
+      if(G.car.body.position.y<-0.35){ rewind(holeWhy()); return; }
+      if(crashed(dt)) rewind(crashWhy());
+    }
+    /* NOT world.step(). The arcade model moves the car itself and the replay
+       cars are kinematic - they are put where the recording says, frame by
+       frame, and simulate nothing. Stepping the engine anyway meant a
+       broadphase pass over 968 bodies for a result nobody read: 4.3 ms of a
+       16.6 ms frame, thrown away, every frame. */
+  } else {
+    if(mine){
+      G.car.drive(1, -G.steer, dt);
+      if(crashed(dt)) rewind(crashWhy());
+    } else {
+      G.car.drive(0,0,dt);
+      for(var i=0;i<4;i++) G.car.vehicle.setBrake(60,i);
+    }
+    world.step(dt);
+    if(mine){
+      G.car.hold(dt);
+      climbStep(dt);
+      if(sinkInWater(dt)){ rewind(holeWhy()); return; }
+      catchFall();
+    }
+  }
+
+  if(mine){
+    G.recAt+=dt;
+    if(G.recAt>=1/REC_HZ || !G.rec.length){
+      G.recAt=0;
+      var p=G.car.body.position;
+      G.rec.push({t:+(G.runT-off).toFixed(3), x:+p.x.toFixed(3), y:+p.y.toFixed(3),
+                  z:+p.z.toFixed(3), h:+G.car.headingDeg().toFixed(2)});
+    }
+  }
+
+  if(G.car.body.position.y < -10*Math.max(0.2,G.car.stats.len)) respawn();
+  /* The goal is checked BEFORE going off screen, so crossing the line at the
+     very edge of the frame is a win rather than a crash. */
+  if(reachedGoal()) return levelWon();
+  if(offScreen()){ rewind('off the screen'); return; }
+}
+/* The crash tests compare a speed with a share of the car's top speed, and
+   that share has to be read in the same units as the speed. While the
+   px-per-length calibration was wrong the arcade model REPORTED half the
+   speed it was really doing, so every one of these thresholds was tuned
+   against a half-scale reading. Fixing the calibration doubled the reading,
+   so the arcade shares double too - the levels then play exactly as they were
+   tuned. The simulated model never had the problem and keeps its own. */
+var CRASH_ARM={sim:0.35, arcade:0.70};   /* under this share of top, a speed loss is not an impact */
+var STALL_LIM={sim:0.08, arcade:0.16};   /* under this share of top, you are not moving */
+function crashShare(t){ return t[DRIVE_MODEL==='arcade'?'arcade':'sim']; }
+
+/* A crash is a hard stop, a long stall, or ending up on your roof. */
+
+function crashed(dt){
+  var c=G.car, sp=c.speed();
+  if(G.cool>0){ G.cool-=dt; G.wasSp=sp; return false; }
+  var surf=surfaceAt(c.body.position.x,c.body.position.z);
+  /* Speed given up because the GROUND got slower is not an impact. Crossing
+     onto sand or water lowers the ceiling, and the car obediently comes down
+     to meet it - that is the surface doing its job, not a collision. */
+  var softer = surf.speed < (G.lastSoft===undefined?surf.speed:G.lastSoft) - 1e-6;
+  G.lastSoft=surf.speed;
+  var hit = !softer && G.wasSp>c.stats.topSpeed*crashShare(CRASH_ARM) &&
+            (G.wasSp-sp) > G.wasSp*GCFG.crashDrop;
+  G.wasSp=sp;
+  /* judged against what the ground allows, not the road figure - crawling
+     through sand is not the same as being stuck against a wall */
+  var lim=c.stats.topSpeed*surf.speed*crashShare(STALL_LIM);
+  if(sp<lim) G.stall+=dt; else G.stall=0;
+  var up=new CANNON.Vec3(0,1,0); c.body.quaternion.vmult(up,up);
+  if(up.y<0.4) G.roll+=dt; else G.roll=0;
+  G.hitNow=hit;
+  return hit || G.stall>GCFG.stallFor || G.roll>GCFG.rollFor;
+}
+/* falling off the drivable stuff, in words - which way round depends on
+   whether this level is a boat */
+function holeWhy(){ return onWaterLevel() ? 'off the water' : 'in the water'; }
+/* whichever of the three tripped, in words */
+function crashWhy(){
+  if(G.roll>GCFG.rollFor) return 'on its roof';
+  if(G.stall>GCFG.stallFor) return 'stuck';
+  return 'hit something';
+}
+/* Wind the whole run back a beat. The ghosts are pure functions of the run
+   clock, so moving it back rewinds them too - only the countdown keeps
+   running, and that is the price of the crash. */
+/* These ramps were modelled for a car the size of a real one. At the vehicle
+   scale Dan uses, the lip where a slant begins is 0.2 units high against a car
+   0.16 tall with wheels 0.037 across - the suspension ray passes clean under
+   the ledge and the car drives beneath the ramp instead of onto it.
+
+   So the car is given the step up a bigger wheel would have taken for granted.
+   Every wheel looks for ramp surface ABOVE it, not just a point off the nose:
+   approaching at an angle, or already wedged against the lip, only one corner
+   may have anything to climb. The lift is at a constant rate, because a car
+   that has stopped against a step is exactly the one that needs it most.
+   Only ramp pieces are searched, so nothing else in the world is climbable. */
+var STEP_ASSIST=false;   // the trimesh ramps rise from nothing, so none is needed
+var STEP_UP=2.4, STEP_RATE=2.6, STEP_DOWN=3.2;
+var stepRay=null, stepRes=null;
+/* Once a wheel is over a ramp, the ramp IS the ground for it. Leaving that to
+   the suspension does not work: the wheel ray is 0.1 long and points down, so
+   over a ramp it either finds nothing (and the car drops back to the road it
+   can still see underneath) or finds the road itself. The result is a car that
+   hops up one step and falls off it again, over and over.
+
+   So while any wheel is over ramp surface, the car's height is driven directly:
+   it rises onto the surface at a limited rate, settles down onto it at a
+   limited rate, and is not allowed to sink through it. The moment no wheel has
+   ramp beneath it - off the end, off the side, airborne - control goes straight
+   back to the physics, so jumps off the top still behave. */
+function rampUnder(x,z,y0,maxStep){
+  stepRes.reset();
+  stepRay.from.set(x, y0+maxStep, z);
+  stepRay.to.set(x, y0-maxStep, z);
+  stepRay.intersectBodies(RAMP_BODIES, stepRes);
+  return stepRes.hasHit ? stepRes.hitPointWorld.y : null;
+}
+function climbStep(dt){
+  if(!STEP_ASSIST) return;
+  var c=G.car, b=c.body;
+  if(!RAMP_BODIES.length||!c.height) return;
+  if(!stepRay){ stepRay=new CANNON.Ray(); stepRes=new CANNON.RaycastResult();
+                stepRay.mode=CANNON.Ray.CLOSEST; }
+  var maxStep=c.height*STEP_UP, v=c.vehicle, best=null;
+  var lp=new CANNON.Vec3(), wp=new CANNON.Vec3(), i;
+  for(i=0;i<v.wheelInfos.length;i++){
+    lp.copy(v.wheelInfos[i].chassisConnectionPointLocal);
+    b.quaternion.vmult(lp,wp); wp.vadd(b.position,wp);
+    var y=rampUnder(wp.x, wp.z, b.position.y, maxStep);
+    if(y!==null && (best===null||y>best)) best=y;
+  }
+  /* Only the WHEELS may raise the car. A probe off the nose seemed like a good
+     idea - meet the lip rather than run into it - but it lifted the car while
+     all four wheels were still on flat ground, leaving it hovering with no
+     traction at all: measured, 0.12 units a second against a top speed of 2.2.
+     A wheel finds the ramp at exactly the moment that wheel should be on it. */
+  if(best===null){ G.onRamp=false; return; }
+
+  G.onRamp=true;
+  var want=best+c.rideH, gap=want-b.position.y;
+  if(gap>0){                              // climbing onto or up the slope
+    b.position.y+=Math.min(gap, dt*STEP_RATE);
+    if(b.velocity.y<0) b.velocity.y=0;
+  } else if(gap<-0.004){                  // following it back down
+    b.position.y+=Math.max(gap, -dt*STEP_DOWN);
+    if(b.velocity.y<0) b.velocity.y*=0.4;
+  }
+}
+/* The finish corridor: lined up with the gate and close to it, either side of
+   the line. The exit is deliberately set at the very edge of the scene
+   rectangle, and the camera is pinned inside that same rectangle, so the car
+   is ALREADY a little past the top of the picture at the moment it crosses.
+   Leaving the frame here is not drifting out of the level, it is finishing it
+   - so the off-screen crash does not apply while the car is in this box. Come
+   through wide of the gate and the corridor runs out a few lengths later,
+   which is when leaving the picture counts again. */
+var GATE_BEFORE=3.5, GATE_AFTER=3, GATE_WIDE=0.35;
+function atGate(){
+  if(!G.scene||!G.scene.levels[G.levelIdx]) return false;
+  var q=goalLocal(G.car.body.position);
+  return q.lx > GOAL_LINE-GATE_BEFORE && q.lx < GOAL_LINE+GATE_AFTER &&
+         Math.abs(q.lz) <= GOAL_HALF+GATE_WIDE;
+}
+/* Leaving the picture is a crash. The chase camera is already pinned inside
+   the scene's rectangle, so anything that drifts out of frame has left the
+   part of the map this level is played on. A little margin past the edge, so
+   clipping a corner of the screen is forgiving - and the finish corridor is
+   exempt entirely. */
+function offScreen(){
+  if(G.phase!=='driving'||!G.car||G.camT<1) return false;
+  if(atGate()) return false;
+  var p=G.car.body.position;
+  cam.updateMatrixWorld();
+  var v=new THREE.Vector3(p.x,p.y,p.z).project(cam);
+  return v.z>1 || Math.abs(v.x)>1.08 || Math.abs(v.y)>1.08;
+}
+/* Nothing should ever end up under the world. If it does - a seam between
+   tiles, a wheel ray that found the far face of the ground - the car is put
+   back on the surface where it last was and carries on. It is emphatically NOT
+   a crash: falling through the floor is the game's fault, not the driver's. */
+/* Water is a hole. The ground plane holds the car up everywhere, so instead of
+   cutting a gap in it the car is pulled under once it is over water - and then
+   the fall IS the crash, which is the one place falling counts against you. */
+/* Water is a hole, and it behaves like one: no scripted sink, no teleport
+   down. The floor under the whole map is one big box, so the hole is cut where
+   it matters - at the wheels. A wheel over water has its suspension ray
+   shortened until it cannot reach the road, so that corner simply loses its
+   support; the front wheels go over the edge first, the nose drops, and the car
+   tips in under its own weight. Once the body itself is over the water it stops
+   colliding with the floor too, so it keeps going down instead of bellying out
+   on a surface that is not supposed to be there. */
+function waterUnderWheels(){
+  var c=G.car, v=c.vehicle, b=c.body, over=0;
+  var lp=new CANNON.Vec3(), wp=new CANNON.Vec3();
+  for(var i=0;i<v.wheelInfos.length;i++){
+    var w=v.wheelInfos[i];
+    if(w.keep===undefined) w.keep={st:w.suspensionStiffness, dc:w.dampingCompression,
+                                   dr:w.dampingRelaxation, fs:w.frictionSlip,
+                                   mf:w.maxSuspensionForce};
+    lp.copy(w.chassisConnectionPointLocal);
+    b.quaternion.vmult(lp,wp); wp.vadd(b.position,wp);
+    if(surfaceAt(wp.x,wp.z).hole){
+      over++;
+      /* The ray still finds the floor - shortening it only worked until the car
+         had sunk far enough for the wheel to catch it again. So the wheel is
+         left to touch nothing it can push against: no spring, no damper, no
+         grip. That corner carries no weight and falls. */
+      w.suspensionStiffness=0; w.dampingCompression=0; w.dampingRelaxation=0;
+      w.frictionSlip=0; w.maxSuspensionForce=0;
+    } else if(w.suspensionStiffness===0){
+      w.suspensionStiffness=w.keep.st; w.dampingCompression=w.keep.dc;
+      w.dampingRelaxation=w.keep.dr; w.frictionSlip=w.keep.fs;
+      w.maxSuspensionForce=w.keep.mf;
+    }
+  }
+  return over;
+}
+function sinkInWater(dt){
+  var c=G.car, b=c.body;
+  var over=waterUnderWheels();
+  var bodyOver=surfaceAt(b.position.x,b.position.z).hole;
+  /* the floor stops existing for the car once it is properly over the hole */
+  if(over>=3 || bodyOver){ if(b.collisionResponse){ b.collisionResponse=false; } }
+  else if(!b.collisionResponse && over===0){ b.collisionResponse=true; }
+  if(b.position.y<-0.35){ b.collisionResponse=true; return true; }   // in the drink
+  return false;
+}
+function catchFall(){
+  var c=G.car, b=c.body;
+  if(b.position.y>-0.4) return;
+  /* over water the fall is the point, and sinkInWater calls it a crash */
+  if(surfaceAt(b.position.x,b.position.z).hole || !b.collisionResponse) return;
+  var lv=G.scene.levels[G.levelIdx];
+  var at=G.rec.length ? G.rec[G.rec.length-1]
+       : {x:lv.veh.x, z:lv.veh.z, h:lv.veh.rot||0};
+  b.position.set(at.x, c.rideH, at.z);
+  b.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0), yawFromHeading(at.h));
+  b.velocity.set(0,0,0); b.angularVelocity.set(0,0,0); b.wakeUp();
+  G.stall=0; G.roll=0; G.wasSp=0; G.lastSoft=undefined; G.cool=Math.max(G.cool,0.4);
+}
+/* A crash winds the whole run back to the start of the level, played backwards
+   on screen so you can see it happen, then hands you the car at the start line
+   again with the clock put back to what it read when the level began - the
+   crash costs you the attempt, not the time. GCFG.rewind is how long the
+   wind-back takes to play. */
+/* Every rewind says WHY in the debug line, so a crash you did not expect can
+   be told apart from one you did without guessing. */
+function rewind(why){
+  var c=G.car, b=c.body;
+  if(why) devSay('rewind \u00b7 '+why+' \u00b7 '+(G.runT).toFixed(1)+'s');
+  if(/water/.test(why||'')) SFX.splash(); else SFX.crash();
+  setTimeout(function(){ SFX.rewind(); },260);
+  G.bumps=(G.bumps||0)+1;                    // the first few cost nothing
+  /* locked from the badge: the crash still costs you the rewind, never the car */
+  G.slow=OPT.lock ? 0 : Math.max(0,(G.bumps-HANDICAP.free)*HANDICAP.step);
+  setSpeedTag();
+  G.crashFrom=G.runT;
+  b.velocity.set(0,0,0); b.angularVelocity.set(0,0,0);
+  b.collisionResponse=false; b.sleep();
+  G.phase='crashback';
+  G.goalAt=null;
+  banner('Crashed','winding back','');
+  vhs(true);
+}
+function crashBack(dt){
+  var lv=G.scene.levels[G.levelIdx], off=lv.offset||0;
+  var span=Math.max(0.001, G.crashFrom-off);
+  G.runT=Math.max(off, G.runT - dt*(span/Math.max(0.05,GCFG.rewind)));
+  playBack(G.runT);
+  /* stay in the chase view the whole way, so you land looking at the start */
+  applyPlace(chaseCam(G.bounds,G.car,dt,false));
+  if(G.runT<=off) backToStart();
+}
+function backToStart(){
+  var lv=G.scene.levels[G.levelIdx], c=G.car, b=c.body;
+  vhs(false); hideBanner();
+  b.position.set(lv.veh.x, c.rideH, lv.veh.z);
+  b.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0), yawFromHeading(lv.veh.rot||0));
+  b.velocity.set(0,0,0); b.angularVelocity.set(0,0,0);
+  b.collisionResponse=true; b.wakeUp();
+  c.placeArcade(lv.veh.x, lv.veh.z, lv.veh.rot||0);
+  c.vehicle.wheelInfos.forEach(function(w){
+    if(w.keep){ w.suspensionStiffness=w.keep.st; w.dampingCompression=w.keep.dc;
+                w.dampingRelaxation=w.keep.dr; w.frictionSlip=w.keep.fs;
+                w.maxSuspensionForce=w.keep.mf; } });
+  G.runT=lv.offset||0;
+  G.clock=G.clockAt; setClock(G.clock);   // and the clock goes back with it
+  G.rec=[]; G.recAt=0;                 // the run starts again from nothing
+  G.ghosts.forEach(function(g){ g.at(G.runT); });
+  G.stall=0; G.roll=0; G.wasSp=0; G.lastSoft=undefined; G.cool=GCFG.crashCool; G.flash=0;
+  G.goalAt=null;
+  G.phase='driving';
+}
+function respawn(){
+  var lv=G.scene.levels[G.levelIdx];
+  G.car.body.position.set(lv.veh.x, G.car.rideH, lv.veh.z);
+  G.car.body.velocity.set(0,0,0); G.car.body.angularVelocity.set(0,0,0);
+  G.car.body.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0), yawFromHeading(lv.veh.rot||0));
+  G.car.placeArcade(lv.veh.x, lv.veh.z, lv.veh.rot||0);
+  G.goalAt=null;
+}
+function dollyOut(dt){
+  G.dolly.t=Math.min(1,G.dolly.t+dt/TWEEN_SECS);
+  applyPlace(blendPlace(G.dolly.from, macroPlace(G.bounds), ease(G.dolly.t)));
+  /* the world does NOT stop while the camera pulls out - the other cars are
+     still driving their runs, and you watch them from above */
+  G.runT+=dt;
+  playBack(G.runT);
+  G.wonAt=G.runT;
+  if(G.dolly.t>=1){
+    /* The last level of a scene ends the scene, and there is nothing left to
+       wind back for - the next scene is somewhere else on the map. So instead
+       of the tape rewind, the camera simply travels to the next scene's
+       opening view. */
+    if(G.levelIdx+1>=G.scene.levels.length){ startEncore(); return; }
+    G.phase='rewinding';
+    banner('Rewinding','','');
+    vhs(true);
+  }
+}
+/* Scene to scene: one move of the camera from this scene's opening view to the
+   next one's, no rewind. */
+function hopScene(dt){
+  G.hop.t=Math.min(1,G.hop.t+dt/(TWEEN_SECS*1.6));
+  applyPlace(blendPlace(G.hop.from, G.hop.to, ease(G.hop.t)));
+  if(G.hop.t>=1){
+    hideBanner();
+    startStage(G.nextScene);
+    G.nextScene=null;
+  }
+}
+
+/* ==========================================================================
+   boot
+   ========================================================================== */
+initWorld(); resize(); requestAnimationFrame(frame);
+
+optLoad();            /* the switches are in localStorage, and DEBUG decides
+                         where everything below is read from - so it has to be
+                         known before the first fetch, not after the boot bar */
+loadConfig().then(function(){
+  return OPT.debug ? kvAll().catch(function(){ return {}; }) : {};
+}).then(function(kv){
+  if(kv.config){ applyConfig(kv.config); CFG_SRC=(CFG_SRC==='data/')?'data/ + mapper':'mapper'; }
+  var live = kv.city && kv.city.placed && kv.city.placed.length &&
+             kv.routes && kv.routes.scenes && kv.routes.scenes.length;
+  if(live){ DATA_SRC='mapper'; CITY=kv.city; ROUTES=kv.routes; return; }
+  boot('Reading the city&hellip;',0.02);
+  return loadFiles().then(function(d){ DATA_SRC='files'; CITY=d.city; ROUTES=d.routes; });
+}).then(function(){
+  if(!CITY||!CITY.placed||!CITY.placed.length) throw new Error('nocity');
+  if(!ROUTES||!ROUTES.scenes||!ROUTES.scenes.length) throw new Error('noroutes');
+  return loadStory().then(function(st){ STORY=st; });
+}).then(function(){
+  G.vehScale=(typeof ROUTES.vehScale==='number')?ROUTES.vehScale:1;
+  ROUTES.scenes.forEach(function(sc){ sc.levels.forEach(function(l){
+    if(typeof l.offset!=='number') l.offset=0; }); });
+  boot('Building the city&hellip;',0.05);
+  return buildCity(CITY.placed,function(p){ boot('Building the city&hellip;',0.05+p*0.9); });
+}).then(function(){
+  boot('Ready',1);
+  document.getElementById('boot').classList.add('gone');
+  applyPerf(); applyDebug();
+  buildDev();
+  startStage(ROUTES.scenes[0]);
+  setPaused(false);
+  /* The store knows who was driving last; boot only had localStorage's word for
+     it. Re-read that player's switches now the real answer is in. */
+  saveLoad(function(){ optLoad(SAVE.who); optApply(); buildHome(); });
+
+  /* The browser will not play a note until somebody has touched the page, so
+     the tape starts on the FIRST interaction of any kind - a tap anywhere on
+     the title screen, picking a driver, or a key - rather than waiting for the
+     button. After that this listener takes itself off. */
+  ['pointerdown','keydown','touchstart'].forEach(function(ev){
+    addEventListener(ev, function once(){
+      audioUp(); musicGo();
+      ['pointerdown','keydown','touchstart'].forEach(function(e2){
+        removeEventListener(e2, once, true); });
+    }, true);
+  });
+  document.getElementById('playBtn').onclick=function(){
+    SFX.tap(); musicGo();
+    sheet('home',false);
+  };
+  document.getElementById('resumeBtn').onclick=function(){ SFX.tap(); setPaused(false); };
+}).catch(function(e){
+  console.error(e);
+  if(e&&e.message==='nocity')
+    fail('No city found.<br><br>data/deja-vroom-city.json is missing or empty, and the mapper has nothing either. Export from <a href="mapper.html">mapper.html</a>.');
+  else if(e&&e.message==='noroutes')
+    fail('No routes found.<br><br>data/deja-vroom-routes.json is missing or empty, and the mapper has nothing either. Export from <a href="mapper.html">mapper.html</a>.');
+  else
+    fail('Could not load the game data.<br><br><code style="color:#ff8f8f">'+
+         (e&&e.message?e.message:e)+'</code><br><br>It reads data/deja-vroom-city.json and '+
+         'data/deja-vroom-routes.json, so the game has to be served over http rather than '+
+         'opened as a file.');
+});
+</script>
+</body>
+</html>

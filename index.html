@@ -203,6 +203,24 @@
       box-shadow: 0 12px 40px rgba(41, 128, 185, 0.6), 0 4px 12px rgba(0,0,0,0.3);
     }
 
+    .card-waypoints {
+      background: linear-gradient(145deg, #2f4a2c, #5b7f43, #f2c230);
+      box-shadow: 0 8px 30px rgba(242, 194, 48, 0.4), 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .card-waypoints:hover {
+      box-shadow: 0 12px 40px rgba(242, 194, 48, 0.6), 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    .card-dejavroom {
+      background: linear-gradient(145deg, #1a0b2e, #7b3ff2, #ff2e88);
+      box-shadow: 0 8px 30px rgba(255, 46, 136, 0.4), 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .card-dejavroom:hover {
+      box-shadow: 0 12px 40px rgba(255, 46, 136, 0.6), 0 4px 12px rgba(0,0,0,0.3);
+    }
+
     .card-dragonseed {
       background: linear-gradient(145deg, #2d1b4e, #4834a8, #6c5ce7);
       box-shadow: 0 8px 30px rgba(108, 92, 231, 0.4), 0 2px 8px rgba(0,0,0,0.2);
@@ -936,6 +954,7 @@
   <p class="subtitle">Pick a game and have fun!</p>
 
   <div class="game-grid">
+
     <a href="games/arcanoid" class="game-card card-arcanoid">
       <div class="game-icon" aria-hidden="true">&#x1F3D3;</div>
       <div class="game-title">Arcanoid</div>
@@ -1375,7 +1394,18 @@
       <div class="game-title">Skate</div>
       <div class="game-desc">Drop in, bomb the ramps, grind the rails. Stack a combo and stomp the landing.</div>
     </a>
+<!-- 
+    <a href="games/waypoints/" class="game-card card-waypoints">
+      <div class="game-icon" aria-hidden="true">&#x1F9ED;</div>
+      <div class="game-title">Waypoints</div>
+      <div class="game-desc">Hike a whole national park in four days &mdash; draw your walk on the map, then go out and walk it!</div>
+    </a> -->
 
+    <a href="games/deja-vroom/" class="game-card card-dejavroom">
+      <div class="game-icon" aria-hidden="true">&#x1F697;</div>
+      <div class="game-title">Deja Vroom</div>
+      <div class="game-desc">Drive every car in town, one at a time &mdash; and race the ghosts of your own runs!</div>
+    </a>
   </div>
 
   <div class="footer">Made with love for Caleb and Ezra <span class="settings-icon" onclick="openSettings()">&#9881;</span></div>

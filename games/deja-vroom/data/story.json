@@ -1,0 +1,389 @@
+{
+ "premise": "Every driver in town has somewhere to be, all at the same time. You take them one at a time — and every car you have already driven is still out there, doing exactly what you told it to. Get everyone home before the tape runs out.",
+ "sceneWord": "Reel",
+ "levelWord": "Run",
+ "locations": [
+  {
+   "n": 1,
+   "key": "suburbs",
+   "name": "Sunnyside Rise",
+   "kind": "the suburbs",
+   "line": "Bin day, school run and someone's cat on the roof. The quiet reel, until it isn't."
+  },
+  {
+   "n": 2,
+   "key": "city",
+   "name": "Midtown Mile",
+   "kind": "the city",
+   "line": "4 lanes, 11 errands and a lunch rush that will not wait for anybody."
+  },
+  {
+   "n": 3,
+   "key": "beach",
+   "name": "Sandy Point",
+   "kind": "the beach",
+   "line": "Sun, surf and the Oo brothers racing their boats while the traffic melts on the front."
+  },
+  {
+   "n": 4,
+   "key": "countryside",
+   "name": "Long Meadow",
+   "kind": "the countryside",
+   "line": "Hedges, hay and one tractor who is in absolutely no hurry whatsoever."
+  },
+  {
+   "n": 5,
+   "key": "port",
+   "name": "Ironside Docks",
+   "kind": "the port",
+   "line": "Crates in, crates out, and a tide that stops for no delivery driver."
+  },
+  {
+   "n": 6,
+   "key": "centre",
+   "name": "Neon Central",
+   "kind": "the city centre",
+   "line": "Lights, shopfronts and the tightest corners on the whole tape."
+  },
+  {
+   "n": 7,
+   "key": "factories",
+   "name": "Cogsworth Yards",
+   "kind": "the factories",
+   "line": "Steam, steel and shift change. Everything here is heavy and everything here is late."
+  },
+  {
+   "n": 8,
+   "key": "hospital",
+   "name": "St Vroomin's",
+   "kind": "the hospital run",
+   "line": "Blue lights get the right of way. Everyone else, please keep it tidy."
+  },
+  {
+   "n": 9,
+   "key": "encore",
+   "name": "One More Lap",
+   "kind": "the encore",
+   "line": "One last run, just for the fun of it."
+  }
+ ],
+ "drivers": {
+  "sedan": {
+   "name": "Margo Plimm",
+   "persona": "drives like she is carrying a full cup of tea, because she usually is",
+   "img": "assets/drivers/sedan.png"
+  },
+  "sedan-sports": {
+   "name": "Rocco Vance",
+   "persona": "thinks every road is a race track and every mirror is for hair",
+   "img": "assets/drivers/sedan-sports.png"
+  },
+  "hatchback-sports": {
+   "name": "Kiki Fen",
+   "persona": "17, brilliant at parking, cannot resist a shortcut",
+   "img": "assets/drivers/hatchback-sports.png"
+  },
+  "suv": {
+   "name": "Big Col",
+   "persona": "carries the whole family plus 3 scooters and never complains",
+   "img": "assets/drivers/suv.png"
+  },
+  "suv-luxury": {
+   "name": "Mrs Devereaux",
+   "persona": "has opinions about everybody's driving except her own",
+   "img": "assets/drivers/suv-luxury.png"
+  },
+  "taxi": {
+   "name": "Nev Patel",
+   "persona": "knows a quicker way and will tell you about it at length",
+   "img": "assets/drivers/taxi.png"
+  },
+  "police": {
+   "name": "Sergeant Dot",
+   "persona": "calm as a millpond, quietly the fastest driver in town",
+   "img": "assets/drivers/police.png"
+  },
+  "van": {
+   "name": "Wobbly Wanda",
+   "persona": "the van is fine, the shelves inside it are the problem",
+   "img": "assets/drivers/van.png"
+  },
+  "delivery": {
+   "name": "Parcel Pete",
+   "persona": "41 drops before lunch and a clipboard he refuses to lose",
+   "img": "assets/drivers/delivery.png"
+  },
+  "delivery-flat": {
+   "name": "Jess Tumbly",
+   "persona": "flatbed, no sides, nerves of absolute steel",
+   "img": "assets/drivers/delivery-flat.png"
+  },
+  "truck": {
+   "name": "Old Man Huxley",
+   "persona": "been driving since before the roads were painted, sings while he does it",
+   "img": "assets/drivers/truck.png"
+  },
+  "truck-flat": {
+   "name": "Bo Grange",
+   "persona": "hauls whatever will not fit on anything else, usually badly tied",
+   "img": "assets/drivers/truck-flat.png"
+  },
+  "ambulance": {
+   "name": "Dr Rani Shah",
+   "persona": "cool head, warm heart, absolutely no patience for roundabouts",
+   "img": "assets/drivers/ambulance.png"
+  },
+  "firetruck": {
+   "name": "Captain Mo",
+   "persona": "loud siren, louder laugh, first through every gap",
+   "img": "assets/drivers/firetruck.png"
+  },
+  "garbage-truck": {
+   "name": "Trish Binns",
+   "persona": "knows every alley in town and exactly how much they smell",
+   "img": "assets/drivers/garbage-truck.png"
+  },
+  "tractor": {
+   "name": "Grandad Stobbs",
+   "persona": "top speed of a brisk walk, happiest driver on the whole tape",
+   "img": "assets/drivers/tractor.png"
+  },
+  "kart-oobi": {
+   "name": "Oobi",
+   "persona": "eldest Oo brother, steers with one hand and points with the other",
+   "img": "assets/drivers/kart-oobi.png"
+  },
+  "kart-oodi": {
+   "name": "Oodi",
+   "persona": "second Oo brother, takes every corner far too wide on purpose",
+   "img": "assets/drivers/kart-oodi.png"
+  },
+  "kart-ooli": {
+   "name": "Ooli",
+   "persona": "third Oo brother, quietest of the 4, wins the most",
+   "img": "assets/drivers/kart-ooli.png"
+  },
+  "kart-oopi": {
+   "name": "Oopi",
+   "persona": "youngest Oo brother, mostly here for the splashing",
+   "img": "assets/drivers/kart-oopi.png"
+  }
+ },
+ "tasks": {
+  "sedan": {
+   "suburbs": "School bags in, lunchboxes in, and if we are late again I shall never hear the end of it.",
+   "city": "Parents' evening at 4, and I have already gone round this block twice looking for a space.",
+   "beach": "Windbreak, cool bag, 11 towels. Everyone promised to help carry and everyone has suddenly gone very quiet.",
+   "countryside": "Sunday drive, Gran in the back, one flask of tea balanced where a flask should never be.",
+   "port": "Picking up my sister off the ferry, and her boat docked 4 minutes ago. Slightly hurrying.",
+   "centre": "Dentist at half past, and I have never once found this car park on the first attempt.",
+   "factories": "Dropping Dad's forgotten sandwiches at the gate. He will pretend he wasn't worried about them.",
+   "hospital": "Visiting hours start now and I have grapes, a magazine and absolutely nowhere sensible to park."
+  },
+  "sedan-sports": {
+   "suburbs": "Nothing to prove out here. Just me, an empty crescent and a very satisfying engine noise.",
+   "city": "Yes I know it is a 30 zone. I am doing 30. Beautifully.",
+   "beach": "Roof down, sunglasses on, and a hairstyle that will not survive the first proper corner.",
+   "countryside": "These lanes were made for this car. The tractor ahead of me disagrees, apparently.",
+   "port": "Told the lads I would beat the ferry horn. The ferry horn does not know it is racing.",
+   "centre": "Cruising the strip, waving at nobody in particular, pretending the parking sensors are not screaming.",
+   "factories": "Shortcut through the yards. Nobody mentioned the speed bumps. My suspension has notes.",
+   "hospital": "Keeping well out of the way of the blue lights, and enjoying being the sensible one for once."
+  },
+  "hatchback-sports": {
+   "suburbs": "Passed my test in March. I have found 9 shortcuts. 8 of them are genuinely shortcuts.",
+   "city": "Meeting the girls in town, running late, and absolutely nailing this gap in the traffic.",
+   "beach": "Boot full of bodyboards, one flip-flop already lost, and the best playlist on this entire tape.",
+   "countryside": "Dad says take it steady on the lanes. Dad is not currently in the car.",
+   "port": "Dropping Mum at the ferry, then the whole afternoon is mine. Watch this bit.",
+   "centre": "Every corner here is tighter than the last and I have not clipped a kerb yet.",
+   "factories": "Picking my brother up off shift. If I am early I can have a go on the ramps.",
+   "hospital": "Taking Gran for her check-up. She says I drive too fast. She also says do it again."
+  },
+  "suv": {
+   "suburbs": "4 kids, 2 dogs and a boot that has not been fully closed since Tuesday.",
+   "city": "Everyone needs dropping somewhere different and nobody can agree which one comes first.",
+   "beach": "Loaded to the roof and down to the sand. If I stop now we never get going again.",
+   "countryside": "Muddy track, gate to open, and someone in the back asking how long every 90 seconds.",
+   "port": "Meeting the caravan off the boat. Yes, the caravan. No, I do not want to talk about it.",
+   "centre": "Big car, small streets. We do this slowly and nobody loses a mirror.",
+   "factories": "Running the football team to their tour of the works. 14 children, one seatbelt argument.",
+   "hospital": "New baby coming home today, so we are taking every corner like it is made of glass."
+  },
+  "suv-luxury": {
+   "suburbs": "I simply do not see why the recycling lorry needs the entire road to itself.",
+   "city": "Lunch at 1, hair at 2, and I refuse to be flustered by any of it.",
+   "beach": "Parking as close to the sand as the law allows, and possibly a little closer.",
+   "countryside": "Viewing a cottage. The lane is filthy and my tyres are frankly appalled.",
+   "port": "Collecting a rather large parcel from the docks. Do mind the paintwork, everyone.",
+   "centre": "Boutiques, then the deli, then home before the traffic makes an exhibition of itself.",
+   "factories": "Taking a wrong turn through the yards with enormous dignity and no intention of admitting it.",
+   "hospital": "Delivering flowers to the ward, and I will not be hurried, blue lights notwithstanding."
+  },
+  "taxi": {
+   "suburbs": "Airport run at 6. She said 5 minutes ago. Everybody says 5 minutes ago.",
+   "city": "Fare to the station, meter running, and I know 3 ways round this jam. Watch.",
+   "beach": "Beach to hotel, hotel to beach. Sand everywhere. I have given up caring about the sand.",
+   "countryside": "Middle of nowhere, no signal, and a pickup at a farm with no number on the gate.",
+   "port": "Ferry's in. 20 people want a taxi and there are 4 of us. Off we go.",
+   "centre": "Theatre crowd out at 10. If I am on that rank first I am made for the night.",
+   "factories": "Shift change at the works and every one of them wants dropping somewhere different.",
+   "hospital": "Taking Mrs Ellis to her appointment. She likes the scenic way, so the scenic way it is."
+  },
+  "police": {
+   "suburbs": "Cat up a tree, 3 phone calls about it, and I am the one with the ladder.",
+   "city": "Keeping the junctions moving. Nobody notices when this goes right, which is rather the point.",
+   "beach": "Lost child at the ice cream van, found again by the second one. All calm.",
+   "countryside": "Sheep on the road. Genuinely, that is the call. Sheep, on the road, all of them.",
+   "port": "Escorting something enormous off the dock. Slowly. Very slowly. Everybody breathe.",
+   "centre": "Friday night in town. My job is to be visible, cheerful and very slightly everywhere.",
+   "factories": "Gate alarm went off again. It is the wind. It is always the wind. I still go.",
+   "hospital": "Clearing the road ahead of the ambulance. They go first, always, and I make sure of it."
+  },
+  "van": {
+   "suburbs": "Shelves not fastened. Every corner sounds like a cupboard falling down a staircase.",
+   "city": "Loading bay for 10 minutes only and I have been here 9. Time to move.",
+   "beach": "Deckchairs, windbreaks and 100 buckets for the shop on the front. Sand in my gearstick.",
+   "countryside": "Fixing a farm gate, and the lane is exactly one van wide. I measured. Sort of.",
+   "port": "Collecting a pallet that is heavier than the van. This has gone wrong before.",
+   "centre": "Every delivery here is up a step, through a door and along a corridor. Every single one.",
+   "factories": "Tools in the back, job at unit 9, and something rattling I refuse to investigate.",
+   "hospital": "Dropping supplies at the side door. Quietly. There are people trying to rest in there."
+  },
+  "delivery": {
+   "suburbs": "41 drops before lunch. That is not a boast, it is a warning about my driving.",
+   "city": "Parcel, buzzer, no answer, next street. Repeat until the van is empty or I am.",
+   "beach": "Everyone ordered sun cream on the same morning. Every single one of them. Same morning.",
+   "countryside": "Postcode says field. The map says field. I am looking at a field. Marvellous.",
+   "port": "Signing for 3 containers of something and I am not allowed to ask what.",
+   "centre": "12 floors, one lift, and a clipboard I will not lose again. Probably.",
+   "factories": "Bulk drop at the loading bay, and the foreman times me. I quite enjoy that.",
+   "hospital": "Urgent box for the ward. This one actually is urgent, so mind your backs."
+  },
+  "delivery-flat": {
+   "suburbs": "Someone's new shed is on the back and it is taller than the van. Low branches, be kind.",
+   "city": "Flatbed through the middle of town, nothing to stop the load sliding but my own good judgement.",
+   "beach": "Pedalos down to the front. Nothing tied on properly. Pray for me.",
+   "countryside": "Fence posts for the top field, over a cattle grid that rearranges the whole load.",
+   "port": "Straight off the quay with a stack of crates and a wind that wants them in the water.",
+   "centre": "Scaffolding for the shopfronts. Long, heavy and absolutely not made for these corners.",
+   "factories": "Steel plate, one strap, and a foreman who says it will be fine. It is often fine.",
+   "hospital": "A new bed for the ward, on its side, on the flat. Slowly does it."
+  },
+  "truck": {
+   "suburbs": "Too big for these streets and I have been saying so for 30 years. Still here though.",
+   "city": "Full load through the middle. I sing on the tight bits. It helps, mostly me.",
+   "beach": "Ice cream for the whole front, and if I am late it arrives as milkshake.",
+   "countryside": "Hay to the far barn, singing all the way, and the lane has not got any wider.",
+   "port": "Down to the quay, back out loaded, and that is the day. Nothing fancy about it.",
+   "centre": "They built this street for horses and I am not a horse. We manage anyway.",
+   "factories": "This is my road, this is my gate, and that is my mug in the office. Home turf.",
+   "hospital": "Bringing the big oxygen order in. Steady, quiet, and out again before visiting."
+  },
+  "truck-flat": {
+   "suburbs": "A digger on the back for the new extension. It hangs over the sides. Everyone waves.",
+   "city": "Long load, tight junction, and a queue building that I can see in both mirrors.",
+   "beach": "Hauling the lifeboat trailer down. Heavy at the front, light at the back, all wrong.",
+   "countryside": "Straw bales, badly stacked by someone else, and every gust has an opinion.",
+   "port": "Containers off the crane and straight out. Do not stop, do not stall, do not think.",
+   "centre": "Girders for the new roof, threading through streets that were never meant for girders.",
+   "factories": "Whatever will not fit anywhere else ends up on me. Today it is a boiler.",
+   "hospital": "Portable scanner on the back, worth more than my house. Not one single bump."
+  },
+  "ambulance": {
+   "suburbs": "Blue lights on a quiet crescent. Somebody's grandad had a fall and we are 2 minutes out.",
+   "city": "Through the traffic, round the jam, no drama. The drama is for people without a job to do.",
+   "beach": "Sunburn, jellyfish and one broken wrist off the rocks. Standard afternoon at the seaside.",
+   "countryside": "Farm track, no signposts, and a gate I will be opening myself. Still going.",
+   "port": "Crush injury on the quay. Every second of this drive is one they get at the other end.",
+   "centre": "Saturday night in the centre. We will be back here twice before midnight.",
+   "factories": "Machine accident at unit 6. I know that gate, I know that yard, I know the way in.",
+   "hospital": "Doors, ramp, straight in. This is the run the whole job is built around."
+  },
+  "firetruck": {
+   "suburbs": "Chip pan on Acacia Close. Out in 10 minutes and the neighbours will talk for weeks.",
+   "city": "Alarm at the office block, probably burnt toast, absolutely still going as if it is not.",
+   "beach": "Barbecue in the dunes. Nice idea, terrible spot, and now it is my problem.",
+   "countryside": "Field fire and a wind behind it. This is the one you actually run for.",
+   "port": "Fuel spill on the dock. Foam, patience, and a very firm word with somebody afterwards.",
+   "centre": "Narrow street, tall buildings, ladder out. Every driver in town has to get out of my way.",
+   "factories": "Smoke from the roof at unit 12. Sirens on, foot down, laughing on the inside.",
+   "hospital": "Standing by while they move the ward. Nothing to put out, everything to be ready for."
+  },
+  "garbage-truck": {
+   "suburbs": "Bin day. Every driveway, every wheelie bin, every dog. They know my engine before they see me.",
+   "city": "Stopping every 12 metres in the busiest street in town. You are welcome, incidentally.",
+   "beach": "The bins on the front after a hot weekend. Brave of you to ask what is in them.",
+   "countryside": "Farm run. Half of this is not rubbish, it is machinery somebody has given up on.",
+   "port": "Skips off the quay, full of rope and fish boxes. The smell arrives before I do.",
+   "centre": "Restaurant waste, back alleys, 6 in the morning. Nobody sees this and everybody needs it.",
+   "factories": "Industrial skips, 2 of them, and a loader that only works when it feels like it.",
+   "hospital": "The careful bins. Sealed, labelled, handled properly, and out before anybody notices."
+  },
+  "tractor": {
+   "suburbs": "Somehow ended up on the estate roads. There are 11 cars behind me. Lovely day though.",
+   "city": "No, I do not know why I am in the city either. Somebody move that bus.",
+   "beach": "Towing the boat off the slipway. Slow is the whole point of me, lad.",
+   "countryside": "Top field, bottom field, then the barn. Same as yesterday, same as 40 years of yesterdays.",
+   "port": "Shifting pallets on the quay because the forklift has given up again. I never give up.",
+   "centre": "Market day. Me, a trailer of turnips, and the tightest one-way system ever invented.",
+   "factories": "Hauling scrap out of the yard. They laugh at my speed until they need a tow.",
+   "hospital": "Bringing the fete marquee for the garden. Takes an hour. Nobody minds. It is a nice garden."
+  },
+  "kart-oobi": {
+   "beach": "First Oo brother out past the buoys. Wave at the beach, point at the horizon, hold on.",
+   "port": "Round the moored boats and out to the harbour mouth. Dad says stay in sight. Dad is on the pier."
+  },
+  "kart-oodi": {
+   "beach": "Widest corners of the 4 of us, on purpose, because the spray looks brilliant from the beach.",
+   "port": "Chasing Oobi through the docks and taking every turn far wider than strictly necessary."
+  },
+  "kart-ooli": {
+   "beach": "Say nothing, steer neatly, win quietly. Then let the others explain what went wrong.",
+   "port": "Quietest brother, tidiest line, and 3 trophies on a shelf that nobody else can reach."
+  },
+  "kart-oopi": {
+   "beach": "Youngest, smallest boat, biggest splash. Honestly the splash is most of the reason I came.",
+   "port": "Following my brothers round the harbour and soaking anybody standing near the edge."
+  }
+ },
+ "arc": {
+  "suburbs": {
+   "in": "Grandad turns 80 today and thinks nothing is happening. 14 jobs before 7 o'clock. Bags in, everyone.",
+   "out": "School run done. Now the cake — it's over in the city, and it is apparently enormous."
+  },
+  "city": {
+   "in": "The bakery is the far side of these lanes and the cake is the size of a coffee table.",
+   "out": "Cake aboard, perfectly flat. Balloons next, and the only shop with any is down at the beach."
+  },
+  "beach": {
+   "in": "50 balloons, all blown up, and a cake on the back seat. What could possibly go wrong.",
+   "out": "Balloons in, cake intact, sand absolutely everywhere. Gran's trifle next — she is out at the farm."
+  },
+  "countryside": {
+   "in": "Gran's trifle has 3 layers and no lid, and there is a tractor ahead who has never hurried.",
+   "out": "Trifle wedged in beside the cake. To the docks — Auntie Jean's ferry lands in 8 minutes."
+  },
+  "port": {
+   "in": "Auntie Jean, 2 suitcases, and a boat that docked while I was still looking for the gate.",
+   "out": "Jean's in and already telling me about the crossing. Into town: nobody has bought the candles."
+  },
+  "centre": {
+   "in": "80 candles and one card. And somewhere in all this, a parking space nobody else has found.",
+   "out": "Candles, card, done. Dad has the bunting in his locker and he is still on shift. To the yards."
+  },
+  "factories": {
+   "in": "Dad is on lates with a bag of bunting and no idea what the time is. Surprise, Dad.",
+   "out": "Dad's in, still in his overalls. Last stop: the hospital, for Uncle Ray and his new plaster."
+  },
+  "hospital": {
+   "in": "Uncle Ray fell off the ladder hanging our bunting. He is extremely proud of the cast.",
+   "out": "Everyone aboard: cake, trifle, balloons, candles, Jean, Dad and Ray. One street left to go."
+  },
+  "encore": {
+   "in": "Our street. Lights on, music on, and a car so full I cannot see out of the back window.",
+   "out": "14 jobs. 8 places. One tape.",
+   "end": "14 jobs, 8 places, one tape — and Grandad still thinks he is having a quiet night in."
+  }
+ }
+}

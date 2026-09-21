@@ -1,0 +1,153 @@
+{
+ "generated": "2026-09-21T11:58:49.951Z",
+ "units": "simulated: car lengths, the vehicle scale lives in routes. arcade: pixels a frame, 36 to a car length",
+ "model": "arcade",
+ "global": {
+  "stageSeconds": 600,
+  "rewind": 0.5,
+  "winRewind": 1.3,
+  "crashDrop": 0.1,
+  "crashCool": 0.8,
+  "stallFor": 1,
+  "rollFor": 0.6,
+  "gravity": 24,
+  "camHeight": 9,
+  "camBack": 8.25,
+  "camSide": 0,
+  "camLag": 0.12,
+  "grassGrip": 0.35,
+  "grassSpeed": 0.9,
+  "sandGrip": 0.75,
+  "sandSpeed": 0.62,
+  "waterGrip": 0.01,
+  "waterSpeed": 1,
+  "camTween": 1,
+  "model": "arcade"
+ },
+ "vehicleDefaults": {
+  "topSpeedPerLen": 7,
+  "reachTopIn": 3,
+  "grip": 1,
+  "steer": 0.7,
+  "mass": 380,
+  "brakePerLen": 7,
+  "steerFloor": 0.8,
+  "maxYaw": 2.2,
+  "scrub": 0.1,
+  "lift": 0,
+  "wheelOfHeight": 0.23,
+  "restOfWheel": 1.6
+ },
+ "vehicles": {},
+ "arcadeDefaults": {
+  "maxSpeed": 1.7,
+  "accel": 0.04,
+  "steerRate": 0.045,
+  "lateralDrag": 0.0105,
+  "driftFriction": 0.009,
+  "mass": 380,
+  "steerSpeedFactor": 0.45,
+  "gripBlend": 0.02,
+  "forwardDrag": 0.001,
+  "driftThreshold": 0.09,
+  "roadGrip": 0.85,
+  "gravity": 26,
+  "jump": 1.8,
+  "lift": 0,
+  "stepUp": 1.4
+ },
+ "arcadeVehicles": {
+  "sedan": {
+   "lateralDrag": 0.04
+  },
+  "sedan-sports": {
+   "maxSpeed": 2,
+   "accel": 0.06,
+   "steerRate": 0.06
+  },
+  "hatchback-sports": {
+   "maxSpeed": 1.9,
+   "accel": 0.06,
+   "steerRate": 0.07
+  },
+  "police": {
+   "maxSpeed": 2.3,
+   "lateralDrag": 0.06
+  },
+  "race": {
+   "maxSpeed": 2.5
+  },
+  "race-future": {
+   "maxSpeed": 3
+  },
+  "van": {
+   "maxSpeed": 1.4,
+   "lateralDrag": 0.06
+  },
+  "delivery-flat": {
+   "maxSpeed": 1.2,
+   "lateralDrag": 0.06
+  },
+  "truck": {
+   "maxSpeed": 1.3,
+   "lateralDrag": 0.06
+  },
+  "delivery": {
+   "maxSpeed": 1.2,
+   "lateralDrag": 0.06
+  },
+  "truck-flat": {
+   "maxSpeed": 1.3,
+   "lateralDrag": 0.06
+  },
+  "ambulance": {
+   "lateralDrag": 0.06
+  },
+  "firetruck": {
+   "lateralDrag": 0.06
+  },
+  "garbage-truck": {
+   "lateralDrag": 0.06,
+   "maxSpeed": 1.3
+  },
+  "taxi": {
+   "lateralDrag": 0.06
+  },
+  "tractor": {
+   "lateralDrag": 0.06,
+   "maxSpeed": 1.2
+  },
+  "kart-oobi": {
+   "maxSpeed": 2.3,
+   "lateralDrag": 0.0001,
+   "roadGrip": 0.005,
+   "steerRate": 0.07,
+   "lift": -0.06
+  },
+  "kart-oodi": {
+   "maxSpeed": 2.3,
+   "steerRate": 0.07,
+   "lateralDrag": 0.0001,
+   "roadGrip": 0.005,
+   "lift": -0.06
+  },
+  "kart-ooli": {
+   "maxSpeed": 2.3,
+   "steerRate": 0.07,
+   "lateralDrag": 0.0001,
+   "roadGrip": 0.005,
+   "lift": -0.06
+  },
+  "kart-oopi": {
+   "maxSpeed": 2.3,
+   "steerRate": 0.07,
+   "lateralDrag": 0.0001,
+   "roadGrip": 0.005,
+   "lift": -0.06
+  },
+  "suv-luxury": {
+   "lateralDrag": 0.04,
+   "maxSpeed": 1.9
+  }
+ }
+}

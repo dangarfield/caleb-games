@@ -1,0 +1,3566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deja Vroom - Mapper</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{background:#0a0a2e;color:#e8ecff;
+  font:14px/1.45 'Segoe UI',system-ui,sans-serif}
+
+/* ---- chrome ---- */
+#top{height:46px;display:flex;align-items:center;gap:6px;padding:0 10px;
+  background:#12123a;border-bottom:1px solid rgba(162,155,254,.22);position:relative;z-index:20}
+#top .brand{font-weight:700;letter-spacing:.3px;margin-right:10px;white-space:nowrap}
+#top .brand b{color:#ffd32a}
+.tab{background:transparent;color:#a9b3e0;border:1px solid transparent;
+  border-radius:9px;padding:7px 16px;font:600 13px/1 inherit;cursor:pointer}
+.tab:hover{background:rgba(108,92,231,.22);color:#fff}
+.tab.on{background:#6c5ce7;color:#fff;border-color:#a29bfe}
+#top .right{margin-left:auto;display:flex;gap:8px;align-items:center;
+  font-size:12px;color:#8e98c8}
+#panes{position:absolute;top:46px;left:0;right:0;bottom:0}
+.pane{position:absolute;inset:0;display:none}
+.pane.on{display:flex}
+
+/* ---- generic controls ---- */
+button,select{background:rgba(255,255,255,.08);color:#e8ecff;
+  border:1px solid rgba(162,155,254,.32);border-radius:8px;
+  padding:6px 11px;font:600 12.5px/1 inherit;cursor:pointer}
+button:hover,select:hover{background:rgba(108,92,231,.34)}
+button:disabled{opacity:.35;cursor:default}
+button.on{background:#6c5ce7;border-color:#a29bfe;color:#fff}
+button.danger:hover{background:rgba(231,76,60,.5);border-color:#e74c3c}
+input[type=range]{accent-color:#6c5ce7;vertical-align:middle}
+label.f{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#a9b3e0;
+  white-space:nowrap}
+.bar{display:flex;align-items:center;gap:8px;padding:8px 10px;flex-wrap:wrap;
+  background:#12123a;border-bottom:1px solid rgba(162,155,254,.18)}
+.sep{width:1px;height:22px;background:rgba(255,255,255,.14);margin:0 2px}
+.hint{font-size:11.5px;color:#7d87b8}
+
+/* ---- capture pane ---- */
+#capLeft{flex:1;display:flex;flex-direction:column;min-width:0}
+#vidWrap{flex:1;display:flex;align-items:center;justify-content:center;
+  background:#07071f;position:relative;min-height:0;padding:10px}
+#vid{max-width:100%;max-height:100%;display:block;background:#000}
+#noVid{position:absolute;text-align:center;color:#8e98c8;font-size:13px;line-height:1.9;padding:20px}
+#noVid code{background:rgba(255,255,255,.08);padding:2px 6px;border-radius:5px;
+  font-size:12px;color:#cfd6ff}
+#capBar{background:#12123a;border-top:1px solid rgba(162,155,254,.18);padding:9px 10px;
+  display:flex;flex-direction:column;gap:8px}
+#seekRow{display:flex;align-items:center;gap:10px}
+#seek{flex:1}
+#tcode{font:600 12px/1 ui-monospace,Menlo,Consolas,monospace;color:#ffd32a;
+  min-width:150px;text-align:right}
+#capRight{width:290px;border-left:1px solid rgba(162,155,254,.22);
+  background:#101034;display:flex;flex-direction:column}
+#capRight h3{font-size:12px;text-transform:uppercase;letter-spacing:.8px;
+  color:#8e98c8;padding:11px 12px 8px;display:flex;align-items:center;gap:8px}
+#capRight h3 span{margin-left:auto;color:#ffd32a}
+#shots{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  padding:0 10px 12px;display:flex;flex-direction:column;gap:8px;
+  scrollbar-width:thin;scrollbar-color:#3a3a72 transparent}
+#shots::-webkit-scrollbar{width:10px}
+#shots::-webkit-scrollbar-thumb{background:#3a3a72;border-radius:6px;
+  border:2px solid #101034}
+#shots::-webkit-scrollbar-thumb:hover{background:#4d4d95}
+#shots::-webkit-scrollbar-track{background:transparent}
+.shot{position:relative;flex:0 0 auto;border:1px solid rgba(162,155,254,.28);
+  border-radius:8px;overflow:hidden;background:#07071f}
+.shot img{width:100%;display:block;aspect-ratio:16/7;object-fit:cover;
+  background:#07071f}
+.shot .meta{display:flex;align-items:center;gap:6px;padding:5px 7px;
+  font-size:11px;color:#a9b3e0;background:rgba(0,0,0,.35)}
+.shot .meta b{color:#ffd32a;font-weight:700}
+.shot .meta .sp{margin-left:auto}
+.shot .x{background:transparent;border:none;color:#8e98c8;padding:2px 5px;
+  font-size:13px;line-height:1;cursor:pointer;border-radius:4px}
+.shot .x:hover{background:rgba(231,76,60,.55);color:#fff}
+.empty{color:#6c76a6;font-size:12.5px;text-align:center;padding:26px 14px;line-height:1.8}
+.grp{flex:0 0 auto;display:flex;align-items:center;gap:7px;margin:6px 0 1px;
+  font-size:10.5px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;
+  color:#a29bfe;cursor:pointer;user-select:none;border-radius:5px;padding:2px 3px}
+.grp:hover{background:rgba(108,92,231,.18);color:#c9c2ff}
+.grp .cv{display:inline-block;width:9px;font-size:9px;line-height:1;
+  transition:transform .12s;transform:rotate(90deg)}
+.grp.shut .cv{transform:rotate(0deg)}
+.grp .ln{flex:1;height:1px;background:rgba(162,155,254,.28)}
+.grp span{color:#6c76a6;letter-spacing:.3px;font-weight:600;text-transform:none}
+.grp.shut{color:#7d87b8}
+.grp.shut .ln{background:rgba(162,155,254,.14)}
+
+/* ---- build pane ---- */
+#buildWrap{flex:1;display:flex;flex-direction:column;min-width:0}
+#strip{width:150px;border-right:1px solid rgba(162,155,254,.22);background:#101034;
+  display:flex;flex-direction:column}
+#strip h3{font-size:11px;text-transform:uppercase;letter-spacing:.8px;
+  color:#8e98c8;padding:10px 10px 7px}
+#stripList{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  padding:0 8px 10px;display:flex;flex-direction:column;gap:7px;
+  scrollbar-width:thin;scrollbar-color:#3a3a72 transparent}
+#stripList::-webkit-scrollbar{width:10px}
+#stripList::-webkit-scrollbar-thumb{background:#3a3a72;border-radius:6px;
+  border:2px solid #101034}
+#stripList::-webkit-scrollbar-thumb:hover{background:#4d4d95}
+#stripList::-webkit-scrollbar-track{background:transparent}
+.chip{flex:0 0 auto;border:1px solid rgba(162,155,254,.28);border-radius:7px;
+  overflow:hidden;cursor:pointer;background:#07071f;position:relative}
+.chip:hover{border-color:#a29bfe}
+.chip img{width:100%;display:block;aspect-ratio:16/7;object-fit:cover;
+  background:#07071f}
+.chip .ct{position:absolute;top:3px;right:4px;font-size:10px;font-weight:700;
+  background:#6c5ce7;color:#fff;padding:1px 6px;border-radius:9px;z-index:2}
+.chip.used{border-color:rgba(108,92,231,.75)}
+.chip.used img{opacity:.28;filter:grayscale(.6)}
+.chip.used::after{content:'placed';position:absolute;left:0;right:0;bottom:0;
+  text-align:center;font-size:9.5px;font-weight:700;letter-spacing:.7px;
+  text-transform:uppercase;color:#a29bfe;background:rgba(10,10,46,.72);
+  padding:2px 0}
+.chip.used:hover img{opacity:.55;filter:none}
+.chip .n{position:absolute;top:3px;left:4px;font-size:10px;font-weight:700;
+  background:rgba(0,0,0,.65);padding:1px 5px;border-radius:4px;color:#ffd32a}
+#stage{flex:1;position:relative;overflow:hidden;background:#07071f;cursor:crosshair;
+  touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none}
+#stage.pan{cursor:grab}
+#stage.pan.down{cursor:grabbing}
+#stage.move{cursor:default}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#status{position:absolute;left:10px;bottom:10px;z-index:5;font-size:11.5px;
+  color:#8e98c8;background:rgba(10,10,46,.8);padding:5px 10px;border-radius:7px;
+  border:1px solid rgba(162,155,254,.2);pointer-events:none}
+.swatch{width:12px;height:12px;border-radius:3px;display:inline-block;
+  border:1px solid rgba(0,0,0,.4)}
+.lvl{padding:6px 9px}
+.lvl.on{background:#c98a2a;border-color:#ffd32a;color:#fff}
+.brush.blocked{opacity:.3;cursor:not-allowed}
+.brush.blocked:hover{background:rgba(255,255,255,.08)}
+#selBox{display:none;align-items:center;gap:8px}
+#selBox.on{display:inline-flex}
+
+/* ---- city pane (3D asset placement) ---- */
+#cityWrap{flex:1;display:flex;flex-direction:column;min-width:0}
+#assets{width:214px;border-right:1px solid rgba(162,155,254,.22);background:#101034;
+  display:flex;flex-direction:column;min-height:0}
+#assets h3{font-size:11px;text-transform:uppercase;letter-spacing:.8px;
+  color:#8e98c8;padding:10px 10px 7px;display:flex;align-items:center;gap:6px}
+#assets h3 span{margin-left:auto;color:#ffd32a;font-size:10px}
+#aFind{margin:0 9px 7px;padding:5px 8px;font-size:11.5px;border-radius:6px;
+  background:#07071f;color:#e8ecff;border:1px solid rgba(162,155,254,.28);
+  outline:none;width:calc(100% - 18px);box-sizing:border-box}
+#aFind:focus{border-color:#a29bfe}
+#aList{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  padding:0 8px 14px;scrollbar-width:thin;scrollbar-color:#3a3a72 transparent}
+#aList::-webkit-scrollbar{width:10px}
+#aList::-webkit-scrollbar-thumb{background:#3a3a72;border-radius:6px;
+  border:2px solid #101034}
+#aList::-webkit-scrollbar-thumb:hover{background:#4d4d95}
+#aList::-webkit-scrollbar-track{background:transparent}
+.kitBody{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:4px 0 2px}
+.kitBody.shut{display:none}
+.asset{flex:0 0 auto;border:1px solid rgba(162,155,254,.22);border-radius:7px;
+  overflow:hidden;background:#07071f;cursor:grab;position:relative}
+.asset:hover{border-color:#a29bfe;background:#16163f}
+.asset:active{cursor:grabbing}
+.asset img{width:100%;height:56px;display:block;object-fit:contain;background:#141436}
+.asset b{display:block;font:500 9px/1.25 inherit;color:#9aa4d4;padding:3px 4px 4px;
+  text-align:center;word-break:break-word;font-weight:500}
+.asset.used b{color:#ffd32a}
+#stage3{flex:1;position:relative;overflow:hidden;background:#0a0a22;
+  touch-action:none;overscroll-behavior:none;user-select:none;cursor:default}
+#cv3{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#stage3.over{outline:2px dashed #ffd32a;outline-offset:-6px}
+#status3{position:absolute;left:10px;bottom:10px;z-index:5;font-size:11.5px;
+  color:#8e98c8;background:rgba(10,10,46,.8);padding:5px 10px;border-radius:7px;
+  border:1px solid rgba(162,155,254,.2);pointer-events:none}
+#selBar{display:flex;align-items:center;gap:8px}
+#selPart{display:flex;align-items:center;gap:8px;min-width:0}
+#selBar.idle #selPart{opacity:.42}
+#selBar.idle .nm{color:#6c76a6;font-weight:600}
+#selBar .nm{color:#ffd32a;font-weight:700;max-width:150px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.num{width:58px;padding:4px 6px;font:600 11.5px/1 inherit;border-radius:5px;
+  background:#07071f;color:#e8ecff;border:1px solid rgba(162,155,254,.28);outline:none}
+.num:focus{border-color:#a29bfe}
+.gq{min-width:26px;padding:4px 7px}
+.num.sm{width:48px}
+.sw{width:20px;height:20px;padding:0;min-width:0;border-radius:5px;
+  border:1px solid rgba(162,155,254,.35)}
+.sw.on{border:2px solid #ffd32a}
+.sw.none{background:#b0b4de}
+/* ---- routes pane ---- */
+#rtTree{width:210px;border-right:1px solid rgba(162,155,254,.22);background:#101034;
+  display:flex;flex-direction:column;min-height:0}
+#rtTree h3{font-size:11px;text-transform:uppercase;letter-spacing:.8px;
+  color:#8e98c8;padding:10px 10px 7px;display:flex;align-items:center;gap:6px}
+#rtTree h3 button{margin-left:auto;padding:3px 7px;font-size:10.5px}
+#rtList{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 8px 14px;
+  scrollbar-width:thin;scrollbar-color:#3a3a72 transparent}
+#rtList::-webkit-scrollbar{width:10px}
+#rtList::-webkit-scrollbar-thumb{background:#3a3a72;border-radius:6px;border:2px solid #101034}
+.lvRow{display:flex;align-items:center;gap:6px;padding:4px 7px;margin:2px 0 2px 12px;
+  border-radius:6px;font-size:11.5px;color:#a9b3e0;cursor:pointer;
+  border:1px solid transparent}
+.lvRow:hover{background:rgba(108,92,231,.16)}
+.lvRow.on{background:rgba(108,92,231,.34);border-color:#a29bfe;color:#fff}
+.lvRow .x,.lvRow .cp{background:transparent;border:none;color:#8e98c8;
+  padding:1px 5px;font-size:13px;line-height:1;cursor:pointer;border-radius:4px}
+.lvRow .x:hover{background:rgba(231,76,60,.55);color:#fff}
+.lvRow .cp{margin-left:auto;font-size:12px}
+.lvRow .cp:hover{background:rgba(108,92,231,.6);color:#fff}
+.lvRow span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.grp .add{margin-left:4px;padding:1px 6px;font-size:11px;line-height:1.3}
+#rtWrap{flex:1;display:flex;flex-direction:column;min-width:0}
+#rtStage{flex:1;position:relative;overflow:hidden;background:#0a0a22;
+  touch-action:none;overscroll-behavior:none;user-select:none;cursor:default}
+#rtStatus{position:absolute;left:10px;bottom:10px;z-index:5;font-size:11.5px;
+  color:#8e98c8;background:rgba(10,10,46,.8);padding:5px 10px;border-radius:7px;
+  border:1px solid rgba(162,155,254,.2);pointer-events:none}
+#cfWrap{flex:1;display:flex;flex-direction:column;min-width:0}
+#cfGlobal .g{display:flex;align-items:center;gap:6px;font-size:11.5px;color:#a9b3e0}
+#cfGlobal .g .num{width:64px}
+#cfBody{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;
+  scrollbar-width:thin;scrollbar-color:#3a3a72 transparent}
+#cfBody::-webkit-scrollbar{width:11px;height:11px}
+#cfBody::-webkit-scrollbar-thumb{background:#3a3a72;border-radius:6px;border:2px solid #0a0a22}
+table.cfT{border-collapse:separate;border-spacing:0;font-size:11.5px;color:#cdd4f5}
+table.cfT th,table.cfT td{padding:4px 8px;white-space:nowrap;
+  border-bottom:1px solid rgba(162,155,254,.12)}
+table.cfT thead th[title]{cursor:help}
+table.cfT thead th{position:sticky;top:0;z-index:3;background:#141438;
+  font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:#a29bfe;
+  text-align:left;font-weight:700;border-bottom:1px solid rgba(162,155,254,.3)}
+table.cfT thead th small{display:block;font-size:9.5px;letter-spacing:0;
+  text-transform:none;color:#6c76a6;font-weight:500;padding-top:1px}
+table.cfT th.v,table.cfT td.v{position:sticky;left:0;z-index:2;background:#101034;
+  border-right:1px solid rgba(162,155,254,.22)}
+table.cfT thead th.v{z-index:4;background:#141438}
+table.cfT td.v{display:flex;align-items:center;gap:7px;min-width:172px}
+table.cfT td.v img{width:30px;height:22px;object-fit:contain;border-radius:3px}
+table.cfT tr.def td{background:rgba(108,92,231,.14)}
+table.cfT tr.def td.v{background:#1a1a4a;color:#fff;font-weight:600}
+table.cfT tr:hover td{background:rgba(108,92,231,.1)}
+table.cfT tr:hover td.v{background:#16163e}
+table.cfT select.feel{width:150px;padding:3px 5px;font:600 11px/1 inherit;border-radius:5px;
+  background:#0d0d2c;color:#e8ecff;border:1px solid rgba(162,155,254,.26)}
+table.cfT select.feel:focus{border-color:#a29bfe;outline:none}
+table.cfT input{width:78px;padding:3px 6px;font:600 11.5px/1 inherit;border-radius:5px;
+  background:#0d0d2c;color:#e8ecff;border:1px solid rgba(162,155,254,.26);text-align:right}
+table.cfT input:focus{border-color:#a29bfe;outline:none}
+table.cfT input.own{color:#ffd32a;border-color:rgba(255,211,42,.5);background:#20203f}
+table.cfT input::placeholder{color:#5a6390;font-weight:500}
+#cfBody .note{padding:12px 16px 26px;font-size:11.5px;color:#7d87b8;line-height:1.65;max-width:820px}
+#cfBody .note b{color:#a9b3e0}
+#rtForm{width:272px;border-left:1px solid rgba(162,155,254,.22);background:#101034;
+  display:flex;flex-direction:column;min-height:0;overflow-y:auto;
+  scrollbar-width:thin;scrollbar-color:#3a3a72 transparent}
+#rtForm::-webkit-scrollbar{width:10px}
+#rtForm::-webkit-scrollbar-thumb{background:#3a3a72;border-radius:6px;border:2px solid #101034}
+#rtForm h4{font-size:10.5px;text-transform:uppercase;letter-spacing:.9px;
+  color:#a29bfe;margin:14px 12px 6px;font-weight:700}
+#rtForm .row{display:flex;align-items:center;gap:7px;padding:3px 12px;font-size:11.5px;color:#a9b3e0}
+#rtForm .row span{min-width:52px;color:#8e98c8}
+#rtForm input[type=text],#rtForm textarea,#rtForm select{
+  flex:1;min-width:0;background:#07071f;color:#e8ecff;font:inherit;font-size:11.5px;
+  border:1px solid rgba(162,155,254,.28);border-radius:6px;padding:5px 7px;outline:none}
+#rtForm textarea{resize:vertical;min-height:62px;line-height:1.45}
+#rtForm input:focus,#rtForm textarea:focus,#rtForm select:focus{border-color:#a29bfe}
+#rtForm .hint{padding:2px 12px 8px;font-size:10.5px;color:#6c76a6;line-height:1.5}
+#rtForm .none{padding:24px 14px;color:#6c76a6;font-size:12px;text-align:center;line-height:1.8}
+.vehGrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;padding:2px 12px 4px}
+.veh{position:relative;border:1px solid rgba(162,155,254,.22);border-radius:6px;
+  background:#07071f;cursor:pointer;overflow:hidden}
+.veh .n{position:absolute;top:3px;right:3px;min-width:17px;height:17px;padding:0 4px;
+  border-radius:9px;background:rgba(7,7,31,.9);border:1px solid rgba(162,155,254,.5);
+  color:#cdd4f5;font:700 10px/1 inherit;font-style:normal;
+  display:flex;align-items:center;justify-content:center}
+.veh.on .n{border-color:#ffd32a;color:#ffd32a;background:#1c1c4a}
+.veh img{width:100%;height:38px;display:block;object-fit:contain;background:#141436}
+.veh b{display:block;font:500 8.5px/1.2 inherit;color:#9aa4d4;padding:2px 2px 3px;text-align:center;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.veh:hover{border-color:#a29bfe}
+.veh.on{border-color:#ffd32a;background:#1c1c4a}
+.veh.on b{color:#ffd32a}
+</style>
+</head>
+<body>
+
+<div id="top">
+  <div class="brand">DEJA VROOM <b>mapper</b></div>
+  <button class="tab" data-tab="capture">Capture</button>
+  <button class="tab on" data-tab="build">Build</button>
+  <button class="tab" data-tab="city">City</button>
+  <button class="tab" data-tab="routes">Routes</button>
+  <button class="tab" data-tab="config">Config</button>
+  <div class="right"><span id="saveState">ready</span></div>
+</div>
+
+<div id="panes">
+
+  <!-- ================= CAPTURE ================= -->
+  <div class="pane" id="capturePane">
+    <div id="capLeft">
+      <div id="vidWrap">
+        <video id="vid" preload="metadata" muted playsinline></video>
+        <div id="noVid">
+          Looking for <code>research/commute-gameplay.mp4</code><br>
+          If it doesn't load, pick the file yourself:<br><br>
+          <input type="file" id="vidFile" accept="video/*">
+        </div>
+      </div>
+      <div id="capBar">
+        <div id="seekRow">
+          <button id="playBtn" title="Space">&#9654; Play</button>
+          <input type="range" id="seek" min="0" max="1000" value="0" step="1">
+          <div id="tcode">0:00.00 / 0:00.00</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <button id="bs1" title="Back 1 second (&#8592;)">&#171; 1s</button>
+          <button id="b10" title="Back 10 frames">&#171; 10f</button>
+          <button id="b1" title="Back 1 frame (,)">&#8249; 1f</button>
+          <button id="f1" title="Forward 1 frame (.)">1f &#8250;</button>
+          <button id="f10" title="Forward 10 frames">10f &#187;</button>
+          <button id="fs1" title="Forward 1 second (&#8594;)">1s &#187;</button>
+          <div class="sep"></div>
+          <label class="f">fps
+            <input type="number" id="fps" value="30" min="1" max="120" step="1"
+                   style="width:56px;background:rgba(255,255,255,.08);color:#e8ecff;
+                          border:1px solid rgba(162,155,254,.32);border-radius:6px;padding:4px 6px">
+          </label>
+          <div class="sep"></div>
+          <button id="grab" class="on" title="C">&#9679; Capture frame</button>
+          <div class="sep"></div>
+          <label class="f">stage
+            <input type="number" id="stageNo" value="1" min="1" max="999" step="1"
+                   style="width:58px;background:rgba(255,255,255,.08);color:#ffd32a;
+                          font-weight:700;border:1px solid rgba(162,155,254,.32);
+                          border-radius:6px;padding:4px 6px">
+          </label>
+          <button id="nextStage" title="Start the next stage">stage +1</button>
+          <span id="nextLbl" class="hint" style="color:#ffd32a"></span>
+          <span class="hint">space play/pause &middot; &#8592; &#8594; 1s &middot; , and . step a frame &middot; c capture</span>
+        </div>
+      </div>
+    </div>
+    <div id="capRight">
+      <h3>Captures <span id="shotCount">0</span>
+      <button id="foldAll" style="padding:3px 8px;font-size:10.5px"
+              title="Collapse or expand every stage">fold</button></h3>
+      <div id="shots"><div class="empty">No captures yet.<br>Seek to a frame and hit Capture.</div></div>
+      <div style="padding:0 10px 12px;display:flex;gap:7px">
+        <button id="clearShots" class="danger" style="flex:1">Clear all</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= BUILD ================= -->
+  <div class="pane on" id="buildPane">
+    <div id="strip">
+      <h3 style="display:flex;align-items:center;gap:6px">Captures
+        <button id="foldAll2" style="margin-left:auto;padding:3px 7px;font-size:10px"
+                title="Collapse or expand every stage">fold</button></h3>
+      <div id="stripList"><div class="empty">Capture some<br>frames first.</div></div>
+      <div style="padding:0 8px 10px">
+        <button id="addAll" style="width:100%">Add all &#8594;</button>
+      </div>
+    </div>
+    <div id="buildWrap">
+      <div class="bar">
+        <button class="mode on" data-mode="draw">Draw</button>
+        <button class="mode" data-mode="rect">Rect</button>
+        <button class="mode" data-mode="erase">Erase</button>
+        <button class="mode" data-mode="move">Move</button>
+        <button class="mode" data-mode="pan">Pan</button>
+        <div class="sep"></div>
+        <span id="brushes"></span>
+        <div class="sep"></div>
+        <span id="levels"></span>
+        <div class="sep"></div>
+        <label class="f">size <input type="range" id="bsize" min="2" max="120" value="18" style="width:92px"><b id="bsizeV" style="color:#ffd32a;min-width:26px">18</b></label>
+        <div class="sep"></div>
+        <button id="capRound" class="cap on" data-cap="round" title="Rounded ends">&#9679; round</button>
+        <button id="capSquare" class="cap" data-cap="butt" title="Square ends">&#9632; square</button>
+        <div class="sep"></div>
+        <label class="f">template <input type="range" id="tOpacity" min="0" max="100" value="70" style="width:80px"><b id="tOpacityV" style="color:#ffd32a;min-width:32px">70%</b></label>
+        <span id="selBox">
+          <div class="sep"></div>
+          <label class="f">opacity <input type="range" id="iOpacity" min="0" max="100" value="100" style="width:74px"><b id="iOpacityV" style="color:#ffd32a;min-width:32px">100%</b></label>
+          <label class="f">scale <input type="range" id="iScale" min="10" max="400" value="100" style="width:84px"><b id="iScaleV" style="color:#ffd32a;min-width:38px">100%</b></label>
+          <button id="rstScale" title="Back to original size">1:1</button>
+          <button id="delImg" class="danger">Remove</button>
+        </span>
+        <div class="sep"></div>
+        <button id="undo" title="Ctrl+Z">&#8630; Undo</button>
+        <button id="toggleTpl" class="on">Template</button>
+        <button id="toggleTraced" class="on">Traced</button>
+        <button id="fitAll">Fit</button>
+        <div class="sep"></div>
+        <button id="expJson">Export JSON</button>
+        <button id="expPng">Export PNG</button>
+      </div>
+      <div id="stage">
+        <canvas id="cv"></canvas>
+        <div id="status"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= CITY ================= -->
+  <div class="pane" id="cityPane">
+    <div id="assets">
+      <h3>Assets <span id="aCount"></span></h3>
+      <input id="aFind" placeholder="filter&hellip;" autocomplete="off">
+      <div id="aList"></div>
+    </div>
+    <div id="cityWrap">
+      <div class="bar">
+        <label class="f">grid <input type="number" id="gSize" class="num" value="1" min="0.25" step="0.25"></label>
+        <button id="gQ" class="gq" title="quarter tile">&frac14;</button>
+        <button id="g1" class="gq on" title="one tile">1</button>
+        <button id="snapPos" class="on" title="snap position to the grid">snap xz</button>
+        <label class="f">rot <input type="number" id="rStep" class="num" value="90" min="1" max="180" step="1"></label>
+        <button id="snapRot" class="on" title="snap rotation to the step">snap rot</button>
+        <div class="sep"></div>
+        <button id="bgTpl">template</button>
+        <button id="bgTraced" class="on">traced</button>
+        <label class="f" title="backdrop size">size <input type="range" id="bgScale" min="2" max="400" value="50" style="width:58px"><b id="bgScaleV" style="color:#ffd32a;min-width:34px">&nbsp;</b></label>
+        <label class="f" title="backdrop opacity">fade <input type="range" id="bgOp" min="0" max="100" value="100" style="width:52px"><b id="bgOpV" style="color:#ffd32a;min-width:28px">100%</b></label>
+        <button id="bgLock" class="on" title="unlock to drag the backdrop">lock bg</button>
+        <button id="bgBake" title="re-render the backdrop from the Build tab">redraw</button>
+        <div class="sep"></div>
+        <label class="f" title="opacity of the placed models">city <input type="range" id="cityOp" min="0" max="100" value="100" style="width:52px"><b id="cityOpV" style="color:#ffd32a;min-width:28px">100%</b></label>
+      </div>
+      <div class="bar" id="selBar">
+        <span id="selPart">
+        <span class="nm" id="selName"></span>
+        <div class="sep"></div>
+        <button id="rotL" title="apostrophe">&#8630; rot</button>
+        <button id="rotR" title="backslash">rot &#8631;</button>
+        <label class="f"><input type="number" id="selRot" class="num" value="0" step="1">&deg;</label>
+        <div class="sep"></div>
+        <label class="f">y <input type="number" id="selY" class="num" value="0" step="0.05"></label>
+        <label class="f">scale <input type="number" id="selSX" class="num sm" value="1" min="0.05" step="0.05" title="width (x)"></label>
+        <input type="number" id="selSY" class="num sm" value="1" min="0.05" step="0.05" title="height (y)">
+        <input type="number" id="selSZ" class="num sm" value="1" min="0.05" step="0.05" title="depth (z)">
+        <button id="selLink" class="on" title="scale all three together">link</button>
+        <div class="sep"></div>
+        <span id="selTints"></span>
+        <div class="sep"></div>
+        <button id="selDup" title="duplicate (D)">dup</button>
+        <button id="selDel" title="delete (Del)">del</button>
+        </span>
+        <div class="sep" style="margin-left:auto"></div>
+        <button id="topView">Top</button>
+        <button id="fit3d">Fit</button>
+        <button id="fixTiles" title="drop every tile-low to y 0 and 0.05 thick">fix tiles</button>
+        <button id="expCity" title="export city.json">export</button>
+      </div>
+      <div id="stage3">
+        <canvas id="cv3"></canvas>
+        <div id="status3"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= ROUTES ================= -->
+  <div class="pane" id="routesPane">
+    <div id="rtTree">
+      <h3>Scenes <button id="rtAddScene">+ scene</button></h3>
+      <div id="rtList"></div>
+    </div>
+    <div id="rtWrap">
+      <div class="bar">
+        <span class="f" id="rtBounds" title="the camera cannot travel past these — move or scale the scene camera to change them">bounds —</span>
+        <div class="sep"></div>
+        <label class="f" title="scales every vehicle in every level">veh &times; <input type="number" id="rtVehScale" class="num" value="1" min="0.05" step="0.1"></label>
+        <div class="sep"></div>
+        <button id="rtPickCam" class="pk">camera</button>
+        <button id="rtPickVeh" class="pk">vehicle</button>
+        <button id="rtPickGoal" class="pk">goal</button>
+        <div class="sep"></div>
+        <button id="rtCity" class="on" title="show the placed city models">city</button>
+        <div class="sep" style="margin-left:auto"></div>
+        <button id="rtTop3">Top</button>
+        <button id="rtFit">Fit</button>
+        <button id="expRoutes" title="export routes.json">export</button>
+      </div>
+      <div id="rtStage">
+        <div id="rtStatus"></div>
+      </div>
+    </div>
+    <div id="rtForm"></div>
+  </div>
+
+  <!-- ================= CONFIG ================= -->
+  <div class="pane" id="configPane">
+    <div id="cfWrap">
+      <div class="bar" id="cfGlobal"></div>
+      <div class="bar">
+        <span class="hint">physics</span>
+        <select id="cfModel" title="Which driving model the game runs. They share no numbers: each keeps its own saved table, so switching back and forth loses nothing.">
+          <option value="arcade">arcade (drift)</option>
+          <option value="sim">simulated (engine)</option>
+        </select>
+        <div class="sep"></div>
+        <button id="cfAdv" title="show the rest of the numbers">advanced</button>
+        <div class="sep"></div>
+        <span class="hint" id="cfNote">type a number to give a car its own; clear the box to go back to the default row</span>
+        <div class="sep" style="margin-left:auto"></div>
+        <button id="cfReset" title="clear every per-vehicle override">reset all</button>
+        <button id="expCfg" title="export config.json">export</button>
+      </div>
+      <div id="cfBody"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+'use strict';
+
+/* =======================================================================
+   storage  (IndexedDB - captures and map state survive a reload)
+   ======================================================================= */
+var DB=null;
+function idb(){
+  return new Promise(function(res,rej){
+    if(DB) return res(DB);
+    var rq=indexedDB.open('dejavroom-mapper',1);
+    rq.onupgradeneeded=function(e){
+      var db=e.target.result;
+      if(!db.objectStoreNames.contains('kv')) db.createObjectStore('kv');
+    };
+    rq.onsuccess=function(){ DB=rq.result; res(DB); };
+    rq.onerror=function(){ rej(rq.error); };
+  });
+}
+function kvGet(k){
+  return idb().then(function(db){
+    return new Promise(function(res,rej){
+      var t=db.transaction('kv','readonly').objectStore('kv').get(k);
+      t.onsuccess=function(){res(t.result);}; t.onerror=function(){rej(t.error);};
+    });
+  });
+}
+function kvSet(k,v){
+  return idb().then(function(db){
+    return new Promise(function(res,rej){
+      var t=db.transaction('kv','readwrite').objectStore('kv').put(v,k);
+      t.onsuccess=function(){res();}; t.onerror=function(){rej(t.error);};
+    });
+  });
+}
+var saveT=null;
+function flag(msg){ document.getElementById('saveState').textContent=msg; }
+function save(){
+  clearTimeout(saveT);
+  saveT=setTimeout(function(){
+    flag('saving…');
+    Promise.all([
+      kvSet('shots',SHOTS.map(function(s){
+        return {id:s.id,t:s.t,stage:s.stage,idx:s.idx,url:s.url};})),
+      kvSet('stage',CURSTAGE),
+      kvSet('shut',SHUT),
+      kvSet('build',{images:IMAGES.map(function(i){
+                        return {id:i.id,shotId:i.shotId,x:i.x,y:i.y,w:i.w,h:i.h,
+                                nw:i.nw,nh:i.nh,op:i.op};}),
+                     strokes:STROKES, view:VIEW, tOpacity:T_OPACITY,
+                     showTpl:SHOW_TPL, showTraced:SHOW_TRACED})
+    ]).then(function(){ flag('saved'); })
+     .catch(function(e){ flag('save failed'); console.warn(e); });
+  },550);
+}
+
+/* =======================================================================
+   tabs
+   ======================================================================= */
+document.querySelectorAll('.tab').forEach(function(b){
+  b.onclick=function(){
+    document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('on');});
+    b.classList.add('on');
+    document.querySelectorAll('.pane').forEach(function(p){p.classList.remove('on');});
+    document.getElementById(b.dataset.tab+'Pane').classList.add('on');
+    if(b.dataset.tab==='build'){ resize(); render(); }
+  };
+});
+
+/* =======================================================================
+   CAPTURE
+   ======================================================================= */
+var vid=document.getElementById('vid'),
+    seek=document.getElementById('seek'),
+    tcode=document.getElementById('tcode'),
+    noVid=document.getElementById('noVid'),
+    SHOTS=[], shotSeq=0, CURSTAGE=1;
+
+/* Captures are grouped into stages. You set the stage; the sub-number runs
+   1,2,3... within it and picks up where that stage left off if you go back. */
+function nextIdx(stage){
+  var mx=0;
+  SHOTS.forEach(function(s){ if(s.stage===stage&&s.idx>mx) mx=s.idx; });
+  return mx+1;
+}
+function label(s){ return s.stage+'-'+s.idx; }
+var SHUT=[];                       // stages collapsed in the lists
+function isShut(st){ return SHUT.indexOf(st)>=0; }
+function toggleStage(st){
+  var i=SHUT.indexOf(st);
+  if(i>=0) SHUT.splice(i,1); else SHUT.push(st);
+  renderShots(); save();
+}
+function header(stage, count){
+  var g=document.createElement('div');
+  g.className='grp'+(isShut(stage)?' shut':'');
+  g.innerHTML='<i class="cv">&#9654;</i>Stage '+stage+
+              ' <span>'+count+'</span><i class="ln"></i>';
+  g.title=(isShut(stage)?'Show':'Hide')+' stage '+stage;
+  g.onclick=function(){ toggleStage(stage); };
+  return g;
+}
+function ordered(){
+  return SHOTS.slice().sort(function(a,b){
+    return (a.stage-b.stage) || (a.idx-b.idx);
+  });
+}
+function stagesOf(){
+  var seen=[], out=[];
+  SHOTS.forEach(function(s){
+    if(seen.indexOf(s.stage)<0){ seen.push(s.stage); out.push(s.stage); }
+  });
+  return out;
+}
+function syncStage(){
+  document.getElementById('stageNo').value=CURSTAGE;
+  document.getElementById('nextLbl').textContent=
+    'next: '+CURSTAGE+'-'+nextIdx(CURSTAGE);
+}
+
+function fps(){ return Math.max(1, parseFloat(document.getElementById('fps').value)||30); }
+function fmt(t){
+  if(!isFinite(t)) t=0;
+  var m=Math.floor(t/60), s=t-m*60;
+  return m+':'+(s<10?'0':'')+s.toFixed(2);
+}
+function syncTime(){
+  if(!isFinite(vid.duration)) return;
+  seek.value=String(Math.round(vid.currentTime/vid.duration*1000));
+  tcode.textContent=fmt(vid.currentTime)+' / '+fmt(vid.duration)+
+                    '  ·  f'+Math.round(vid.currentTime*fps());
+}
+vid.addEventListener('loadedmetadata',function(){
+  noVid.style.display='none'; syncTime();
+});
+vid.addEventListener('timeupdate',syncTime);
+vid.addEventListener('seeked',syncTime);
+vid.addEventListener('play',function(){document.getElementById('playBtn').innerHTML='&#10073;&#10073; Pause';});
+vid.addEventListener('pause',function(){document.getElementById('playBtn').innerHTML='&#9654; Play';});
+vid.addEventListener('error',function(){ noVid.style.display='block'; });
+
+vid.muted=true; vid.volume=0;
+vid.addEventListener('loadedmetadata',function(){ vid.muted=true; });
+vid.src='research/commute-gameplay.mp4';
+
+document.getElementById('vidFile').onchange=function(e){
+  var f=e.target.files[0]; if(!f) return;
+  vid.src=URL.createObjectURL(f); vid.muted=true; noVid.style.display='none';
+};
+document.getElementById('playBtn').onclick=function(){ vid.paused?vid.play():vid.pause(); };
+seek.oninput=function(){
+  if(isFinite(vid.duration)) vid.currentTime=vid.duration*(seek.value/1000);
+};
+function step(n){
+  vid.pause();
+  var d=n/fps();
+  vid.currentTime=Math.max(0,Math.min((vid.duration||1e9)-1e-3, vid.currentTime+d));
+}
+function seekBy(sec){
+  // deliberately does NOT pause - scrub while playing
+  vid.currentTime=Math.max(0,Math.min((vid.duration||1e9)-1e-3, vid.currentTime+sec));
+}
+document.getElementById('b10').onclick=function(){step(-10);};
+document.getElementById('b1').onclick =function(){step(-1);};
+document.getElementById('f1').onclick =function(){step(1);};
+document.getElementById('f10').onclick=function(){step(10);};
+document.getElementById('bs1').onclick=function(){seekBy(-1);};
+document.getElementById('fs1').onclick=function(){seekBy(1);};
+
+function capture(){
+  if(!vid.videoWidth){ flag('no video'); return; }
+  var c=document.createElement('canvas');
+  c.width=vid.videoWidth; c.height=vid.videoHeight;
+  c.getContext('2d').drawImage(vid,0,0);
+  var s={id:++shotSeq, t:vid.currentTime, stage:CURSTAGE, idx:nextIdx(CURSTAGE),
+         url:c.toDataURL('image/jpeg',0.92)};
+  SHOTS.push(s);
+  var sh=SHUT.indexOf(s.stage); if(sh>=0) SHUT.splice(sh,1);
+  renderShots(s.id); syncStage(); save();
+  flag('captured '+label(s));
+}
+document.getElementById('grab').onclick=capture;
+document.getElementById('stageNo').onchange=function(){
+  CURSTAGE=Math.max(1,Math.min(999,parseInt(this.value,10)||1));
+  syncStage(); save();
+};
+document.getElementById('nextStage').onclick=function(){
+  CURSTAGE=Math.max.apply(null,[0].concat(stagesOf()))+1;
+  syncStage(); save(); flag('stage '+CURSTAGE);
+};
+
+function renderShots(toEnd){   // toEnd: shot id to reveal, or true for the end
+  var host=document.getElementById('shots');
+  document.getElementById('shotCount').textContent=SHOTS.length;
+  if(!SHOTS.length){
+    host.innerHTML='<div class="empty">No captures yet.<br>Seek to a frame and hit Capture.</div>';
+    renderStrip(); return;
+  }
+  host.innerHTML='';
+  var lastStage=null;
+  ordered().forEach(function(s,i){
+    if(s.stage!==lastStage){
+      lastStage=s.stage;
+      host.appendChild(header(s.stage,
+        SHOTS.filter(function(q){return q.stage===s.stage;}).length));
+    }
+    if(isShut(s.stage)) return;
+    var d=document.createElement('div'); d.className='shot';
+    d.dataset.shot=s.id;
+    var im=document.createElement('img'); im.src=s.url;
+    im.onclick=function(){ if(isFinite(vid.duration)) vid.currentTime=s.t; };
+    var m=document.createElement('div'); m.className='meta';
+    m.innerHTML='<b>'+label(s)+'</b><span>'+fmt(s.t)+'</span>'+
+                '<span class="sp"></span>';
+    var x=document.createElement('button'); x.className='x'; x.textContent='✕';
+    x.title='Delete capture';
+    x.onclick=function(){
+      SHOTS=SHOTS.filter(function(q){return q.id!==s.id;});
+      IMAGES=IMAGES.filter(function(q){return q.shotId!==s.id;});
+      renderShots(); syncStage(); render(); save();
+    };
+    m.appendChild(x); d.appendChild(im); d.appendChild(m); host.appendChild(d);
+  });
+  renderStrip();
+  if(toEnd) requestAnimationFrame(function(){
+    var el = (toEnd!==true) && host.querySelector('[data-shot="'+toEnd+'"]');
+    if(el) el.scrollIntoView({block:'center'});
+    else   host.scrollTop=host.scrollHeight;
+  });
+}
+function foldAll(){
+  var all=stagesOf();
+  SHUT = (SHUT.length>=all.length) ? [] : all.slice();
+  renderShots(); save();
+}
+document.getElementById('foldAll').onclick=foldAll;
+document.getElementById('foldAll2').onclick=foldAll;
+document.getElementById('clearShots').onclick=function(){
+  if(!SHOTS.length) return;
+  if(!confirm('Delete all '+SHOTS.length+' captures? Placed template images go too.')) return;
+  SHOTS=[]; IMAGES=[]; renderShots(); render(); save();
+};
+
+/* =======================================================================
+   BUILD
+   ======================================================================= */
+/* Elevation lives on the stroke, not in a separate canvas layer: two pieces of
+   road connect only where their levels match, which is what makes a bridge a
+   bridge rather than a crossroads. Same field gives tunnels and stacked decks. */
+var LEVELS=[
+  {v:-1, name:'Under',  hint:'background - grass, pavement, tunnels'},
+  {v: 0, name:'Ground', hint:'ground level'},
+  {v: 1, name:'Bridge', hint:'raised - crosses over without joining'}
+];
+var LEVEL=0;
+var CAP='round';                  // stroke end shape: 'round' or 'butt'
+/* which levels each brush is allowed on. A bridge is a raised ROAD, so only
+   road goes up. The under level is the background bed - grass and pavement
+   live there (and tunnels), but you can't bury a building or a tree. */
+function levelAllows(level,brush){
+  var b=brushOf(brush);
+  return (b.levels||[0]).indexOf(level)>=0;
+}
+
+var BRUSHES=[
+  {id:'road',    name:'Road',         color:'#6e6b78', levels:[-1,0,1]},
+  {id:'building',name:'Building',     color:'#b9ad96', levels:[0]},
+  {id:'tree',    name:'Tree',         color:'#5f8a4a', levels:[0]},
+  {id:'offroad', name:'Offroad path', color:'#b08d57', levels:[0]},
+  {id:'water',   name:'Water',        color:'#3f7fa6', levels:[0]},
+  {id:'grass',   name:'Grass',        color:'#4e7040', levels:[-1,0]},
+  {id:'pavement',name:'Pavement',     color:'#9a9689', levels:[-1,0]}
+];
+var BRUSH=BRUSHES[0].id, BSIZE=18, MODE='draw',
+    IMAGES=[], STROKES=[], imgSeq=0,
+    VIEW={x:60,y:60,s:0.5}, T_OPACITY=0.70, SHOW_TPL=true, SHOW_TRACED=true,
+    SEL=null, UNDO=[], IMGCACHE={};
+
+var stage=document.getElementById('stage'), cv=document.getElementById('cv'),
+    ctx=cv.getContext('2d');
+
+function brushOf(id){
+  for(var i=0;i<BRUSHES.length;i++) if(BRUSHES[i].id===id) return BRUSHES[i];
+  return BRUSHES[0];
+}
+(function buildLevelBar(){
+  var host=document.getElementById('levels');
+  LEVELS.forEach(function(L){
+    var el=document.createElement('button');
+    el.className='lvl'+(L.v===LEVEL?' on':'');
+    el.dataset.lvl=L.v; el.textContent=L.name; el.title=L.hint;
+    el.onclick=function(){ setLevel(L.v); };
+    host.appendChild(el);
+  });
+})();
+function setLevel(v){
+  LEVEL=v;
+  if(!levelAllows(LEVEL,BRUSH)){
+    var fall = (LEVEL<0) ? 'grass' : 'road';
+    setBrush(levelAllows(LEVEL,fall)?fall:'road');
+  }
+  document.querySelectorAll('.lvl').forEach(function(x){
+    x.classList.toggle('on', +x.dataset.lvl===LEVEL);
+  });
+  syncBrushBar();
+  render();
+}
+function syncBrushBar(){
+  document.querySelectorAll('.brush').forEach(function(x){
+    var ok=levelAllows(LEVEL,x.dataset.brush);
+    x.classList.toggle('blocked',!ok);
+    x.title = ok ? '' : (LEVEL>0 ? 'Only road can be raised - a bridge is a road'
+                                  : 'Only road, grass and pavement go on the under layer');
+  });
+}
+function setBrush(id){
+  BRUSH=id;
+  document.querySelectorAll('.brush').forEach(function(x){
+    x.classList.toggle('on', x.dataset.brush===BRUSH);
+  });
+}
+(function initBars(){ /* brush bar is built below, then synced */ })();
+(function buildBrushBar(){
+  var host=document.getElementById('brushes');
+  BRUSHES.forEach(function(b){
+    var el=document.createElement('button');
+    el.className='brush'+(b.id===BRUSH?' on':'');
+    el.dataset.brush=b.id;
+    el.innerHTML='<span class="swatch" style="background:'+b.color+'"></span> '+b.name;
+    el.style.display='inline-flex'; el.style.alignItems='center'; el.style.gap='7px';
+    el.onclick=function(){
+      // picking a non-road brush means you're back on the ground
+      if(!levelAllows(LEVEL,b.id)) setLevel(0);
+      setBrush(b.id);
+      if(MODE==='erase'||MODE!=='draw') setMode('draw');
+    };
+    host.appendChild(el);
+  });
+  syncBrushBar();
+})();
+
+function imgFor(shotId){
+  if(IMGCACHE[shotId]) return IMGCACHE[shotId];
+  var s=null;
+  for(var i=0;i<SHOTS.length;i++) if(SHOTS[i].id===shotId) s=SHOTS[i];
+  if(!s) return null;
+  var im=new Image(); im.src=s.url;
+  im.onload=function(){ render(); };
+  IMGCACHE[shotId]=im; return im;
+}
+
+function renderStrip(){
+  var host=document.getElementById('stripList');
+  if(!SHOTS.length){
+    host.innerHTML='<div class="empty">Capture some<br>frames first.</div>'; return;
+  }
+  host.innerHTML='';
+  var lastStage=null;
+  ordered().forEach(function(s,i){
+    if(s.stage!==lastStage){
+      lastStage=s.stage;
+      host.appendChild(header(s.stage,
+        SHOTS.filter(function(q){return q.stage===s.stage;}).length));
+    }
+    if(isShut(s.stage)) return;
+    var used=IMAGES.filter(function(q){return q.shotId===s.id;}).length;
+    var d=document.createElement('div');
+    d.className='chip'+(used?' used':'');
+    d.title=used? 'Placed '+used+'\u00d7 - click to add another copy'
+                : 'Click to place on canvas';
+    d.innerHTML='<span class="n">'+label(s)+'</span>'+
+                (used?'<span class="ct">'+used+'</span>':'');
+    var im=document.createElement('img'); im.src=s.url;
+    d.appendChild(im);
+    d.onclick=function(){ placeShot(s); };
+    host.appendChild(d);
+  });
+}
+
+/* place a capture at the right-hand end of the line, overlapping the last one */
+function placeShot(s){
+  var im=new Image();
+  im.onload=function(){
+    var w=im.naturalWidth, h=im.naturalHeight, x=0, y=0;
+    if(IMAGES.length){
+      var last=IMAGES[IMAGES.length-1];
+      x=last.x+last.w*0.70;            // 30% overlap
+      y=last.y;
+    }
+    var rec={id:++imgSeq,shotId:s.id,x:x,y:y,w:w,h:h,nw:w,nh:h,op:1};
+    IMAGES.push(rec); IMGCACHE[s.id]=im;
+    UNDO.push({t:'addImg'});
+    SEL=rec; syncSel(); renderStrip(); render(); save();
+  };
+  im.src=s.url;
+}
+document.getElementById('addAll').onclick=function(){
+  var pending=SHOTS.slice();          // every capture, however many are already placed
+  if(!pending.length) return;
+  var added=0;
+  (function next(i){
+    if(i>=pending.length){
+      if(added) UNDO.push({t:'addMany',n:added});
+      renderStrip(); fitAll(); save(); return;
+    }
+    var im=new Image();
+    im.onload=function(){
+      var w=im.naturalWidth,h=im.naturalHeight,x=0,y=0;
+      if(IMAGES.length){ var l=IMAGES[IMAGES.length-1]; x=l.x+l.w*0.70; y=l.y; }
+      IMAGES.push({id:++imgSeq,shotId:pending[i].id,x:x,y:y,w:w,h:h,nw:w,nh:h,op:1});
+      IMGCACHE[pending[i].id]=im;
+      added++;
+      next(i+1);
+    };
+    im.onerror=function(){ next(i+1); };
+    im.src=pending[i].url;
+  })(0);
+};
+
+/* ---- view helpers ---- */
+function resize(){
+  var r=stage.getBoundingClientRect();
+  var dpr=Math.min(devicePixelRatio||1,2);
+  cv.width=Math.max(1,Math.round(r.width*dpr));
+  cv.height=Math.max(1,Math.round(r.height*dpr));
+  cv.style.width=r.width+'px'; cv.style.height=r.height+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  CSSW=r.width; CSSH=r.height;
+}
+var CSSW=1,CSSH=1;
+function s2w(sx,sy){ return {x:(sx-VIEW.x)/VIEW.s, y:(sy-VIEW.y)/VIEW.s}; }
+
+function render(){
+  if(!CSSW) resize();
+  var dpr=Math.min(devicePixelRatio||1,2);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,CSSW,CSSH);
+  ctx.fillStyle='#07071f'; ctx.fillRect(0,0,CSSW,CSSH);
+
+  ctx.save();
+  ctx.translate(VIEW.x,VIEW.y); ctx.scale(VIEW.s,VIEW.s);
+
+  /* template layer */
+  if(SHOW_TPL){
+    IMAGES.forEach(function(r){
+      var im=imgFor(r.shotId); if(!im||!im.complete) return;
+      ctx.globalAlpha=Math.max(0,Math.min(1,r.op*T_OPACITY));
+      ctx.drawImage(im,r.x,r.y,r.w,r.h);
+    });
+    ctx.globalAlpha=1;
+    if(SEL){
+      ctx.strokeStyle='#ffd32a'; ctx.lineWidth=2/VIEW.s;
+      ctx.setLineDash([7/VIEW.s,5/VIEW.s]);
+      ctx.strokeRect(SEL.x,SEL.y,SEL.w,SEL.h);
+      ctx.setLineDash([]);
+      if(MODE==='move'){
+        var hs=HANDLE/VIEW.s;
+        ctx.fillStyle='#ffd32a'; ctx.strokeStyle='#12123a';
+        ctx.lineWidth=1.5/VIEW.s;
+        corners(SEL).forEach(function(c){
+          ctx.fillRect(c[0]-hs/2,c[1]-hs/2,hs,hs);
+          ctx.strokeRect(c[0]-hs/2,c[1]-hs/2,hs,hs);
+        });
+      }
+    }
+  }
+
+  /* build layer */
+  if(SHOW_TRACED){
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    STROKES.slice()
+      .sort(function(a,b){ return (a.level||0)-(b.level||0); })
+      .forEach(function(st){ paintStroke(st); });
+    if(CURRENT) paintStroke(CURRENT);
+  }
+
+  if(MODE==='erase'&&MOUSEW){
+    ctx.beginPath();
+    ctx.arc(MOUSEW.x,MOUSEW.y,BSIZE/2,0,Math.PI*2);
+    ctx.strokeStyle='#ff6b6b'; ctx.lineWidth=1.5/VIEW.s;
+    ctx.setLineDash([5/VIEW.s,4/VIEW.s]); ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  ctx.restore();
+
+  var lvName=LEVELS.filter(function(L){return L.v===LEVEL;})[0];
+  document.getElementById('status').textContent=
+    IMAGES.length+' template img · '+STROKES.length+' strokes · '+
+    (lvName?lvName.name.toLowerCase():'level '+LEVEL)+' · zoom '+
+    (VIEW.s*100).toFixed(0)+'%';
+}
+/* Strokes are vectors, so the eraser cuts them rather than deleting whole ones:
+   segments longer than the nib are resampled on contact, points inside the nib
+   are dropped, and what's left either side becomes separate strokes. */
+function densify(pts,step){
+  var out=[pts[0]];
+  for(var i=1;i<pts.length;i++){
+    var ax=pts[i-1][0],ay=pts[i-1][1],bx=pts[i][0],by=pts[i][1];
+    var d=Math.hypot(bx-ax,by-ay);
+    if(d>step){
+      var seg=Math.ceil(d/step);
+      for(var k=1;k<seg;k++)
+        out.push([ax+(bx-ax)*k/seg, ay+(by-ay)*k/seg]);
+    }
+    out.push(pts[i]);
+  }
+  return out;
+}
+function prepErase(step){
+  STROKES.forEach(function(st){
+    if((st.level||0)!==LEVEL || st.shape==='rect') return;
+    for(var i=1;i<st.pts.length;i++){
+      if(Math.hypot(st.pts[i][0]-st.pts[i-1][0],
+                    st.pts[i][1]-st.pts[i-1][1])>step){
+        st.pts=densify(st.pts,step); return;
+      }
+    }
+  });
+}
+function eraseAt(wx,wy,r){
+  var r2=r*r, changed=false, out=[];
+  for(var i=0;i<STROKES.length;i++){
+    var st=STROKES[i], pts=st.pts, run=[], pieces=[], hit=false;
+    // only the level you're working on, so tidying a bridge can't eat the road below
+    if((st.level||0)!==LEVEL){ out.push(st); continue; }
+    if(st.shape==='rect'){        // no sensible way to split one - take it whole
+      var qa=st.pts[0], qb=st.pts[1];
+      var cx=Math.max(qa[0],Math.min(wx,qb[0])), cz=Math.max(qa[1],Math.min(wy,qb[1]));
+      if((wx-cx)*(wx-cx)+(wy-cz)*(wy-cz)<=r2) changed=true; else out.push(st);
+      continue;
+    }
+    for(var j=0;j<pts.length;j++){
+      var dx=pts[j][0]-wx, dy=pts[j][1]-wy;
+      if(dx*dx+dy*dy<=r2){
+        hit=true;
+        if(run.length>1) pieces.push(run);
+        run=[];
+      } else run.push(pts[j]);
+    }
+    if(!hit){ out.push(st); continue; }
+    changed=true;
+    if(run.length>1) pieces.push(run);
+    for(var k=0;k<pieces.length;k++)
+      out.push({brush:st.brush,size:st.size,level:st.level||0,
+                cap:st.cap||'round',pts:pieces[k]});
+  }
+  if(changed) STROKES=out;
+  return changed;
+}
+
+var HANDLE=11;                       // handle size in screen px
+function corners(r){
+  return [[r.x,r.y],[r.x+r.w,r.y],[r.x,r.y+r.h],[r.x+r.w,r.y+r.h]];
+}
+function hitHandle(r,w){
+  if(!r) return -1;
+  var hs=(HANDLE+5)/VIEW.s/2, c=corners(r);
+  for(var i=0;i<4;i++)
+    if(Math.abs(w.x-c[i][0])<=hs&&Math.abs(w.y-c[i][1])<=hs) return i;
+  return -1;
+}
+function trace(p){
+  ctx.beginPath();
+  ctx.moveTo(p[0][0],p[0][1]);
+  if(p.length===1) ctx.lineTo(p[0][0]+0.01,p[0][1]);
+  else for(var i=1;i<p.length;i++) ctx.lineTo(p[i][0],p[i][1]);
+}
+function paintStroke(st){
+  var p=st.pts; if(!p.length) return;
+  var lv=st.level||0, dim=(BAKE||lv===LEVEL)?1:0.45;
+  ctx.save();
+  if(st.shape==='rect'){
+    var ra=p[0], rb=p[1]||p[0];
+    ctx.globalAlpha=dim;
+    ctx.fillStyle=brushOf(st.brush).color;
+    ctx.fillRect(Math.min(ra[0],rb[0]),Math.min(ra[1],rb[1]),
+                 Math.abs(rb[0]-ra[0]),Math.abs(rb[1]-ra[1]));
+    ctx.restore(); return;
+  }
+  var cap=st.cap||'round';
+  ctx.lineCap = cap==='butt' ? 'butt' : 'round';
+  ctx.lineJoin = cap==='butt' ? 'miter' : 'round';
+  if(lv>0){
+    // dark casing under a raised deck - makes the crossing read as an overpass
+    ctx.globalAlpha=dim; ctx.strokeStyle='#0d0d22';
+    ctx.lineWidth=st.size+Math.max(6,st.size*0.42);
+    trace(p); ctx.stroke();
+  }
+  ctx.globalAlpha=dim;
+  if(lv<0){ ctx.setLineDash([st.size*0.9, st.size*0.75]); ctx.globalAlpha=dim*0.75; }
+  ctx.strokeStyle=brushOf(st.brush).color;
+  ctx.lineWidth=st.size;
+  trace(p); ctx.stroke();
+  ctx.restore();
+}
+
+/* ---- modes ---- */
+function setMode(m){
+  MODE=m;
+  document.querySelectorAll('.mode').forEach(function(x){
+    x.classList.toggle('on',x.dataset.mode===m);
+  });
+  stage.classList.toggle('pan',m==='pan');
+  stage.classList.toggle('move',m==='move');
+  stage.style.cursor = (m==='draw'||m==='erase'||m==='rect') ? 'crosshair' : '';
+  if(m!=='erase') MOUSEW=null;
+  if(m!=='move') SEL=null;      // keep the selection when you switch INTO move
+  syncSel(); render();
+}
+document.querySelectorAll('.mode').forEach(function(b){
+  b.onclick=function(){ setMode(b.dataset.mode); };
+});
+
+/* ---- pointer ---- */
+var CURRENT=null, drag=null, spaceDown=false, MOUSEW=null;
+
+/* Pointer events fire faster than frames - a high-polling mouse or trackpad
+   emits several per frame. Rendering synchronously inside the handler meant
+   several full redraws per frame, which is what made drawing stutter. Now we
+   collect points from every sample (including coalesced ones, so no detail is
+   lost) and paint once per frame. */
+var _raf=0;
+function requestRender(){
+  if(_raf) return;
+  _raf=requestAnimationFrame(function(){ _raf=0; render(); });
+}
+var _rect=null;                     // cached; getBoundingClientRect per move
+function stageRect(){               // forces a layout pass
+  if(!_rect) _rect=stage.getBoundingClientRect();
+  return _rect;
+}
+addEventListener('scroll',function(){ _rect=null; },true);
+addEventListener('resize',function(){ _rect=null; });
+
+stage.addEventListener('lostpointercapture',function(){ /* window listeners continue the drag */ });
+stage.addEventListener('pointerdown',function(e){
+  if(e.button===1||spaceDown||MODE==='pan'){
+    drag={kind:'pan',sx:e.clientX,sy:e.clientY,vx:VIEW.x,vy:VIEW.y};
+    stage.classList.add('down'); stage.setPointerCapture(e.pointerId); return;
+  }
+  var r=stage.getBoundingClientRect();
+  var w=s2w(e.clientX-r.left,e.clientY-r.top);
+
+  if(MODE==='move'){
+    var hi=hitHandle(SEL,w);
+    if(hi>=0){
+      var opp=corners(SEL)[3-hi];              // anchor = opposite corner
+      drag={kind:'scale',img:SEL,ax:opp[0],ay:opp[1],
+            ow:SEL.w,oh:SEL.h,px:SEL.x,py:SEL.y,pw:SEL.w,ph:SEL.h,
+            sx:(hi===1||hi===3)?1:-1, sy:(hi===2||hi===3)?1:-1};
+      stage.setPointerCapture(e.pointerId); return;
+    }
+    var hit=null;
+    for(var i=IMAGES.length-1;i>=0;i--){
+      var im=IMAGES[i];
+      if(w.x>=im.x&&w.x<=im.x+im.w&&w.y>=im.y&&w.y<=im.y+im.h){ hit=im; break; }
+    }
+    SEL=hit; syncSel();
+    if(hit){
+      drag={kind:'img',img:hit,ox:w.x-hit.x,oy:w.y-hit.y,px:hit.x,py:hit.y};
+      stage.setPointerCapture(e.pointerId);
+    }
+    render(); return;
+  }
+
+  if(MODE==='rect'){
+    if(!SHOW_TRACED) setTraced(true);
+    CURRENT={brush:BRUSH,size:BSIZE,level:LEVEL,cap:CAP,shape:'rect',
+             pts:[[w.x,w.y],[w.x,w.y]],ox:w.x,oy:w.y};
+    drag={kind:'rect'};
+    stage.setPointerCapture(e.pointerId);
+    requestRender(); return;
+  }
+  if(MODE==='erase'){
+    if(!SHOW_TRACED) setTraced(true);
+    prepErase(Math.max(4,BSIZE/2));
+    drag={kind:'erase',prev:STROKES.slice(),changed:false};
+    if(eraseAt(w.x,w.y,BSIZE/2)) drag.changed=true;
+    stage.setPointerCapture(e.pointerId);
+    render(); return;
+  }
+
+  /* draw */
+  if(!SHOW_TRACED) setTraced(true);
+  CURRENT={brush:BRUSH,size:BSIZE/1,level:LEVEL,cap:CAP,pts:[[w.x,w.y]],ox:w.x,oy:w.y};
+  drag={kind:'draw'};
+  stage.setPointerCapture(e.pointerId);
+  render();
+});
+
+function onMove(e){
+  if(MODE==='erase'){
+    var rr=stageRect();
+    MOUSEW=s2w(e.clientX-rr.left,e.clientY-rr.top);
+    if(!drag) requestRender();
+  }
+  if(!drag) return;
+  // mouse was released somewhere we never saw - finish cleanly
+  if(e.pointerType==='mouse'&&e.buttons===0){ endPointer(); return; }
+  var r=stageRect();
+  if(drag.kind==='pan'){
+    VIEW.x=drag.vx+(e.clientX-drag.sx);
+    VIEW.y=drag.vy+(e.clientY-drag.sy);
+    requestRender(); return;
+  }
+  var w=s2w(e.clientX-r.left,e.clientY-r.top);
+  if(drag.kind==='img'){
+    drag.img.x=w.x-drag.ox; drag.img.y=w.y-drag.oy; requestRender(); return;
+  }
+  if(drag.kind==='erase'){
+    if(eraseAt(w.x,w.y,BSIZE/2)) drag.changed=true;
+    requestRender(); return;
+  }
+  if(drag.kind==='scale'){
+    var im=drag.img;
+    var nw=Math.max(12,(w.x-drag.ax)*drag.sx);
+    var nh=Math.max(12,(w.y-drag.ay)*drag.sy);
+    if(!e.altKey){                              // alt = free stretch
+      var k=Math.max(nw/drag.ow, nh/drag.oh);
+      nw=drag.ow*k; nh=drag.oh*k;
+    }
+    im.w=nw; im.h=nh;
+    im.x=drag.sx>0?drag.ax:drag.ax-nw;
+    im.y=drag.sy>0?drag.ay:drag.ay-nh;
+    syncSel(); requestRender(); return;
+  }
+  if(drag.kind==='rect'&&CURRENT){
+    var bx=w.x, by=w.y;
+    if(e.shiftKey){                       /* square */
+      var sx=bx-CURRENT.ox, sy=by-CURRENT.oy;
+      var m=Math.max(Math.abs(sx),Math.abs(sy));
+      bx=CURRENT.ox+(sx<0?-m:m); by=CURRENT.oy+(sy<0?-m:m);
+    }
+    CURRENT.pts=[[CURRENT.ox,CURRENT.oy],[bx,by]];
+    requestRender(); return;
+  }
+  if(drag.kind==='draw'&&CURRENT){
+    if(e.shiftKey){                       /* snap to horizontal / vertical */
+      var dx=Math.abs(w.x-CURRENT.ox), dy=Math.abs(w.y-CURRENT.oy);
+      var px=w.x, py=w.y;
+      if(dx>dy) py=CURRENT.oy; else px=CURRENT.ox;
+      CURRENT.pts=[[CURRENT.ox,CURRENT.oy],[px,py]];
+      requestRender(); return;
+    }
+    // use every sample the browser captured, not just the delivered one
+    var samples=(e.getCoalescedEvents&&e.getCoalescedEvents().length)
+                ? e.getCoalescedEvents() : [e];
+    for(var si=0;si<samples.length;si++){
+      var q=s2w(samples[si].clientX-r.left, samples[si].clientY-r.top);
+      var last=CURRENT.pts[CURRENT.pts.length-1];
+      if(Math.hypot(q.x-last[0],q.y-last[1])*VIEW.s < 0.8) continue;
+      CURRENT.pts.push([q.x,q.y]);
+    }
+    requestRender();
+  }
+}
+addEventListener('pointermove',onMove);
+
+function endPointer(){
+  if(!drag){ return; }
+  if(drag.kind==='rect'&&CURRENT){
+    var ra=CURRENT.pts[0], rb=CURRENT.pts[1];
+    if(Math.abs(rb[0]-ra[0])>2 && Math.abs(rb[1]-ra[1])>2){
+      STROKES.push({brush:CURRENT.brush,size:CURRENT.size,level:CURRENT.level||0,
+                    cap:CURRENT.cap||'round',shape:'rect',
+                    pts:[[Math.min(ra[0],rb[0]),Math.min(ra[1],rb[1])],
+                         [Math.max(ra[0],rb[0]),Math.max(ra[1],rb[1])]]});
+      UNDO.push({t:'stroke'}); save();
+    }
+    CURRENT=null; drag=null; stage.classList.remove('down'); render(); return;
+  }
+  if(drag.kind==='draw'&&CURRENT){
+    CURRENT.pts=CURRENT.pts.map(function(p){
+      return [Math.round(p[0]*10)/10, Math.round(p[1]*10)/10];
+    });
+    STROKES.push({brush:CURRENT.brush,size:CURRENT.size,
+                  level:CURRENT.level||0,cap:CURRENT.cap||'round',pts:CURRENT.pts});
+    UNDO.push({t:'stroke'});
+    CURRENT=null; save();
+  }
+  if(drag.kind==='img'){
+    UNDO.push({t:'moveImg',id:drag.img.id,x:drag.px,y:drag.py});
+    save();
+  }
+  if(drag.kind==='scale'){
+    UNDO.push({t:'boxImg',id:drag.img.id,x:drag.px,y:drag.py,w:drag.pw,h:drag.ph});
+    save();
+  }
+  if(drag.kind==='erase'&&drag.changed){
+    UNDO.push({t:'strokes',prev:drag.prev});
+    save();
+  }
+  drag=null; stage.classList.remove('down'); render();
+}
+addEventListener('pointerup',endPointer);
+addEventListener('pointercancel',endPointer);
+addEventListener('blur',function(){ if(drag) endPointer(); });
+
+stage.addEventListener('wheel',function(e){
+  e.preventDefault();
+  var r=stage.getBoundingClientRect();
+  var mx=e.clientX-r.left, my=e.clientY-r.top;
+  var before=s2w(mx,my);
+  var k=Math.exp(-e.deltaY*0.0016);
+  VIEW.s=Math.max(0.04,Math.min(8,VIEW.s*k));
+  var after=s2w(mx,my);
+  VIEW.x+=(after.x-before.x)*VIEW.s;
+  VIEW.y+=(after.y-before.y)*VIEW.s;
+  render(); save();
+},{passive:false});
+
+/* ---- sliders ---- */
+var bs=document.getElementById('bsize');
+bs.oninput=function(){ BSIZE=+bs.value; document.getElementById('bsizeV').textContent=BSIZE; };
+var to=document.getElementById('tOpacity');
+to.oninput=function(){
+  T_OPACITY=+to.value/100;
+  document.getElementById('tOpacityV').textContent=to.value+'%';
+  render(); save();
+};
+var io=document.getElementById('iOpacity');
+io.oninput=function(){
+  if(!SEL) return;
+  SEL.op=+io.value/100;
+  document.getElementById('iOpacityV').textContent=io.value+'%';
+  render(); save();
+};
+var isc=document.getElementById('iScale');
+isc.oninput=function(){
+  if(!SEL) return;
+  var k=(+isc.value/100);
+  var cx=SEL.x+SEL.w/2, cy=SEL.y+SEL.h/2;
+  SEL.w=SEL.nw*k; SEL.h=SEL.nh*k;
+  SEL.x=cx-SEL.w/2; SEL.y=cy-SEL.h/2;
+  document.getElementById('iScaleV').textContent=Math.round(+isc.value)+'%';
+  render();
+};
+isc.onchange=function(){ if(SEL) save(); };
+document.querySelectorAll('.cap').forEach(function(b){
+  b.onclick=function(){
+    CAP=b.dataset.cap;
+    document.querySelectorAll('.cap').forEach(function(x){
+      x.classList.toggle('on', x.dataset.cap===CAP); });
+  };
+});
+document.getElementById('rstScale').onclick=function(){
+  if(!SEL) return;
+  UNDO.push({t:'boxImg',id:SEL.id,x:SEL.x,y:SEL.y,w:SEL.w,h:SEL.h});
+  var cx=SEL.x+SEL.w/2, cy=SEL.y+SEL.h/2;
+  SEL.w=SEL.nw; SEL.h=SEL.nh; SEL.x=cx-SEL.w/2; SEL.y=cy-SEL.h/2;
+  syncSel(); render(); save();
+};
+function syncSel(){
+  var box=document.getElementById('selBox');
+  box.classList.toggle('on',!!SEL);
+  if(SEL){
+    io.value=Math.round(SEL.op*100);
+    document.getElementById('iOpacityV').textContent=io.value+'%';
+    var k=Math.round(SEL.w/(SEL.nw||SEL.w)*100);
+    isc.value=Math.max(10,Math.min(400,k));
+    document.getElementById('iScaleV').textContent=k+'%';
+  }
+}
+document.getElementById('delImg').onclick=function(){
+  if(!SEL) return;
+  var idx=IMAGES.indexOf(SEL);
+  UNDO.push({t:'delImg',img:SEL,idx:idx});
+  IMAGES.splice(idx,1); SEL=null; syncSel(); renderStrip(); render(); save();
+};
+document.getElementById('toggleTpl').onclick=function(){
+  SHOW_TPL=!SHOW_TPL; this.classList.toggle('on',SHOW_TPL); render();
+};
+function setTraced(v){
+  SHOW_TRACED=v;
+  document.getElementById('toggleTraced').classList.toggle('on',v);
+}
+document.getElementById('toggleTraced').onclick=function(){
+  setTraced(!SHOW_TRACED); render();
+};
+
+/* ---- undo ---- */
+function undo(){
+  var a=UNDO.pop(); if(!a) { flag('nothing to undo'); return; }
+  if(a.t==='stroke')  STROKES.pop();
+  if(a.t==='addImg')  IMAGES.pop();
+  if(a.t==='addMany') IMAGES.splice(IMAGES.length-a.n,a.n);
+  if(a.t==='delImg')  IMAGES.splice(a.idx,0,a.img);
+  if(a.t==='strokes') STROKES=a.prev;
+  if(a.t==='boxImg'){
+    for(var j=0;j<IMAGES.length;j++) if(IMAGES[j].id===a.id){
+      IMAGES[j].x=a.x; IMAGES[j].y=a.y; IMAGES[j].w=a.w; IMAGES[j].h=a.h;
+    }
+  }
+  if(a.t==='moveImg'){
+    for(var i=0;i<IMAGES.length;i++) if(IMAGES[i].id===a.id){
+      IMAGES[i].x=a.x; IMAGES[i].y=a.y;
+    }
+  }
+  if(SEL && IMAGES.indexOf(SEL)<0) SEL=null;
+  syncSel(); renderStrip(); render(); save();
+}
+document.getElementById('undo').onclick=undo;
+
+/* ---- fit ---- */
+function bounds(){
+  var b=null;
+  function add(x,y){
+    if(!b) b={x0:x,y0:y,x1:x,y1:y};
+    else{ b.x0=Math.min(b.x0,x); b.y0=Math.min(b.y0,y);
+          b.x1=Math.max(b.x1,x); b.y1=Math.max(b.y1,y); }
+  }
+  IMAGES.forEach(function(r){ add(r.x,r.y); add(r.x+r.w,r.y+r.h); });
+  STROKES.forEach(function(s){ s.pts.forEach(function(p){ add(p[0],p[1]); }); });
+  return b;
+}
+function fitAll(){
+  var b=bounds(); if(!b){ VIEW={x:60,y:60,s:0.5}; render(); return; }
+  var w=Math.max(b.x1-b.x0,1), h=Math.max(b.y1-b.y0,1);
+  VIEW.s=Math.max(0.04,Math.min(8,Math.min(CSSW/(w*1.08),CSSH/(h*1.08))));
+  VIEW.x=(CSSW-w*VIEW.s)/2-b.x0*VIEW.s;
+  VIEW.y=(CSSH-h*VIEW.s)/2-b.y0*VIEW.s;
+  render(); save();
+}
+document.getElementById('fitAll').onclick=fitAll;
+
+/* ---- export ---- */
+function dl(name,blob){
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=name; a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);},2000);
+}
+document.getElementById('expJson').onclick=function(){
+  var b=bounds()||{x0:0,y0:0,x1:0,y1:0};
+  var out={
+    generated:new Date().toISOString(),
+    bounds:{x:b.x0,y:b.y0,w:b.x1-b.x0,h:b.y1-b.y0},
+    brushes:BRUSHES,
+    template:IMAGES.map(function(r){
+      var s=SHOTS.filter(function(q){return q.id===r.shotId;})[0];
+      return {x:r.x,y:r.y,w:r.w,h:r.h,opacity:r.op,
+              stage:s?s.stage:null, sub:s?s.idx:null,
+              capture:s?label(s):null,
+              sourceTime:s?+s.t.toFixed(3):null};
+    }),
+    strokes:STROKES.map(function(s){
+      return {type:s.brush,width:s.size,level:s.level||0,
+              shape:s.shape||'stroke',cap:s.cap||'round',points:s.pts};
+    })
+  };
+  dl('deja-vroom-map.json',new Blob([JSON.stringify(out,null,1)],{type:'application/json'}));
+  flag('exported JSON');
+};
+document.getElementById('expPng').onclick=function(){
+  var b=bounds(); if(!b){ flag('nothing to export'); return; }
+  var pad=20;
+  var w=Math.ceil(b.x1-b.x0)+pad*2, h=Math.ceil(b.y1-b.y0)+pad*2;
+  if(w*h>60e6){ flag('area too large for PNG'); return; }
+  var c=document.createElement('canvas'); c.width=w; c.height=h;
+  var g=c.getContext('2d');
+  g.translate(pad-b.x0,pad-b.y0);
+  g.lineCap='round'; g.lineJoin='round';
+  var save_ctx=ctx; ctx=g;                 // reuse paintStroke
+  STROKES.forEach(function(s){ paintStroke(s); });
+  ctx=save_ctx;
+  c.toBlob(function(bl){ dl('deja-vroom-map.png',bl); flag('exported PNG'); });
+};
+
+/* =======================================================================
+   keyboard
+   ======================================================================= */
+addEventListener('keydown',function(e){
+  var typing=/^(INPUT|TEXTAREA|SELECT)$/.test((e.target||{}).tagName||'');
+  if(e.code==='Space'&&!typing){
+    if(document.getElementById('buildPane').classList.contains('on')){
+      spaceDown=true; stage.classList.add('pan'); e.preventDefault();
+    }else{ vid.paused?vid.play():vid.pause(); e.preventDefault(); }
+    return;
+  }
+  var onCapture=document.getElementById('capturePane').classList.contains('on');
+  var onSeek=(e.target&&e.target.id==='seek');
+  if(onCapture&&(e.key==='ArrowLeft'||e.key==='ArrowRight')&&(!typing||onSeek)){
+    seekBy(e.key==='ArrowRight'?1:-1); e.preventDefault(); return;
+  }
+  if(typing) return;
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){ e.preventDefault(); undo(); return; }
+  if(!onCapture&&!e.ctrlKey&&!e.metaKey){
+    if(e.key==='['){ setLevel(Math.max(-1,LEVEL-1)); e.preventDefault(); return; }
+    if(e.key===']'){ setLevel(Math.min( 1,LEVEL+1)); e.preventDefault(); return; }
+    if(e.key.toLowerCase()==='e'){ setMode('erase'); e.preventDefault(); return; }
+    if(e.key.toLowerCase()==='d'){ setMode('draw');  e.preventDefault(); return; }
+  }
+  if(!onCapture&&SEL&&MODE==='move'&&/^Arrow/.test(e.key)){
+    var nd=e.shiftKey?10:1;
+    if(e.key==='ArrowLeft')  SEL.x-=nd;
+    if(e.key==='ArrowRight') SEL.x+=nd;
+    if(e.key==='ArrowUp')    SEL.y-=nd;
+    if(e.key==='ArrowDown')  SEL.y+=nd;
+    render(); save(); e.preventDefault(); return;
+  }
+  if(onCapture){
+    if(e.key===','){ step(-1); e.preventDefault(); }
+    if(e.key==='.'){ step(1);  e.preventDefault(); }
+    if(e.key.toLowerCase()==='c'){ capture(); e.preventDefault(); }
+  }
+});
+addEventListener('keyup',function(e){
+  if(e.code==='Space'){ spaceDown=false; if(MODE!=='pan') stage.classList.remove('pan'); }
+});
+addEventListener('resize',function(){ resize(); render(); });
+
+/* =======================================================================
+   boot
+   ======================================================================= */
+Promise.all([kvGet('shots'),kvGet('build'),kvGet('stage'),kvGet('shut')]).then(function(r){
+  var shots=r[0], build=r[1], stage=r[2];
+  if(r[3]&&r[3].length) SHUT=r[3];
+  if(shots&&shots.length){
+    SHOTS=shots; shotSeq=Math.max.apply(null,shots.map(function(s){return s.id;}));
+    // captures taken before stages existed all land in stage 1
+    var k=0;
+    SHOTS.forEach(function(s){ if(!s.stage){ s.stage=1; s.idx=++k; } });
+  }
+  if(stage) CURSTAGE=stage;
+  if(build){
+    IMAGES=build.images||[]; STROKES=build.strokes||[];
+    IMAGES.forEach(function(i){ if(!i.nw){ i.nw=i.w; i.nh=i.h; } });
+    STROKES.forEach(function(st){
+      if(!levelAllows(st.level||0, st.brush)) st.level=0;
+    });
+    if(build.view) VIEW=build.view;
+    if(typeof build.tOpacity==='number') T_OPACITY=build.tOpacity;
+    if(build.showTpl===false){
+      SHOW_TPL=false; document.getElementById('toggleTpl').classList.remove('on');
+    }
+    if(build.showTraced===false) setTraced(false);
+    imgSeq=IMAGES.reduce(function(a,b){return Math.max(a,b.id);},0);
+    to.value=Math.round(T_OPACITY*100);
+    document.getElementById('tOpacityV').textContent=to.value+'%';
+  }
+  renderShots(); syncStage(); resize(); render();
+  flag(SHOTS.length? 'restored '+SHOTS.length+' captures' : 'ready');
+}).catch(function(e){
+  console.warn('restore failed',e);
+  renderShots(); syncStage(); resize(); render();
+});
+</script>
+<script src="lib/three.min.js"></script>
+<script src="lib/GLTFLoader.js"></script>
+<script>
+/* =======================================================================
+   CITY - hand place Kenney city-kit models over the traced map.
+
+   WORLD ORIENTATION: Y-up, because that is how the GLBs are authored - every
+   model sits on y=0, centred on x/z, and a road tile is exactly 1x1 units.
+   So one grid cell is one road tile and nothing has to be rescaled.
+
+   The Build tab is XY with y running down the screen; here that becomes
+   (x -> x, y -> z), which is the same thing you see from a camera looking
+   down with -Z as screen-up. No flips, no mirror.
+
+   Nothing in here is generated. The backdrop is a picture of the Build
+   layers and the models are placed by hand on top of it.
+   ======================================================================= */
+
+var KITS=[{"id":"roads","dir":"kenney_city-kit-roads","label":"Roads","items":["bridge-pillar","bridge-pillar-wide","construction-barrier","construction-cone","construction-fence","construction-light","dumpster","electricity-pole","electricity-pole-single","electricity-pole-wide","electricity-side","electricity-side-single","electricity-side-wide","electricity-wires","electricity-wires-wide","light-curved","light-curved-cross","light-curved-double","light-square","light-square-cross","light-square-double","road-bend","road-bend-barrier","road-bend-sidewalk","road-bend-square","road-bend-square-barrier","road-bridge","road-crossing","road-crossroad","road-crossroad-barrier","road-crossroad-line","road-crossroad-path","road-curve","road-curve-barrier","road-curve-intersection","road-curve-intersection-barrier","road-curve-pavement","road-driveway-double","road-driveway-double-barrier","road-driveway-single","road-driveway-single-barrier","road-end","road-end-barrier","road-end-round","road-end-round-barrier","road-intersection","road-intersection-barrier","road-intersection-line","road-intersection-path","road-roundabout","road-roundabout-barrier","road-side","road-side-barrier","road-side-entry","road-side-entry-barrier","road-side-exit","road-side-exit-barrier","road-sign-empty","road-sign-empty-hanging","road-sign-object-stop","road-sign-object-street","road-sign-object-warning","road-sign-stop","road-sign-street","road-sign-warning","road-slant","road-slant-barrier","road-slant-curve","road-slant-curve-barrier","road-slant-flat","road-slant-flat-curve","road-slant-flat-high","road-slant-high","road-slant-high-barrier","road-split","road-split-barrier","road-square","road-square-barrier","road-straight","road-straight-barrier","road-straight-barrier-end","road-straight-barrier-half","road-straight-half","sign-highway","sign-highway-detailed","sign-highway-wide","tile-high","tile-low","tile-slant","tile-slantHigh","traffic-light","traffic-light-hanging","traffic-light-object-hanging","traffic-light-object-horizontal","traffic-light-object-vertical"]},{"id":"commercial","dir":"kenney_city-kit-commercial_2.1","label":"Commercial","items":["building-a","building-b","building-c","building-d","building-e","building-f","building-g","building-h","building-i","building-j","building-k","building-l","building-m","building-n","building-skyscraper-a","building-skyscraper-b","building-skyscraper-c","building-skyscraper-d","building-skyscraper-e","detail-awning","detail-awning-wide","detail-overhang","detail-overhang-wide","detail-parasol-a","detail-parasol-b","low-detail-building-a","low-detail-building-b","low-detail-building-c","low-detail-building-d","low-detail-building-e","low-detail-building-f","low-detail-building-g","low-detail-building-h","low-detail-building-i","low-detail-building-j","low-detail-building-k","low-detail-building-l","low-detail-building-m","low-detail-building-n","low-detail-building-wide-a","low-detail-building-wide-b"]},{"id":"industrial","dir":"kenney_city-kit-industrial_2.0","label":"Industrial","items":["building-a","building-b","building-c","building-d","building-e","building-f","building-g","building-h","building-i","building-j","building-k","building-l","building-m","building-n","building-o","building-p","building-q","building-r","building-s","building-t","chimney-basic","chimney-large","chimney-medium","chimney-small","detail-tank","detail-tank-large","shipping-container-a","shipping-container-b","shipping-container-c","solar-panel-flat","solar-panel-landscape","solar-panel-landscape-group","solar-panel-portrait","solar-panel-portrait-group","water-tower","windmill","windmill-low"]},{"id":"suburban","dir":"kenney_city-kit-suburban_20","label":"Suburban","items":["building-type-a","building-type-b","building-type-c","building-type-d","building-type-e","building-type-f","building-type-g","building-type-h","building-type-i","building-type-j","building-type-k","building-type-l","building-type-m","building-type-n","building-type-o","building-type-p","building-type-q","building-type-r","building-type-s","building-type-t","building-type-u","driveway-long","driveway-short","fence","fence-1x2","fence-1x3","fence-1x4","fence-2x2","fence-2x3","fence-3x2","fence-3x3","fence-low","path-long","path-short","path-stones-long","path-stones-messy","path-stones-short","planter","tree-large","tree-small"]}];
+KITS.push({"id":"cars","dir":"kenney_car-kit","label":"Cars","items":["ambulance","box","cone","cone-flat","debris-bolt","debris-bumper","debris-door","debris-door-window","debris-drivetrain","debris-drivetrain-axle","debris-nut","debris-plate-a","debris-plate-b","debris-plate-small-a","debris-plate-small-b","debris-spoiler-a","debris-spoiler-b","debris-tire","delivery","delivery-flat","firetruck","garbage-truck","hatchback-sports","kart-oobi","kart-oodi","kart-ooli","kart-oopi","kart-oozi","police","race","race-future","sedan","sedan-sports","suv","suv-luxury","taxi","tractor","tractor-police","tractor-shovel","truck","truck-flat","van","wheel-dark","wheel-default","wheel-racing","wheel-tractor-back","wheel-tractor-dark-back","wheel-tractor-dark-front","wheel-tractor-front","wheel-truck"]});
+var KITBY={}; KITS.forEach(function(k){ KITBY[k.id]=k; });
+
+/* The tile-* models are plain untextured blocks, so a tint reads as the real
+   material rather than a wash over a colormap - it replaces the map outright. */
+var TINTS={grass:'#5f9e3f', sand:'#d9c089', water:'#3f7fa6'};
+var TINTKEYS=Object.keys(TINTS);
+/* tile-low gets its coloured siblings listed right next to it */
+(function tintedTiles(){
+  var roads=KITBY.roads, out=[];
+  roads.items.forEach(function(n){
+    out.push(n);
+    if(n==='tile-low') TINTKEYS.forEach(function(t){ out.push({name:n,tint:t}); });
+  });
+  roads.items=out;
+})();
+function itemName(it){ return it.name||it; }
+function itemTint(it){ return it.tint||''; }
+function keyOf(kit,name,tint){ return kit+'/'+name+(tint?'/'+tint:''); }
+var MODEL_ROOT='research/models/';
+function glbUrl(kit,name){
+  return encodeURI(MODEL_ROOT+KITBY[kit].dir+'/Models/GLB format/'+name+'.glb');
+}
+function pngUrl(kit,name){
+  return encodeURI(MODEL_ROOT+KITBY[kit].dir+'/Previews/'+name+'.png');
+}
+
+/* ---- state ---- */
+var PLACED=[];                 // {id,kit,name,x,y,z,rot,sx,sy,sz}
+var pSeq=0, PICK=null;         // PICK = selected placement id
+var GRID=1, SNAP_P=true, SNAP_R=true, RSTEP=90;
+var BG={k:0.05, ox:0, oz:0, tpl:false, traced:true, locked:true, op:1};
+var CITY_OP=1;
+var CAM={yaw:0, pitch:58, dist:60, tx:0, tz:0};
+var KSHUT=[];                  // collapsed kits
+var CT={ren:null,scene:null,cam:null,root:null,grid:null,bg:null,box:null,ready:false,host:null};
+var _cityRaf=0, _cityRect=null;
+function askCity(){ if(_cityRaf) return;
+  _cityRaf=requestAnimationFrame(function(){ _cityRaf=0; drawCity(); }); }
+function cityHost(){ return CT.host||document.getElementById('stage3'); }
+function cityRect(){ if(!_cityRect) _cityRect=cityHost().getBoundingClientRect();
+  return _cityRect; }
+
+var cityT=null;
+function saveCity(){
+  clearTimeout(cityT);
+  cityT=setTimeout(function(){
+    kvSet('city',{placed:PLACED, seq:pSeq, grid:GRID, snapP:SNAP_P, snapR:SNAP_R,
+                  rstep:RSTEP, bg:BG, cam:CAM, kshut:KSHUT, slink:SLINK,
+                  cityOp:CITY_OP})
+      .then(function(){ flag('saved'); })
+      .catch(function(e){ flag('save failed'); console.warn(e); });
+  },550);
+}
+
+/* =======================================================================
+   asset list
+   ======================================================================= */
+function usedSet(){
+  var u={}; PLACED.forEach(function(p){ u[keyOf(p.kit,p.name,p.tint)]=1; }); return u;
+}
+function renderAssets(){
+  var host=document.getElementById('aList');
+  var q=(document.getElementById('aFind').value||'').trim().toLowerCase();
+  var used=usedSet(), shown=0;
+  host.innerHTML='';
+  KITS.forEach(function(kit){
+    var items=kit.items.filter(function(it){
+      return !q || (itemName(it)+' '+itemTint(it)).indexOf(q)>=0; });
+    if(!items.length) return;
+    shown+=items.length;
+    var shut=KSHUT.indexOf(kit.id)>=0 && !q;
+    var h=document.createElement('div');
+    h.className='grp'+(shut?' shut':'');
+    h.innerHTML='<i class="cv">&#9654;</i>'+kit.label+
+                '<span>'+items.length+'</span><i class="ln"></i>';
+    h.onclick=function(){
+      var i=KSHUT.indexOf(kit.id);
+      if(i>=0) KSHUT.splice(i,1); else KSHUT.push(kit.id);
+      renderAssets(); saveCity();
+    };
+    host.appendChild(h);
+    var body=document.createElement('div');
+    body.className='kitBody'+(shut?' shut':'');
+    items.forEach(function(it){
+      var n=itemName(it), t=itemTint(it);
+      var d=document.createElement('div');
+      d.className='asset'+(used[keyOf(kit.id,n,t)]?' used':'');
+      d.draggable=true;
+      d.title=kit.label+' / '+n+(t?' ('+t+')':'');
+      var im=document.createElement('img');
+      im.src=pngUrl(kit.id,n); im.alt=n; im.loading='lazy'; im.draggable=false;
+      if(t){ im.style.background=TINTS[t]; im.style.mixBlendMode='luminosity'; }
+      var b=document.createElement('b'); b.textContent=n+(t?' '+t:'');
+      if(t){ b.style.color=TINTS[t]; }
+      d.appendChild(im); d.appendChild(b);
+      d.addEventListener('dragstart',function(e){
+        e.dataTransfer.setData('text/plain',keyOf(kit.id,n,t));
+        e.dataTransfer.effectAllowed='copy';
+      });
+      d.onclick=function(){ addAt(kit.id,n,null,t); };
+      body.appendChild(d);
+    });
+    host.appendChild(body);
+  });
+  document.getElementById('aCount').textContent=shown+(q?' found':'');
+  if(!shown) host.innerHTML='<div class="empty">Nothing matches that.</div>';
+}
+
+/* =======================================================================
+   models - one fetch per distinct glb, cloned per placement
+   ======================================================================= */
+THREE.Cache.enabled=true;
+var LOADER=new THREE.GLTFLoader(), MCACHE={}, inflight=0;
+function loadModel(kit,name){
+  var key=kit+'/'+name;
+  if(MCACHE[key]) return MCACHE[key];
+  inflight++; meta();
+  MCACHE[key]=new Promise(function(res,rej){
+    LOADER.load(glbUrl(kit,name),function(g){
+      inflight--; 
+      g.scene.traverse(function(o){ if(o.isMesh){ o.castShadow=false; o.receiveShadow=false; } });
+      res(g.scene);
+    },null,function(e){ inflight--; meta(); console.warn('glb failed',key,e); rej(e); });
+  });
+  return MCACHE[key];
+}
+
+/* =======================================================================
+   scene
+   ======================================================================= */
+function initCity(){
+  if(CT.ren) return;
+  CT.scene=new THREE.Scene();
+  CT.scene.background=new THREE.Color(0x0a0a22);
+  CT.cam=new THREE.PerspectiveCamera(38,1,0.5,4000);
+  CT.ren=new THREE.WebGLRenderer({canvas:document.getElementById('cv3'),antialias:true,
+                                  logarithmicDepthBuffer:true});
+  CT.ren.setPixelRatio(Math.min(devicePixelRatio,2));
+  CT.ren.outputEncoding=THREE.sRGBEncoding;   // Kenney colormaps are sRGB
+
+  CT.scene.add(new THREE.HemisphereLight(0xdfe8ff,0x2a2a48,0.85));
+  var key=new THREE.DirectionalLight(0xfff4e2,0.85);
+  key.position.set(-40,70,30); CT.scene.add(key);
+  var fill=new THREE.DirectionalLight(0x93a9ff,0.25);
+  fill.position.set(35,25,-40); CT.scene.add(fill);
+
+  CT.root=new THREE.Group(); CT.scene.add(CT.root);
+
+  CT.box=new THREE.BoxHelper(new THREE.Object3D(),0xffd32a);
+  CT.box.visible=false; CT.scene.add(CT.box);
+
+  makeGrid();
+  CT.ready=true;
+}
+function makeGrid(){
+  if(CT.grid){ CT.scene.remove(CT.grid); CT.grid.geometry.dispose(); }
+  var span=240, n=Math.max(4,Math.round(span/GRID));
+  CT.grid=new THREE.GridHelper(n*GRID, n, 0x4a4a8c, 0x2a2a58);
+  CT.grid.material.transparent=true; CT.grid.material.opacity=0.38;
+  CT.grid.material.depthWrite=false;
+  // lines fall BETWEEN tile centres, so a 1x1 tile fills one cell exactly.
+  // Below the tiles, not above: a flattened tile is only 0.001 units tall.
+  CT.grid.position.set(GRID/2,-0.004,GRID/2);
+  CT.scene.add(CT.grid);
+}
+
+/* ---- backdrop: a picture of the Build layers lying on the ground ---- */
+var BAKE=false;                       // paintStroke reads this: no level dimming
+function buildBounds(){
+  var x0=1e9,y0=1e9,x1=-1e9,y1=-1e9,any=false;
+  if(BG.tpl) IMAGES.forEach(function(r){
+    x0=Math.min(x0,r.x); y0=Math.min(y0,r.y);
+    x1=Math.max(x1,r.x+r.w); y1=Math.max(y1,r.y+r.h); any=true;
+  });
+  if(BG.traced) STROKES.forEach(function(s){
+    var pad=(s.shape==='rect')?0:(s.size||0)/2;
+    s.pts.forEach(function(p){
+      x0=Math.min(x0,p[0]-pad); y0=Math.min(y0,p[1]-pad);
+      x1=Math.max(x1,p[0]+pad); y1=Math.max(y1,p[1]+pad); any=true;
+    });
+  });
+  return any?{x0:x0,y0:y0,x1:x1,y1:y1,w:x1-x0,h:y1-y0}:null;
+}
+function bakeBackdrop(){
+  if(!CT.scene) return;
+  if(CT.bg){ CT.scene.remove(CT.bg);
+    CT.bg.geometry.dispose();
+    if(CT.bg.material.map) CT.bg.material.map.dispose();
+    CT.bg.material.dispose(); CT.bg=null; }
+  var b=buildBounds();
+  if(!b||b.w<=0||b.h<=0){ askCity(); meta(); return; }
+
+  var MAXPX=4096;
+  var px=Math.min(1, MAXPX/Math.max(b.w,b.h));
+  var c=document.createElement('canvas');
+  c.width=Math.max(2,Math.round(b.w*px)); c.height=Math.max(2,Math.round(b.h*px));
+  var g=c.getContext('2d');
+  g.fillStyle='#0f0f2c'; g.fillRect(0,0,c.width,c.height);
+  g.setTransform(px,0,0,px,-b.x0*px,-b.y0*px);
+
+  var keepCtx=ctx, keepCur=CURRENT;                 // paintStroke draws into `ctx`
+  ctx=g; CURRENT=null; BAKE=true;
+  try{
+    if(BG.tpl) IMAGES.forEach(function(r){
+      var im=imgFor(r.shotId); if(!im||!im.complete) return;
+      g.globalAlpha=Math.max(0,Math.min(1,r.op*T_OPACITY));
+      g.drawImage(im,r.x,r.y,r.w,r.h);
+    });
+    g.globalAlpha=1;
+    if(BG.traced){
+      g.lineCap='round'; g.lineJoin='round';
+      STROKES.slice().sort(function(a,b){ return (a.level||0)-(b.level||0); })
+        .forEach(function(st){ paintStroke(st); });
+    }
+  } finally { ctx=keepCtx; CURRENT=keepCur; BAKE=false; }
+
+  var tex=new THREE.CanvasTexture(c);
+  tex.encoding=THREE.sRGBEncoding;
+  tex.anisotropy=CT.ren?CT.ren.capabilities.getMaxAnisotropy():1;
+  var W=b.w*BG.k, H=b.h*BG.k;
+  var pl=new THREE.Mesh(new THREE.PlaneGeometry(W,H),
+        new THREE.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false}));
+  pl.rotation.x=-Math.PI/2;                 // lie flat: +Y of the plane -> -Z
+  pl.position.set(BG.ox,-0.05,BG.oz);
+  pl.renderOrder=-1;
+  pl.userData.bounds=b;
+  CT.bg=pl; CT.scene.add(pl);
+  applyOpacity(); askCity(); meta();
+}
+function applyOpacity(){
+  document.getElementById('bgOpV').textContent=Math.round(BG.op*100)+'%';
+  document.getElementById('cityOpV').textContent=Math.round(CITY_OP*100)+'%';
+  if(CT.bg){
+    CT.bg.material.opacity=BG.op;
+    CT.bg.visible=BG.op>0.004;
+  }
+  if(CT.root) CT.root.traverse(function(m){
+    if(!m.isMesh||!m.material) return;
+    var mats=Array.isArray(m.material)?m.material:[m.material];
+    mats.forEach(function(mt){
+      mt.transparent = CITY_OP<0.999;
+      mt.opacity = CITY_OP;
+      // depth writes stay ON even when faded. The Kenney meshes are
+      // double-sided, so without them a faded building turns into a hollow
+      // shell - you see its far walls and its interior through the near ones.
+      mt.depthWrite = true;
+      mt.needsUpdate=true;
+    });
+  });
+  // the group stays visible so a faded-out piece can still be picked and moved
+  askCity();
+}
+function placeBackdrop(){
+  if(!CT.bg) return;
+  var b=CT.bg.userData.bounds;
+  CT.bg.geometry.dispose();
+  CT.bg.geometry=new THREE.PlaneGeometry(b.w*BG.k, b.h*BG.k);
+  CT.bg.position.set(BG.ox,-0.05,BG.oz);
+  askCity(); meta();
+}
+
+/* =======================================================================
+   placements
+   ======================================================================= */
+function snapXZ(v){ return SNAP_P ? Math.round(v/GRID)*GRID : v; }
+function snapDeg(d){ return SNAP_R ? Math.round(d/RSTEP)*RSTEP : d; }
+function byId(id){ for(var i=0;i<PLACED.length;i++) if(PLACED[i].id===id) return PLACED[i]; return null; }
+function objFor(id){
+  if(!CT.root) return null;
+  for(var i=0;i<CT.root.children.length;i++)
+    if(CT.root.children[i].userData.pid===id) return CT.root.children[i];
+  return null;
+}
+function spawnObj(p){
+  return loadModel(p.kit,p.name).then(function(src){
+    if(!byId(p.id)) return;                    // deleted while loading
+    var old=objFor(p.id); if(old) CT.root.remove(old);
+    var o=src.clone(true);
+    if(p.tint && TINTS[p.tint]){
+      var col=new THREE.Color(TINTS[p.tint]);
+      o.traverse(function(m){
+        if(!m.isMesh) return;
+        m.material=m.material.clone();   // or every other copy of this model changes
+        m.material.map=null;
+        m.material.color=col;
+      });
+    }
+    var g=new THREE.Group(); g.add(o);
+    g.userData.pid=p.id;
+    applyObj(p,g);
+    CT.root.add(g);
+    applyOpacity();
+    askCity(); meta();
+    return g;
+  }).catch(function(){});
+}
+/* Roads draw over driveways and paths. The pieces are laid flat at the same
+   height, so where they overlap the winner is whatever the depth buffer
+   settles on - and it changes as the camera moves, which is the flicker along
+   every junction. Four thousandths of a unit of lift on anything called "road"
+   settles it for good: far under the climb allowance, under the surface seams,
+   and under anything the eye can read as height. */
+function layerLift(p){ return /road/.test(p.name) ? 0.004 : 0; }
+function applyObj(p,g){
+  g=(g&&g.isObject3D)?g:objFor(p.id); if(!g) return;
+  g.position.set(p.x,(p.y||0)+layerLift(p),p.z);
+  g.rotation.y=p.rot*Math.PI/180;
+  g.scale.set(p.sx,p.sy,p.sz);
+  if(PICK===p.id) refreshBox();
+}
+/* an empty cell near the middle of the view, for a click-to-add */
+function freeSpot(){
+  var taken={};
+  PLACED.forEach(function(p){ taken[Math.round(p.x/GRID)+'|'+Math.round(p.z/GRID)]=1; });
+  var cx=Math.round(CAM.tx/GRID), cz=Math.round(CAM.tz/GRID);
+  for(var r=0;r<40;r++){
+    for(var dx=-r;dx<=r;dx++) for(var dz=-r;dz<=r;dz++){
+      if(Math.max(Math.abs(dx),Math.abs(dz))!==r) continue;
+      if(!taken[(cx+dx)+'|'+(cz+dz)]) return {x:(cx+dx)*GRID, z:(cz+dz)*GRID};
+    }
+  }
+  return {x:CAM.tx, z:CAM.tz};
+}
+function addAt(kit,name,at,tint){
+  var s=at||freeSpot();
+  var p={id:++pSeq, kit:kit, name:name, tint:tint||'',
+         x:snapXZ(s.x), y:0, z:snapXZ(s.z), rot:0, sx:1, sy:1, sz:1};
+  PLACED.push(p);
+  spawnObj(p).then(function(){ select(p.id); });
+  renderAssets(); saveCity(); meta();
+  return p;
+}
+function removePlaced(id){
+  var o=objFor(id); if(o) CT.root.remove(o);
+  PLACED=PLACED.filter(function(p){ return p.id!==id; });
+  if(PICK===id) select(null);
+  renderAssets(); saveCity(); askCity(); meta();
+}
+function copyOf(p,dx,dz){
+  var q={id:++pSeq, kit:p.kit, name:p.name, tint:p.tint||'',
+         x:p.x+(dx||0), y:p.y, z:p.z+(dz||0),
+         rot:p.rot, sx:p.sx, sy:p.sy, sz:p.sz};
+  PLACED.push(q); spawnObj(q);
+  saveCity(); meta();
+  return q;
+}
+function duplicate(id){
+  var p=byId(id); if(!p) return;
+  var q=copyOf(p,GRID,0);
+  select(q.id);
+}
+
+/* ---- selection ---- */
+function refreshBox(){
+  if(!CT.box) return;
+  var o=objFor(PICK);
+  if(!o){ CT.box.visible=false; return; }
+  CT.box.setFromObject(o); CT.box.visible=true;
+}
+function select(id){
+  PICK=id;
+  var p=byId(id), bar=document.getElementById('selBar');
+  bar.classList.toggle('idle',!p);
+  ['selRot','selY','selSX','selSY','selSZ','selLink','rotL','rotR',
+   'selDup','selDel']
+    .forEach(function(k){ document.getElementById(k).disabled=!p; });
+  syncTints();
+  document.getElementById('selName').textContent =
+    p ? KITBY[p.kit].label+' / '+p.name+(p.tint?' ('+p.tint+')':'')
+      : 'nothing selected';
+  document.getElementById('selRot').value = p ? +p.rot.toFixed(1)   : 0;
+  document.getElementById('selY').value   = p ? +p.y.toFixed(3)     : 0;
+  document.getElementById('selSX').value  = p ? +p.sx.toFixed(3) : 1;
+  document.getElementById('selSY').value  = p ? +p.sy.toFixed(3) : 1;
+  document.getElementById('selSZ').value  = p ? +p.sz.toFixed(3) : 1;
+  refreshBox(); askCity(); meta();
+}
+
+/* =======================================================================
+   camera + picking
+   ======================================================================= */
+function applyCam(){
+  var ph=Math.max(6,Math.min(89.5,CAM.pitch))*Math.PI/180, ya=CAM.yaw*Math.PI/180;
+  var h=Math.sin(ph)*CAM.dist, r=Math.cos(ph)*CAM.dist;
+  CT.cam.up.set(0,1,0);
+  CT.cam.position.set(CAM.tx+Math.sin(ya)*r, h, CAM.tz+Math.cos(ya)*r);
+  CT.cam.lookAt(CAM.tx,0,CAM.tz);
+}
+function resizeCity(){
+  var r=cityHost().getBoundingClientRect();
+  if(!r.width||!CT.ren) return;
+  _cityRect=r;
+  CT.ren.setSize(r.width,r.height,false);
+  CT.cam.aspect=r.width/r.height; CT.cam.updateProjectionMatrix();
+}
+function drawCity(){ if(CT.ren){ applyCam(); CT.ren.render(CT.scene,CT.cam); } }
+
+var RAY=new THREE.Raycaster(), NDC=new THREE.Vector2();
+function ndcAt(cx,cy){
+  var r=cityRect();
+  NDC.set(((cx-r.left)/r.width)*2-1, -((cy-r.top)/r.height)*2+1);
+  return NDC;
+}
+function groundAt(cx,cy,y){
+  RAY.setFromCamera(ndcAt(cx,cy),CT.cam);
+  var pl=new THREE.Plane(new THREE.Vector3(0,1,0),-(y||0)), out=new THREE.Vector3();
+  return RAY.ray.intersectPlane(pl,out) ? out : null;
+}
+function pickAt(cx,cy){
+  RAY.setFromCamera(ndcAt(cx,cy),CT.cam);
+  var hits=RAY.intersectObjects(CT.root.children,true);
+  for(var i=0;i<hits.length;i++){
+    var o=hits[i].object;
+    while(o && o.userData.pid===undefined) o=o.parent;
+    if(o) return o.userData.pid;
+  }
+  return null;
+}
+function fitCity(){
+  var b=new THREE.Box3();
+  // frame what you have placed; fall back to the backdrop only when empty
+  if(CT.root.children.length) b.setFromObject(CT.root);
+  else if(CT.bg) b.setFromObject(CT.bg);
+  if(b.isEmpty()){ CAM.tx=0; CAM.tz=0; CAM.dist=60; askCity(); return; }
+  var c=b.getCenter(new THREE.Vector3()), s=b.getSize(new THREE.Vector3());
+  CAM.tx=c.x; CAM.tz=c.z;
+  var r=cityRect(), asp=(r.width&&r.height)?r.width/r.height:1.6;
+  var k=2*Math.tan(CT.cam.fov*Math.PI/360);
+  CAM.dist=Math.max(8, Math.max(s.z, s.x/asp)/k*1.35 + s.y);
+  askCity(); meta();
+}
+function meta(){
+  var bw=CT.bg?CT.bg.geometry.parameters.width:0;
+  document.getElementById('bgScaleV').textContent=
+    bw? (bw/GRID).toFixed(0)+' cells' : '-';
+  document.getElementById('status3').textContent=
+    'drag a model in \u00b7 drag to move \u00b7 middle-drag pan \u00b7 right-drag tilt \u00b7 wheel zoom'+
+    (PICK?" \u00b7 ' \u2215 \\ rotate, shift-drag copies, D duplicate, Del remove":'');
+}
+
+/* =======================================================================
+   interaction
+   ======================================================================= */
+(function wireCity(){
+  var st=document.getElementById('stage3'), drag=null;
+
+  st.addEventListener('contextmenu',function(e){ e.preventDefault(); });
+
+  st.addEventListener('pointerdown',function(e){
+    if(!CT.ready) return;
+    _cityRect=null;
+    st.setPointerCapture(e.pointerId);
+    // middle drag pans the ground, right drag swings the camera round
+    if(e.button===1){
+      var gr=groundAt(e.clientX,e.clientY,0);
+      if(gr) drag={k:'pan',gx:gr.x,gz:gr.z,tx:CAM.tx,tz:CAM.tz};
+      st.style.cursor='grabbing'; return;
+    }
+    if(e.button===2||e.altKey){
+      drag={k:'orbit',sx:e.clientX,sy:e.clientY,yaw:CAM.yaw,pitch:CAM.pitch};
+      st.style.cursor='move'; return;
+    }
+
+    var id=pickAt(e.clientX,e.clientY);
+    if(id!==null){
+      var p=byId(id);
+      // shift drags a copy out and leaves the original where it was
+      if(e.shiftKey){ p=copyOf(p,0,0); id=p.id; }
+      select(id);
+      var g=groundAt(e.clientX,e.clientY,p.y);
+      if(g) drag={k:'obj',id:id,dx:p.x-g.x,dz:p.z-g.z};
+      st.style.cursor=e.shiftKey?'copy':'grabbing';
+      return;
+    }
+    if(!BG.locked && CT.bg){
+      var g2=groundAt(e.clientX,e.clientY,-0.05);
+      if(g2){ drag={k:'bg',dx:BG.ox-g2.x,dz:BG.oz-g2.z}; st.style.cursor='grabbing'; return; }
+    }
+    select(null);
+    var g3=groundAt(e.clientX,e.clientY,0);
+    if(g3) drag={k:'pan',gx:g3.x,gz:g3.z,tx:CAM.tx,tz:CAM.tz};
+    st.style.cursor='grabbing';
+  });
+
+  addEventListener('pointermove',function(e){
+    if(!drag) return;
+    if(drag.k==='orbit'){
+      CAM.yaw = drag.yaw - (e.clientX-drag.sx)*0.4;
+      CAM.pitch = Math.max(6,Math.min(89.5, drag.pitch + (e.clientY-drag.sy)*0.3));
+      askCity(); return;
+    }
+    if(drag.k==='obj'){
+      var p=byId(drag.id); if(!p) return;
+      var g=groundAt(e.clientX,e.clientY,p.y); if(!g) return;
+      p.x=snapXZ(g.x+drag.dx); p.z=snapXZ(g.z+drag.dz);
+      applyObj(p); askCity(); return;
+    }
+    if(drag.k==='bg'){
+      var gb=groundAt(e.clientX,e.clientY,-0.05); if(!gb) return;
+      BG.ox=gb.x+drag.dx; BG.oz=gb.z+drag.dz;
+      placeBackdrop(); return;
+    }
+    // pan: keep the ground point that was grabbed under the cursor
+    var gp=groundAt(e.clientX,e.clientY,0); if(!gp) return;
+    CAM.tx=drag.tx+(drag.gx-gp.x); CAM.tz=drag.tz+(drag.gz-gp.z);
+    askCity();
+  });
+
+  addEventListener('pointerup',function(){
+    if(!drag) return;
+    if(drag.k==='obj'||drag.k==='bg') saveCity();
+    else if(drag.k==='orbit'||drag.k==='pan') saveCity();
+    drag=null; st.style.cursor='default'; meta();
+  });
+
+  st.addEventListener('wheel',function(e){
+    e.preventDefault();
+    // straight dolly - the point the camera looks at does not move
+    CAM.dist=Math.max(3,Math.min(2500,CAM.dist*(1+e.deltaY*0.0015)));
+    askCity(); saveCity();
+  },{passive:false});
+
+  /* ---- drop a model from the list ---- */
+  st.addEventListener('dragover',function(e){ e.preventDefault();
+    e.dataTransfer.dropEffect='copy'; st.classList.add('over'); });
+  st.addEventListener('dragleave',function(){ st.classList.remove('over'); });
+  st.addEventListener('drop',function(e){
+    e.preventDefault(); st.classList.remove('over');
+    var d=(e.dataTransfer.getData('text/plain')||'').split('/');
+    if(d.length<2||!KITBY[d[0]]) return;
+    _cityRect=null;
+    var g=groundAt(e.clientX,e.clientY,0);
+    addAt(d[0],d[1], g?{x:g.x,z:g.z}:null, d[2]);
+  });
+
+  /* ---- keys ---- */
+  addEventListener('keydown',function(e){
+    if(!document.getElementById('cityPane').classList.contains('on')) return;
+    var t=e.target.tagName;
+    if(t==='INPUT'||t==='TEXTAREA'||t==='SELECT') return;
+    var p=byId(PICK);
+    if(e.key==='Escape'){ select(null); return; }
+    if(!p) return;
+    if(e.key==="'"||e.key==='\\'){
+      p.rot=snapDeg(p.rot + (e.key==="'"?-1:1)*(SNAP_R?RSTEP:15));
+      applyObj(p); select(p.id); saveCity(); e.preventDefault(); return;
+    }
+    if(e.key==='d'||e.key==='D'){ duplicate(p.id); e.preventDefault(); return; }
+    if(e.key==='Delete'||e.key==='Backspace'){ removePlaced(p.id); e.preventDefault(); return; }
+    var step=e.shiftKey?GRID*0.1:GRID, moved=true;
+    if(e.key==='ArrowLeft') p.x-=step;
+    else if(e.key==='ArrowRight') p.x+=step;
+    else if(e.key==='ArrowUp') p.z-=step;
+    else if(e.key==='ArrowDown') p.z+=step;
+    else moved=false;
+    if(moved){ applyObj(p); askCity(); saveCity(); e.preventDefault(); }
+  });
+
+  addEventListener('resize',function(){
+    _cityRect=null;
+    if(CT.ready){ resizeCity(); askCity(); }
+  });
+})();
+
+/* =======================================================================
+   controls
+   ======================================================================= */
+function on(id,ev,fn){ var e=document.getElementById(id); if(e) e.addEventListener(ev,fn); }
+function toggle(id,get,set){
+  var b=document.getElementById(id);
+  b.onclick=function(){ set(!get()); b.classList.toggle('on',get()); meta(); saveCity(); };
+  b.classList.toggle('on',get());
+}
+on('aFind','input',renderAssets);
+
+function setGrid(v){
+  GRID=Math.max(0.05,v);
+  document.getElementById('gSize').value=GRID;
+  document.getElementById('gQ').classList.toggle('on',GRID===0.25);
+  document.getElementById('g1').classList.toggle('on',GRID===1);
+  makeGrid(); askCity(); meta(); saveCity();
+}
+on('gSize','change',function(){ setGrid(parseFloat(this.value)||1); });
+on('gQ','click',function(){ setGrid(0.25); });
+on('g1','click',function(){ setGrid(1); });
+on('rStep','change',function(){
+  RSTEP=Math.max(1,Math.min(180,parseFloat(this.value)||90)); this.value=RSTEP;
+  meta(); saveCity();
+});
+toggle('snapPos',function(){return SNAP_P;},function(v){SNAP_P=v;});
+toggle('snapRot',function(){return SNAP_R;},function(v){SNAP_R=v;});
+
+function bgToggle(id,key){
+  var b=document.getElementById(id);
+  b.onclick=function(){ BG[key]=!BG[key]; b.classList.toggle('on',BG[key]);
+                        bakeBackdrop(); saveCity(); };
+  b.classList.toggle('on',BG[key]);
+}
+bgToggle('bgTpl','tpl'); bgToggle('bgTraced','traced');
+on('bgScale','input',function(){ BG.k=(parseFloat(this.value)||50)/1000; placeBackdrop(); });
+on('bgScale','change',saveCity);
+on('bgLock','click',function(){
+  BG.locked=!BG.locked;
+  this.classList.toggle('on',BG.locked);
+  this.textContent=BG.locked?'lock bg':'free bg';
+  saveCity();
+});
+on('bgBake','click',function(){ bakeBackdrop(); flag('backdrop redrawn'); });
+on('bgOp','input',function(){ BG.op=(parseFloat(this.value)||0)/100; applyOpacity(); });
+on('bgOp','change',saveCity);
+on('cityOp','input',function(){ CITY_OP=(parseFloat(this.value)||0)/100; applyOpacity(); });
+on('cityOp','change',saveCity);
+
+on('topView','click',function(){ CAM.pitch=89.5; CAM.yaw=0; askCity(); saveCity(); });
+on('fit3d','click',function(){ resizeCity(); fitCity(); saveCity(); });
+/* the flat ground tile is the one thing that should never float or be thick */
+var FLAT_Y=0, FLAT_SY=0.05;
+on('fixTiles','click',function(){
+  var n=0;
+  PLACED.forEach(function(q){
+    if(q.name!=='tile-low') return;              // any tint, base model is the test
+    if(q.y===FLAT_Y && q.sy===FLAT_SY) return;
+    q.y=FLAT_Y; q.sy=FLAT_SY; applyObj(q); n++;
+  });
+  if(PICK!==null) select(PICK);
+  askCity(); meta(); if(n) saveCity();
+  flag(n ? 'flattened '+n+' tile'+(n===1?'':'s') : 'tiles already flat');
+});
+
+function selNum(id,key,fix){
+  on(id,'change',function(){
+    var p=byId(PICK); if(!p) return;
+    var v=parseFloat(this.value); if(isNaN(v)) { this.value=p[key]; return; }
+    p[key]=fix?fix(v):v; this.value=+p[key].toFixed(3);
+    applyObj(p); askCity(); saveCity();
+  });
+}
+selNum('selRot','rot');
+selNum('selY','y');
+/* with link on, typing into any axis drives all three */
+var SLINK=true;
+on('selLink','click',function(){
+  SLINK=!SLINK; this.classList.toggle('on',SLINK); saveCity();
+});
+[['selSX','sx'],['selSY','sy'],['selSZ','sz']].forEach(function(p2){
+  on(p2[0],'change',function(){
+    var q=byId(PICK); if(!q) return;
+    var v=parseFloat(this.value);
+    if(isNaN(v)){ this.value=q[p2[1]]; return; }
+    v=Math.max(0.05,v);
+    if(SLINK){ q.sx=q.sy=q.sz=v; } else q[p2[1]]=v;
+    applyObj(q); select(q.id); askCity(); saveCity();
+  });
+});
+on('rotL','click',function(){ var p=byId(PICK); if(!p) return;
+  p.rot=snapDeg(p.rot-(SNAP_R?RSTEP:15)); applyObj(p); select(p.id); saveCity(); });
+on('rotR','click',function(){ var p=byId(PICK); if(!p) return;
+  p.rot=snapDeg(p.rot+(SNAP_R?RSTEP:15)); applyObj(p); select(p.id); saveCity(); });
+/* recolour anything already placed - the tile blocks are what this is for,
+   but it works on any model (the tint replaces its colormap) */
+(function buildTintBar(){
+  var host=document.getElementById('selTints');
+  [''].concat(TINTKEYS).forEach(function(t){
+    var b=document.createElement('button');
+    b.className='sw'+(t?'':' none');
+    b.dataset.tint=t;
+    b.title=t||'no tint';
+    if(t) b.style.background=TINTS[t];
+    b.onclick=function(){ setTint(t); };
+    host.appendChild(b);
+  });
+})();
+function syncTints(){
+  var p=byId(PICK), cur=p?(p.tint||''):'';
+  document.querySelectorAll('#selTints .sw').forEach(function(b){
+    b.classList.toggle('on', p && b.dataset.tint===cur);
+    b.disabled=!p;
+  });
+}
+function setTint(t){
+  var p=byId(PICK); if(!p||(p.tint||'')===t) return;
+  p.tint=t;
+  var o=objFor(p.id); if(o) CT.root.remove(o);   // rebuilt with fresh materials
+  spawnObj(p).then(function(){ select(p.id); });
+  renderAssets(); saveCity();
+}
+on('selDup','click',function(){ if(PICK!==null) duplicate(PICK); });
+on('selDel','click',function(){ if(PICK!==null) removePlaced(PICK); });
+
+on('expCity','click',function(){
+  var out={generated:new Date().toISOString(),
+    orientation:'Y-up, ground = XZ, 1 grid unit = 1 Kenney road tile',
+    grid:GRID, modelRoot:MODEL_ROOT,
+    backdrop:{scale:BG.k, x:BG.ox, z:BG.oz, layers:{template:BG.tpl,traced:BG.traced}},
+    placements:PLACED.map(function(p){
+      return {kit:p.kit, dir:KITBY[p.kit].dir, model:p.name, glb:glbUrl(p.kit,p.name),
+              position:{x:+p.x.toFixed(4),y:+p.y.toFixed(4),z:+p.z.toFixed(4)},
+              tint:p.tint||null, rotationY:+p.rot.toFixed(2),
+              scale:{x:+p.sx.toFixed(4), y:+p.sy.toFixed(4), z:+p.sz.toFixed(4)}};
+    })};
+  dl('deja-vroom-city.json',
+     new Blob([JSON.stringify(out,null,1)],{type:'application/json'}));
+  flag('exported city');
+});
+
+/* =======================================================================
+   boot the tab lazily - nothing loads until you open City
+   ======================================================================= */
+var cityBooted=false;
+function enterCity(){
+  initCity();
+  hostCanvas(document.getElementById('stage3'));
+  if(!cityBooted){
+    cityBooted=true;
+    resizeCity();
+    PLACED.forEach(function(q){ spawnObj(q); });
+    bakeBackdrop();
+    if(!PLACED.length) fitCity();
+  } else { resizeCity(); }
+  askCity(); meta();
+}
+var cityReady=kvGet('city').then(function(c){
+  if(c){
+    PLACED=c.placed||[]; pSeq=c.seq||PLACED.reduce(function(a,b){return Math.max(a,b.id);},0);
+    PLACED.forEach(function(q){                 // saves from before per-axis scale
+      if(q.sx===undefined){ q.sx=q.sy=q.sz=(q.scale===undefined?1:q.scale); }
+      delete q.scale;
+    });
+    if(typeof c.slink==='boolean') SLINK=c.slink;
+    if(c.grid) GRID=c.grid;
+    if(typeof c.snapP==='boolean') SNAP_P=c.snapP;
+    if(typeof c.snapR==='boolean') SNAP_R=c.snapR;
+    if(c.rstep) RSTEP=c.rstep;
+    if(c.bg) BG=Object.assign(BG,c.bg);
+    if(typeof BG.op!=='number') BG.op=1;
+    if(typeof c.cityOp==='number') CITY_OP=c.cityOp;
+    if(c.cam) CAM=Object.assign(CAM,c.cam);
+    if(c.kshut) KSHUT=c.kshut;
+  }
+  document.getElementById('gSize').value=GRID;
+  document.getElementById('gQ').classList.toggle('on',GRID===0.25);
+  document.getElementById('g1').classList.toggle('on',GRID===1);
+  document.getElementById('rStep').value=RSTEP;
+  document.getElementById('selLink').classList.toggle('on',SLINK);
+  document.getElementById('bgScale').value=Math.round(BG.k*1000);
+  document.getElementById('bgOp').value=Math.round(BG.op*100);
+  document.getElementById('cityOp').value=Math.round(CITY_OP*100);
+  applyOpacity();
+  document.getElementById('snapPos').classList.toggle('on',SNAP_P);
+  document.getElementById('snapRot').classList.toggle('on',SNAP_R);
+  document.getElementById('bgTpl').classList.toggle('on',BG.tpl);
+  document.getElementById('bgTraced').classList.toggle('on',BG.traced);
+  var bl=document.getElementById('bgLock');
+  bl.classList.toggle('on',BG.locked); bl.textContent=BG.locked?'lock bg':'free bg';
+  renderAssets(); select(null);
+  if(document.getElementById('cityPane').classList.contains('on')) enterCity();
+}).catch(function(e){ console.warn('city restore failed',e); renderAssets(); select(null); });
+
+document.querySelectorAll('.tab').forEach(function(b){
+  var prev=b.onclick;
+  b.onclick=function(){
+    if(prev) prev.call(b);
+    if(b.dataset.tab==='city') requestAnimationFrame(enterCity);
+  };
+});
+
+/* =======================================================================
+   ROUTES - per level: where the camera starts, what you drive, where you
+   have to get to.  It draws over the same city scene, so the gizmos sit
+   on the ground you laid out on the City tab.
+
+   Scene bounds are Z limits: the camera scrolls freely along X and is
+   clamped between the top and bottom lines. That is the horizontal
+   scroller the original game runs on.
+   ======================================================================= */
+var CAM_ASPECT=1333/690;          // the game viewport
+var SCENES=[], sSeq=0, lSeq=0;
+var RSC=null, RLV=null;           // selected scene / level ids
+var RPICK=null;                   // 'cam' | 'veh' | 'goal' | 'top' | 'bot'
+var RG={root:null,bandTop:null,bandBot:null,cam:null,veh:null,vehModel:null,goal:null};
+var RTSHUT=[];
+var VEH_SCALE=1;              // one multiplier for every vehicle, everywhere
+
+/* the car kit, drivable things only - no debris, loose wheels or props */
+var VEHICLES=['sedan','sedan-sports','hatchback-sports','suv','suv-luxury','taxi',
+  'police','van','delivery','delivery-flat','truck','truck-flat','ambulance',
+  'firetruck','garbage-truck','race','race-future','tractor','tractor-police',
+  'tractor-shovel','kart-oobi','kart-oodi','kart-ooli','kart-oopi','kart-oozi'];
+
+function curScene(){ for(var i=0;i<SCENES.length;i++) if(SCENES[i].id===RSC) return SCENES[i]; return null; }
+function curLevel(){ var s=curScene(); if(!s) return null;
+  for(var i=0;i<s.levels.length;i++) if(s.levels[i].id===RLV) return s.levels[i]; return null; }
+
+var rtT=null;
+function saveRoutes(){
+  clearTimeout(rtT);
+  rtT=setTimeout(function(){
+    kvSet('routes',{scenes:SCENES,sSeq:sSeq,lSeq:lSeq,sc:RSC,lv:RLV,shut:RTSHUT,
+                    vehScale:VEH_SCALE})
+      .then(function(){ flag('saved'); })
+      .catch(function(e){ flag('save failed'); console.warn(e); });
+  },550);
+}
+
+/* A new level starts in the middle of its scene, not at the world origin -
+   the car just short of centre and the goal just past it, so both are in the
+   opening view and you can see which is which straight away. */
+function newLevel(sc){
+  var c=(sc&&sc.cam)||{x:0,z:0,w:40};
+  var d=Math.max(2,Math.min(8,c.w*0.12));
+  return {id:++lSeq,
+          offset:0,                 // seconds into the stage clock this run starts
+          veh:{model:'sedan', x:+(c.x-d).toFixed(3), z:+c.z.toFixed(3), rot:0},
+          goal:{x:+(c.x+d).toFixed(3), z:+c.z.toFixed(3), rot:0},
+          water:false, who:'', blurb:''};
+}
+function addScene(){
+  /* one camera for the whole scene: it is the opening view for every run in
+     it, and its top and bottom edges are the limits the chase camera may
+     travel between. */
+  var s={id:++sSeq, name:'Scene '+(SCENES.length+1), cam:{x:0, z:0, w:40}, levels:[]};
+  s.levels.push(newLevel(s));
+  SCENES.push(s); RSC=s.id; RLV=s.levels[0].id;
+  renderTree(); renderForm(); buildGizmos(); saveRoutes();
+}
+function addLevel(s){
+  var l=newLevel(s);
+  s.levels.push(l); RSC=s.id; RLV=l.id;
+  renderTree(); renderForm(); buildGizmos(); saveRoutes();
+}
+function dropScene(id){
+  SCENES=SCENES.filter(function(s){ return s.id!==id; });
+  if(RSC===id){ RSC=SCENES.length?SCENES[0].id:null;
+                var s=curScene(); RLV=(s&&s.levels.length)?s.levels[0].id:null; }
+  renderTree(); renderForm(); buildGizmos(); saveRoutes();
+}
+/* an exact copy, appended to the end of the scene - a deep clone, so editing
+   the copy never reaches back into the level it came from */
+function cloneLevel(s,l){
+  var q=JSON.parse(JSON.stringify(l));
+  q.id=++lSeq;
+  s.levels.push(q);
+  RSC=s.id; RLV=q.id;
+  renderTree(); renderForm(); buildGizmos(); saveRoutes();
+  flag('duplicated level');
+}
+function dropLevel(s,id){
+  s.levels=s.levels.filter(function(l){ return l.id!==id; });
+  if(RLV===id) RLV=s.levels.length?s.levels[0].id:null;
+  renderTree(); renderForm(); buildGizmos(); saveRoutes();
+}
+
+/* =======================================================================
+   left tree
+   ======================================================================= */
+function renderTree(){
+  var host=document.getElementById('rtList');
+  host.innerHTML='';
+  if(!SCENES.length){
+    host.innerHTML='<div class="empty">No scenes yet.<br>Add one above.</div>'; return;
+  }
+  SCENES.forEach(function(s){
+    var shut=RTSHUT.indexOf(s.id)>=0;
+    var h=document.createElement('div');
+    h.className='grp'+(shut?' shut':'')+(s.id===RSC?' sel':'');
+    h.innerHTML='<i class="cv">&#9654;</i>'+s.name+'<span>'+s.levels.length+'</span><i class="ln"></i>';
+    var add=document.createElement('button');
+    add.className='add'; add.textContent='+'; add.title='add a level';
+    add.onclick=function(e){ e.stopPropagation(); addLevel(s); };
+    var del=document.createElement('button');
+    del.className='add'; del.textContent='×'; del.title='remove this scene';
+    del.onclick=function(e){ e.stopPropagation(); dropScene(s.id); };
+    h.appendChild(add); h.appendChild(del);
+    h.onclick=function(){
+      if(RSC!==s.id){ RSC=s.id; RLV=s.levels.length?s.levels[0].id:null; }
+      else { var i=RTSHUT.indexOf(s.id); if(i>=0) RTSHUT.splice(i,1); else RTSHUT.push(s.id); }
+      renderTree(); renderForm(); buildGizmos(); saveRoutes();
+    };
+    host.appendChild(h);
+    if(shut) return;
+    s.levels.forEach(function(l){
+      var r=document.createElement('div');
+      r.className='lvRow'+(l.id===RLV&&s.id===RSC?' on':'');
+      var t=document.createElement('span');
+      t.textContent = 'Level '+(s.levels.indexOf(l)+1);
+      var cp=document.createElement('button'); cp.className='cp';
+      cp.innerHTML='&#10697;'; cp.title='duplicate to the end of this scene';
+      cp.onclick=function(e){ e.stopPropagation(); cloneLevel(s,l); };
+      var x=document.createElement('button'); x.className='x'; x.textContent='×';
+      x.title='remove this level';
+      x.onclick=function(e){ e.stopPropagation(); dropLevel(s,l.id); };
+      r.appendChild(t); r.appendChild(cp); r.appendChild(x);
+      r.onclick=function(){ RSC=s.id; RLV=l.id;
+        renderTree(); renderForm(); buildGizmos(); saveRoutes(); };
+      host.appendChild(r);
+    });
+  });
+}
+
+/* =======================================================================
+   right-hand settings
+   ======================================================================= */
+function renderForm(){
+  var host=document.getElementById('rtForm'), l=curLevel(), s=curScene();
+  host.innerHTML='';
+  var bnd=s? sceneBounds(s) : null;
+  document.getElementById('rtBounds').textContent =
+    bnd? ('bounds  z '+bnd.zTop+' … '+bnd.zBot) : 'bounds —';
+  if(!l){ host.innerHTML='<div class="none">Pick a level on the left,<br>or add one.</div>';
+          syncPickBar(); return; }
+
+  function h4(t){ var e=document.createElement('h4'); e.textContent=t; host.appendChild(e); }
+  function row(label,el){ var r=document.createElement('div'); r.className='row';
+    var sp=document.createElement('span'); sp.textContent=label;
+    r.appendChild(sp); r.appendChild(el); host.appendChild(r); return el; }
+  function hint(t){ var e=document.createElement('div'); e.className='hint'; e.textContent=t; host.appendChild(e); }
+  function txt(v,fn){ var i=document.createElement('input'); i.type='text'; i.value=v||'';
+    i.oninput=function(){ fn(this.value); saveRoutes(); }; return i; }
+  function num(v,fn,step){ var i=document.createElement('input'); i.type='number'; i.className='num';
+    i.step=step||0.5; i.value=v;
+    i.onchange=function(){ var n=parseFloat(this.value); if(isNaN(n)){ this.value=v; return; }
+      fn(n); buildGizmos(); saveRoutes(); }; return i; }
+
+  h4('Scene camera  ('+CAM_ASPECT.toFixed(3)+' : 1)');
+  row('x', num(s.cam.x,function(v){ s.cam.x=v; }));
+  row('z', num(s.cam.z,function(v){ s.cam.z=v; }));
+  row('width', num(s.cam.w,function(v){ s.cam.w=Math.max(2,v); },1));
+  hint('one opening view for every run in “'+s.name+'” — height is width ÷ '+
+       CAM_ASPECT.toFixed(3)+' = '+(s.cam.w/CAM_ASPECT).toFixed(2)+
+       ', and its top and bottom edges (z '+bnd.zTop+' … '+bnd.zBot+
+       ') are as far as the camera may travel. Select it and use the wheel to scale.');
+
+  h4('Story');
+  row('who', txt(l.who,function(v){ l.who=v; }));
+  var ta=document.createElement('textarea'); ta.value=l.blurb||'';
+  ta.placeholder='why they are driving\u2026';
+  ta.oninput=function(){ l.blurb=this.value; saveRoutes(); };
+  row('blurb', ta);
+  var wc=document.createElement('label');
+  wc.style.cssText='display:flex;align-items:center;gap:7px;font-size:11.5px;color:#a9b3e0';
+  var cb=document.createElement('input'); cb.type='checkbox'; cb.checked=!!l.water;
+  cb.onchange=function(){ l.water=this.checked; buildGizmos(); saveRoutes(); };
+  wc.appendChild(cb); wc.appendChild(document.createTextNode('on water (boat, not car)'));
+  wc.title='Turns the level inside out: the water becomes the road and everything '+
+           'else is the hole.';
+  var wr=document.createElement('div'); wr.className='row'; wr.appendChild(wc); host.appendChild(wr);
+  hint('the run is a boat: it floats on WATER tiles only, at road grip and speed, '+
+       'and leaving the water \u2014 onto tarmac, grass, sand or bare ground \u2014 drops it '+
+       'through and rewinds, exactly the way water does to a car');
+
+  h4('Timing');
+  row('start at', num(l.offset||0,function(v){ l.offset=Math.max(0,v); },0.5));
+  hint('seconds into the stage clock when this run begins \u2014 earlier runs are '+
+       'already driving by then, and you can hit them');
+
+  h4('Vehicle');
+  /* how many runs in THIS scene already drive each one, this level included -
+     so you can see at a glance which cars the scene is leaning on */
+  var used={};
+  if(s) s.levels.forEach(function(lev){
+    var m=lev.veh&&lev.veh.model; if(m) used[m]=(used[m]||0)+1; });
+  var grid=document.createElement('div'); grid.className='vehGrid';
+  VEHICLES.forEach(function(v){
+    var d=document.createElement('div');
+    d.className='veh'+(v===l.veh.model?' on':'');
+    var n=used[v]||0;
+    d.title=v+(n? ('  \u00b7  '+n+(n===1?' run':' runs')+' in this scene') : '  \u00b7  not used in this scene');
+    var im=document.createElement('img'); im.src=pngUrl('cars',v); im.loading='lazy'; im.alt=v;
+    var b=document.createElement('b'); b.textContent=v;
+    d.appendChild(im); d.appendChild(b);
+    if(n){ var tag=document.createElement('i'); tag.className='n'; tag.textContent=n;
+           d.appendChild(tag); }
+    d.onclick=function(){ l.veh.model=v; renderForm(); buildGizmos(); saveRoutes(); };
+    grid.appendChild(d);
+  });
+  host.appendChild(grid);
+  row('x', num(l.veh.x,function(v){ l.veh.x=v; }));
+  row('z', num(l.veh.z,function(v){ l.veh.z=v; }));
+  row('facing', num(l.veh.rot,function(v){ l.veh.rot=v; },90));
+
+  h4('Goal  (3 × 1, red end is the line)');
+  row('x', num(l.goal.x,function(v){ l.goal.x=v; }));
+  row('z', num(l.goal.z,function(v){ l.goal.z=v; }));
+  row('facing', num(l.goal.rot,function(v){ l.goal.rot=v; },90));
+
+  syncPickBar();
+}
+function syncPickBar(){
+  [['rtPickCam','cam'],['rtPickVeh','veh'],['rtPickGoal','goal']].forEach(function(q){
+    var b=document.getElementById(q[0]);
+    b.classList.toggle('on',RPICK===q[1]);
+    b.disabled=!curLevel();
+  });
+  document.getElementById('rtStatus').textContent=
+    (RPICK?'selected: '+RPICK+" · drag to move · ' ∕ \\ rotate 90°"+
+           (RPICK==='cam'?' · wheel scales the box':'')
+          :'click a gizmo to select it')+
+    ' · middle drag pans · right drag tilts';
+}
+
+/* =======================================================================
+   gizmos - everything lives on the ground plane, just above the tiles
+   ======================================================================= */
+function flatRect(w,d,col,y,op){
+  var m=new THREE.Mesh(new THREE.PlaneGeometry(w,d),
+        new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op===undefined?1:op,
+                                     depthWrite:false,side:THREE.DoubleSide}));
+  m.rotation.x=-Math.PI/2; m.position.y=y; return m;
+}
+/* an outline drawn as four thin plates - a LineLoop would be one pixel wide
+   at any zoom, which is unusable once you are looking at the whole map */
+function outline(w,d,t,col,y){
+  var g=new THREE.Group();
+  [[0,-d/2+t/2,w,t],[0,d/2-t/2,w,t],[-w/2+t/2,0,t,d],[w/2-t/2,0,t,d]]
+    .forEach(function(q){
+      var m=flatRect(q[2],q[3],col,y,1);
+      m.position.x=q[0]; m.position.z=q[1];
+      g.add(m);
+    });
+  return g;
+}
+function initGizmos(){
+  if(RG.root) return;
+  RG.root=new THREE.Group(); RG.root.visible=false; CT.scene.add(RG.root);
+}
+function clearGroup(g){
+  while(g.children.length){
+    var c=g.children[0]; g.remove(c);
+    c.traverse(function(o){ if(o.geometry) o.geometry.dispose();
+      if(o.material&&o.material.dispose&&!o.userData.keepMat) o.material.dispose(); });
+  }
+}
+
+function buildGizmos(){
+  initGizmos();
+  clearGroup(RG.root);
+  RG.bandTop=RG.bandBot=RG.cam=RG.veh=RG.goal=null; RG.vehModel=null;
+  var s=curScene(); if(!s){ askCity(); return; }
+
+  var SPAN=4000;                       // the bounds run the width of the world
+  /* The bands are the camera rect's own top and bottom edges: drawn, not
+     dragged - move or scale the rect and they follow. They carry NO rt tag, so
+     nothing can pick them.
+
+     They used to, along with an invisible strip three units wide to make the
+     thin line easy to grab. Nothing ever grabbed them, and since the exit sits
+     at the top edge by design, that strip lay right over the goal and swallowed
+     every click on it - place a goal anywhere near a bound and you could never
+     pick it up again. */
+  function band(z){
+    var g=new THREE.Group();
+    g.add(flatRect(SPAN,0.10,0xffd32a,0.07,0.95));
+    g.position.z=z;
+    RG.root.add(g); return g;
+  }
+  var bnd=sceneBounds(s);
+  RG.bandTop=band(bnd.zTop);
+  RG.bandBot=band(bnd.zBot);
+
+  /* camera box: one per scene, the opening view for every run in it */
+  var cw=s.cam.w, ch=s.cam.w/CAM_ASPECT;
+  var cg=new THREE.Group();
+  cg.add(flatRect(cw,ch,0x6c5ce7,0.05,0.14));
+  cg.add(outline(cw,ch,Math.max(0.035,cw*0.0018),0xa29bfe,0.06));
+  cg.position.set(s.cam.x,0,s.cam.z); cg.userData.rt='cam';
+  RG.root.add(cg); RG.cam=cg;
+
+  var l=curLevel(); if(!l){ askCity(); return; }
+
+  /* goal: 3 long x 1 wide, the red short end is the line to cross */
+  var gg=new THREE.Group();
+  gg.add(flatRect(3,1,l.water?0x3f7fa6:0x2ecc71,0.055,0.30));
+  gg.add(outline(3,1,0.035,0xffffff,0.062));
+  var red=flatRect(0.15,1,0xe8402a,0.066,1); red.position.x=1.5-0.075; gg.add(red);
+  gg.position.set(l.goal.x,0,l.goal.z);
+  gg.rotation.y=l.goal.rot*Math.PI/180;
+  gg.userData.rt='goal';
+  RG.root.add(gg); RG.goal=gg;
+
+  /* Every OTHER level in this scene, shown faintly where its car starts, so
+     you can see how the runs sit against each other. Click one to jump to it;
+     you cannot drag them, only the current level's car moves. */
+  s.levels.forEach(function(other){
+    if(other.id===l.id) return;
+    var og=new THREE.Group();
+    og.position.set(other.veh.x,0,other.veh.z);
+    og.rotation.y=other.veh.rot*Math.PI/180;
+    og.scale.setScalar(VEH_SCALE);
+    og.userData.rt='lv:'+other.id;
+    /* a small nose pip, so its facing is readable without the full arrow */
+    var pip=new THREE.Shape();
+    pip.moveTo(1.5,0); pip.lineTo(0.75,0.32); pip.lineTo(0.75,-0.32); pip.closePath();
+    var pm=new THREE.Mesh(new THREE.ShapeGeometry(pip),
+          new THREE.MeshBasicMaterial({color:0x8e98c8,transparent:true,opacity:0.5,
+                                       depthWrite:false}));
+    pm.rotation.x=-Math.PI/2; pm.position.y=0.045; og.add(pm);
+    RG.root.add(og);
+    loadModel('cars',other.veh.model).then(function(src){
+      if(og.parent!==RG.root) return;
+      var o=src.clone(true);
+      o.rotation.y=Math.PI/2;
+      o.traverse(function(m){
+        m.userData.keepMat=true;
+        if(m.isMesh){ m.material=m.material.clone(); m.material.transparent=true;
+                      m.material.opacity=0.34; m.material.depthWrite=false; }
+      });
+      og.add(o);
+      var bb=new THREE.Box3().setFromObject(o);
+      pm.scale.x=(Math.max(bb.max.x,0.8)+0.4)/1.5;
+      askCity();
+    }).catch(function(){});
+  });
+
+  /* vehicle: the real model, with an arrow so facing is never ambiguous */
+  var vg=new THREE.Group();
+  var disc=flatRect(2.2,2.2,0xffd32a,0.052,0.16); vg.add(disc);
+  vg.userData.disc=disc;
+  var ring=new THREE.Mesh(new THREE.RingGeometry(1.5,1.72,44),
+        new THREE.MeshBasicMaterial({color:0xffd32a,transparent:true,opacity:0.85,
+                                     side:THREE.DoubleSide,depthWrite:false}));
+  ring.rotation.x=-Math.PI/2; ring.position.y=0.058; vg.add(ring);
+  vg.userData.ring=ring;
+  var sh=new THREE.Shape();                            // arrow along +X
+  sh.moveTo(1.9,0); sh.lineTo(1.0,0.45); sh.lineTo(1.0,0.16);
+  sh.lineTo(-0.6,0.16); sh.lineTo(-0.6,-0.16); sh.lineTo(1.0,-0.16);
+  sh.lineTo(1.0,-0.45); sh.closePath();
+  var ar=new THREE.Mesh(new THREE.ShapeGeometry(sh),
+        new THREE.MeshBasicMaterial({color:0xffd32a,transparent:true,opacity:0.95,depthWrite:false}));
+  ar.rotation.x=-Math.PI/2; ar.position.y=0.075; vg.add(ar);
+  vg.userData.arrow=ar;
+  vg.position.set(l.veh.x,0,l.veh.z);
+  vg.rotation.y=l.veh.rot*Math.PI/180;
+  vg.scale.setScalar(VEH_SCALE);          // model, disc and arrow together
+  vg.userData.rt='veh';
+  RG.root.add(vg); RG.veh=vg;
+
+  loadModel('cars',l.veh.model).then(function(src){
+    var now=curLevel();
+    if(!now||now.veh.model!==l.veh.model||RG.veh!==vg) return;
+    var o=src.clone(true);
+    // Kenney cars are modelled nose along +Z - their wheel-front-* nodes sit at
+    // +z - so a quarter turn puts the nose on +X, which is what rot 0 means
+    // for the goal and the arrow too
+    o.rotation.y=Math.PI/2;
+    o.userData.keepMat=true;
+    o.traverse(function(m){ m.userData.keepMat=true; });
+    vg.add(o); RG.vehModel=o;
+    // a firetruck is longer than a kart, so stretch the arrow past whatever
+    // nose it is pointing out of - the group scale then takes both up together
+    var bb=new THREE.Box3().setFromObject(o), sz=bb.getSize(new THREE.Vector3());
+    var reach=Math.max(bb.max.x,0.8)+0.55;
+    vg.userData.arrow.scale.x=reach/1.9;
+    vg.userData.disc.scale.set(Math.max(1,sz.x/2.2), 1, Math.max(1,sz.z/2.2));
+    var rr=Math.max(sz.x,sz.z)/2+0.35;
+    vg.userData.ring.scale.setScalar(rr/1.6);
+    askCity();
+  }).catch(function(){});
+
+  askCity();
+}
+/* The camera rect IS the bounds: its top and bottom edges are how far the
+   chase camera may travel in z. */
+function sceneBounds(s){
+  var h=s.cam.w/CAM_ASPECT;
+  return {zTop:+(s.cam.z-h/2).toFixed(3), zBot:+(s.cam.z+h/2).toFixed(3)};
+}
+function gizmoHit(cx,cy){
+  if(!RG.root||!RG.root.visible) return null;
+  RAY.setFromCamera(ndcAt(cx,cy),CT.cam);
+  var hits=RAY.intersectObjects(RG.root.children,true);
+  /* Every gizmo is a flat plate a few hundredths of a unit off the ground, so
+     they all come back at the same distance and which one "wins" is a coin
+     toss. Pick by what the click MEANT instead:
+
+       the car and the goal   - the two things you move, so they win
+       another level's marker - a way to jump to that level, so it beats the
+                                rect but never the gizmos you are editing
+       the camera rect        - covers the whole scene, so it must never win
+                                over something specific under the cursor
+
+     Whatever is already selected gets a nudge on top, so the thing you just
+     dropped is the thing you pick up again even when it landed on something
+     else. Distance only breaks a tie between equals. */
+  var PRI={veh:4, goal:4, cam:1}, best=null, bestPri=-1, bestD=1e9;
+  for(var i=0;i<hits.length;i++){
+    var o=hits[i].object;
+    while(o&&o.userData.rt===undefined) o=o.parent;
+    if(!o||!o.userData.rt) continue;           // decoration, not something to grab
+    var rt=String(o.userData.rt);
+    var pri=(rt.indexOf('lv:')===0) ? 2 : (PRI[rt]||3);
+    if(rt===RPICK) pri+=1;
+    if(pri>bestPri || (pri===bestPri && hits[i].distance<bestD-1e-4)){
+      best=o.userData.rt; bestPri=pri; bestD=hits[i].distance;
+    }
+  }
+  return best;
+}
+function setCamBox(){
+  var l=curLevel(); if(!l||!RG.cam) return;
+  buildGizmos();
+}
+
+/* =======================================================================
+   interaction - same camera as the City tab, gizmos on the left button
+   ======================================================================= */
+(function wireRoutes(){
+  var st=document.getElementById('rtStage'), drag=null;
+  st.addEventListener('contextmenu',function(e){ e.preventDefault(); });
+
+  st.addEventListener('pointerdown',function(e){
+    if(!CT.ready) return;
+    _cityRect=null;
+    st.setPointerCapture(e.pointerId);
+
+    if(e.button===1){                                  // pan, as on the City tab
+      var gr=groundAt(e.clientX,e.clientY,0);
+      if(gr) drag={k:'pan',gx:gr.x,gz:gr.z,tx:CAM.tx,tz:CAM.tz};
+      st.style.cursor='grabbing'; return;
+    }
+    if(e.button===2||e.altKey){                        // tilt and swing
+      drag={k:'orbit',sx:e.clientX,sy:e.clientY,yaw:CAM.yaw,pitch:CAM.pitch};
+      st.style.cursor='move'; return;
+    }
+
+    var hit=gizmoHit(e.clientX,e.clientY);
+    if(hit&&hit.indexOf('lv:')===0){            // another level's start marker
+      RLV=+hit.slice(3);
+      renderTree(); renderForm(); buildGizmos(); saveRoutes();
+      return;
+    }
+    RPICK=hit; syncPickBar();
+    if(!hit){ askCity(); return; }
+
+    var s=curScene(), l=curLevel(), g=groundAt(e.clientX,e.clientY,0);
+    if(!g) return;
+    var o=(hit==='cam')?s.cam:(hit==='veh'?l.veh:l.goal);
+    if(!o) return;
+    drag={k:'giz',which:hit,dx:o.x-g.x,dz:o.z-g.z};
+    st.style.cursor='grabbing';
+    askCity();
+  });
+
+  addEventListener('pointermove',function(e){
+    if(!drag) return;
+    if(drag.k==='orbit'){
+      CAM.yaw=drag.yaw-(e.clientX-drag.sx)*0.4;
+      CAM.pitch=Math.max(6,Math.min(89.5,drag.pitch+(e.clientY-drag.sy)*0.3));
+      askCity(); return;
+    }
+    if(drag.k==='pan'){
+      var gp=groundAt(e.clientX,e.clientY,0); if(!gp) return;
+      CAM.tx=drag.tx+(drag.gx-gp.x); CAM.tz=drag.tz+(drag.gz-gp.z);
+      askCity(); return;
+    }
+    var g=groundAt(e.clientX,e.clientY,0); if(!g) return;
+    var sc=curScene(), l=curLevel(); if(!sc) return;
+    var o=(drag.which==='cam')?sc.cam:(l?(drag.which==='veh'?l.veh:l.goal):null);
+    if(!o) return;
+    o.x=snapXZ(g.x+drag.dx); o.z=snapXZ(g.z+drag.dz);
+    var m=(drag.which==='cam')?RG.cam:(drag.which==='veh'?RG.veh:RG.goal);
+    if(m) m.position.set(o.x,0,o.z);
+    if(drag.which==='cam'){                 // the bounds ride with it
+      var bd=sceneBounds(sc);
+      if(RG.bandTop) RG.bandTop.position.z=bd.zTop;
+      if(RG.bandBot) RG.bandBot.position.z=bd.zBot;
+      document.getElementById('rtBounds').textContent='bounds  z '+bd.zTop+' \u2026 '+bd.zBot;
+    }
+    askCity();
+  });
+
+  addEventListener('pointerup',function(){
+    if(!drag) return;
+    var was=drag.k; drag=null; st.style.cursor='default';
+    if(was==='giz') renderForm();
+    saveRoutes();
+  });
+
+  /* The wheel moves the CAMERA, here and on the City tab, and never anything
+     in the scene. It used to resize the scene box whenever that happened to be
+     selected, which meant an ordinary zoom silently rescaled the level. The
+     box's size is typed into WIDTH on the form. */
+  st.addEventListener('wheel',function(e){
+    e.preventDefault();
+    CAM.dist=Math.max(3,Math.min(2500,CAM.dist*(1+e.deltaY*0.0015)));
+    askCity(); saveCity();
+  },{passive:false});
+
+  addEventListener('keydown',function(e){
+    if(!document.getElementById('routesPane').classList.contains('on')) return;
+    var t=e.target.tagName;
+    if(t==='INPUT'||t==='TEXTAREA'||t==='SELECT') return;
+    if(e.key==='Escape'){ RPICK=null; syncPickBar(); askCity(); return; }
+    if(e.key!=="'"&&e.key!=='\\') return;
+    var l=curLevel(); if(!l||(RPICK!=='veh'&&RPICK!=='goal')) return;
+    var o=(RPICK==='veh')?l.veh:l.goal;
+    o.rot=((o.rot+(e.key==="'"?-90:90))%360+360)%360;
+    var m=(RPICK==='veh')?RG.veh:RG.goal;
+    if(m) m.rotation.y=o.rot*Math.PI/180;
+    renderForm(); askCity(); saveRoutes(); e.preventDefault();
+  });
+})();
+
+/* =======================================================================
+   controls
+   ======================================================================= */
+on('rtAddScene','click',addScene);
+on('rtVehScale','change',function(){
+  var v=parseFloat(this.value);
+  if(isNaN(v)||v<=0){ this.value=VEH_SCALE; return; }
+  VEH_SCALE=v; this.value=v;
+  if(RG.veh) RG.veh.scale.setScalar(VEH_SCALE);
+  askCity(); saveRoutes();
+});
+[['rtPickCam','cam'],['rtPickVeh','veh'],['rtPickGoal','goal']].forEach(function(q){
+  on(q[0],'click',function(){ RPICK=(RPICK===q[1])?null:q[1]; syncPickBar(); askCity(); });
+});
+on('rtCity','click',function(){
+  this.classList.toggle('on');
+  if(CT.root) CT.root.visible=this.classList.contains('on');
+  askCity();
+});
+on('rtTop3','click',function(){ CAM.pitch=89.5; CAM.yaw=0; askCity(); saveCity(); });
+on('rtFit','click',function(){
+  var s=curScene();
+  if(s){ CAM.tx=s.cam.x; CAM.tz=s.cam.z;
+         var k=2*Math.tan(CT.cam.fov*Math.PI/360), r=cityRect();
+         var asp=(r.width&&r.height)?r.width/r.height:1.6;
+         CAM.dist=Math.max(8, Math.max(s.cam.w/CAM_ASPECT, s.cam.w/asp)/k*1.25);
+         askCity(); saveCity(); return; }
+  resizeCity(); fitCity();
+});
+on('expRoutes','click',function(){
+  var out={generated:new Date().toISOString(),
+    orientation:'Y-up, ground = XZ, 1 unit = 1 Kenney road tile',
+    cameraAspect:{w:1333,h:690,ratio:+CAM_ASPECT.toFixed(5)},
+    vehicleScale:VEH_SCALE,
+    scenes:SCENES.map(function(s){
+      var bnd=sceneBounds(s);
+      return {name:s.name,
+        camera:{x:s.cam.x, z:s.cam.z, width:+s.cam.w.toFixed(3),
+                height:+(s.cam.w/CAM_ASPECT).toFixed(3)},
+        cameraBounds:{zTop:bnd.zTop, zBot:bnd.zBot,
+                      note:'the camera rect\'s own top and bottom edges'},
+        levels:s.levels.map(function(l){
+          return {level:s.levels.indexOf(l)+1, character:l.who||null,
+            startOffset:l.offset||0,
+            vehicle:{model:l.veh.model, kit:'kenney_car-kit',
+                     glb:glbUrl('cars',l.veh.model),
+                     x:l.veh.x, z:l.veh.z, headingDeg:l.veh.rot,
+                     scale:VEH_SCALE},
+            goal:{x:l.goal.x, z:l.goal.z, headingDeg:l.goal.rot,
+                  size:{long:3, short:1}, lineOn:'far short edge'},
+            onWater:!!l.water, blurb:l.blurb||null};
+        })};
+    })};
+  dl('deja-vroom-routes.json',
+     new Blob([JSON.stringify(out,null,1)],{type:'application/json'}));
+  flag('exported routes');
+});
+
+/* =======================================================================
+   the two 3D tabs share one canvas, one renderer and one scene
+   ======================================================================= */
+function hostCanvas(el){
+  if(CT.host===el) return;
+  el.insertBefore(document.getElementById('cv3'), el.firstChild);
+  CT.host=el; _cityRect=null;
+  if(CT.ren) resizeCity();
+}
+var routesBooted=false;
+function enterRoutes(){
+  initCity();
+  if(!cityBooted){ cityBooted=true; PLACED.forEach(function(q){ spawnObj(q); }); bakeBackdrop(); }
+  hostCanvas(document.getElementById('rtStage'));
+  initGizmos();
+  if(!routesBooted){ routesBooted=true; buildGizmos(); if(!PLACED.length) fitCity(); }
+  RG.root.visible=true;
+  if(CT.grid) CT.grid.visible=false;
+  if(CT.bg) CT.bg.visible=false;      // the traced backdrop is a City-tab thing
+  resizeCity(); syncPickBar(); askCity();
+}
+function leaveRoutes(){
+  if(RG.root) RG.root.visible=false;
+  if(CT.grid) CT.grid.visible=true;
+  if(CT.root) CT.root.visible=true;
+  if(CT.bg) CT.bg.visible=BG.op>0.004;
+  document.getElementById('rtCity').classList.add('on');
+}
+
+var routesReady=kvGet('routes').then(function(r){
+  if(r&&r.scenes&&r.scenes.length){
+    SCENES=r.scenes; sSeq=r.sSeq||0; lSeq=r.lSeq||0;
+    RSC=r.sc; RLV=r.lv; RTSHUT=r.shut||[];
+    if(typeof r.vehScale==='number') VEH_SCALE=r.vehScale;
+    /* older saves kept a camera per level and separate z bounds per scene.
+       Promote the first level's camera to the scene and drop the rest. */
+    SCENES.forEach(function(sc){
+      if(!sc.cam){
+        var first=sc.levels.filter(function(l){ return l.cam; })[0];
+        if(first) sc.cam={x:first.cam.x, z:first.cam.z, w:first.cam.w};
+        else{
+          var h=Math.abs((sc.zBot||14)-(sc.zTop||-14));
+          sc.cam={x:0, z:((sc.zTop||-14)+(sc.zBot||14))/2, w:Math.max(4,h*CAM_ASPECT)};
+        }
+      }
+      delete sc.zTop; delete sc.zBot;
+      sc.levels.forEach(function(l){
+        if(typeof l.offset!=='number') l.offset=0;
+        delete l.cam;
+      });
+    });
+    if(!curScene()&&SCENES.length) RSC=SCENES[0].id;
+    if(!curLevel()){ var s=curScene(); RLV=(s&&s.levels.length)?s.levels[0].id:null; }
+  }
+  document.getElementById('rtVehScale').value=VEH_SCALE;
+  renderTree(); renderForm();
+  if(document.getElementById('routesPane').classList.contains('on')) enterRoutes();
+}).catch(function(e){ console.warn('routes restore failed',e); renderTree(); renderForm(); });
+
+document.querySelectorAll('.tab').forEach(function(b){
+  var prev=b.onclick;
+  b.onclick=function(){
+    if(prev) prev.call(b);
+    if(b.dataset.tab==='routes') requestAnimationFrame(enterRoutes);
+    else leaveRoutes();
+  };
+  b.addEventListener('click',function(){ kvSet('tab',b.dataset.tab); });
+});
+
+Promise.all([cityReady,routesReady]).then(function(){
+  return kvGet('tab');
+}).then(function(t){
+  if(!t) return;
+  var b=document.querySelector('.tab[data-tab="'+t+'"]');
+  if(b && !b.classList.contains('on')) b.click();
+}).catch(function(e){ console.warn('tab restore failed',e); });
+
+/* =======================================================================
+   CONFIG - the handling numbers the game reads.  Three layers: the global
+   settings that belong to the stage, the defaults every vehicle inherits,
+   and a sparse per-vehicle override on top of those.
+   ======================================================================= */
+var CFG_DEF={
+  global:{ stageSeconds:60, rewind:1.4, crashCool:0.8, crashDrop:0.6,
+           stallFor:1.0, rollFor:0.6, gravity:24,
+           winRewind:1.6, camHeight:9, camBack:8.25, camSide:0, camLag:0.12, camTween:1,
+           grassGrip:0.45, grassSpeed:0.9, sandGrip:0.75, sandSpeed:0.62,
+           waterGrip:0.3, waterSpeed:0.5, model:'arcade' },
+  base:{ topSpeedPerLen:7, reachTopIn:3, brakePerLen:7, grip:1.0,
+         steer:0.7, steerFloor:0.5, maxYaw:2.2, scrub:0.45,
+         mass:380, wheelOfHeight:0.23, restOfWheel:1.6, lift:0 },
+  /* the arcade model is a completely separate set of numbers - it does not
+     share a single value with the simulated one above. */
+  abase:{ maxSpeed:6.2, accel:0.07, steerRate:0.045, steerSpeedFactor:0.45,
+          lateralDrag:0.0105, gripBlend:0.02, forwardDrag:0.001,
+          driftFriction:0.009, driftThreshold:0.09, roadGrip:0.85,
+          gravity:26, stepUp:1.4, mass:380, lift:0 }
+};
+/* key, column heading, sub-heading, step.  The five that change how a car
+   feels are always on show; the rest only when "advanced" is on. */
+var CFG_COLS=[
+ ['topSpeedPerLen','top speed','lengths/sec',0.5,
+  'How fast it ends up going, in its own body lengths per second.\n\n'+
+  'ARCADE: keep it low enough to read the road. 6-9 feels quick without being '+
+  'unreadable; past about 12 you are reacting to things you cannot see coming.'],
+ ['reachTopIn','acceleration','sec to top',0.5,
+  'Seconds of pull to get from a standstill to top speed. LOWER IS PUNCHIER.\n\n'+
+  'ARCADE: 1.5-3. Arcade cars leap off the line - the fun is being at speed, not '+
+  'waiting to get there. Realistic is 6-8, which feels sluggish here.'],
+ ['grip','grip','tyre bite',0.2,
+  'How hard the tyres hold the road before they let go.\n\n'+
+  'ARCADE: high, 6-10. Arcade handling means the car goes where you point it. '+
+  'Low grip (1-3) is the simulator end - it slides, and children hate it. '+
+  'Drop it only on a level where you WANT ice or mud.'],
+ ['steer','steering','0 to 1',0.05,
+  'How sharply it turns, as a dial from 0 to 1. Not an angle - the dial covers '+
+  'the range that actually works, so you cannot overdo it.\n\n'+
+  'Measured: past about a third of a radian of real lock the front wheels stop '+
+  'being a steering device and start being a brake - the car scrubs off its '+
+  'speed and turns NO FASTER for it. 1 here is the sharpest turn that still '+
+  'holds full speed.\n\n'+
+  'ARCADE: 0.6-1. If corners feel like they are killing your speed, this is '+
+  'rarely the cause any more - look at GRIP and STEER FLAT OUT.'],
+ ['mass','weight','collisions only',10,
+  'Weight does NOT change how the car drives - see the note under the table.\n\n'+
+  'It only decides who shoves whom when you hit one of your earlier runs. Make a '+
+  'truck 3000 and a kart 200 and the truck will barge straight through.']
+];
+var CFG_COLS_ADV=[
+ ['brakePerLen','braking','',0.5,
+  'How hard it hauls up. ARCADE: generous - 6-10 - so a mistake is recoverable.'],
+ ['steerFloor','steer flat out','of the lock',0.05,
+  'What fraction of the steering survives at top speed. THE SINGLE BIGGEST FEEL '+
+  'KNOB.\n\n'+
+  'ARCADE: 0.45-0.8, so the car still turns properly when it is flying. '+
+  'Realistic is 0.1-0.2, which feels like rails it does not want to leave.'],
+ ['maxYaw','spin limit','rad/sec',0.1,
+  'A hard cap on how fast the car may rotate, whatever the physics wants.\n\n'+
+  'This is the anti-donut wire. ARCADE: 1.5-2.5. Lower it if you see the car '+
+  'pirouetting; raise it if handbrake-ish turns feel stuck.'],
+ ['scrub','corner scrub','',0.05,
+  'How much speed is shed while you hold a turn.\n\n'+
+  'ARCADE: LOW, 0.1-0.25 - you should be able to corner without losing the race. '+
+  'High (0.5+) is the realistic end and makes the game feel like it is fighting you.'],
+ ['lift','model height','units, \u00b1',0.01,
+  'MODEL HEIGHT \u2014 raises or lowers the model ON SCREEN, and nothing else. The '+
+  'body, the rays, the collisions, the recorded path and every crash test stay '+
+  'exactly where they were: this moves the picture, not the car.\n\n'+
+  'It is here because a few models \u2014 the karts \u2014 sit a shade low in their own '+
+  'file and look half sunk into the road. 0.02 lifts one clear; negative drops '+
+  'it.\n\n'+
+  'Straight world units, NOT car lengths \u2014 what you type is what moves on '+
+  'screen, whatever the vehicle scale.'],
+ ['wheelOfHeight','wheel size','of height',0.01,
+  'Wheel radius as a fraction of the car\u2019s height. Mostly cosmetic - bigger '+
+  'wheels ride over kerbs more easily.'],
+ ['restOfWheel','suspension','travel',0.1,
+  'How much the springs can move, relative to the wheel.\n\n'+
+  'ARCADE: LOW, 1.0-1.4 - stiff, flat, no wallowing. High values (2+) give a '+
+  'soft realistic ride that bobs about and looks wrong from above.']
+];
+/* ---------------------------------------------------------------------
+   The ARCADE model's columns.  Different physics, different numbers - none
+   of these mean the same thing as the simulated ones above.  Speed is in
+   pixels a frame because that is the unit the hand-written integrator uses;
+   one car length is 18 of them, so x3.33 gives car lengths a second.
+   --------------------------------------------------------------------- */
+var CFG_COLS_ARC=[
+ ['maxSpeed','max speed','px per frame',0.1,
+  'MAX SPEED \u2014 the hard ceiling on forward velocity, in the unit the integrator '+
+  'counts in: pixels per frame at 60fps.\n\n'+
+  '\u00d73.33 for car lengths a second: 6.2 here is about 21.\n\n'+
+  'It caps FORWARD speed only. A slide can still carry you sideways faster than '+
+  'this, which is exactly what makes a drift feel quick.\n\n'+
+  'Useful range 3-9.'],
+ ['accel','accel','added per frame',0.01,
+  'ACCEL \u2014 how much forward speed is added each frame while the throttle is down. '+
+  'A rate, not a time: HIGHER IS PUNCHIER.\n\n'+
+  'At 0.07 the car reaches nine tenths of MAX SPEED in 1.4 seconds; at 0.15, in '+
+  'under a second.\n\n'+
+  'Useful range 0.03-0.16.'],
+ ['steerRate','steer rate','rad per frame',0.005,
+  'STEER RATE \u2014 radians the heading swings per frame at full lock.\n\n'+
+  'In this model steering rotates the CAR directly; the velocity then chases the '+
+  'new heading. The gap between the two IS the drift, so this knob and LATERAL DRAG '+
+  'together are the whole feel.\n\n'+
+  'At 0.045 half a second of lock swings the nose 124\u00b0. Past 0.06 it pirouettes '+
+  'on the spot. Useful range 0.03-0.06.'],
+ ['lateralDrag','lateral drag','decay per frame',0.001,
+  'LATERAL DRAG \u2014 how fast sideways velocity bleeds away each frame. THE knob to '+
+  'reach for first.\n\n'+
+  'High = the car bites and stops sliding. Low = it keeps travelling where it used '+
+  'to point long after you have turned.\n\n'+
+  '0.0045 slides like a rally car (over a second to straighten), 0.0105 is the '+
+  'middle, 0.026 is glued down (0.9s). Useful range 0.004-0.03.'],
+ ['driftFriction','drift friction','scrub per frame',0.001,
+  'DRIFT FRICTION \u2014 speed scrubbed off both axes while the car is past DRIFT '+
+  'THRESHOLD, scaled by how sideways it is.\n\n'+
+  'This is what makes a long slide cost you. Low keeps drifting fast and '+
+  'flattering; high makes it a mistake. Nothing at all happens below the '+
+  'threshold.\n\n'+
+  'Useful range 0.004-0.015.'],
+ ['mass','mass','collisions only',10,
+  'MASS \u2014 the integrator never reads it, so it changes nothing about how the car '+
+  'drives. It is handed to the collision body, and so decides only who shoves whom '+
+  'when you hit one of your earlier runs.']
+];
+var CFG_COLS_ARC_ADV=[
+ ['steerSpeedFactor','steer speed factor','\u00f7 (1 + v \u00d7 this)',0.05,
+  'STEER SPEED FACTOR \u2014 the steer rate is divided by (1 + speed \u00d7 this), so the '+
+  'car tightens up as it goes faster.\n\n'+
+  'Zero turns as hard at max speed as at a crawl, which is twitchy. Above 1 the '+
+  'car goes stiff when it is flying. Useful range 0.4-0.6.'],
+ ['gripBlend','grip blend','decay per frame',0.005,
+  'GRIP BLEND \u2014 a second sideways decay multiplied on after LATERAL DRAG.\n\n'+
+  'Two separate decays tune far more comfortably than one: set the feel with '+
+  'LATERAL DRAG, then use this if the tail end of a slide hangs around. '+
+  'Useful range 0.01-0.04.'],
+ ['forwardDrag','forward drag','decay per frame',0.0005,
+  'FORWARD DRAG \u2014 a flat loss on forward velocity every frame, applied whether or '+
+  'not you are on the throttle.\n\n'+
+  'Keep it tiny (0-0.002). It exists to stop the car creeping, not to slow it down '+
+  '\u2014 MAX SPEED does that.'],
+ ['driftThreshold','drift threshold','radians',0.01,
+  'DRIFT THRESHOLD \u2014 the slip angle (velocity against heading) at which the car '+
+  'counts as drifting, and so at which DRIFT FRICTION starts biting. It also flips '+
+  'the flag the game uses for skid marks and sound.\n\n'+
+  '0.09 rad is about 5\u00b0. Lower and ordinary cornering is punished as a slide. '+
+  'Useful range 0.05-0.15.'],
+ ['roadGrip','road grip','\u00d7',0.05,
+  'ROAD GRIP \u2014 both sideways decays are multiplied by this before the surface '+
+  'under the wheels has its say. The whole stage\u2019s tarmac, in one number.\n\n'+
+  'The per-surface multipliers (grass, sand, water) in the bar above then multiply '+
+  'it again. Useful range 0.8-1.'],
+ ['gravity','gravity','units/sec\u00b2',1,
+  'GRAVITY \u2014 downward pull while the car is off the ground, integrated by hand. '+
+  'Only ramps and jumps ever touch it.\n\n'+
+  'This is the ARCADE model\u2019s own; the gravity in the bar above belongs to the '+
+  'physics engine and does nothing here. Useful range 20-30 \u2014 heavier than life so '+
+  'a jump lands quickly instead of floating.'],
+ ['lift','model height','units, \u00b1',0.01,
+  'MODEL HEIGHT \u2014 raises or lowers the model ON SCREEN, and nothing else. The '+
+  'body, the rays, the collisions, the recorded path and every crash test stay '+
+  'exactly where they were: this moves the picture, not the car.\n\n'+
+  'It is here because a few models \u2014 the karts \u2014 sit a shade low in their own '+
+  'file and look half sunk into the road. 0.02 lifts one clear; negative drops '+
+  'it.\n\n'+
+  'Straight world units, NOT car lengths \u2014 what you type is what moves on '+
+  'screen, whatever the vehicle scale.'],
+ ['stepUp','climb limit','rise \u00f7 run',0.1,
+  'CLIMB LIMIT \u2014 the steepest ground the car will drive up, as rise over run. '+
+  'With no suspension to do it, this is the whole of how the car gets up kerbs, '+
+  'ramps and bridge approaches.\n\n'+
+  'It is also what gives a ramp ONE entrance. The low end tapers from nothing, so '+
+  'the ground rises a fraction per frame and the car rides up. Every other face of '+
+  'it is sheer, which is not a climb at any speed \u2014 the car stops dead there, and '+
+  'a dead stop is a crash.\n\n'+
+  'Anything taller than the car is driven UNDER rather than climbed, which is how '+
+  'the road over a bridge works.\n\n'+
+  '1 is 45\u00b0. Useful range 1-1.6: lower and a ramp turns you away, higher and the '+
+  'car walks up walls.']
+];
+var CFG_G=[
+ ['stageSeconds','target','sec',1,
+  'The time to BEAT for a whole scene, in seconds.\n\n'+
+  'The clock counts UP now and never runs out - it is a score, not a limit. '+
+  'Every run in the scene shares it, a crash winds it back to where that level '+
+  'started, and the stage-clear card says how far under or over this target you '+
+  'finished.\n\n'+
+  'Set it to 0 to show no target at all.'],
+ ['rewind','rewind','sec',0.1,
+  'A crash always winds you back to the START of the level. This is how long '+
+  'that wind-back takes to play on screen.\n\n'+
+  'The clock is wound back too, to whatever it read when the level began, so a '+
+  'crash costs you the attempt rather than the time.\n\n'+
+  'ARCADE: 0.5-1. Long enough to read what happened, short enough that you are '+
+  'straight back in. The wind-back after WINNING a level is set separately, '+
+  'next to this one.'],
+ ['winRewind','win rewind','sec',0.1,
+  'How long the wind-back takes after you FINISH a level, when the whole stage '+
+  'runs backwards to the start under the tape effect.\n\n'+
+  'Separate from the crash rewind next to it: this one is a flourish you watch, '+
+  'so it can afford to be slower. ARCADE: 1.5-2.5.'],
+ ['crashDrop','crash at','speed lost',0.05,
+  'What counts as a crash: the fraction of your speed lost in a single moment.\n\n'+
+  'ARCADE: HIGH, 0.8-0.9, so you can scrape a wall and carry on and only a proper '+
+  'head-on rewinds you. Low (0.4) and every kerb punishes you.']
+];
+var CFG_G_ADV=[
+ ['crashCool','settle','sec',0.1,'Grace period after a rewind before another crash can register.'],
+ ['stallFor','stalled','sec',0.1,'Seconds barely moving before the game decides you are stuck.'],
+ ['rollFor','rolled','sec',0.1,'Seconds upside down before the game rewinds you.'],
+ ['gravity','gravity','',1,
+  'Metres per second squared. ARCADE: heavier than life, 20-30, so jumps land '+
+  'quickly instead of floating.'],
+ ['camHeight','cam up','lengths',0.5,
+  'How far above the road the chase camera sits, in car lengths. With CAM BACK '+
+  'this sets the tilt.'],
+ ['camBack','cam back','lengths',0.5,
+  'How far down the screen the camera sits behind the car. Tilt is '+
+  'atan(back \u00f7 up): equal values give 45\u00b0, back of 0 is straight down.'],
+ ['camSide','cam side','lengths',0.5,'Sideways offset. Normally 0.'],
+ ['camLag','cam lag','sec',0.01,
+  'How long the camera takes to catch up. ARCADE: 0.08-0.15. Zero pins it to the '+
+  'car and feels rigid; high and it swims.'],
+ ['grassGrip','grass grip','\u00d7',0.05,
+  'How much of its grip the car keeps on a GRASS tile (the green tint on tile-low). '+
+  'Below 1 it slides; 0.45 is a noticeable but recoverable loss.'],
+ ['grassSpeed','grass speed','\u00d7',0.05,
+  'Top speed multiplier on grass. 0.9 barely slows you.'],
+ ['sandGrip','sand grip','\u00d7',0.05,
+  'Grip on a SAND tile. 0.75 - sand does not make you slide much.'],
+ ['sandSpeed','sand speed','\u00d7',0.05,
+  'Top speed on sand. 0.62 is the point of sand: it BOGS YOU DOWN rather than '+
+  'making you slide.'],
+ ['waterGrip','water grip','\u00d7',0.05,'Grip on a water tile.'],
+ ['waterSpeed','water speed','\u00d7',0.05,'Top speed on water.'],
+ ['camTween','zoom tween','sec',0.1,
+  'Seconds to swing between the zoomed-out view and the chase view, both ways.']
+];
+/* Four ready-made feels, measured on the sedan. The numbers behind each are
+   in the tooltip on the picker. */
+var CFG_FEELS={
+  normal :{label:'normal car',
+           v:{topSpeedPerLen:7,  reachTopIn:3,   grip:1.0,  steer:0.7, steerFloor:0.5,  maxYaw:2.2, brakePerLen:7,  mass:380},
+           why:'7 lengths a second, 0-90% in 1.4s, turns 148\u00b0 in two seconds of '+
+               'full lock and holds all its speed. Barely slides. The one to judge the rest against.'},
+  f1     :{label:'fast, grippy (F1)',
+           v:{topSpeedPerLen:13, reachTopIn:1.6, grip:2.2,  steer:0.9, steerFloor:0.35, maxYaw:2.4, brakePerLen:12, mass:340},
+           why:'Nearly twice the speed, 0-90% in 0.7s, turns 192\u00b0 and slides the '+
+               'LEAST of the four (1.7\u00b0). Stops hard. Feels like it is on rails.'},
+  rally  :{label:'fast, loose (rally)',
+           v:{topSpeedPerLen:11, reachTopIn:2.2, grip:0.25, steer:1.0, steerFloor:0.6,  maxYaw:2.8, brakePerLen:6,  mass:420},
+           why:'Almost as fast but rotates twice as far - 306\u00b0 - and slides three '+
+               'times as much as the F1 car. The back end moves. Needs a light touch.'},
+  tractor:{label:'slow and lazy (tractor)',
+           v:{topSpeedPerLen:3.5,reachTopIn:5,   grip:1.4,  steer:0.4, steerFloor:0.35, maxYaw:1.3, brakePerLen:5,  mass:1600},
+           why:'A third of the speed, takes 2.3s to get going and turns just 52\u00b0 '+
+               'in the same two seconds. Ponderous on purpose.'}
+};
+/* The same four feels again, but measured on the ARCADE model - none of the
+   numbers above mean anything to it. */
+var CFG_FEELS_ARC={
+  normal :{label:'normal car',
+           v:{maxSpeed:6.2, accel:0.07, steerRate:0.045, steerSpeedFactor:0.45,
+              lateralDrag:0.0105, driftFriction:0.009, mass:380},
+           why:'The drift game\u2019s own numbers. About 21 car lengths a second, nine '+
+               'tenths of that in 1.4s, swings 124\u00b0 in half a second of lock, keeps '+
+               '69% of its speed through it and straightens out in 1.4s. The one to judge '+
+               'the rest against.'},
+  f1     :{label:'fast, grippy (F1)',
+           v:{maxSpeed:8.4, accel:0.15, steerRate:0.042, steerSpeedFactor:0.55,
+              lateralDrag:0.026, driftFriction:0.004, mass:340},
+           why:'28 lengths a second, up to speed in 0.87s, and it barely slides \u2014 keeps '+
+               '84% of its speed through the same corner and is straight again in 0.9s. '+
+               'Turns the least of the four. Feels like it is on rails.'},
+  rally  :{label:'fast, loose (rally)',
+           v:{maxSpeed:7.4, accel:0.10, steerRate:0.058, steerSpeedFactor:0.40,
+              lateralDrag:0.0045, driftFriction:0.015, mass:420},
+           why:'25 lengths a second and the tail end MOVES: 178\u00b0 in half a second of '+
+               'lock, only 48% of its speed left afterwards. Slides for well over a second. '+
+               'Needs a light touch and is the most fun to watch.'},
+  tractor:{label:'slow and lazy (tractor)',
+           v:{maxSpeed:2.9, accel:0.03, steerRate:0.028, steerSpeedFactor:0.5,
+              lateralDrag:0.013, driftFriction:0.012, mass:1600},
+           why:'Under 10 lengths a second, 1.5s to get there, 58\u00b0 of turn in half a '+
+               'second and it hardly slides at all. Ponderous on purpose.'}
+};
+
+var CFG={global:{}, base:{}, cars:{}, abase:{}, acars:{}}, CFADV=false;
+
+/* Which physics the stage runs.  It swaps the whole table over: the two
+   models share no numbers at all, so each keeps its own saved values. */
+function cfgModel(){ return CFG.global.model==='sim' ? 'sim' : 'arcade'; }
+function bKey(){ return cfgModel()==='sim' ? 'base' : 'abase'; }
+function cKey(){ return cfgModel()==='sim' ? 'cars' : 'acars'; }
+function defBase(){ return cfgModel()==='sim' ? CFG_DEF.base : CFG_DEF.abase; }
+function feelSet(){ return cfgModel()==='sim' ? CFG_FEELS : CFG_FEELS_ARC; }
+function colSet(){ return cfgModel()==='sim'
+  ? CFG_COLS.concat(CFADV?CFG_COLS_ADV:[])
+  : CFG_COLS_ARC.concat(CFADV?CFG_COLS_ARC_ADV:[]); }
+
+function cfgVal(who,key){                       // who: 'global' | 'base' | car
+  if(who==='global') return CFG.global[key]!==undefined?CFG.global[key]:CFG_DEF.global[key];
+  if(who==='base')   return CFG[bKey()][key]!==undefined?CFG[bKey()][key]:defBase()[key];
+  var c=CFG[cKey()][who]||{};
+  return c[key]!==undefined ? c[key] : cfgVal('base',key);
+}
+function cfgOwn(who,key){                       // set here, rather than inherited
+  if(who==='global') return CFG.global[key]!==undefined;
+  if(who==='base')   return CFG[bKey()][key]!==undefined;
+  return !!(CFG[cKey()][who]&&CFG[cKey()][who][key]!==undefined);
+}
+function cfgSet(who,key,v){
+  var bk=bKey(), ck=cKey();
+  if(v===null){
+    if(who==='global') delete CFG.global[key];
+    else if(who==='base') delete CFG[bk][key];
+    else if(CFG[ck][who]){ delete CFG[ck][who][key];
+      if(!Object.keys(CFG[ck][who]).length) delete CFG[ck][who]; }
+  } else {
+    if(who==='global') CFG.global[key]=v;
+    else if(who==='base') CFG[bk][key]=v;
+    else (CFG[ck][who]=CFG[ck][who]||{})[key]=v;
+  }
+  saveConfig();
+}
+function saveConfig(){
+  kvSet('config',{global:CFG.global, base:CFG.base, cars:CFG.cars,
+                  abase:CFG.abase, acars:CFG.acars})
+    .then(function(){ flag('config saved'); })
+    .catch(function(e){ console.warn('config save failed',e); });
+}
+
+/* Which ready-made feel this row currently matches, if any */
+function feelOf(who){
+  var FEELS=feelSet();
+  for(var k in FEELS){
+    var v=FEELS[k].v, ok=true;
+    for(var f in v) if(Math.abs(cfgVal(who,f)-v[f])>1e-6){ ok=false; break; }
+    if(ok) return k;
+  }
+  return '';
+}
+function feelPicker(who){
+  var FEELS=feelSet();
+  var sel=document.createElement('select'); sel.className='feel';
+  var cur=feelOf(who);
+  var o0=document.createElement('option');
+  o0.value=''; o0.textContent=cur?'custom':'\u2014 custom \u2014';
+  sel.appendChild(o0);
+  for(var k in FEELS){
+    var o=document.createElement('option');
+    o.value=k; o.textContent=FEELS[k].label; o.title=FEELS[k].why;
+    sel.appendChild(o);
+  }
+  sel.value=cur;
+  sel.title=cur? FEELS[cur].why : 'none of the ready-made feels match this row';
+  sel.onchange=function(){
+    var k=this.value; if(!k){ renderCfg(); return; }
+    var v=FEELS[k].v;
+    for(var f in v) cfgSet(who,f,v[f]);
+    renderCfg();
+  };
+  return sel;
+}
+function cfgBox(who,key,step){
+  var i=document.createElement('input');
+  i.type='number'; i.step=step;
+  var own=cfgOwn(who,key), inherited=(who!=='base'&&who!=='global');
+  if(inherited&&!own){ i.value=''; i.placeholder=cfgVal(who,key); }
+  else { i.value=cfgVal(who,key);
+         i.placeholder=(who==='global'?CFG_DEF.global:defBase())[key]; }
+  i.classList.toggle('own',own&&inherited);
+  i.onchange=function(){
+    var t=this.value.trim();
+    if(t===''){ cfgSet(who,key,null); }                 // empty = inherit again
+    else { var n=parseFloat(t); if(isNaN(n)){ renderCfg(); return; } cfgSet(who,key,n); }
+    renderCfg();
+  };
+  return i;
+}
+
+function renderGlobalBar(){
+  var host=document.getElementById('cfGlobal'); host.innerHTML='';
+  var arcade=cfgModel()==='arcade';
+  CFG_G.concat(CFADV?CFG_G_ADV:[]).forEach(function(f){
+    if(arcade&&f[0]==='gravity') return;     // arcade carries its own, per vehicle
+    var g=document.createElement('span'); g.className='g';
+    var l=document.createElement('span'); l.textContent=f[1];
+    l.title=f[4]||f[2]||'';
+    g.appendChild(l);
+    var b=cfgBox('global',f[0],f[3]); b.className='num'; g.appendChild(b);
+    host.appendChild(g);
+    var sep=document.createElement('div'); sep.className='sep'; host.appendChild(sep);
+  });
+}
+
+function renderCfg(){
+  renderGlobalBar();
+  var ms=document.getElementById('cfModel'); if(ms) ms.value=cfgModel();
+  var host=document.getElementById('cfBody'); host.innerHTML='';
+  var cols=colSet();
+
+  var t=document.createElement('table'); t.className='cfT';
+  var th=document.createElement('thead'), hr=document.createElement('tr');
+  var v=document.createElement('th'); v.className='v'; v.textContent='vehicle'; hr.appendChild(v);
+  var fh=document.createElement('th'); fh.textContent='feel';
+  fh.title='Pick a ready-made feel and it fills the rest of the row. '+
+           'Change any number afterwards and it becomes "custom".';
+  var fs=document.createElement('small'); fs.textContent='fills the row'; fh.appendChild(fs);
+  hr.appendChild(fh);
+  cols.forEach(function(c){
+    var h=document.createElement('th'); h.textContent=c[1];
+    if(c[4]) h.title=c[4];
+    if(c[2]){ var sm=document.createElement('small'); sm.textContent=c[2]; h.appendChild(sm); }
+    hr.appendChild(h);
+  });
+  th.appendChild(hr); t.appendChild(th);
+
+  var tb=document.createElement('tbody');
+  function line(who,label,img){
+    var tr=document.createElement('tr');
+    if(who==='base') tr.className='def';
+    var td=document.createElement('td'); td.className='v';
+    if(img){ var im=document.createElement('img'); im.src=pngUrl('cars',img);
+             im.loading='lazy'; im.alt=label; td.appendChild(im); }
+    var sp=document.createElement('span'); sp.textContent=label; td.appendChild(sp);
+    tr.appendChild(td);
+    var ftd=document.createElement('td');
+    ftd.appendChild(feelPicker(who));
+    tr.appendChild(ftd);
+    cols.forEach(function(c){
+      var cell=document.createElement('td');
+      if(c[4]) cell.title=c[4];
+      cell.appendChild(cfgBox(who,c[0],c[3]));
+      tr.appendChild(cell);
+    });
+    tb.appendChild(tr);
+  }
+  line('base','every vehicle',null);
+  VEHICLES.forEach(function(name){ line(name,name,name); });
+  t.appendChild(tb); host.appendChild(t);
+
+  var n=document.createElement('div'); n.className='note';
+  n.innerHTML = cfgModel()==='arcade' ? (
+    '<b>This is the arcade model</b> \u2014 the one lifted from the drift game. There is no '+
+    'physics engine behind it: the nose turns where you point it and the velocity chases it, '+
+    'and the gap between the two IS the drift. None of these numbers mean the same thing as '+
+    'the simulated model\u2019s, so the table keeps them apart \u2014 switch back and nothing you '+
+    'typed here is lost.'+
+    '<br><br><b>Start with the FEEL column</b>, then nudge. '+
+    '<b>Hover any heading for what it does and where to put it.</b> '+
+    'The short version: <b>LATERAL DRAG is the one knob that matters</b> \u2014 0.0045 slides like '+
+    'a rally car, 0.026 is glued down, 0.0105 is the middle. '+
+    '<b>Steer rate 0.03-0.06</b> (past that it spins on the spot), '+
+    '<b>accel 0.03-0.16</b> \u2014 a rate, so higher is punchier, and '+
+    '<b>drift friction low</b> if you want long slides rewarded rather than punished.'+
+    '<br><br>Speed is in pixels a frame because that is what the integrator counts in. '+
+    '<b>Multiply by 3.33 for car lengths a second</b> \u2014 6.2 is about 21.'+
+    '<br><br>The top row is what every vehicle uses. Below it, an empty box means '+
+    '\u201csame as that row\u201d \u2014 type a number to give that car its own, clear the box to hand it back.'+
+    '<br><br>These are the arcade model\u2019s own parameters, named as it names them \u2014 they are '+
+    'not the physics settings under different labels, and none of them convert. '+
+    '<b>Mass changes nothing about how a car drives</b> here: the integrator never reads it, '+
+    'it only decides who shoves whom in a collision. <b>Gravity and step up</b> are per vehicle '+
+    'and only matter on ramps and jumps; the gravity in the bar above belongs to the other model.'
+  ) : (
+    '<b>This is the simulated model</b> \u2014 a real physics engine with tyres, springs and a '+
+    'suspension. Its numbers are kept separate from the arcade ones and are untouched by '+
+    'anything you do over there.'+
+    '<br><br><b>Start with the FEEL column</b> \u2014 pick one and it fills the whole row '+
+    'with numbers measured on the sedan, then nudge from there. '+
+    '<b>Hover any heading for what it does and where to put it.</b> '+
+    'The short version, for an arcade feel rather than a simulator: '+
+    '<b>grip high</b> (6-10) so the car goes where you point it, '+
+    '<b>acceleration short</b> (1.5-3 seconds) so it leaps off the line, '+
+    '<b>corner scrub low</b> (0.1-0.25) so cornering does not cost you the race, '+
+    '<b>steer flat out around 0.4</b> so it still turns at speed, and '+
+    '<b>crash at 0.85</b> so scraping a wall does not rewind you. '+
+    'Keep top speed modest \u2014 readable beats fast. '+
+    'Realism lives at the opposite end of every one of those.'+
+    '<br><br>The top row is what every vehicle uses. Below it, an empty box means '+
+    '\u201csame as that row\u201d \u2014 type a number to give that car its own, clear the box to hand it back. '+
+    '<br><br><b>Weight changes nothing about how a car drives.</b> Engine force is mass \u00d7 '+
+    '(top speed \u00f7 acceleration), and the springs scale with mass too, so a heavy car gets a '+
+    'proportionally bigger engine and stiffer springs and ends up identical. It only decides who '+
+    'shoves whom when you hit one of your earlier runs.'+
+    '<br><br>Speeds and distances are in <b>car lengths</b>, so they hold whatever vehicle scale '+
+    'you set on the Routes tab.'
+  );
+  host.appendChild(n);
+}
+
+on('cfModel','change',function(){
+  CFG.global.model=(this.value==='sim')?'sim':'arcade';
+  saveConfig(); renderCfg();
+  flag(CFG.global.model==='sim'?'simulated physics':'arcade physics');
+});
+on('cfAdv','click',function(){
+  CFADV=!CFADV; this.classList.toggle('on',CFADV);
+  this.textContent=CFADV?'fewer settings':'advanced';
+  renderCfg();
+});
+on('cfReset','click',function(){
+  /* only the model you are looking at - the other one keeps its table */
+  var m=cfgModel();
+  CFG[cKey()]={}; CFG[bKey()]={};
+  CFG.global={}; if(m==='sim') CFG.global.model='sim';
+  saveConfig(); renderCfg();
+});
+on('expCfg','click',function(){
+  var out={generated:new Date().toISOString(),
+    units:'simulated: car lengths, the vehicle scale lives in routes. '+
+          'arcade: pixels a frame, 18 to a car length',
+    model:cfgModel(),
+    global:{}, vehicleDefaults:{}, vehicles:{},
+    arcadeDefaults:{}, arcadeVehicles:{}};
+  CFG_G.concat(CFG_G_ADV).forEach(function(f){ out.global[f[0]]=cfgVal('global',f[0]); });
+  out.global.model=cfgModel();
+  CFG_COLS.concat(CFG_COLS_ADV).forEach(function(f){
+    out.vehicleDefaults[f[0]]=CFG.base[f[0]]!==undefined?CFG.base[f[0]]:CFG_DEF.base[f[0]]; });
+  CFG_COLS_ARC.concat(CFG_COLS_ARC_ADV).forEach(function(f){
+    out.arcadeDefaults[f[0]]=CFG.abase[f[0]]!==undefined?CFG.abase[f[0]]:CFG_DEF.abase[f[0]]; });
+  Object.keys(CFG.cars).forEach(function(v){
+    if(Object.keys(CFG.cars[v]).length) out.vehicles[v]=CFG.cars[v]; });
+  Object.keys(CFG.acars).forEach(function(v){
+    if(Object.keys(CFG.acars[v]).length) out.arcadeVehicles[v]=CFG.acars[v]; });
+  dl('deja-vroom-config.json',
+     new Blob([JSON.stringify(out,null,1)],{type:'application/json'}));
+  flag('exported config');
+});
+
+kvGet('config').then(function(c){
+  if(c){ CFG.global=c.global||{}; CFG.base=c.base||{}; CFG.cars=c.cars||{};
+         CFG.abase=c.abase||{}; CFG.acars=c.acars||{}; }
+  renderCfg();
+}).catch(function(){ renderCfg(); });
+</script>
+</body>
+</html>
