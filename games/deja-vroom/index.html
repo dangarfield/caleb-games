@@ -256,6 +256,17 @@ canvas{display:block;width:100%;height:100%}
 .hs i.me{color:var(--gold);text-shadow:0 0 9px rgba(255,217,100,.45)}
 .hs i.me em{opacity:1}
 @media (max-width:720px){ .scores{grid-template-columns:repeat(2,1fr)} }
+/* a reel you have a time on can be played again straight from the board */
+.hs.done{cursor:pointer;transition:border-color .12s,background .12s}
+.hs.done:hover{border-color:rgba(255,46,136,.55);background:rgba(255,255,255,.09)}
+.hs.done b:after{content:' \25B8';color:var(--hot)}
+/* the big button, what it will pick up, and the way back to the top */
+.go{display:flex;flex-direction:column;align-items:center;gap:11px}
+.gosub{margin:0;font-size:14.5px;color:var(--dim);letter-spacing:.3px}
+.ask{display:none;max-width:580px;margin:0 auto}
+.ask.on{display:block}
+.ask p{margin:0 0 15px;font-size:16.5px;line-height:1.55;color:var(--ink)}
+.ask .btn.ghost{margin:0 5px}
 .btn{display:inline-block;cursor:pointer;pointer-events:auto;border:none;
   font:400 34px/1 var(--disp);letter-spacing:1px;color:#2b0a1c;
   background:linear-gradient(180deg,var(--gold),var(--amber));
@@ -267,6 +278,7 @@ canvas{display:block;width:100%;height:100%}
 .btn.ghost{background:none;color:var(--ink);border:1px solid rgba(255,46,136,.5);
   font-size:19px;padding:11px 22px;box-shadow:none}
 .btn.ghost:hover{background:rgba(255,46,136,.18);box-shadow:none;transform:none}
+.quitrow{margin-top:15px}
 .sheet .foot{margin-top:18px;font-size:12.5px;color:var(--dim);line-height:1.8}
 /* the row of switches the pause menu is made of */
 .rows{max-width:430px;margin:0 auto 18px;text-align:left}
@@ -354,7 +366,16 @@ canvas{display:block;width:100%;height:100%}
     <h1>D&eacute;j&agrave; <i>Vroom</i></h1>
     <p class="story" id="homeStory"></p>
     <div class="pickrow" id="homeWho"></div>
-    <button class="btn" id="playBtn">Roll the tape</button>
+    <div class="go" id="homeGo">
+      <button class="btn" id="playBtn">Roll the tape</button>
+      <p class="gosub" id="homeSub"></p>
+      <button class="btn ghost" id="freshBtn">Start over</button>
+    </div>
+    <!-- the one question the title screen ever asks: you are part way through
+         something and what you just pressed would throw it away -->
+    <div class="ask" id="homeAsk"><p></p>
+      <div><button class="btn ghost yes"></button>
+           <button class="btn ghost no">Keep my place</button></div></div>
     <div class="scores" id="homeScores"></div>
   </div>
 </div>
@@ -366,6 +387,7 @@ canvas{display:block;width:100%;height:100%}
     <h2>Paused</h2>
     <div class="rows" id="menuRows"></div>
     <button class="btn" id="resumeBtn">Back to it</button>
+    <div class="quitrow"><button class="btn ghost" id="quitBtn">Leave the reel</button></div>
   </div>
 </div>
 
@@ -639,10 +661,44 @@ function saveLoad(cb){
   Store.ready(function(){
     var s=Store.get();
     if(s&&typeof s==='object'){ SAVE.who=s.who||SAVE.who; SAVE.best=s.best||{}; }
+    var r=Store.get('resume');
+    RESUME=(r&&typeof r==='object')?r:{};
     cb();
   });
 }
 function savePut(){ if(Store) Store.set(null, {who:SAVE.who, best:SAVE.best}); }
+
+/* ---- where you got to ----
+   One slot per driver and it holds ONE reel: which reel, which run, the clock
+   so far, and the runs already banked here as traffic. Earlier reels' traffic
+   is not kept - it is hundreds of kilobytes a reel and nothing ever replays it
+   again. The slot is written when a run LANDS rather than every frame, so the
+   worst a shut laptop costs you is the run you were on, and no amount of
+   quitting can undo a crash you have already had.
+   It lives in the store next to the best times rather than in localStorage
+   because a fifteen-run reel of paths is bigger than the whole arcade's
+   localStorage budget divided seventy ways. */
+var RESUME={};                            // RESUME[player] = slot, or nothing
+function resumeFor(who){ var r=RESUME[who]; return (r&&typeof r==='object')?r:null; }
+/* Flushed rather than left to the store's own 120ms timer: this is written the
+   moment a run lands, which is exactly when somebody shuts the lid. */
+function resumeWrite(){
+  if(!Store) return;
+  Store.set('resume', RESUME);
+  if(Store.flush) Store.flush();
+}
+/* `runs` is COPIED. Handing the slot the live G.runs array would leave the
+   store holding a window onto a list that keeps growing: bank another run and
+   the slot silently reads one run further on than the index saved beside it,
+   so a flush at the wrong moment writes a run number and a set of ghosts that
+   disagree - which puts you back on a run whose ghost is already out there. */
+function resumeSet(reel, level, clock, runs){
+  if(!ROUTES||!ROUTES.scenes[reel]) return;
+  RESUME[SAVE.who]={reel:reel, level:level||0, clock:clock||0,
+                    runs:Array.isArray(runs)?runs.slice():[]};
+  resumeWrite();
+}
+function resumeClear(){ delete RESUME[SAVE.who]; resumeWrite(); }
 function bestFor(who,reel){
   var b=SAVE.best[who], v=b&&b[reel];
   return (typeof v==='number')?v:null;
@@ -764,9 +820,8 @@ function buildHome(){
   var scenes=(ROUTES?ROUTES.scenes:[]);
   scenes.forEach(function(sc,i){
     if(i===scenes.length-1) return;             // the last reel is the ending
-    var pl=placeOf(i);
     var row=document.createElement('div'); row.className='hs';
-    row.innerHTML='<b>'+esc((pl&&pl.name)||sc.name||(reelWord()+' '+(i+1)))+'</b>';
+    row.innerHTML='<b>'+esc(reelTitle(i))+'</b>';
     PLAYERS.forEach(function(P){
       var t=bestFor(P.id,i);
       var e=document.createElement('i');
@@ -775,9 +830,88 @@ function buildHome(){
                   (t===null ? '\u2014' : t.toFixed(1)+'s')+'</span>';
       row.appendChild(e);
     });
+    /* A reel this driver has a time on can be driven again on its own, from
+       the board. One they have never finished cannot - the tape is meant to be
+       watched in order the first time through. */
+    if(bestFor(SAVE.who,i)!==null){
+      row.className='hs done';
+      row.onclick=function(){ SFX.tap(); pickReel(i); };
+    }
     hs.appendChild(row);
   });
+  buildGo();
   sheet('home',true);
+}
+/* What the tile and the small print call a reel: the place, or failing that
+   whatever the route file called it. */
+function reelTitle(i){
+  var sc=(ROUTES&&ROUTES.scenes[i])||{}, pl=placeOf(i);
+  return (pl&&pl.name)||sc.name||(reelWord()+' '+(i+1));
+}
+/* ---- the big button ----
+   Nothing saved, or the tape watched to the end: roll it from the top. Part way
+   through: pick it up where it was left, and say out loud where that is, with a
+   smaller way back to the beginning underneath. */
+function buildGo(){
+  homeAsk(null);
+  var r=resumeFor(SAVE.who), n=(ROUTES?ROUTES.scenes.length:0);
+  var go=document.getElementById('playBtn'),
+      sub=document.getElementById('homeSub'),
+      fresh=document.getElementById('freshBtn');
+  if(!r || !ROUTES.scenes[r.reel]){
+    go.textContent='Roll the tape';
+    sub.textContent=''; sub.style.display='none';
+    fresh.style.display='none';
+    return;
+  }
+  var last=(r.reel===n-1), runs=(ROUTES.scenes[r.reel].levels||[]).length;
+  go.textContent='Pick up the tape';
+  sub.style.display='';
+  sub.textContent=reelWord()+' '+(r.reel+1)+' of '+n+'  \u00b7  '+
+    (last ? 'the last of it' : runWord()+' '+((r.level|0)+1)+' of '+runs)+
+    '  \u00b7  '+reelTitle(r.reel);
+  fresh.style.display='';
+}
+/* The one question this screen asks. Pass nothing to put it away. */
+function homeAsk(text, yes, then){
+  var a=document.getElementById('homeAsk'), go=document.getElementById('homeGo');
+  a.classList.toggle('on', !!text);
+  go.style.display=text?'none':'';
+  var board=document.getElementById('homeScores');
+  board.style.opacity=text?'.35':'';
+  board.style.pointerEvents=text?'none':'';
+  if(!text) return;
+  a.querySelector('p').innerHTML=text;
+  var y=a.querySelector('.yes'), no=a.querySelector('.no');
+  y.textContent=yes;
+  y.onclick=function(){ SFX.tap(); homeAsk(null); then(); };
+  no.onclick=function(){ SFX.tap(); homeAsk(null); };
+}
+/* Is there a reel on the go that starting somewhere else would cost? A slot
+   sitting on the first run with no traffic banked has nothing in it to lose. */
+function partWay(){
+  var r=resumeFor(SAVE.who);
+  return (r && ((r.level|0)>0 || (r.runs&&r.runs.length))) ? r : null;
+}
+function reelAt(r){
+  return runWord().toLowerCase()+' '+((r.level|0)+1)+' of '+reelTitle(r.reel);
+}
+/* Straight into a reel off the board, asking first if that throws away a reel
+   in progress somewhere else. */
+function pickReel(i){
+  var r=partWay();
+  if(r && r.reel!==i){
+    homeAsk('You are on '+esc(reelAt(r))+'. Starting '+esc(reelTitle(i))+
+            ' again puts that back to the beginning.', 'Start it anyway',
+            function(){ playFrom(i); });
+    return;
+  }
+  playFrom(i);
+}
+function playFrom(i){
+  resumeSet(i, 0, 0, []);
+  musicGo(); sheet('home',false);
+  startStage(ROUTES.scenes[i]);
 }
 function esc(t){ return String(t==null?'':t).replace(/[<>&]/g,function(c){
   return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]; }); }
@@ -2696,9 +2830,14 @@ function clearLevel(){
   G.car=null; G.ghosts=[]; G.goal=null; G.guide=null; G.hint=null;
 }
 
-function startStage(sc){
+/* `at` is a resume slot: the run to start on, the clock it was on and the
+   traffic already banked. Without one the reel starts from the top. */
+function startStage(sc, at){
   G.scene=sc; G.sceneIdx=ROUTES.scenes.indexOf(sc);
-  G.levelIdx=0; G.clock=0; G.runs=[]; G.slow=0; G.bumps=0;
+  G.levelIdx=at ? Math.max(0,Math.min(at.level|0, sc.levels.length-1)) : 0;
+  G.clock=(at&&typeof at.clock==='number')?at.clock:0;
+  G.runs=(at&&Array.isArray(at.runs))?at.runs:[];
+  G.slow=0; G.bumps=0;
   setWhere();
   /* The last reel is the ending, not a stage: it is one run, it is not timed
      and nothing about it goes in the high scores. */
@@ -2883,6 +3022,13 @@ function levelWon(){
   G.phase='won'; SFX.win();
   var lv=G.scene.levels[G.levelIdx];
   G.runs.push({model:lv.veh.model, offset:lv.offset||0, path:G.rec});
+  /* The run is in. Everything after this - the pull-out, the banner, the tape
+     winding back - is a victory lap, and walking out during it should not cost
+     the run: the slot moves on NOW, to the next run with this one's ghost
+     already banked. The last run of a reel is left alone, because the encore
+     is about to hand the whole reel over to the next one. */
+  if(G.levelIdx+1 < G.scene.levels.length)
+    resumeSet(G.sceneIdx||0, G.levelIdx+1, G.clock, G.runs);
   banner('Made it','','win');
   /* Your car has arrived, so it parks and stops being something to hit - the
      next run must be able to drive over the line without piling into you. */
@@ -2924,7 +3070,7 @@ function rewindStage(dt){
     vhs(false); hideBanner();
     G.levelIdx++;
     if(G.levelIdx>=G.scene.levels.length) finishStage();
-    else loadLevel();
+    else loadLevel();                    // the slot moved on back in levelWon
   }
 }
 /* ==========================================================================
@@ -2963,6 +3109,10 @@ function startEncore(){
   /* every other reel banks its own time here, which is what the title screen's
      high scores are keyed on */
   G.encPB=recordTime(G.sceneIdx||0, t);
+  /* Same again one level up: the reel is finished and its time is on the board,
+     so the slot points at the next reel before the lap of honour rather than
+     after it. Leave during the encore and you have still finished this place. */
+  resumeSet((G.sceneIdx||0)+1, 0, 0, []);
   showDone(t, G.encPB);
 }
 function encore(dt){
@@ -2982,7 +3132,9 @@ function encore(dt){
    had its turn: on to the next place, or the end of the game. */
 function encoreDone(){
   vhs(false); hideCard(); hideBanner();
-  if(isFinale()){ goHome(); return; }
+  /* The tape has run out, which is the one thing that clears the slot: next
+     time the big button says roll it from the top again. */
+  if(isFinale()){ resumeClear(); goHome(); return; }
   var next=ROUTES.scenes[ROUTES.scenes.indexOf(G.scene)+1];
   if(!next){ finishStage(G.encPB); return; }
   G.nextScene=next;
@@ -3602,9 +3754,31 @@ loadConfig().then(function(){
   });
   document.getElementById('playBtn').onclick=function(){
     SFX.tap(); musicGo();
-    sheet('home',false);
+    var r=resumeFor(SAVE.who);
+    if(r && ROUTES.scenes[r.reel]){
+      sheet('home',false);
+      startStage(ROUTES.scenes[r.reel], r);    // the run it was left on, with its traffic
+      return;
+    }
+    playFrom(0);
+  };
+  /* Winding the whole thing back to the top is a decision, so it asks - but
+     only when there is something in the slot worth losing. */
+  document.getElementById('freshBtn').onclick=function(){
+    SFX.tap();
+    var r=partWay();
+    if(r){
+      homeAsk('You are on '+esc(reelAt(r))+
+              '. Starting over winds the tape right back to the top.',
+              'Wind it back', function(){ playFrom(0); });
+      return;
+    }
+    playFrom(0);
   };
   document.getElementById('resumeBtn').onclick=function(){ SFX.tap(); setPaused(false); };
+  /* Out of the reel and back to the title screen. The slot is on the last run
+     that landed, so this costs you the run you were on and nothing else. */
+  document.getElementById('quitBtn').onclick=function(){ SFX.tap(); setPaused(false); goHome(); };
 }).catch(function(e){
   console.error(e);
   if(e&&e.message==='nocity')

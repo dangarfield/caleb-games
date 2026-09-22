@@ -15,6 +15,7 @@ the *how-to-think* detail (boilerplate, audio recipes, UX patterns) lives in
 - One self-contained `games/<name>/index.html` is the default. Multi-file is allowed only when it genuinely helps; keep it inside `games/<name>/`.
 - Canvas 2D for rendering. No frameworks, no build step, no external runtime dependencies.
 - No network calls for core play (Web Audio for SFX, IndexedDB via `arcade-store.js` for saves — see Persistence).
+- **Google Fonts are the one allowed exception, and they are linked, not downloaded.** Put the `<link>` to `fonts.googleapis.com` in the head and let the font be hosted; do not vendor `.woff2` files into the game folder and do not base64 them into the CSS. A font that fails to load falls back to `system-ui` and the game still plays, so this does not break the no-dependency rule in any way that matters. Canvas does not re-measure text on its own, so wait on `document.fonts.ready` before the first frame.
 
 ## Touch & viewport
 - Touch-first: `touch-action: none`, pointer events, large tap targets.

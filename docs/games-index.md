@@ -1,6 +1,6 @@
 # Games Index
 
-All 72 games in Garfield Boys' Arcade (73 directories — Archers has legacy 2D + current 3D).
+All 74 games in Garfield Boys' Arcade (75 directories — Archers has legacy 2D + current 3D).
 
 | Game | Directory | Description |
 |------|-----------|-------------|
@@ -21,6 +21,7 @@ All 72 games in Garfield Boys' Arcade (73 directories — Archers has legacy 2D 
 | Speed Racer | games/driven-wild/ | 3D racing with player select, jump ramps + flip/boost (formerly DR1V3N WILD) |
 | Fling | games/fling/ | Physics flinging game |
 | Free Kick | games/freekick/ | 3D perspective penalty kicks |
+| Fleet Forge | games/fleet-forge/ | Ship-fitting auto-battler — build a hull, fight a nine-rung AI ladder |
 | Frogger | games/frogger/ | Classic road-crossing |
 | Fruit Ninja | games/fruitninja/ | Swipe-to-slice fruit |
 | Tower of Hanoi | games/hanoi/ | Disc-stacking puzzle with undo |
@@ -52,6 +53,7 @@ All 72 games in Garfield Boys' Arcade (73 directories — Archers has legacy 2D 
 | Archers | games/archers-3d/ | Archero-style wave shooter, Three.js 3D (legacy 2D source at games/archers/ powers the level editor) |
 | Happy Glass | games/happyglass/ | Liquid-pouring puzzle with SVG metaball effect |
 | Resin Animals | games/resincritters/ | Match-2 collapse puzzle (directory name is `resincritters`, doc is game-resin-animals.md) |
+| Mmm! Leaves | games/mmm-leaves/ | Roll-and-write moth game adapted from Scribbly Gum |
 | Monster Jump | games/monster-jump/ | Drive Mad / Fancade WASM physics platformer |
 | Race Maker | games/race-maker/ | Build a Scalextric-style track piece-by-piece, then race it with corner braking and AI drivers (Three.js + Kenney Racing Kit) |
 | Adsumudi | games/adsumudi/ | Hexagonal mental-math card game — combine 5 numbers with + − × ÷ to reach the target |

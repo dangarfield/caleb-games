@@ -254,6 +254,7 @@ questions.
 ```
 assets/           everything the game loads, and nothing else
   icons/            the 28 printed symbols cut from the rules PDF, + icons.json
+  icons/ui/         two Material Symbols (Apache 2.0) for the pinch hint, + its licence
   models/           34 glTF models (the scenery kit + the walker) and 11 textures
   audio/            the theme, Opus in WebM
   maps/             map-01.json — the park itself
@@ -444,6 +445,19 @@ stood in for anything. And the animal moments stopped borrowing the camera's
 language: the wood asks what you want to LOOK for and an animal you walk up on
 is one you WATCH, so "take a photo" means one thing in this game and it is the
 rule.
+
+**Nothing said the zoom was a gesture.** The whole game is one axis — the map in
+his hands at one end, the park as a model at the other — and the plus and minus
+buttons are discoverable without hinting that pinching does the same thing, on
+the axis the game is actually built around. So a pill pulses beside those buttons
+when the game loads: the Material Symbols `pinch_zoom_in` glyph and the words
+*Pinch to zoom*, or `mouse` and *Scroll to zoom* on a machine with no
+touchscreen, because the same words there would be a lie. It goes the moment he
+zooms by any means — pinch, wheel, buttons, keys, all of which pass through
+`setZoom` — and gives up on its own after twenty seconds rather than pulsing at
+an empty room. The icons are the library's own SVGs, vendored rather than
+fetched, and drawn as CSS masks so they take the interface's gold instead of
+arriving black.
 
 ### Made to run on a tablet
 The park is nine and a half million triangles of scenery and it is meant to be
