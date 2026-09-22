@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Waypoints</title>
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<style>
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; overflow:hidden; background:#0e1622; color:#dce6f2;
+    font:15px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif; overscroll-behavior:none; }
+  button { font:inherit; }
+
+  /* The world fills the screen. The map is IN it — a sheet of paper the walker
+     is holding — drawn to a canvas off-screen and used as a texture. */
+  #stage { position:fixed; inset:0; }
+  #view3d { position:absolute; inset:0; width:100%; height:100%; display:block;
+    touch-action:none; }
+
+  /* The map's canvas: off-screen but LAID OUT, because the mapper's renderer
+     measures the element it draws into and a detached canvas has no size. */
+  #map2d { position:fixed; left:-4000px; top:0; width:1200px; height:1000px; }
+
+  /* ------------------------------------------------------------ the phone
+     Every word the game says arrives here, on the right, in something a child
+     already knows how to read. */
+  /* Slimmer, and three quarters of the height — the bottom right corner belongs
+     to the look stick, and a phone that runs to the floor sits on top of it. */
+  #phone { position:fixed; right:18px; top:18px; height:75vh; width:266px; z-index:6;
+    border-radius:34px; padding:8px; background:linear-gradient(160deg,#20293a,#141b27);
+    box-shadow:0 26px 60px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.07);
+    display:flex; transition:transform .3s ease, opacity .3s ease; }
+  #phone.gone { transform:translateX(calc(100% + 26px)); opacity:0; pointer-events:none; }
+
+  /* Put it back. Only there while the phone is away. */
+  #phoneBack { position:fixed; right:18px; top:18px; z-index:7; width:46px; height:46px;
+    border-radius:14px; border:1px solid #33475f; background:rgba(20,32,46,.9);
+    color:#cfe2f5; font:600 20px/1 system-ui; cursor:pointer; display:none;
+    place-items:center; backdrop-filter:blur(6px); }
+  #phoneBack.on { display:grid; }
+  .ph-screen { flex:1; border-radius:30px; background:#0b1118; overflow:hidden;
+    display:flex; flex-direction:column; position:relative;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.06); }
+
+  .ph-head { display:flex; align-items:center; gap:8px; padding:14px 15px 6px; }
+  .ph-notch { flex:1; height:5px; border-radius:3px; background:#1e2937; max-width:52px;
+    margin:0 auto; }
+  .ph-info, .ph-shut { width:32px; height:32px; border-radius:50%; border:1px solid #33475f;
+    background:#16202c; color:#9fc4e8; cursor:pointer; display:grid; place-items:center;
+    flex:none; }
+  .ph-info { font:700 16px/1 Georgia, serif; }
+  .ph-shut { font:400 18px/1 system-ui; color:#8ea6bd; }
+  .ph-info:hover, .ph-shut:hover { background:#1d2a39; }
+
+  .ph-stat { display:flex; flex-wrap:wrap; gap:5px; padding:0 15px 9px; font-size:11px;
+    color:#8ea6bd; font-variant-numeric:tabular-nums; }
+  .ph-stat span { background:#131c27; border:1px solid #22303f; border-radius:8px;
+    padding:3px 8px; }
+  .ph-stat b { color:#fff; font-size:13px; }
+
+  .ph-main { flex:1 1 auto; min-height:92px; overflow-y:auto; padding:6px 15px 4px; }
+  .ph-title { font:700 21px/1.2 inherit; color:#fff; margin:2px 0 5px; }
+  .ph-line { font-size:14px; color:#b6c8db; }
+  .ph-line .ok { color:#7fe0aa; } .ph-line .bad { color:#f0998a; } .ph-line b { color:#fff; }
+  .ph-body { margin-top:14px; }
+
+  .ph-acts { display:flex; flex-direction:column; gap:8px; padding:10px 15px 15px;
+    flex:0 1 auto; overflow-y:auto; }
+  .ph-btn { display:flex; flex-direction:column; align-items:flex-start; gap:2px;
+    text-align:left; color:#e8f0fa; background:#1b2735; border:1px solid #31465e;
+    border-radius:14px; min-height:48px; padding:8px 13px; cursor:pointer; width:100%; }
+  .ph-btn:hover { background:#223145; }
+  /* every game in the arcade has this in the same corner. It belongs to the
+     title screen: mid-hike the corner is the park, and a child who wants out
+     can put the phone away and use it from there. */
+  .homeback { position:absolute; left:18px; top:16px; z-index:30; display:none;
+    text-decoration:none; font:600 15px/1 inherit; color:#cfe0f2; padding:11px 16px;
+    border-radius:12px; border:1px solid #31465e; background:rgba(11,17,24,.72); }
+  .homeback.on { display:block; }
+  .homeback:hover { background:#1b2735; color:#fff; }
+
+  /* the opening pages */
+  .intro p { margin:0 0 12px; font-size:15px; line-height:1.5; color:#cfdeee; }
+  .intro .dots { display:flex; gap:6px; justify-content:center; padding:6px 0 2px; }
+  .intro .dots span { width:7px; height:7px; border-radius:50%; background:#2b3b4e; }
+  .intro .dots span.on { background:#f2c230; }
+
+  /* two buttons that answer the same thought, side by side */
+  .ph-row { display:flex; gap:8px; }
+  .ph-row .ph-btn { flex:1; min-width:0; }
+  /* the cost of the line being drawn, in the stat strip */
+  .ph-stat span.cost { background:#1d2a19; border-color:#3c5a30; color:#cfe6bd; }
+  .ph-stat span.cost b { color:#e6ffd6; }
+  .ph-stat span.over { background:#331d1d; border-color:#6a3232; color:#f0c3c3; }
+  .ph-stat span.over b { color:#ffdada; }
+  .ph-btn:disabled { opacity:.4; cursor:default; }
+  .ph-btn-main { font-weight:600; font-size:15px; }
+  .ph-btn-note { font-weight:400; font-size:12px; color:#8ea6bd; }
+  .ph-btn.go .ph-btn-note { color:#bce8d1; }
+  .ph-btn-sub { font-size:11px; color:#8ea6bd; }
+  .ph-btn.go { background:linear-gradient(180deg,#2f7d54,#1d6440); border-color:#3fa671; }
+  .ph-btn.go:hover { background:linear-gradient(180deg,#379063,#22734a); }
+  .ph-btn.go .ph-btn-sub { color:#bce8d1; }
+  .ph-btn.quiet { background:transparent; border-color:#27364a; min-height:42px; }
+
+  /* the help sheet slides up over the phone's own screen */
+  .ph-sheet { position:absolute; inset:0; background:#0d151f; border-radius:28px;
+    padding:20px 17px; display:flex; flex-direction:column; gap:14px;
+    transform:translateY(101%); transition:transform .28s ease; }
+  .ph-sheet.on { transform:translateY(0); }
+  .ph-sheet h3 { margin:0; font-size:13px; letter-spacing:.14em; text-transform:uppercase;
+    color:#6f8aa6; }
+  .ph-sheet-text { flex:1; overflow-y:auto; font-size:15px; line-height:1.55; color:#cfdeee; }
+  .ph-sheet-close { align-self:stretch; min-height:46px; border-radius:14px; cursor:pointer;
+    border:1px solid #31465e; background:#1b2735; color:#e8f0fa; font-weight:600; }
+
+  /* Notes land at the TOP OF THE SCREEN, not inside the phone: they are the park
+     telling him something — crossed a ridge, filled a bottle — and the phone may
+     well be away when it happens. */
+  .ph-toasts { position:fixed; top:74px; left:50%; transform:translateX(-50%); z-index:60;
+    width:min(420px, 62vw); display:flex; flex-direction:column; align-items:center;
+    gap:7px; pointer-events:none; }
+  .ph-toast { display:flex; align-items:center; gap:9px; padding:9px 14px; border-radius:13px;
+    background:rgba(24,35,48,.96); border:1px solid #33475f; font-size:14px;
+    box-shadow:0 8px 24px rgba(0,0,0,.35);
+    opacity:0; transform:translateY(-10px); transition:opacity .3s, transform .3s; }
+  .ph-toast.on { opacity:1; transform:none; }
+  .ph-toast-i { font-size:16px; }
+  .ph-toast-t { color:#dbe7f3; }
+  .ph-toast-c { color:#f2c230; font-weight:700; font-variant-numeric:tabular-nums; }
+
+  /* ------------------------------------------------------- the goal cards */
+  .goals { display:flex; flex-direction:column; gap:8px; }
+  .goal { text-align:left; width:100%; cursor:pointer; border-radius:14px; padding:10px 13px;
+    background:#16202c; border:1px solid #2a3a4d; color:#e8f0fa; }
+  .goal:hover { background:#1d2a39; border-color:#3d5573; }
+  .goal b { display:block; font-size:15px; }
+  .goal span { display:block; font-size:12px; color:#8ea6bd; margin-top:3px; }
+
+  /* ------------------------------------------------- the weather spinner */
+  .reel { display:flex; gap:6px; justify-content:center; padding:8px 0 2px; }
+  .reel div { width:46px; height:52px; border-radius:11px; background:#16202c;
+    border:1px solid #2a3a4d; display:grid; place-items:center; }
+  .reel div.now { border-color:#f2c230; box-shadow:0 0 0 2px rgba(242,194,48,.35); }
+  .reel img, .reel canvas { width:34px; height:34px; }
+  .reel .num { font:700 20px/1 inherit; color:#fff; }
+
+  /* ---------------------------------------------------------- the walkers */
+  .who { display:flex; flex-direction:column; gap:8px; }
+  .who button { display:flex; align-items:center; gap:11px; cursor:pointer; width:100%;
+    border-radius:14px; padding:9px 13px; background:#16202c; border:1px solid #2a3a4d;
+    color:#e8f0fa; text-align:left; }
+  .who button:hover { background:#1d2a39; }
+  .who .pip { width:30px; height:30px; border-radius:50%; flex:none; display:grid;
+    place-items:center; font-weight:700; color:#0b1118; }
+  .who .best { margin-left:auto; font-size:12px; color:#8ea6bd; }
+  .who input { flex:1; background:#0d151f; border:1px solid #2a3a4d; border-radius:12px;
+    color:#e8f0fa; padding:11px 13px; font:inherit; }
+
+  /* ------------------------------------------------------------ the world */
+  #tools { position:fixed; left:18px; top:50%; transform:translateY(-50%); z-index:5;
+    display:flex; flex-direction:column; gap:9px; }
+  #tools button { width:50px; height:50px; border-radius:15px; border:1px solid #33475f;
+    background:rgba(20,32,46,.86); color:#e8f0fa; font:600 23px/1 system-ui; cursor:pointer;
+    display:grid; place-items:center; backdrop-filter:blur(6px); }
+  #tools button:active { transform:translateY(1px); }
+
+  /* "pinch to zoom", beside the buttons, until he has zoomed once.
+     The icon is Material Symbols artwork drawn as a MASK rather than an <img>,
+     so it takes the interface's own gold instead of arriving black. */
+  #zoomHint { position:fixed; left:80px; top:50%; transform:translateY(-50%); z-index:5;
+    display:none; align-items:center; gap:9px; padding:9px 14px 9px 11px;
+    border-radius:16px; border:1px solid #4a5d34; background:rgba(20,32,46,.86);
+    color:#f2e6bd; font:600 14px/1 inherit; white-space:nowrap; pointer-events:none;
+    backdrop-filter:blur(6px); }
+  #zoomHint.on { display:flex; animation:hintPulse 2.2s ease-in-out infinite; }
+  #zoomHint.off { animation:none; opacity:0; transition:opacity .45s; }
+  #zoomHint i { width:26px; height:26px; background:#f2c230; display:block;
+    -webkit-mask:var(--icon) center/contain no-repeat; mask:var(--icon) center/contain no-repeat; }
+  @keyframes hintPulse {
+    0%, 100% { opacity:.55; transform:translateY(-50%) scale(1); }
+    50%      { opacity:1;   transform:translateY(-50%) scale(1.045); }
+  }
+  @media (prefers-reduced-motion: reduce) { #zoomHint.on { animation:none; opacity:1; } }
+
+  /* the two sticks, and the buttons that sit over the left one */
+  .stick { position:fixed; bottom:26px; width:132px; height:132px; border-radius:50%;
+    background:rgba(16,26,38,.5); border:1px solid rgba(120,160,200,.3); z-index:5;
+    touch-action:none; display:none; }
+  .stick.on { display:block; }
+  .stick .knob { position:absolute; left:50%; top:50%; width:58px; height:58px;
+    margin:-29px 0 0 -29px; border-radius:50%; background:rgba(190,215,240,.55);
+    border:1px solid rgba(255,255,255,.4); }
+  .stick.locked { opacity:.35; }
+  /* Move on the left, look on the right — thumbs where thumbs go on a tablet. */
+  #stickL { left:26px; } #stickR { right:26px; }
+  /* Fast sits ABOVE Auto pilot, and only exists once autopilot is driving. */
+  #walkBtns { position:fixed; left:26px; bottom:174px; z-index:5; display:none;
+    flex-direction:column; gap:8px; width:148px; }
+  #walkBtns.on { display:flex; }
+  #walkBtns button { min-height:44px; border-radius:14px; cursor:pointer;
+    border:1px solid #33475f; background:rgba(20,32,46,.9); color:#e8f0fa; font-weight:600;
+    backdrop-filter:blur(6px); }
+  #walkBtns button.on { background:linear-gradient(180deg,#2f7d54,#1d6440); border-color:#3fa671; }
+  #btnFast { display:none; }
+  #btnFast.shown { display:block; }
+
+  /* Which way to go, as a small compass at the top of the screen rather than a
+     lump of geometry in the park. */
+  #hudArrow { position:fixed; left:50%; top:16px; transform:translateX(-50%); z-index:5;
+    display:none; align-items:center; gap:9px; padding:7px 14px 7px 9px; border-radius:22px;
+    background:rgba(13,22,32,.72); border:1px solid rgba(90,120,150,.4);
+    backdrop-filter:blur(6px); font-size:12px; color:#b6c8db; }
+  #hudArrow.on { display:flex; }
+  #hudArrow svg { width:26px; height:26px; }
+  #hudArrow .needle { transform-origin:12px 12px; transition:transform .12s linear; }
+  #hudArrow b { color:#f2c230; font-variant-numeric:tabular-nums; }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="view3d"></canvas></div>
+<canvas id="map2d"></canvas>
+
+<div id="tools">
+  <button id="in" title="Closer">+</button>
+  <button id="out" title="Further">&minus;</button>
+</div>
+<div id="zoomHint" aria-hidden="true"><i></i><span>Pinch to zoom</span></div>
+
+<div id="stickL" class="stick"><div class="knob"></div></div>
+<div id="stickR" class="stick"><div class="knob"></div></div>
+<div id="walkBtns">
+  <button id="btnFast">Fast</button>
+  <button id="btnAuto">Auto pilot</button>
+</div>
+
+<div id="hudArrow">
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <g class="needle">
+      <path d="M12 3 L18 19 L12 15.5 L6 19 Z" fill="#f2c230"></path>
+    </g>
+  </svg>
+  <span>this way <b class="far"></b></span>
+</div>
+
+<div class="ph-toasts"></div>
+<!-- every game in the arcade has this in the same corner -->
+<a class="homeback" id="homeback" href="../../index.html">&larr; Games</a>
+
+<!-- No controls, on purpose. preload="none" so nothing is fetched until the
+     first gesture, which is also the first moment it could play. -->
+<audio id="theme" src="assets/audio/waypoints-theme.webm" loop preload="none"
+       aria-hidden="true"></audio>
+
+<button id="phoneBack" title="Get the phone out">&#9776;</button>
+<div id="phone">
+  <div class="ph-screen">
+    <div class="ph-head">
+      <div class="ph-notch"></div>
+      <button class="ph-info" title="What do I do?">i</button>
+      <button class="ph-shut" title="Put the phone away">&#10005;</button>
+    </div>
+    <div class="ph-stat"></div>
+    <div class="ph-main">
+      <div class="ph-title"></div>
+      <div class="ph-line"></div>
+      <div class="ph-body"></div>
+    </div>
+    <div class="ph-acts"></div>
+    <div class="ph-sheet">
+      <h3>What do I do?</h3>
+      <div class="ph-sheet-text"></div>
+      <button class="ph-sheet-close">Got it</button>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}
+</script>
+<script type="module" src="game/view.js"></script>
+</body>
+</html>
