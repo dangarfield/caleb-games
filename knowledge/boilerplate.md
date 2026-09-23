@@ -14,6 +14,7 @@ just-in-time by the builder), not a rule file — the MUST rules live in
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <meta name="mobile-web-app-capable" content="yes">
 <title>Game Name - Garfield Boys' Arcade</title>
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
 <style>/* styles below */</style>
 </head>
 <body>
@@ -39,6 +40,19 @@ body { background:#0a0a2e; overflow:hidden; touch-action:none;
 canvas { display:block; width:100%; height:100%; }
 .hidden { display:none !important; }
 ```
+
+## Favicon (REQUIRED — the arcade's, never the game's own)
+
+Every page under `games/<name>/` links the arcade favicon at the repo root:
+
+```html
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+```
+
+Two levels up, exactly like the back button, and on EVERY html page a game
+ships — the editor or any dev tool as well as `index.html`. A tab with the
+wrong mark, or the browser's blank page icon, is the tell that a game was
+built without this file open.
 
 ## Back button (REQUIRED — href MUST be ../../index.html)
 

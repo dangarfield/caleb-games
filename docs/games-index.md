@@ -1,6 +1,6 @@
 # Games Index
 
-All 74 games in Garfield Boys' Arcade (75 directories — Archers has legacy 2D + current 3D).
+All 75 games in Garfield Boys' Arcade (76 directories — Archers has legacy 2D + current 3D).
 
 | Game | Directory | Description |
 |------|-----------|-------------|
@@ -54,6 +54,7 @@ All 74 games in Garfield Boys' Arcade (75 directories — Archers has legacy 2D 
 | Happy Glass | games/happyglass/ | Liquid-pouring puzzle with SVG metaball effect |
 | Resin Animals | games/resincritters/ | Match-2 collapse puzzle (directory name is `resincritters`, doc is game-resin-animals.md) |
 | Mmm! Leaves | games/mmm-leaves/ | Roll-and-write moth game adapted from Scribbly Gum |
+| Pizza Planet | games/pizza-planet/ | Alien pizza chef: match picture orders exactly, buy toppings, open 10 planets |
 | Monster Jump | games/monster-jump/ | Drive Mad / Fancade WASM physics platformer |
 | Race Maker | games/race-maker/ | Build a Scalextric-style track piece-by-piece, then race it with corner braking and AI drivers (Three.js + Kenney Racing Kit) |
 | Adsumudi | games/adsumudi/ | Hexagonal mental-math card game — combine 5 numbers with + − × ÷ to reach the target |
