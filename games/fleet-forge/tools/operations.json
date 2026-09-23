@@ -1,0 +1,575 @@
+[
+{
+"at": 1,
+"id": "first_blood",
+"n": "First Blood",
+"d": "Win your first battle",
+"c": {
+"t": "wins",
+"n": 1
+}
+},
+{
+"at": 1,
+"id": "shakedown",
+"n": "Shakedown",
+"d": "Fill every cell on a hull",
+"c": {
+"t": "fillCells"
+}
+},
+{
+"at": 2,
+"id": "double_tap",
+"n": "Double Tap",
+"d": "Win two battles in a row",
+"c": {
+"t": "streak",
+"n": 2
+}
+},
+{
+"at": 3,
+"id": "broadside",
+"n": "Broadside",
+"d": "Win with four or more weapons fitted",
+"c": {
+"t": "minWeapons",
+"n": 4
+}
+},
+{
+"at": 3,
+"id": "gate_t2",
+"n": "Field Promotion",
+"d": "Beat a Tier 2 opponent flying a Tier 1 hull",
+"c": {
+"t": "step",
+"hull": 1,
+"opp": 2
+},
+"gate": 2
+},
+{
+"at": 4,
+"id": "untouched",
+"n": "Untouched",
+"d": "Win with 90% of your hull intact",
+"c": {
+"t": "health",
+"min": 0.9
+}
+},
+{
+"at": 5,
+"id": "solid_shot",
+"n": "Solid Shot",
+"d": "Win using ballistic weapons only",
+"c": {
+"t": "only",
+"dt": "ballistic"
+}
+},
+{
+"at": 6,
+"id": "quick_work",
+"n": "Quick Work",
+"d": "Win a battle in under 20 seconds",
+"c": {
+"t": "time",
+"max": 20
+}
+},
+{
+"at": 7,
+"id": "second_op",
+"n": "Second Opinion",
+"d": "Save two layouts on the same ship",
+"c": {
+"t": "layouts",
+"n": 2
+}
+},
+{
+"at": 8,
+"id": "hat_trick",
+"n": "Hat Trick",
+"d": "Win three battles in a row",
+"c": {
+"t": "streak",
+"n": 3
+}
+},
+{
+"at": 8,
+"id": "gate_t3",
+"n": "Line Commission",
+"d": "Beat a Tier 3 opponent flying a Tier 2 hull",
+"c": {
+"t": "step",
+"hull": 2,
+"opp": 3
+},
+"gate": 3
+},
+{
+"at": 9,
+"id": "power_surplus",
+"n": "Power Surplus",
+"d": "Win with three or more reactors fitted",
+"c": {
+"t": "minReactors",
+"n": 3
+}
+},
+{
+"at": 10,
+"id": "light_touch",
+"n": "Light Touch",
+"d": "Win flying a hull of 15 cells or fewer",
+"c": {
+"t": "cells",
+"max": 15
+}
+},
+{
+"at": 11,
+"id": "core_breach",
+"n": "Core Breach",
+"d": "Win by destroying every enemy reactor",
+"c": {
+"t": "reason",
+"v": "reactors"
+}
+},
+{
+"at": 12,
+"id": "sea_change",
+"n": "Sea Change",
+"d": "Win flying a hull you have never won with",
+"c": {
+"t": "newHull"
+}
+},
+{
+"at": 13,
+"id": "shield_wall",
+"n": "Shield Wall",
+"d": "Win with a shield generator fitted",
+"c": {
+"t": "has",
+"sub": "shield"
+}
+},
+{
+"at": 14,
+"id": "sparring",
+"n": "Sparring",
+"d": "Win five battles at your own tier",
+"c": {
+"t": "winsAtOwnTier",
+"n": 5
+}
+},
+{
+"at": 15,
+"id": "packed_tight",
+"n": "Packed Tight",
+"d": "Win with every cell on your hull filled",
+"c": {
+"t": "fullWin"
+}
+},
+{
+"at": 15,
+"id": "gate_t4",
+"n": "Heavy Commission",
+"d": "Beat a Tier 4 opponent flying a Tier 3 hull",
+"c": {
+"t": "step",
+"hull": 3,
+"opp": 4
+},
+"gate": 4
+},
+{
+"at": 16,
+"id": "beam_work",
+"n": "Beam Work",
+"d": "Win using laser weapons only",
+"c": {
+"t": "only",
+"dt": "laser"
+}
+},
+{
+"at": 17,
+"id": "naked",
+"n": "Naked Aggression",
+"d": "Win with no shields fitted",
+"c": {
+"t": "without",
+"sub": "shield"
+}
+},
+{
+"at": 18,
+"id": "interceptor",
+"n": "Interceptor",
+"d": "Win with a point-defence turret fitted",
+"c": {
+"t": "has",
+"sub": "pointdefense"
+}
+},
+{
+"at": 19,
+"id": "four_row",
+"n": "Four in a Row",
+"d": "Win four battles in a row",
+"c": {
+"t": "streak",
+"n": 4
+}
+},
+{
+"at": 20,
+"id": "field_repair",
+"n": "Field Repair",
+"d": "Win with a repair bay fitted",
+"c": {
+"t": "has",
+"sub": "repair"
+}
+},
+{
+"at": 21,
+"id": "hammer_time",
+"n": "Hammer Time",
+"d": "Win twice flying the Hammerhead",
+"c": {
+"t": "hullWins",
+"ship": "Hammerhead",
+"n": 2
+}
+},
+{
+"at": 22,
+"id": "rearmed",
+"n": "Rearmed",
+"d": "Win at the same tier with two different hulls",
+"c": {
+"t": "twoHulls"
+}
+},
+{
+"at": 23,
+"id": "salvo",
+"n": "Salvo",
+"d": "Win using missile weapons only",
+"c": {
+"t": "only",
+"dt": "missile"
+}
+},
+{
+"at": 24,
+"id": "three_ways",
+"n": "Three Ways",
+"d": "Save all three layouts on the same ship",
+"c": {
+"t": "layouts",
+"n": 3
+}
+},
+{
+"at": 25,
+"id": "minelayer",
+"n": "Minelayer",
+"d": "Win with a mine launcher fitted",
+"c": {
+"t": "has",
+"sub": "mine"
+}
+},
+{
+"at": 25,
+"id": "gate_t5",
+"n": "Capital Commission",
+"d": "Beat a Tier 5 opponent flying a Tier 4 hull",
+"c": {
+"t": "step",
+"hull": 4,
+"opp": 5
+},
+"gate": 5
+},
+{
+"at": 26,
+"id": "ten_up",
+"n": "Ten Up",
+"d": "Win ten battles in total",
+"c": {
+"t": "wins",
+"n": 10
+}
+},
+{
+"at": 27,
+"id": "disarmed",
+"n": "Disarmed",
+"d": "Win by destroying every enemy weapon",
+"c": {
+"t": "reason",
+"v": "disarmed"
+}
+},
+{
+"at": 28,
+"id": "heavy_hand",
+"n": "Heavy Hand",
+"d": "Win flying a hull of 80 cells or more",
+"c": {
+"t": "cells",
+"min": 80
+}
+},
+{
+"at": 29,
+"id": "layered",
+"n": "Layered",
+"d": "Win with armour, shields and point defence all fitted",
+"c": {
+"t": "hasAll",
+"subs": [
+"armor",
+"shield",
+"pointdefense"
+]
+}
+},
+{
+"at": 30,
+"id": "overkill",
+"n": "Overkill",
+"d": "Win without losing a single module",
+"c": {
+"t": "noLoss"
+}
+},
+{
+"at": 31,
+"id": "five_straight",
+"n": "Five Straight",
+"d": "Win five battles in a row",
+"c": {
+"t": "streak",
+"n": 5
+}
+},
+{
+"at": 32,
+"id": "junkyard",
+"n": "Junkyard",
+"d": "Win with a scrap launcher fitted",
+"c": {
+"t": "has",
+"sub": "junk"
+}
+},
+{
+"at": 33,
+"id": "fast_capital",
+"n": "Fast Capital",
+"d": "Win in under 30 seconds flying a Tier 3 hull",
+"c": {
+"t": "time",
+"max": 30,
+"hullTier": 3
+}
+},
+{
+"at": 34,
+"id": "full_deck",
+"n": "Full Deck",
+"d": "Fill every cell on a hull of 100 cells or more",
+"c": {
+"t": "fillCells",
+"min": 100
+}
+},
+{
+"at": 35,
+"id": "sixth_sense",
+"n": "Sixth Sense",
+"d": "Win six battles in a row",
+"c": {
+"t": "streak",
+"n": 6
+}
+},
+{
+"at": 36,
+"id": "veteran",
+"n": "Veteran",
+"d": "Win twenty battles in total",
+"c": {
+"t": "wins",
+"n": 20
+}
+},
+{
+"at": 36,
+"id": "gate_t6",
+"n": "Carrier Command",
+"d": "Beat a Tier 6 opponent flying a Tier 5 hull",
+"c": {
+"t": "step",
+"hull": 5,
+"opp": 6
+},
+"gate": 6
+},
+{
+"at": 37,
+"id": "warp_out",
+"n": "Warp Out",
+"d": "Win with a warp drive fitted",
+"c": {
+"t": "has",
+"sub": "warp"
+}
+},
+{
+"at": 38,
+"id": "gunline",
+"n": "Gunline",
+"d": "Win with ten or more weapons fitted",
+"c": {
+"t": "minWeapons",
+"n": 10
+}
+},
+{
+"at": 39,
+"id": "triple",
+"n": "Triple Threat",
+"d": "Win with ballistic, laser and missile all fitted",
+"c": {
+"t": "allTypes"
+}
+},
+{
+"at": 40,
+"id": "perfectionist",
+"n": "Perfectionist",
+"d": "Win eight battles in a row",
+"c": {
+"t": "streak",
+"n": 8
+}
+},
+{
+"at": 41,
+"id": "untouchable",
+"n": "Untouchable",
+"d": "Beat a Tier 7 opponent with 75% of your hull intact",
+"c": {
+"t": "health",
+"min": 0.75,
+"oppTier": 7
+}
+},
+{
+"at": 42,
+"id": "shipwright",
+"n": "Shipwright",
+"d": "Own every hull in one tier",
+"c": {
+"t": "ownTier"
+}
+},
+{
+"at": 43,
+"id": "turret_master",
+"n": "Turret Master",
+"d": "Win with three or more turrets fitted",
+"c": {
+"t": "minTurrets",
+"n": 3
+}
+},
+{
+"at": 44,
+"id": "dreadnought",
+"n": "Dreadnought",
+"d": "Fill every cell on a hull of 170 cells or more",
+"c": {
+"t": "fillCells",
+"min": 170
+}
+},
+{
+"at": 45,
+"id": "fleet_admiral",
+"n": "Fleet Admiral",
+"d": "Win fifty battles in total",
+"c": {
+"t": "wins",
+"n": 50
+}
+},
+{
+"at": 46,
+"id": "flawless",
+"n": "Flawless",
+"d": "Win ten battles at Tier 7 without losing one",
+"c": {
+"t": "streakAtTier",
+"n": 10,
+"oppTier": 7
+}
+},
+{
+"at": 46,
+"id": "gate_t7",
+"n": "Fleet Command",
+"d": "Beat a Tier 7 opponent flying a Tier 6 hull",
+"c": {
+"t": "step",
+"hull": 6,
+"opp": 7
+},
+"gate": 7
+},
+{
+"at": 47,
+"id": "grand_design",
+"n": "Grand Design",
+"d": "Win with a Grand Reactor fitted",
+"c": {
+"t": "hasModule",
+"m": "Reactor4x4"
+}
+},
+{
+"at": 48,
+"id": "ten_straight",
+"n": "Ten Straight",
+"d": "Win ten battles in a row",
+"c": {
+"t": "streak",
+"n": 10
+}
+},
+{
+"at": 49,
+"id": "last_word",
+"n": "Last Word",
+"d": "Beat a Tier 7 opponent without losing a single module",
+"c": {
+"t": "noLoss",
+"oppTier": 7
+}
+}
+]

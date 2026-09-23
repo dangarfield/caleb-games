@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Fleet Forge - Garfield Boys' Arcade</title>
+<!-- The design's type: Saira Condensed for labels, Barlow for body, IBM Plex
+     Mono for every numeral. Fetched from Google Fonts, which is the one network
+     call this game makes; every canvas font string falls back to a system face
+     so a failed load costs the look, not the game. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#05080B; overflow:hidden; touch-action:none;
+  font-family:'Segoe UI',system-ui,sans-serif; }
+canvas { display:block; width:100%; height:100%; }
+.hidden { display:none !important; }
+#backBtn { position:fixed; top:10px; left:18px; z-index:9999;
+  background:rgba(6,12,16,0.92); color:#DBE8EF; text-decoration:none;
+  padding:9px 16px 9px 13px; border-radius:19px;
+  font:600 13px/1.2 'Saira Condensed','Arial Narrow',system-ui,sans-serif;
+  letter-spacing:2px; text-transform:uppercase;
+  border:1px solid rgba(120,170,200,0.3);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  transition:background 0.2s; }
+#backBtn:hover { background:rgba(10,20,26,0.98); border-color:#38C5D8; }
+#boot { position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+  color:#38C5D8; font:600 15px/1 'IBM Plex Mono',ui-monospace,monospace; letter-spacing:0.22em; }
+</style>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+<canvas id="c"></canvas>
+
+<!-- Two themes, cross-faded. No controls, on purpose. preload="none" so nothing
+     is fetched until the first gesture, which is also the first moment either
+     could play. -->
+<audio id="music-hangar" src="audio/fleet-forge-hangar.webm" loop preload="none" aria-hidden="true"></audio>
+<audio id="music-battle" src="audio/fleet-forge-battle.webm" loop preload="none" aria-hidden="true"></audio>
+<div id="boot">LOADING FLEET DATA…</div>
+
+<script src="js/arcade-store.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/core.js"></script>
+<script src="js/data.js"></script>
+<script src="js/geom.js"></script>
+<script src="js/autofit.js"></script>
+<script src="js/shipview.js"></script>
+<script src="js/effects.js"></script>
+<script src="js/progress.js"></script>
+<script src="js/save.js"></script>
+<script src="js/opponents.js"></script>
+<script src="js/screens/home.js"></script>
+<script src="js/screens/fleet.js"></script>
+<script src="js/sim/modules.js"></script>
+<script src="js/sim/ai.js"></script>
+<script src="js/sim/sim.js"></script>
+<script src="js/screens/fitting.js"></script>
+<script src="js/screens/battle.js"></script>
+<script src="js/screens/result.js"></script>
+<script src="js/boot.js"></script>
+</body>
+</html>

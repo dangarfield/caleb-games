@@ -1,0 +1,1292 @@
+{
+ "version": 1,
+ "maxLevel": 50,
+ "tiers": [
+  {
+   "n": 1,
+   "name": "Fighter",
+   "lr": [
+    1,
+    3
+   ],
+   "fromLevel": 1,
+   "toLevel": 3
+  },
+  {
+   "n": 2,
+   "name": "Corvette",
+   "lr": [
+    4,
+    8
+   ],
+   "fromLevel": 4,
+   "toLevel": 8
+  },
+  {
+   "n": 3,
+   "name": "Frigate",
+   "lr": [
+    9,
+    15
+   ],
+   "fromLevel": 9,
+   "toLevel": 15
+  },
+  {
+   "n": 4,
+   "name": "Cruiser",
+   "lr": [
+    16,
+    25
+   ],
+   "fromLevel": 16,
+   "toLevel": 25
+  },
+  {
+   "n": 5,
+   "name": "Battleship",
+   "lr": [
+    26,
+    36
+   ],
+   "fromLevel": 26,
+   "toLevel": 36
+  },
+  {
+   "n": 6,
+   "name": "Carrier",
+   "lr": [
+    37,
+    46
+   ],
+   "fromLevel": 37,
+   "toLevel": 46
+  },
+  {
+   "n": 7,
+   "name": "Supercarrier",
+   "lr": [
+    47,
+    53
+   ],
+   "fromLevel": 47,
+   "toLevel": 50
+  }
+ ],
+ "levels": [
+  {
+   "level": 1,
+   "tier": 1,
+   "ships": [
+    "Small_Fighter"
+   ],
+   "modules": [
+    "Ballistic1x1",
+    "Engine1x1",
+    "Reactor1x1",
+    "Armor1x1"
+   ]
+  },
+  {
+   "level": 1,
+   "tier": 1,
+   "ships": [
+    "Small_Fighter"
+   ],
+   "modules": [
+    "Ballistic1x1",
+    "Engine1x1",
+    "Reactor1x1",
+    "Armor1x1",
+    "Ballistic1x2"
+   ]
+  },
+  {
+   "level": 2,
+   "tier": 1,
+   "ships": [
+    "Heavy_Fighter"
+   ],
+   "modules": [
+    "RocketLauncher1x2"
+   ]
+  },
+  {
+   "level": 3,
+   "tier": 1,
+   "ships": [
+    "Lightning"
+   ],
+   "modules": [
+    "ShieldGenerator1x1",
+    "Laser1x1"
+   ]
+  },
+  {
+   "level": 4,
+   "tier": 2,
+   "ships": [
+    "Wing",
+    "Corvette"
+   ],
+   "modules": []
+  },
+  {
+   "level": 5,
+   "tier": 2,
+   "ships": [
+    "Viper"
+   ],
+   "modules": [
+    "Laser1x2",
+    "WarpEngine1x2"
+   ]
+  },
+  {
+   "level": 6,
+   "tier": 2,
+   "ships": [
+    "Dart"
+   ],
+   "modules": []
+  },
+  {
+   "level": 7,
+   "tier": 2,
+   "ships": [
+    "Raven"
+   ],
+   "modules": [
+    "SolarArmor1x1",
+    "EngineVectored2x1"
+   ]
+  },
+  {
+   "level": 8,
+   "tier": 2,
+   "ships": [
+    "Ironwing"
+   ],
+   "modules": [
+    "Reactor2x2",
+    "BallisticTurret2x2"
+   ]
+  },
+  {
+   "level": 9,
+   "tier": 3,
+   "ships": [
+    "Valkyrie"
+   ],
+   "modules": [
+    "AfterBurner1x2",
+    "Armor2x2",
+    "RocketTurret2x2"
+   ]
+  },
+  {
+   "level": 10,
+   "tier": 3,
+   "ships": [
+    "Scythe"
+   ],
+   "modules": [
+    "ScrapLauncher2x3",
+    "Engine2x2"
+   ]
+  },
+  {
+   "level": 11,
+   "tier": 3,
+   "ships": [],
+   "modules": [
+    "Ballistic1x3",
+    "PointDefense2x2"
+   ]
+  },
+  {
+   "level": 12,
+   "tier": 3,
+   "ships": [
+    "Rapier"
+   ],
+   "modules": [
+    "LaserTurret2x2"
+   ]
+  },
+  {
+   "level": 13,
+   "tier": 3,
+   "ships": [
+    "Arrow"
+   ],
+   "modules": [
+    "RocketLauncher1x3",
+    "ArmoredReactor2x2",
+    "SolarArmor2x2"
+   ]
+  },
+  {
+   "level": 14,
+   "tier": 3,
+   "ships": [],
+   "modules": [
+    "HardShieldGene1x1",
+    "MineLauncher3x2"
+   ]
+  },
+  {
+   "level": 15,
+   "tier": 3,
+   "ships": [
+    "Hammerhead"
+   ],
+   "modules": [
+    "RepairBay3x2"
+   ]
+  },
+  {
+   "level": 16,
+   "tier": 4,
+   "ships": [
+    "Morningstar"
+   ],
+   "modules": [
+    "ShieldGenerator1x2",
+    "PiercingBallistic1x4"
+   ]
+  },
+  {
+   "level": 17,
+   "tier": 4,
+   "ships": [],
+   "modules": [
+    "Shotgun2x3"
+   ]
+  },
+  {
+   "level": 18,
+   "tier": 4,
+   "ships": [
+    "Starbridge",
+    "Falcon"
+   ],
+   "modules": [
+    "ReactiveArmor1x1",
+    "Reactor3x3"
+   ]
+  },
+  {
+   "level": 19,
+   "tier": 4,
+   "ships": [],
+   "modules": [
+    "FusionRay1x3"
+   ]
+  },
+  {
+   "level": 20,
+   "tier": 4,
+   "ships": [
+    "Broadsword"
+   ],
+   "modules": [
+    "TorpedoLauncher1x4",
+    "Armor3x3"
+   ]
+  },
+  {
+   "level": 21,
+   "tier": 4,
+   "ships": [
+    "Javelin"
+   ],
+   "modules": [
+    "Ballistic2x3"
+   ]
+  },
+  {
+   "level": 22,
+   "tier": 4,
+   "ships": [
+    "Wanderer"
+   ],
+   "modules": [
+    "SolarArmor3x3"
+   ]
+  },
+  {
+   "level": 23,
+   "tier": 4,
+   "ships": [],
+   "modules": [
+    "MissileBattery4x2",
+    "ArmoredReactor3x3"
+   ]
+  },
+  {
+   "level": 24,
+   "tier": 4,
+   "ships": [
+    "Hawk"
+   ],
+   "modules": [
+    "ShieldGenerator2x2"
+   ]
+  },
+  {
+   "level": 25,
+   "tier": 4,
+   "ships": [],
+   "modules": [
+    "PulseLaser2x3"
+   ]
+  },
+  {
+   "level": 26,
+   "tier": 5,
+   "ships": [
+    "Warrior"
+   ],
+   "modules": [
+    "ReactiveArmor2x2",
+    "Engine2x3"
+   ]
+  },
+  {
+   "level": 27,
+   "tier": 5,
+   "ships": [
+    "Charger"
+   ],
+   "modules": [
+    "BallisticTurret3x3"
+   ]
+  },
+  {
+   "level": 28,
+   "tier": 5,
+   "ships": [
+    "Therion"
+   ],
+   "modules": []
+  },
+  {
+   "level": 29,
+   "tier": 5,
+   "ships": [],
+   "modules": [
+    "RocketLauncher2x3"
+   ]
+  },
+  {
+   "level": 30,
+   "tier": 5,
+   "ships": [
+    "StarDestroyer",
+    "Wraith"
+   ],
+   "modules": [
+    "RocketLauncher1x4"
+   ]
+  },
+  {
+   "level": 31,
+   "tier": 5,
+   "ships": [],
+   "modules": [
+    "Laser2x4"
+   ]
+  },
+  {
+   "level": 32,
+   "tier": 5,
+   "ships": [
+    "Cerberos"
+   ],
+   "modules": []
+  },
+  {
+   "level": 33,
+   "tier": 5,
+   "ships": [
+    "Myrmidon"
+   ],
+   "modules": [
+    "Ballistic1x5"
+   ]
+  },
+  {
+   "level": 34,
+   "tier": 5,
+   "ships": [],
+   "modules": [
+    "RocketFlakTurret3x3"
+   ]
+  },
+  {
+   "level": 35,
+   "tier": 5,
+   "ships": [
+    "Phantom"
+   ],
+   "modules": []
+  },
+  {
+   "level": 36,
+   "tier": 5,
+   "ships": [],
+   "modules": [
+    "FusionTurret3x3"
+   ]
+  },
+  {
+   "level": 37,
+   "tier": 6,
+   "ships": [
+    "Baron"
+   ],
+   "modules": []
+  },
+  {
+   "level": 38,
+   "tier": 6,
+   "ships": [],
+   "modules": [
+    "ReactiveArmor3x3"
+   ]
+  },
+  {
+   "level": 39,
+   "tier": 6,
+   "ships": [
+    "Crusader"
+   ],
+   "modules": [
+    "PiercingBallisticTurret3x3"
+   ]
+  },
+  {
+   "level": 40,
+   "tier": 6,
+   "ships": [
+    "Captain"
+   ],
+   "modules": []
+  },
+  {
+   "level": 41,
+   "tier": 6,
+   "ships": [],
+   "modules": [
+    "TorpedoLauncher2x4"
+   ]
+  },
+  {
+   "level": 42,
+   "tier": 6,
+   "ships": [
+    "Duke"
+   ],
+   "modules": []
+  },
+  {
+   "level": 43,
+   "tier": 6,
+   "ships": [],
+   "modules": [
+    "Ballistic2x4",
+    "Reactor4x4"
+   ]
+  },
+  {
+   "level": 44,
+   "tier": 6,
+   "ships": [
+    "Sleipnir"
+   ],
+   "modules": []
+  },
+  {
+   "level": 45,
+   "tier": 6,
+   "ships": [
+    "Eidolon"
+   ],
+   "modules": []
+  },
+  {
+   "level": 46,
+   "tier": 6,
+   "ships": [],
+   "modules": [
+    "Shotgun3x4"
+   ]
+  },
+  {
+   "level": 47,
+   "tier": 7,
+   "ships": [
+    "Thane"
+   ],
+   "modules": [
+    "RocketTurret3x4"
+   ]
+  },
+  {
+   "level": 48,
+   "tier": 7,
+   "ships": [
+    "Arbiter"
+   ],
+   "modules": []
+  },
+  {
+   "level": 49,
+   "tier": 7,
+   "ships": [
+    "Mjollnir"
+   ],
+   "modules": []
+  },
+  {
+   "level": 50,
+   "tier": 7,
+   "ships": [
+    "Revenant",
+    "Vindicator"
+   ],
+   "modules": [
+    "Ballistic2x7"
+   ]
+  }
+ ],
+ "shipLevel": {
+  "Small_Fighter": 1,
+  "Heavy_Fighter": 2,
+  "Lightning": 3,
+  "Wing": 4,
+  "Corvette": 4,
+  "Viper": 5,
+  "Dart": 6,
+  "Raven": 7,
+  "Ironwing": 8,
+  "Valkyrie": 9,
+  "Scythe": 10,
+  "Rapier": 12,
+  "Arrow": 13,
+  "Hammerhead": 15,
+  "Morningstar": 16,
+  "Starbridge": 18,
+  "Falcon": 18,
+  "Broadsword": 20,
+  "Javelin": 21,
+  "Wanderer": 22,
+  "Hawk": 24,
+  "Warrior": 26,
+  "Charger": 27,
+  "Therion": 28,
+  "StarDestroyer": 30,
+  "Wraith": 30,
+  "Cerberos": 32,
+  "Myrmidon": 33,
+  "Phantom": 35,
+  "Baron": 37,
+  "Crusader": 39,
+  "Captain": 40,
+  "Duke": 42,
+  "Sleipnir": 44,
+  "Eidolon": 45,
+  "Thane": 47,
+  "Arbiter": 48,
+  "Mjollnir": 49,
+  "Revenant": 50,
+  "Vindicator": 50
+ },
+ "moduleLevel": {
+  "Ballistic1x1": 1,
+  "Engine1x1": 1,
+  "Reactor1x1": 1,
+  "Armor1x1": 1,
+  "Ballistic1x2": 1,
+  "RocketLauncher1x2": 2,
+  "ShieldGenerator1x1": 3,
+  "Laser1x1": 3,
+  "Laser1x2": 5,
+  "WarpEngine1x2": 5,
+  "SolarArmor1x1": 7,
+  "EngineVectored2x1": 7,
+  "Reactor2x2": 8,
+  "BallisticTurret2x2": 8,
+  "AfterBurner1x2": 9,
+  "Armor2x2": 9,
+  "RocketTurret2x2": 9,
+  "ScrapLauncher2x3": 10,
+  "Engine2x2": 10,
+  "Ballistic1x3": 11,
+  "PointDefense2x2": 11,
+  "LaserTurret2x2": 12,
+  "RocketLauncher1x3": 13,
+  "ArmoredReactor2x2": 13,
+  "SolarArmor2x2": 13,
+  "HardShieldGene1x1": 14,
+  "MineLauncher3x2": 14,
+  "RepairBay3x2": 15,
+  "ShieldGenerator1x2": 16,
+  "PiercingBallistic1x4": 16,
+  "Shotgun2x3": 17,
+  "ReactiveArmor1x1": 18,
+  "Reactor3x3": 18,
+  "FusionRay1x3": 19,
+  "TorpedoLauncher1x4": 20,
+  "Armor3x3": 20,
+  "Ballistic2x3": 21,
+  "SolarArmor3x3": 22,
+  "MissileBattery4x2": 23,
+  "ArmoredReactor3x3": 23,
+  "ShieldGenerator2x2": 24,
+  "PulseLaser2x3": 25,
+  "ReactiveArmor2x2": 26,
+  "Engine2x3": 26,
+  "BallisticTurret3x3": 27,
+  "RocketLauncher2x3": 29,
+  "RocketLauncher1x4": 30,
+  "Laser2x4": 31,
+  "Ballistic1x5": 33,
+  "RocketFlakTurret3x3": 34,
+  "FusionTurret3x3": 36,
+  "ReactiveArmor3x3": 38,
+  "PiercingBallisticTurret3x3": 39,
+  "TorpedoLauncher2x4": 41,
+  "Ballistic2x4": 43,
+  "Reactor4x4": 43,
+  "Shotgun3x4": 46,
+  "RocketTurret3x4": 47,
+  "Ballistic2x7": 50
+ },
+ "operations": [
+  {
+   "id": "first_blood",
+   "name": "First Blood",
+   "desc": "Win your first battle",
+   "at": 1,
+   "gate": 0,
+   "cond": {
+    "t": "wins",
+    "n": 1
+   }
+  },
+  {
+   "id": "shakedown",
+   "name": "Shakedown",
+   "desc": "Fill every cell on a hull",
+   "at": 1,
+   "gate": 0,
+   "cond": {
+    "t": "fillCells"
+   }
+  },
+  {
+   "id": "double_tap",
+   "name": "Double Tap",
+   "desc": "Win two battles in a row",
+   "at": 2,
+   "gate": 0,
+   "cond": {
+    "t": "streak",
+    "n": 2
+   }
+  },
+  {
+   "id": "broadside",
+   "name": "Broadside",
+   "desc": "Win with four or more weapons fitted",
+   "at": 3,
+   "gate": 0,
+   "cond": {
+    "t": "minWeapons",
+    "n": 4
+   }
+  },
+  {
+   "id": "gate_t2",
+   "name": "Field Promotion",
+   "desc": "Beat a Tier 2 opponent flying a Tier 1 hull",
+   "at": 3,
+   "gate": 2,
+   "cond": {
+    "t": "step",
+    "hull": 1,
+    "opp": 2
+   }
+  },
+  {
+   "id": "untouched",
+   "name": "Untouched",
+   "desc": "Win with 90% of your hull intact",
+   "at": 4,
+   "gate": 0,
+   "cond": {
+    "t": "health",
+    "min": 0.9
+   }
+  },
+  {
+   "id": "solid_shot",
+   "name": "Solid Shot",
+   "desc": "Win using ballistic weapons only",
+   "at": 5,
+   "gate": 0,
+   "cond": {
+    "t": "only",
+    "dt": "ballistic"
+   }
+  },
+  {
+   "id": "quick_work",
+   "name": "Quick Work",
+   "desc": "Win a battle in under 20 seconds",
+   "at": 6,
+   "gate": 0,
+   "cond": {
+    "t": "time",
+    "max": 20
+   }
+  },
+  {
+   "id": "second_op",
+   "name": "Second Opinion",
+   "desc": "Save two layouts on the same ship",
+   "at": 7,
+   "gate": 0,
+   "cond": {
+    "t": "layouts",
+    "n": 2
+   }
+  },
+  {
+   "id": "hat_trick",
+   "name": "Hat Trick",
+   "desc": "Win three battles in a row",
+   "at": 8,
+   "gate": 0,
+   "cond": {
+    "t": "streak",
+    "n": 3
+   }
+  },
+  {
+   "id": "gate_t3",
+   "name": "Line Commission",
+   "desc": "Beat a Tier 3 opponent flying a Tier 2 hull",
+   "at": 8,
+   "gate": 3,
+   "cond": {
+    "t": "step",
+    "hull": 2,
+    "opp": 3
+   }
+  },
+  {
+   "id": "power_surplus",
+   "name": "Power Surplus",
+   "desc": "Win with three or more reactors fitted",
+   "at": 9,
+   "gate": 0,
+   "cond": {
+    "t": "minReactors",
+    "n": 3
+   }
+  },
+  {
+   "id": "light_touch",
+   "name": "Light Touch",
+   "desc": "Win flying a hull of 15 cells or fewer",
+   "at": 10,
+   "gate": 0,
+   "cond": {
+    "t": "cells",
+    "max": 15
+   }
+  },
+  {
+   "id": "core_breach",
+   "name": "Core Breach",
+   "desc": "Win by destroying every enemy reactor",
+   "at": 11,
+   "gate": 0,
+   "cond": {
+    "t": "reason",
+    "v": "reactors"
+   }
+  },
+  {
+   "id": "sea_change",
+   "name": "Sea Change",
+   "desc": "Win flying a hull you have never won with",
+   "at": 12,
+   "gate": 0,
+   "cond": {
+    "t": "newHull"
+   }
+  },
+  {
+   "id": "shield_wall",
+   "name": "Shield Wall",
+   "desc": "Win with a shield generator fitted",
+   "at": 13,
+   "gate": 0,
+   "cond": {
+    "t": "has",
+    "sub": "shield"
+   }
+  },
+  {
+   "id": "sparring",
+   "name": "Sparring",
+   "desc": "Win five battles at your own tier",
+   "at": 14,
+   "gate": 0,
+   "cond": {
+    "t": "winsAtOwnTier",
+    "n": 5
+   }
+  },
+  {
+   "id": "packed_tight",
+   "name": "Packed Tight",
+   "desc": "Win with every cell on your hull filled",
+   "at": 15,
+   "gate": 0,
+   "cond": {
+    "t": "fullWin"
+   }
+  },
+  {
+   "id": "gate_t4",
+   "name": "Heavy Commission",
+   "desc": "Beat a Tier 4 opponent flying a Tier 3 hull",
+   "at": 15,
+   "gate": 4,
+   "cond": {
+    "t": "step",
+    "hull": 3,
+    "opp": 4
+   }
+  },
+  {
+   "id": "beam_work",
+   "name": "Beam Work",
+   "desc": "Win using laser weapons only",
+   "at": 16,
+   "gate": 0,
+   "cond": {
+    "t": "only",
+    "dt": "laser"
+   }
+  },
+  {
+   "id": "naked",
+   "name": "Naked Aggression",
+   "desc": "Win with no shields fitted",
+   "at": 17,
+   "gate": 0,
+   "cond": {
+    "t": "without",
+    "sub": "shield"
+   }
+  },
+  {
+   "id": "interceptor",
+   "name": "Interceptor",
+   "desc": "Win with a point-defence turret fitted",
+   "at": 18,
+   "gate": 0,
+   "cond": {
+    "t": "has",
+    "sub": "pointdefense"
+   }
+  },
+  {
+   "id": "four_row",
+   "name": "Four in a Row",
+   "desc": "Win four battles in a row",
+   "at": 19,
+   "gate": 0,
+   "cond": {
+    "t": "streak",
+    "n": 4
+   }
+  },
+  {
+   "id": "field_repair",
+   "name": "Field Repair",
+   "desc": "Win with a repair bay fitted",
+   "at": 20,
+   "gate": 0,
+   "cond": {
+    "t": "has",
+    "sub": "repair"
+   }
+  },
+  {
+   "id": "hammer_time",
+   "name": "Hammer Time",
+   "desc": "Win twice flying the Hammerhead",
+   "at": 21,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Hammerhead",
+    "n": 2
+   }
+  },
+  {
+   "id": "rearmed",
+   "name": "Rearmed",
+   "desc": "Win at the same tier with two different hulls",
+   "at": 22,
+   "gate": 0,
+   "cond": {
+    "t": "twoHulls"
+   }
+  },
+  {
+   "id": "salvo",
+   "name": "Salvo",
+   "desc": "Win using missile weapons only",
+   "at": 23,
+   "gate": 0,
+   "cond": {
+    "t": "only",
+    "dt": "missile"
+   }
+  },
+  {
+   "id": "three_ways",
+   "name": "Three Ways",
+   "desc": "Save all three layouts on the same ship",
+   "at": 24,
+   "gate": 0,
+   "cond": {
+    "t": "layouts",
+    "n": 3
+   }
+  },
+  {
+   "id": "minelayer",
+   "name": "Minelayer",
+   "desc": "Win with a mine launcher fitted",
+   "at": 25,
+   "gate": 0,
+   "cond": {
+    "t": "has",
+    "sub": "mine"
+   }
+  },
+  {
+   "id": "gate_t5",
+   "name": "Capital Commission",
+   "desc": "Beat a Tier 5 opponent flying a Tier 4 hull",
+   "at": 25,
+   "gate": 5,
+   "cond": {
+    "t": "step",
+    "hull": 4,
+    "opp": 5
+   }
+  },
+  {
+   "id": "ten_up",
+   "name": "Ten Up",
+   "desc": "Win ten battles in total",
+   "at": 26,
+   "gate": 0,
+   "cond": {
+    "t": "wins",
+    "n": 10
+   }
+  },
+  {
+   "id": "disarmed",
+   "name": "Disarmed",
+   "desc": "Win by destroying every enemy weapon",
+   "at": 27,
+   "gate": 0,
+   "cond": {
+    "t": "reason",
+    "v": "disarmed"
+   }
+  },
+  {
+   "id": "heavy_hand",
+   "name": "Heavy Hand",
+   "desc": "Win flying a hull of 80 cells or more",
+   "at": 28,
+   "gate": 0,
+   "cond": {
+    "t": "cells",
+    "min": 80
+   }
+  },
+  {
+   "id": "layered",
+   "name": "Layered",
+   "desc": "Win with armour, shields and point defence all fitted",
+   "at": 29,
+   "gate": 0,
+   "cond": {
+    "t": "hasAll",
+    "subs": [
+     "armor",
+     "shield",
+     "pointdefense"
+    ]
+   }
+  },
+  {
+   "id": "overkill",
+   "name": "Overkill",
+   "desc": "Win without losing a single module",
+   "at": 30,
+   "gate": 0,
+   "cond": {
+    "t": "noLoss"
+   }
+  },
+  {
+   "id": "five_straight",
+   "name": "Five Straight",
+   "desc": "Win five battles in a row",
+   "at": 31,
+   "gate": 0,
+   "cond": {
+    "t": "streak",
+    "n": 5
+   }
+  },
+  {
+   "id": "junkyard",
+   "name": "Junkyard",
+   "desc": "Win with a scrap launcher fitted",
+   "at": 32,
+   "gate": 0,
+   "cond": {
+    "t": "has",
+    "sub": "junk"
+   }
+  },
+  {
+   "id": "fast_capital",
+   "name": "Fast Capital",
+   "desc": "Win in under 30 seconds flying a Tier 3 hull",
+   "at": 33,
+   "gate": 0,
+   "cond": {
+    "t": "time",
+    "max": 30,
+    "hullTier": 3
+   }
+  },
+  {
+   "id": "full_deck",
+   "name": "Full Deck",
+   "desc": "Fill every cell on a hull of 100 cells or more",
+   "at": 34,
+   "gate": 0,
+   "cond": {
+    "t": "fillCells",
+    "min": 100
+   }
+  },
+  {
+   "id": "sixth_sense",
+   "name": "Sixth Sense",
+   "desc": "Win six battles in a row",
+   "at": 35,
+   "gate": 0,
+   "cond": {
+    "t": "streak",
+    "n": 6
+   }
+  },
+  {
+   "id": "veteran",
+   "name": "Veteran",
+   "desc": "Win twenty battles in total",
+   "at": 36,
+   "gate": 0,
+   "cond": {
+    "t": "wins",
+    "n": 20
+   }
+  },
+  {
+   "id": "gate_t6",
+   "name": "Carrier Command",
+   "desc": "Beat a Tier 6 opponent flying a Tier 5 hull",
+   "at": 36,
+   "gate": 6,
+   "cond": {
+    "t": "step",
+    "hull": 5,
+    "opp": 6
+   }
+  },
+  {
+   "id": "warp_out",
+   "name": "Warp Out",
+   "desc": "Win with a warp drive fitted",
+   "at": 37,
+   "gate": 0,
+   "cond": {
+    "t": "has",
+    "sub": "warp"
+   }
+  },
+  {
+   "id": "gunline",
+   "name": "Gunline",
+   "desc": "Win with ten or more weapons fitted",
+   "at": 38,
+   "gate": 0,
+   "cond": {
+    "t": "minWeapons",
+    "n": 10
+   }
+  },
+  {
+   "id": "triple",
+   "name": "Triple Threat",
+   "desc": "Win with ballistic, laser and missile all fitted",
+   "at": 39,
+   "gate": 0,
+   "cond": {
+    "t": "allTypes"
+   }
+  },
+  {
+   "id": "perfectionist",
+   "name": "Perfectionist",
+   "desc": "Win eight battles in a row",
+   "at": 40,
+   "gate": 0,
+   "cond": {
+    "t": "streak",
+    "n": 8
+   }
+  },
+  {
+   "id": "untouchable",
+   "name": "Untouchable",
+   "desc": "Beat a Tier 7 opponent with 75% of your hull intact",
+   "at": 41,
+   "gate": 0,
+   "cond": {
+    "t": "health",
+    "min": 0.75,
+    "oppTier": 7
+   }
+  },
+  {
+   "id": "shipwright",
+   "name": "Shipwright",
+   "desc": "Own every hull in one tier",
+   "at": 42,
+   "gate": 0,
+   "cond": {
+    "t": "ownTier"
+   }
+  },
+  {
+   "id": "turret_master",
+   "name": "Turret Master",
+   "desc": "Win with three or more turrets fitted",
+   "at": 43,
+   "gate": 0,
+   "cond": {
+    "t": "minTurrets",
+    "n": 3
+   }
+  },
+  {
+   "id": "dreadnought",
+   "name": "Dreadnought",
+   "desc": "Fill every cell on a hull of 170 cells or more",
+   "at": 44,
+   "gate": 0,
+   "cond": {
+    "t": "fillCells",
+    "min": 170
+   }
+  },
+  {
+   "id": "fleet_admiral",
+   "name": "Fleet Admiral",
+   "desc": "Win fifty battles in total",
+   "at": 45,
+   "gate": 0,
+   "cond": {
+    "t": "wins",
+    "n": 50
+   }
+  },
+  {
+   "id": "flawless",
+   "name": "Flawless",
+   "desc": "Win ten battles at Tier 7 without losing one",
+   "at": 46,
+   "gate": 0,
+   "cond": {
+    "t": "streakAtTier",
+    "n": 10,
+    "oppTier": 7
+   }
+  },
+  {
+   "id": "gate_t7",
+   "name": "Fleet Command",
+   "desc": "Beat a Tier 7 opponent flying a Tier 6 hull",
+   "at": 46,
+   "gate": 7,
+   "cond": {
+    "t": "step",
+    "hull": 6,
+    "opp": 7
+   }
+  },
+  {
+   "id": "grand_design",
+   "name": "Grand Design",
+   "desc": "Win with a Grand Reactor fitted",
+   "at": 47,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "Reactor4x4"
+   }
+  },
+  {
+   "id": "ten_straight",
+   "name": "Ten Straight",
+   "desc": "Win ten battles in a row",
+   "at": 48,
+   "gate": 0,
+   "cond": {
+    "t": "streak",
+    "n": 10
+   }
+  },
+  {
+   "id": "last_word",
+   "name": "Last Word",
+   "desc": "Beat a Tier 7 opponent without losing a single module",
+   "at": 49,
+   "gate": 0,
+   "cond": {
+    "t": "noLoss",
+    "oppTier": 7
+   }
+  }
+ ]
+}

@@ -304,3 +304,14 @@ games/mmm-leaves/
   Rerun with `node research/sim.js fast` or `node research/sim.js hit`.
 - 2026-09-22 — Home-page card moved to the end of the grid in the root
   index.html; wild circle's question mark settled at 1.5px below centre. Card icon changed from the fallen-leaf emoji to the caterpillar (U+1F41B) — not used by any other card.
+- 2026-09-22 — Root cause of the two-tap music found, and it was in the steering
+  file, not this game. `knowledge/audio-patterns.md` prescribed arming the start
+  handler on `['pointerdown','touchstart','keydown']` and calling `el.load()`
+  before `el.play()`. Neither pointerdown (on a touch pointer) nor touchstart
+  grants user activation, so on a tablet the first tap is refused; the tap that
+  completes leaves the page with sticky activation, so the second tap works. It
+  never reproduces on a desktop mouse, which is why it survived. The recipe in
+  that file is fixed — wider event list, no `load()`, stay armed until the
+  element is genuinely playing, and a note never to test autoplay with the
+  autoplay policy disabled. `games/dragonseed/js/game.js` still carries the old
+  copy of the recipe and has the same bug.

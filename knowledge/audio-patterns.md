@@ -53,16 +53,12 @@ resumes a suspended context.
 
 ## Theme music (when there IS an audio file)
 
-The SFX above are generated, so most games ship no audio assets at all. A game
-with a **theme tune** is the exception: the user hands over an mp3 and it has to
-be encoded, wired in, and — this is the part that is easy to get wrong — kept
-quiet and kept out of the way.
+The SFX above are generated, so most games ship no audio assets. A game with a
+**theme tune** is the exception: encode it, wire it in, and keep it quiet.
 
 ### Encoding
 
-Encode the supplied mp3 to **Opus in WebM, 48k VBR**, and take **6dB off it** on
-the way through. Strip any embedded cover art (`-vn`); a JPEG welded inside an
-mp3 is pure weight.
+Opus in WebM, 48k VBR, **6dB off on the way through**, cover art stripped:
 
 ```sh
 ffmpeg -i theme.mp3 -vn -map 0:a:0 -af "volume=-6dB" \
@@ -70,16 +66,12 @@ ffmpeg -i theme.mp3 -vn -map 0:a:0 -af "volume=-6dB" \
        audio/<name>-theme.webm
 ```
 
-Typical result: a 2-minute 192k mp3 goes from ~3MB to ~930KB.
+A 2-minute 192k mp3 lands around 930KB.
 
-**Make the file quiet, not the player.** Background music mixed at full level and
-then turned down in JavaScript is one `volume` line away from being deafening.
-Encoding it 6dB down means the file is already background level wherever it ends
-up, and there is no magic number to lose.
-
-**One file, not two.** The only thing that cannot read WebM is Safari before 16.
-Carrying a second AAC copy of the whole track for it would undo most of what the
-encode just saved, and the point of the exercise is space. Ship the WebM.
+**Make the file quiet, not the player.** Music mixed at full level and turned
+down in JS is one `volume` line away from being deafening; encoded 6dB down it is
+background level wherever it ends up. **One encode only** — the only thing that
+cannot read WebM is Safari before 16, and a second AAC copy undoes the saving.
 
 ### Wiring
 
@@ -91,28 +83,25 @@ encode just saved, and the point of the exercise is space. Ship the WebM.
 ```
 
 ```js
-/* Nothing loads and nothing plays until the first pointer, touch or key event
-   anywhere on the document. Browsers refuse audio until the page has been
-   interacted with, so that gesture is the earliest it could start anyway — and
-   a tune that begins before anybody has touched anything is startling. */
 function music() {
   const el = document.getElementById('theme');
   if (!el) return;
   const LEVEL = 0.5;                      // on top of the 6dB off the file
-  const EVENTS = ['pointerdown', 'touchstart', 'keydown'];
+  // pointerdown and touchstart do NOT grant user activation on a touch screen —
+  // only pointerup, touchend, click and keydown do. See the rules below.
+  const EVENTS = ['pointerdown', 'pointerup', 'click', 'touchend', 'keydown'];
   let playing = false;
 
   const arm    = () => EVENTS.forEach(e => document.addEventListener(e, start, true));
   const disarm = () => EVENTS.forEach(e => document.removeEventListener(e, start, true));
 
   function start() {
-    disarm();
+    if (playing) return;                  // stay armed until it is really playing
     el.volume = LEVEL;
     let p;
-    try { el.load(); p = el.play(); } catch (e) { arm(); return; }
-    // refused: the browser wanted a different gesture. Wait for the next one.
-    if (p && p.then) p.then(() => { playing = true; }, arm);
-    else playing = true;
+    try { p = el.play(); } catch (e) { return; }   // no el.load(): it aborts the play
+    if (p && p.then) p.then(() => { playing = true; disarm(); }, () => {});
+    else { playing = true; disarm(); }
   }
 
   document.addEventListener('visibilitychange', () => {
@@ -127,18 +116,24 @@ function music() {
 
 ### Rules
 
-- **No mute button, no volume slider, no "music: on" in a settings panel.** One
-  tune, quiet, looping. The tab being in front of you is the only control.
-- **No fade-in.** The file is already at background level, so a ramp is a ramp
-  for its own sake. (A fade is worth it only if the track opens loud, and the
-  right fix for that is a better encode.)
-- **`loop` on the element**, not an `ended` handler. The browser wraps cleanly.
-- **Pause on `visibilitychange`.** Track it with your own `playing` flag, not
-  `el.paused` — once you have paused it for a hidden tab those two say the same
-  thing, and reading `el.paused` leaves the music off for good.
-- **One encode only.** No fallback source, no mp3 alongside it.
-- **Test that nothing is fetched before the gesture.** Listen on `page.on('request')`
-  in Playwright and assert the audio URL is absent until after the first click.
+- **Arm on the events that grant activation, and stay armed until it plays.**
+  `pointerdown` counts only for a mouse and `touchstart` never counts, so a
+  handler on those two alone is refused on the first tap of a touch screen and
+  succeeds on the second — the tap that completes leaves the page with sticky
+  activation. That is the "music needs two taps" bug, and it does not show up on
+  a desktop mouse.
+- **Never `el.load()` before `el.play()`.** The load aborts the play that follows
+  it and the promise rejects.
+- **No mute button, no volume slider, no "music: on" setting.** One tune, quiet,
+  looping. The tab being in front of you is the only control.
+- **No fade-in.** The file is already at background level. If the track opens
+  loud, fix the encode.
+- **`loop` on the element**, not an `ended` handler.
+- **Pause on `visibilitychange`**, tracked with your own `playing` flag — reading
+  `el.paused` leaves the music off for good once you have paused it.
+- **Test it with the real autoplay policy.** Never launch the browser with
+  `--autoplay-policy=no-user-gesture-required`; that switches off the exact thing
+  under test. Assert two things: no request for the audio URL before the first
+  click, and `el.paused === false` after exactly one.
 
-See `games/dragonseed/` for a worked example (`js/game.js` → `music()`,
-`tests/musictest.mjs`).
+See `games/mmm-leaves/js/audio.js` for a worked example.

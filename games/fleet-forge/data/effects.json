@@ -1,0 +1,325 @@
+{
+ "_readme": "Effect art mapping, carried over from the old Phaser build's src/config/visual-effects.json. Paths are RELATIVE \u2014 the arcade serves this game from /games/fleet-forge/ so the old root-absolute '/images/...' 404s. `scale` is world units per source pixel: a 76px-tall ballistic sprite at 0.015 draws 1.14 units long, which is the size the battle camera expects. `rotationOffset` is added to the projectile's travel angle because every projectile sprite is drawn nose-up. Sheet layouts were re-measured against the actual PNGs, not trusted from the old loader. Sections dropped from the old config and why: `laser` (colours, not art \u2014 beams are one batched stroke and the arcade palette owns their colour), `point_defense` (same), `effects.warp` / `effects.shield_hit` (colours and durations for procedural rings that already exist), `effects.missile_trail` (a Phaser particle-emitter spec; per-missile smoke would swamp a 240-slot pool, so smoke plays on explosions instead), `modules` (ring colours owned by theme.js), the `pellets` / `maxLifetime` keys (the sim owns spread and lifetime), and the `reactor` explosion scale (a reactor going critical raises no event of its own \u2014 it is a `destroy` like any other module). `explosions.ship` is new: the old config had no size for a whole ship dying.",
+ "projectiles": {
+  "ballistic": {
+   "default": {
+    "sprite": "images/effects/ballistic-01.png",
+    "scale": 0.015,
+    "rotationOffset": 1.5708
+   },
+   "Ballistic1x1": {
+    "sprite": "images/effects/ballistic-01.png",
+    "scale": 0.012,
+    "rotationOffset": 1.5708
+   },
+   "Ballistic1x1_2": {
+    "sprite": "images/effects/ballistic-01.png",
+    "scale": 0.012,
+    "rotationOffset": 1.5708
+   },
+   "Ballistic1x2": {
+    "sprite": "images/effects/ballistic-02.png",
+    "scale": 0.015,
+    "rotationOffset": 1.5708
+   },
+   "Ballistic1x3": {
+    "sprite": "images/effects/ballistic-03.png",
+    "scale": 0.02,
+    "rotationOffset": 1.5708
+   },
+   "Ballistic1x3_2": {
+    "sprite": "images/effects/ballistic-03.png",
+    "scale": 0.02,
+    "rotationOffset": 1.5708
+   },
+   "Ballistic1x5": {
+    "sprite": "images/effects/ballistic-04.png",
+    "scale": 0.022,
+    "rotationOffset": 1.5708
+   },
+   "Ballistic2x3": {
+    "sprite": "images/effects/ballistic-02.png",
+    "scale": 0.016,
+    "rotationOffset": 1.5708
+   },
+   "Ballistic2x3_2": {
+    "sprite": "images/effects/ballistic-02.png",
+    "scale": 0.016,
+    "rotationOffset": 1.5708
+   },
+   "Ballistic2x4": {
+    "sprite": "images/effects/ballistic-01.png",
+    "scale": 0.013,
+    "rotationOffset": 1.5708
+   },
+   "Ballistic2x7": {
+    "sprite": "images/effects/ballistic-05.png",
+    "scale": 0.025,
+    "rotationOffset": 1.5708
+   },
+   "Ballistic2x7_2": {
+    "sprite": "images/effects/ballistic-05.png",
+    "scale": 0.025,
+    "rotationOffset": 1.5708
+   },
+   "BallisticTurret2x2": {
+    "sprite": "images/effects/ballistic-02.png",
+    "scale": 0.014,
+    "rotationOffset": 1.5708
+   },
+   "BallisticTurret2x2_2": {
+    "sprite": "images/effects/ballistic-02.png",
+    "scale": 0.014,
+    "rotationOffset": 1.5708
+   },
+   "BallisticTurret2x2_3": {
+    "sprite": "images/effects/ballistic-02.png",
+    "scale": 0.014,
+    "rotationOffset": 1.5708
+   },
+   "BallisticTurret3x3": {
+    "sprite": "images/effects/ballistic-03.png",
+    "scale": 0.018,
+    "rotationOffset": 1.5708
+   },
+   "BallisticTurret3x3_2": {
+    "sprite": "images/effects/ballistic-03.png",
+    "scale": 0.018,
+    "rotationOffset": 1.5708
+   },
+   "Shotgun2x3": {
+    "sprite": "images/effects/ballistic-01.png",
+    "scale": 0.01,
+    "rotationOffset": 1.5708
+   },
+   "Shotgun3x4": {
+    "sprite": "images/effects/ballistic-01.png",
+    "scale": 0.01,
+    "rotationOffset": 1.5708
+   },
+   "PiercingBallistic1x4": {
+    "sprite": "images/effects/ballistic-04.png",
+    "scale": 0.018,
+    "rotationOffset": 1.5708
+   },
+   "PiercingBallisticTurret3x3": {
+    "sprite": "images/effects/ballistic-04.png",
+    "scale": 0.018,
+    "rotationOffset": 1.5708
+   },
+   "PiercingBallisticTurret3x3_2": {
+    "sprite": "images/effects/ballistic-04.png",
+    "scale": 0.018,
+    "rotationOffset": 1.5708
+   }
+  },
+  "missile": {
+   "default": {
+    "sprite": "images/effects/missile-01.png",
+    "scale": 0.014,
+    "rotationOffset": 1.5708
+   },
+   "RocketLauncher1x2": {
+    "sprite": "images/effects/missile-01.png",
+    "scale": 0.014,
+    "rotationOffset": 1.5708
+   },
+   "RocketLauncher1x2_2": {
+    "sprite": "images/effects/missile-01.png",
+    "scale": 0.014,
+    "rotationOffset": 1.5708
+   },
+   "RocketLauncher1x3": {
+    "sprite": "images/effects/missile-02.png",
+    "scale": 0.016,
+    "rotationOffset": 1.5708
+   },
+   "RocketLauncher1x4": {
+    "sprite": "images/effects/missile-03.png",
+    "scale": 0.03,
+    "rotationOffset": 1.5708
+   },
+   "RocketLauncher2x3": {
+    "sprite": "images/effects/missile-02.png",
+    "scale": 0.015,
+    "rotationOffset": 1.5708
+   },
+   "RocketLauncher2x3_2": {
+    "sprite": "images/effects/missile-02.png",
+    "scale": 0.015,
+    "rotationOffset": 1.5708
+   },
+   "RocketLauncher2x3_3": {
+    "sprite": "images/effects/missile-02.png",
+    "scale": 0.015,
+    "rotationOffset": 1.5708
+   },
+   "RocketTurret2x2": {
+    "sprite": "images/effects/missile-01.png",
+    "scale": 0.014,
+    "rotationOffset": 1.5708
+   },
+   "RocketTurret2x2_2": {
+    "sprite": "images/effects/missile-01.png",
+    "scale": 0.014,
+    "rotationOffset": 1.5708
+   },
+   "RocketTurret2x2_3": {
+    "sprite": "images/effects/missile-01.png",
+    "scale": 0.014,
+    "rotationOffset": 1.5708
+   },
+   "RocketTurret3x4": {
+    "sprite": "images/effects/missile-04.png",
+    "scale": 0.018,
+    "rotationOffset": 1.5708
+   },
+   "RocketTurret3x4_2": {
+    "sprite": "images/effects/missile-04.png",
+    "scale": 0.018,
+    "rotationOffset": 1.5708
+   },
+   "MissileBattery4x2": {
+    "sprite": "images/effects/missile-02.png",
+    "scale": 0.013,
+    "rotationOffset": 1.5708
+   },
+   "RocketFlakTurret3x3": {
+    "sprite": "images/effects/missile-01.png",
+    "scale": 0.012,
+    "rotationOffset": 1.5708
+   },
+   "RocketFlakTurret3x3_2": {
+    "sprite": "images/effects/missile-01.png",
+    "scale": 0.012,
+    "rotationOffset": 1.5708
+   },
+   "TorpedoLauncher1x4": {
+    "sprite": "images/effects/missile-05.png",
+    "scale": 0.02,
+    "rotationOffset": 1.5708
+   },
+   "TorpedoLauncher2x4": {
+    "sprite": "images/effects/missile-05.png",
+    "scale": 0.026,
+    "rotationOffset": 1.5708
+   }
+  },
+  "mine": {
+   "default": {
+    "sprite": "images/effects/mine-01.png",
+    "scale": 0.02,
+    "rotationOffset": 0
+   },
+   "MineLauncher3x2": {
+    "sprite": "images/effects/mine-01.png",
+    "scale": 0.02,
+    "rotationOffset": 0
+   },
+   "MineLauncher3x2_2": {
+    "sprite": "images/effects/mine-01.png",
+    "scale": 0.022,
+    "rotationOffset": 0
+   }
+  }
+ },
+ "sheets": {
+  "explosion": {
+   "sprite": "images/effects/explosion.png",
+   "fw": 32,
+   "fh": 32,
+   "cols": 14,
+   "frames": 14,
+   "fps": 30,
+   "alpha": 1
+  },
+  "smoke": {
+   "sprite": "images/effects/smoke.png",
+   "fw": 256,
+   "fh": 256,
+   "cols": 5,
+   "frames": 25,
+   "fps": 20,
+   "alpha": 0.7
+  },
+  "repair": {
+   "sprite": "images/effects/repair-01.png",
+   "fw": 32,
+   "fh": 32,
+   "cols": 4,
+   "frames": 4,
+   "fps": 8,
+   "alpha": 0.85
+  },
+  "energy": {
+   "sprite": "images/effects/energy.png",
+   "fw": 64,
+   "fh": 64,
+   "cols": 5,
+   "frames": 5,
+   "fps": 8,
+   "alpha": 0.9
+  },
+  "junk": {
+   "sprite": "images/effects/junk-01.png",
+   "fw": 92,
+   "fh": 92,
+   "cols": 8,
+   "frames": 16,
+   "fps": 0,
+   "alpha": 0.9,
+   "scale": 0.012
+  }
+ },
+ "explosions": {
+  "_note": "Verbatim from the old build's visual-effects.json. `scale` multiplies the sprite's own frame size, exactly as Phaser's setScale did: the 32px explosion sheet at 0.1 draws 3.2 world units (= 3.2 grid cells) across. Do not modulate these by blast radius - the original did not, and doubling a module blast to 6.4 cells swamps the ship it happened on. `smoke` is the multiplier onto the 256px smoke sheet. The original used a flat 0.5 for everything, giving 12.8 cells per destroyed module; that reads fine when one module dies but this build's capital ships shed twenty in a second and the cloud buries the fight, so module smoke is pulled back to 0.125. A ship going down keeps the original 0.5 - it happens once.",
+  "missile": {
+   "scale": 0.05,
+   "smoke": 0.0
+  },
+  "mine": {
+   "scale": 0.05,
+   "smoke": 0.0
+  },
+  "junk": {
+   "scale": 0.02,
+   "smoke": 0.0
+  },
+  "module": {
+   "scale": 0.1,
+   "smoke": 0.125
+  },
+  "reactor": {
+   "scale": 0.15,
+   "smoke": 0.25
+  },
+  "ship": {
+   "scale": 0.15,
+   "smoke": 0.5
+  }
+ },
+ "starfield": {
+  "sets": {
+   "blue": [
+    "images/effects/bg-blue-01.png",
+    "images/effects/bg-blue-02.png",
+    "images/effects/bg-blue-03.png"
+   ],
+   "green": [
+    "images/effects/bg-green-01.png",
+    "images/effects/bg-green-02.png",
+    "images/effects/bg-green-03.png"
+   ],
+   "purple": [
+    "images/effects/bg-purple-01.png",
+    "images/effects/bg-purple-02.png",
+    "images/effects/bg-purple-03.png"
+   ]
+  },
+  "layer": {
+   "tileScale": 2.2,
+   "parallax": 0.04,
+   "alpha": 0.5
+  }
+ }
+}
