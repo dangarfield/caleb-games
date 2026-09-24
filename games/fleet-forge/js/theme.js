@@ -137,7 +137,103 @@ function icon(ctx, name, cx, cy, size, colour, weight) {
     ctx.moveTo(6, 6);  ctx.lineTo(18, 18);
     ctx.stroke();
   }
+  /* THE RESTORE THAT WAS MISSING. `save()` above pushes a translate and a
+     scale; without this every single thing drawn after an icon — on any
+     screen — was left in that icon's 24-unit space, shifted to wherever the
+     icon happened to be and shrunk by size/24. In the arena that put the
+     speed labels, the quit square and the mute disc off the right-hand edge
+     and dropped the HULL/MODULES toggle on top of the speed rail. */
   ctx.restore();
+}
+
+/* The handoff's speaker, authored on ITS OWN 20x16 box rather than Lucide's
+   24x24 grid — a filled cone and body, two stroked arcs when sound is on, a
+   grey cross when it is not. Kept out of `icon()` because forcing it onto the
+   24-grid would mean rounding every one of the handoff's offsets. */
+function soundIcon(ctx, cx, cy, on, accent) {
+  var k = 1;                                   /* the box is drawn at 1:1 */
+  ctx.save();
+  ctx.translate(cx - 10 * k, cy - 8 * k);
+  ctx.scale(k, k);
+
+  ctx.fillStyle = accent;
+  ctx.fillRect(0, 5, 4, 6);                    /* the body  */
+  ctx.beginPath();                             /* the cone, apex left */
+  ctx.moveTo(1, 8); ctx.lineTo(9, 1); ctx.lineTo(9, 15);
+  ctx.closePath(); ctx.fill();
+
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'butt';
+  if (on) {
+    /* Two right-hand arcs. The handoff draws them as bordered ellipses; an
+       ellipse arc is the same shape and one call. */
+    ctx.strokeStyle = accent;
+    ctx.beginPath();
+    ctx.ellipse(12, 8, 3, 4, 0, -Math.PI / 2, Math.PI / 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(15, 8, 5, 7, 0, -Math.PI / 2, Math.PI / 2);
+    ctx.stroke();
+  } else {
+    ctx.strokeStyle = '#8FA3B0';
+    ctx.lineCap = 'round';
+    var mx = 16.5, my = 8, a = 3.2;
+    ctx.beginPath();
+    ctx.moveTo(mx - a, my - a); ctx.lineTo(mx + a, my + a);
+    ctx.moveTo(mx - a, my + a); ctx.lineTo(mx + a, my - a);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* `object-fit: contain` for the canvas: the largest centred rectangle with the
+   image's own aspect ratio that fits inside the box. Module art is authored at
+   the module's own proportions, so stretching a 1x3 railgun's picture into a
+   3x1 slot — or into the square of a 2x2 turret — is the difference between a
+   gun and a smear. Nothing is cropped and nothing is distorted; the slack ends
+   up as empty space on the two short sides. */
+function drawContain(ctx, img, x, y, w, h) {
+  var iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+  if (!iw || !ih) return;
+  var k = Math.min(w / iw, h / ih), dw = iw * k, dh = ih * k;
+  ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+}
+
+/* ---- MODULE VARIANTS ------------------------------------------------------
+   Twenty-eight of the hundred modules are Black Market reworks of another one,
+   and the source calls them out in a `modification` field: "BM.1" on 28 and
+   "BM.2" on 6. They keep the base module's NAME — there are two Chainguns and
+   two Railguns — so without a mark the fitting bay lists the same thing twice
+   at different numbers, which reads as a bug.
+
+   NOT `visible`. That field looks like it says the same thing and does not:
+   BM.1 appears with `visible` 1 on eighteen modules and 2 on ten, so keying
+   off it would label the same variant two different ways. `modification` is
+   the field that means this.
+
+   BM.1 is the second version of its module and BM.2 the third, so they read as
+   v2 and v3 — a player counts from the one they already have. */
+function modVariant(m) {
+  if (!m) return '';
+  var v = m.modification;
+  return v === 'BM.1' ? 'v2' : v === 'BM.2' ? 'v3' : '';
+}
+
+/* The tag, in the top-right of whatever rectangle the module was drawn in.
+   Skipped below 18px, where a two-character chip is a smudge — the arena at
+   its usual seven pixels a cell gets nothing, which is right: a fight is not
+   where you read a version number. */
+function drawVariant(ctx, m, x, y, w, h, accent) {
+  var v = modVariant(m);
+  if (!v || w < 18 || h < 18) return;
+  var fs = w < 30 ? 7 : 8;
+  ctx.font = T.mono(fs, 600);
+  var tw = ctx.measureText(v).width + 5, th = fs + 4;
+  var bx = x + w - tw - 1.5, by = y + 1.5;
+  fillRR(ctx, bx, by, tw, th, 2, 'rgba(4,8,11,0.82)');
+  text(ctx, v, bx + tw / 2, by + th / 2,
+       { font: T.mono(fs, 600), fill: accent || T.accent,
+         align: 'center', baseline: 'middle' });
 }
 
 /* An INSIDE stroke, like a CSS border.
@@ -297,8 +393,28 @@ T.rule   = 'rgba(120,170,200,0.24)';   /* hairlines that separate regions   */
 T.edge   = 'rgba(120,170,200,0.32)';   /* every border on a card/row/tile   */
 T.edgeUp = 'rgba(120,170,200,0.40)';   /* ...on a tappable control          */
 
-/* The pilot avatar: a hatched disc. No portraits exist and the design does not
-   ask for any — it is a placeholder in the handoff too. */
+/* THE PILOT AVATAR. The portrait when there is one, the hatched disc when
+   there is not — a 2.5MB source resized to 256 square, which is the biggest it
+   is ever drawn (128 logical px on the pilot cards) at two device pixels.
+
+   The source is square and the box is square, so `cover` is a straight draw:
+   no crop maths, and the design's `background-position: center 20%` has
+   nothing to bite on. `ring` is the border's width — 2 on the cards, 1 on the
+   hangar's pill, as the handoff has them. */
+function avatarDisc(ctx, cx, cy, d, img, edge, ring) {
+  if (!img || !img.complete || !img.naturalWidth) return hatchDisc(ctx, cx, cy, d, edge);
+  var r = d / 2;
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
+  ctx.fillStyle = '#0D151B';
+  ctx.fillRect(cx - r, cy - r, d, d);
+  ctx.drawImage(img, cx - r, cy - r, d, d);
+  ctx.restore();
+  var w = ring || 1;
+  ctx.beginPath(); ctx.arc(cx, cy, r - w / 2, 0, Math.PI * 2);
+  ctx.strokeStyle = edge || T.accent; ctx.lineWidth = w; ctx.stroke();
+}
+
 function hatchDisc(ctx, cx, cy, d, edge) {
   var r = d / 2;
   ctx.save();

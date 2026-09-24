@@ -72,10 +72,37 @@ function BattleScreen(opts) {
   /* The speed rail and the way out sit together in the top right, the rail
      first and the quit square beside it, because they are the only two things
      on this screen the player may touch. */
-  var QUIT_SZ  = 36, QUIT_GAP = 10;
-  var SPD      = { x: VW - 20 - QUIT_SZ - QUIT_GAP - 175, y: 14, w: 175, h: 36 };
-  var BTN_QUIT = { x: VW - 20 - QUIT_SZ, y: 14, w: QUIT_SZ, h: QUIT_SZ };
-  var TOAST    = { x: VW - 22, y: 60, n: 5, gap: 7 };
+  /* ---- the top row ------------------------------------------------------
+     The handoff puts everything up here on ONE line — top 10, 38 tall — and
+     measures each from the right edge: the mute disc at 18, the way out at 64,
+     the speed rail's right edge at 110. They were on three different baselines
+     before (y 14 at 36 tall next to a 38px disc at y 10), which is what made
+     the row look crooked.
+
+     The hull/modules toggle goes at left 128, which is where the handoff puts
+     it: the handoff draws its own back pill from left 18 and that pill ends
+     around 117, so 128 clears it by eleven. This game's back link is the same
+     pill, only as an HTML anchor over the stage — but it is pinned to the
+     WINDOW, so on a small window it covers more of the stage than it does at
+     1333 across. `App.safeLeft()` measures where it actually ends, and the
+     toggle takes whichever is further right. At the design's own size that is
+     128, so the row matches the handoff exactly and still cannot collide. */
+  var HUD_TOP  = 10, HUD_H = 38;
+  var QUIT_SZ  = 38;
+  var SPD_W    = 175;                      /* 3 + 4x40 + 3x3 + 3 */
+  /* THE ROW IS 38 TALL, ALL OF IT. The handoff draws the speed rail at 36 and
+     the quit square, the mute disc and the toggle at 38, all pinned to top 10
+     — so the rail's foot landed two pixels short of everything beside it. The
+     cells keep their own 40x30; the rail's vertical padding takes the extra
+     two and the row finally lines up. */
+  var SPD_H    = HUD_H;                    /* 4 + 30 + 4        */
+  var BTN_QUIT = { x: VW - 64 - QUIT_SZ, y: HUD_TOP, w: QUIT_SZ, h: QUIT_SZ };
+  var SPD      = { x: VW - 110 - SPD_W, y: HUD_TOP, w: SPD_W, h: SPD_H };
+  function viewTabX() {
+    var safe = (typeof App !== 'undefined' && App.safeLeft) ? App.safeLeft() + 11 : SAFE_TL.w + 12;
+    return safe > 128 ? safe : 128;
+  }
+  var TOAST    = { x: VW - 22, y: 60, n: 5, gap: 7 };   /* below the HUD row */
   var TOAST_SZ = [14, 13, 13, 12.5, 12];
   var TOAST_A  = [1, 0.9, 0.7, 0.5, 0.22];
   var PANEL_W  = 268, PANEL_H = 92;
@@ -94,9 +121,26 @@ function BattleScreen(opts) {
   /* The stage centre the battle is framed around, and the half-extents the
      two ships must stay inside. The band avoids the HUD pill at the top. */
   var CX = VW / 2, CY = 378;
-  var HALF_W = 620, HALF_H = 274;
-  var CAM_MARGIN = 6;          /* cells of air around the widest bubble     */
-  var CAM_ZMIN = 2.2, CAM_ZMAX = 26;
+  /* MEASURED, NOT GUESSED. Over a full match the camera sits at 6.4-8.0 pixels
+     a cell and barely moves: the two ships hold station about 150 cells apart,
+     which is weapon range, and framing both of them across 1240 pixels of
+     screen is what sets the zoom. Everything here is the small change that can
+     be had without giving that framing up — more of the screen used, and less
+     dead air around the pair. Going properly close means no longer keeping
+     both ships in frame, which is a design decision and not a constant. */
+  /* The safe band: the screen less the HUD at the top and the two ship cards
+     at the bottom. The pair is framed inside this, always. */
+  var HALF_W = 645, HALF_H = 300;
+  var CAM_MARGIN = 1;          /* cells of air around the framed radius     */
+  /* BOTH SHIPS STAY ON THE SCREEN. CAM_FILL scales the framed box past the
+     viewport, which is the only way to get closer once the hulls are nearly
+     touching — and it gets there by pushing their outer edges off the screen,
+     which is not the deal. It is 1: the frame is the screen, and the pair is
+     always whole inside it. Anything above 1 crops. */
+  var CAM_FILL = 1;
+  /* The clamp was binding on small hulls — a Light Fighter pair had room for
+     26 and wanted more. */
+  var CAM_ZMIN = 2.2, CAM_ZMAX = 32;
   var CAM_POS_RATE = 0.12;     /* fraction of the gap closed per 1/60s      */
   var CAM_ZOOM_RATE = 0.06;
   var CAM_POS_EPS = 0.02, CAM_ZOOM_EPS = 0.004;
@@ -109,6 +153,9 @@ function BattleScreen(opts) {
   var C_UNPOWERED= 'rgba(3,4,18,0.52)';
   var C_OFFLINE  = 'rgba(3,4,18,0.26)';  /* under the energy sprite          */
   var C_HULL     = 'rgba(160,196,255,0.07)';
+  var C_MOD_BASE = '#0A1016';      /* opaque ground under a live module      */
+  /* Matches ShipView's: the render lands on the grid's own bounding box. */
+  var ART_SCALE  = 1;
   var C_SHIELD   = T.cat.shield;
   var C_BULLET   = 'rgba(255,236,190,0.95)';
   var C_INTERCEPT= T.cat.pointdefense;
@@ -170,6 +217,10 @@ function BattleScreen(opts) {
      not remembered: it is something you do during a match, not a way you like
      to watch them. */
   var paused = false, speedIx = Save.matchSpeed();
+  var VIEW_MODES  = ['hull', 'modules', 'damage'];
+  var VIEW_LABELS = ['HULL', 'MODULES', 'DAMAGE'];
+  var viewMode = Save.hullView('battle');
+  if (VIEW_MODES.indexOf(viewMode) < 0) viewMode = 'damage';
 
   /* ---- the opening ------------------------------------------------------
      Handoff 1c's `battleCountdown`: Fade in, Countdown 3/2/1, Fight, Live.
@@ -209,7 +260,19 @@ function BattleScreen(opts) {
     var k = (introT - INTRO[0].end) / 0.3;
     return k >= 1 ? 1 : k;
   }
-  var endT = 0, END_DELAY = 1.0;   /* let the last explosion play out        */
+  var endT = 0, END_DELAY = 1.9;   /* let the death chain play out           */
+
+  /* A SHIP DOES NOT DIE IN ONE BANG. It used to: one sheet, one smoke, two
+     spark bursts, all at the hull's centre — which on a 44-cell capital read
+     as a firework going off somewhere behind it. A wreck is a run of blasts
+     walking across the hull over about a second, each on a real module of the
+     ship that just died, ending with the big one at its centre.
+
+     They are queued, not timed: a fixed array with a countdown each, ticked in
+     the update loop. No setTimeout per blast — see the house rules. */
+  var DQ_N = 13;                   /* 12 scattered, then the centre one        */
+  var DQ_SPREAD = 1.05;            /* seconds the chain walks over             */
+  var deathQ = null;
   var prepared = false;
   var clockSec = -1, clockStr = '0:00';
 
@@ -270,6 +333,51 @@ function BattleScreen(opts) {
     }
   }
 
+  /* ---- the damage ramp ---------------------------------------------------
+     DAMAGE draws the fit as a heat map and nothing else: no module art, no
+     category colour, just how much of each thing is left. The bands are the
+     ones a player already reads off a health bar —
+
+        100-75 green · 75-50 yellow · 50-25 orange · 25-0 red
+
+     — but a module does not step between them, it slides, so these are the
+     ANCHORS of a continuous ramp rather than four buckets. Below the last
+     anchor the red keeps darkening, so a module about to go reads as nearly
+     out rather than the same red it wore at a quarter health.
+
+     Baked into two arrays of ready-made rgba strings at boot, like every
+     other colour in here: the draw loop indexes, it never builds a string. */
+  var DMG_STOPS = [
+    [0.00, 58, 16, 18],      /* all but gone            */
+    [0.25, 228, 85, 74],     /* red                     */
+    [0.50, 232, 135, 61],    /* orange                  */
+    [0.75, 232, 197, 61],    /* yellow                  */
+    [1.00, 63, 191, 106]     /* green                   */
+  ];
+  var DMG_STEPS = 41;
+  var dmgFill = null, dmgEdge = null;
+  /* Nothing is on a cell, or what was on it is gone: black. */
+  var C_DMG_EMPTY = 'rgba(0,0,0,0.85)';
+  var C_DMG_DEAD  = 'rgba(0,0,0,0.92)';
+  var C_DMG_DEDGE = 'rgba(255,255,255,0.10)';
+
+  function buildDamageRamp() {
+    dmgFill = new Array(DMG_STEPS);
+    dmgEdge = new Array(DMG_STEPS);
+    for (var i = 0; i < DMG_STEPS; i++) {
+      var h = i / (DMG_STEPS - 1), j = 0;
+      while (j < DMG_STOPS.length - 2 && h > DMG_STOPS[j + 1][0]) j++;
+      var a = DMG_STOPS[j], b = DMG_STOPS[j + 1];
+      var t = (h - a[0]) / (b[0] - a[0]);
+      if (t < 0) t = 0; else if (t > 1) t = 1;
+      var r = Math.round(a[1] + (b[1] - a[1]) * t);
+      var g = Math.round(a[2] + (b[2] - a[2]) * t);
+      var bl = Math.round(a[3] + (b[3] - a[3]) * t);
+      dmgFill[i] = 'rgba(' + r + ',' + g + ',' + bl + ',0.88)';
+      dmgEdge[i] = 'rgba(' + r + ',' + g + ',' + bl + ',1)';
+    }
+  }
+
   function buildParticleColours() {
     PC = new Array(PC_HEX.length * PA_STEPS);
     var c = [0, 0, 0];
@@ -286,6 +394,13 @@ function BattleScreen(opts) {
      spritesheet (kind 2). An explosion is a slot with a frame counter, not a
      new object — `rot` and `sheet` exist on every entry so the sheet kinds
      need nothing allocated when they fire. */
+  function buildDeathQ() {
+    deathQ = new Array(DQ_N);
+    for (var i = 0; i < DQ_N; i++) {
+      deathQ[i] = { live: false, t: 0, x: 0, y: 0, big: false, scale: 1 };
+    }
+  }
+
   function buildParticles() {
     particles = new Array(P_N);
     for (var i = 0; i < P_N; i++) {
@@ -411,6 +526,64 @@ function BattleScreen(opts) {
      looks a tint up by string or touches Data. `ph` and `rept` are this
      renderer's own memory of the module's health, which is how a repair bay's
      work is noticed without the sim having to announce it. */
+  /* ---- the team rim ------------------------------------------------------
+     A wash of colour around the hull, the accent for yours and the danger red
+     for theirs, so across a screen of identical grey hulls you can tell at a
+     glance which one is you.
+
+     IT IS BAKED BLURRED, which is the whole trick. The first version drew the
+     ship's shape hard-edged at a tenth larger and leaned on a canvas shadow to
+     soften it — so what you saw was a crisp silhouette with a separate glow
+     sitting behind it, and the join between the two read as two effects rather
+     than one. Now the shape is blurred INTO the offscreen canvas at bake time:
+     there is no hard edge anywhere, just colour that fades out from under the
+     hull, and the draw is one image with no shadow on it at all — cheaper per
+     frame than the two shadowed passes it replaces.
+
+     The canvas is padded before the blur, or the blur would be cut off square
+     at the picture's own edge; `hpx`/`hpy` carry that padding back to the draw
+     as a fraction of the art box, so the halo lands concentric with the hull
+     at any zoom. Drawn `HALO_PASSES` times: each pass adds the same gradient,
+     which saturates fast where it is dense (against the hull) and stays soft
+     where it is thin (out at the edge) — a rim that is strong next to the ship
+     and fades to nothing, with no step in it. */
+  var HALO_PAD    = 0.22;    /* room for the blur, as a share of the art     */
+  var HALO_BLUR   = 0.06;    /* blur radius, likewise                        */
+  var HALO_PASSES = 4;
+  var HALO_ALPHA  = 0.85;
+
+  function tintedHull(rec, colour) {
+    if (rec.halo !== undefined && rec.haloC === colour) return rec.halo;
+    var im = rec.art;
+    if (!im || !im.complete || !im.naturalWidth) return null;   /* try again later */
+    var w = im.naturalWidth, h = im.naturalHeight;
+    var pad = Math.round(Math.max(w, h) * HALO_PAD);
+    var blur = Math.max(1, Math.round(Math.max(w, h) * HALO_BLUR));
+
+    var c = document.createElement('canvas');
+    c.width = w + pad * 2; c.height = h + pad * 2;
+    var g = c.getContext('2d');
+    g.drawImage(im, pad, pad);
+    g.globalCompositeOperation = 'source-in';
+    g.fillStyle = colour;
+    g.fillRect(0, 0, c.width, c.height);
+
+    /* Blur it into a second canvas. `filter` is how a browser blurs; where it
+       is missing the sharp shape is still a rim, just a hard one, which is
+       better than no rim at all. */
+    var d = document.createElement('canvas');
+    d.width = c.width; d.height = c.height;
+    var b = d.getContext('2d');
+    b.filter = 'blur(' + blur + 'px)';
+    if (b.filter === 'none') { rec.halo = c; }
+    else { b.drawImage(c, 0, 0); rec.halo = d; }
+
+    rec.haloC = colour;
+    rec.hpx = pad / w;        /* padding, as a share of the art's own box */
+    rec.hpy = pad / h;
+    return rec.halo;
+  }
+
   function buildShipRecord(ship) {
     var recs = new Array(ship.modules.length), i;
     for (i = 0; i < ship.modules.length; i++) {
@@ -436,7 +609,13 @@ function BattleScreen(opts) {
         cells[j++] = (r + 0.5) - g.h / 2;
       }
     }
-    return { ship: ship, mods: recs, cells: cells, cellCount: n };
+    /* The hull's own render and the box it fills, in the same local cell units
+       the modules use: `shipGrid` puts the nose on row 0 and the art is drawn
+       nose-up, so once the ship is rotated the two agree without any extra
+       turn. Held on the record so the draw loop never touches Data. */
+    return { ship: ship, mods: recs, cells: cells, cellCount: n,
+             art: Data.shipImg(ship.ship),
+             ax: -g.w / 2, ay: -g.h / 2, aw: g.w, ah: g.h };
   }
 
   /* A module whose health went up since the last frame is being patched. The
@@ -547,17 +726,8 @@ function BattleScreen(opts) {
           break;
 
         case 'shipdown':
-          if (fx) {
-            playSheet(e.x, e.y, SH_EXPL, expSize[EX_SHIP], 0);
-            playSheet(e.x, e.y, SH_SMOKE, smkSize[EX_SHIP], 2.5);
-            burst(e.x, e.y, 14, PC_FIRE, 16, 1.2, 0.26);
-            burst(e.x, e.y, 6, PC_GOLD, 12, 1.0, 0.2);
-          } else {
-            ring(e.x, e.y, PC_GOLD, 14, 0.9);
-            ring(e.x, e.y, PC_WHITE, 9, 0.6);
-            burst(e.x, e.y, 26, PC_FIRE, 16, 1.2, 0.28);
-            burst(e.x, e.y, 10, PC_GOLD, 12, 1.0, 0.2);
-          }
+          /* `a` is the hull radius, for the fallback scatter */
+          scheduleDeath(e.x, e.y, a);
           break;
 
         case 'intercept':
@@ -585,6 +755,91 @@ function BattleScreen(opts) {
           burst(e.x, e.y, 8, PC_PD, 6, 0.45, 0.13);
           break;
       }
+    }
+  }
+
+  /* Queue the chain. The blasts land on the modules of the hull that just
+     died — real places on the wreck rather than points in a circle around it —
+     and fall back to a scatter inside the hull radius when the record has gone.
+     Positions are frozen here: the wreck drifts, the fire does not follow it. */
+  function scheduleDeath(x, y, rad) {
+    var rec = deadShipRec(x, y), mods = rec ? rec.mods : null;
+    var n = mods && mods.length ? mods.length : 0;
+    for (var i = 0; i < DQ_N; i++) {
+      var q = deathQ[i], last = (i === DQ_N - 1);
+      q.live = true;
+      q.big = last;
+      /* The centre one lands after the others, and the others are spread with
+         a jitter so the chain does not tick like a metronome. */
+      q.t = last ? DQ_SPREAD * 0.92
+                 : (i / (DQ_N - 1)) * DQ_SPREAD * (0.55 + rnd() * 0.7);
+      q.scale = last ? 1 : 0.5 + rnd() * 0.7;
+      if (last) { q.x = x; q.y = y; continue; }
+      if (n) {
+        var m = mods[(rnd() * n) | 0].m;
+        q.x = m.wx; q.y = m.wy;
+      } else {
+        var a2 = rnd() * Math.PI * 2, d = (rad || 4) * Math.sqrt(rnd());
+        q.x = x + Math.cos(a2) * d; q.y = y + Math.sin(a2) * d;
+      }
+    }
+  }
+
+  /* Which of the two hulls this death belongs to — the one it happened on top
+     of. They are tens of units apart, so nearest wins and there is nothing to
+     disambiguate. */
+  function deadShipRec(x, y) {
+    var best = null, bd = Infinity, i, rec, s, d;
+    var recs = [pShip, eShip];
+    for (i = 0; i < 2; i++) {
+      rec = recs[i]; s = rec && rec.ship;
+      if (!s) continue;
+      d = (s.x - x) * (s.x - x) + (s.y - y) * (s.y - y);
+      if (d < bd) { bd = d; best = rec; }
+    }
+    return best;
+  }
+
+  function tickDeath(dt) {
+    for (var i = 0; i < DQ_N; i++) {
+      var q = deathQ[i];
+      if (!q.live) continue;
+      q.t -= dt;
+      if (q.t > 0) continue;
+      q.live = false;
+      fireDeathBlast(q);
+    }
+  }
+
+  function fireDeathBlast(q) {
+    var fx = sheets !== null;
+    if (q.big) {
+      if (fx) {
+        playSheet(q.x, q.y, SH_EXPL, expSize[EX_SHIP], 0);
+        playSheet(q.x, q.y, SH_SMOKE, smkSize[EX_SHIP], 2.5);
+        burst(q.x, q.y, 14, PC_FIRE, 16, 1.2, 0.26);
+        burst(q.x, q.y, 6, PC_GOLD, 12, 1.0, 0.2);
+      } else {
+        ring(q.x, q.y, PC_GOLD, 14, 0.9);
+        ring(q.x, q.y, PC_WHITE, 9, 0.6);
+        burst(q.x, q.y, 26, PC_FIRE, 16, 1.2, 0.28);
+        burst(q.x, q.y, 10, PC_GOLD, 12, 1.0, 0.2);
+      }
+      return;
+    }
+    /* The ones walking across the hull are module blasts, at the module
+       blast's OWN authored size. `scale` varies how much of a mess each one
+       makes — smoke, spark count — and never the sheet: scaling explosion
+       sheets at event time is what once had a module blast swamping the ship
+       it happened on, and that rule stands even here. */
+    if (fx) {
+      playSheet(q.x, q.y, SH_EXPL, expSize[EX_MODULE], 0);
+      if (q.scale > 0.85) playSheet(q.x, q.y, SH_SMOKE, smkSize[EX_MODULE], 1.5);
+      burst(q.x, q.y, 4 + ((q.scale * 5) | 0), PC_FIRE, 10, 0.7, 0.16);
+    } else {
+      ring(q.x, q.y, PC_GOLD, 5, 0.4);
+      burst(q.x, q.y, 10, PC_FIRE, 11, 0.7, 0.18);
+      burst(q.x, q.y, 4, PC_WHITE, 7, 0.34, 0.12);
     }
   }
 
@@ -617,12 +872,16 @@ function BattleScreen(opts) {
     cam.tx = (a.x + b.x) / 2;
     cam.ty = (a.y + b.y) / 2;
 
-    var rad = a.brad > b.brad ? a.brad : b.brad;
+    /* THE HULL, NOT THE SHIELD BUBBLE. `brad` is the hull radius plus the
+       widest shield, and a shield is mostly empty air — it was pushing the
+       camera back by up to 13 cells on a shielded capital and costing a third
+       of the zoom for a ring you can read perfectly well cropped. */
+    var rad = a.rad > b.rad ? a.rad : b.rad;
     var px = Math.abs(a.x - b.x) / 2 + rad + CAM_MARGIN;
     var py = Math.abs(a.y - b.y) / 2 + rad + CAM_MARGIN;
     if (!(px > 1)) px = 1;
     if (!(py > 1)) py = 1;
-    var z = HALF_W / px, zy = HALF_H / py;
+    var z = HALF_W * CAM_FILL / px, zy = HALF_H * CAM_FILL / py;
     if (zy < z) z = zy;
     if (z > CAM_ZMAX) z = CAM_ZMAX; else if (z < CAM_ZMIN) z = CAM_ZMIN;
     cam.tz = z;
@@ -710,10 +969,52 @@ function BattleScreen(opts) {
     ctx.rotate(ship.rot + Math.PI / 2);
     if (ship.destroyed) ctx.globalAlpha = 0.55;
 
+    /* HULL: the ship with nothing on it. MODULES: the fit, as it is built.
+       DAMAGE: the fit as a heat map, with the modules themselves not shown. */
+    var dmg = viewMode === 'damage';
+    var showMods = dmg || viewMode === 'modules';
+
+    /* The hull's render, under everything. Drawn before the bare-hull plates so
+       a destroyed cell still reads as a hole, and dimmed enough that the module
+       tints — which are what the player actually reads in a fight — stay on
+       top of it. Skipped when the camera is far enough out that it would be a
+       smudge. */
+    if (cs >= 6 && rec.art && rec.art.complete && rec.art.naturalWidth) {
+      var halo = tintedHull(rec, rec.foe ? T.danger : T.accent);
+      if (halo) {
+        ctx.save();
+        ctx.globalAlpha = HALO_ALPHA * (ship.destroyed ? 0.4 : 1);
+        var aw = rec.aw * cs * ART_SCALE, ah = rec.ah * cs * ART_SCALE;
+        var ox = aw * rec.hpx, oy = ah * rec.hpy;
+        for (var hp = 0; hp < HALO_PASSES; hp++) {
+          ctx.drawImage(halo, rec.ax * cs * ART_SCALE - ox,
+                              rec.ay * cs * ART_SCALE - oy,
+                              aw + ox * 2, ah + oy * 2);
+        }
+        ctx.restore();
+      }
+      /* THE SHIP'S OWN PICTURE, OPAQUE, ON TOP OF ITS RIM. It used to be drawn
+         at 0.6 so the module tints would read through it — which meant the
+         coloured silhouette underneath read through it too, and the whole hull
+         came out tinted rather than only its edge. The modules are opaque
+         plates now and do their own reading, so the hull can be itself and the
+         colour stays where it belongs: around the outside. */
+      ctx.globalAlpha = (ship.destroyed ? 0.5 : 1);
+      /* The box is centred on the ship's origin, so scaling all four by the
+         same factor grows it about the middle. */
+      ctx.drawImage(rec.art, rec.ax * cs * ART_SCALE, rec.ay * cs * ART_SCALE,
+                    rec.aw * cs * ART_SCALE, rec.ah * cs * ART_SCALE);
+      ctx.globalAlpha = ship.destroyed ? 0.55 : 1;
+    }
+
     /* bare hull under the fit, so holes read as holes */
     if (cs >= 5) {
-      var half = cs * 0.5 - (cs > 14 ? 1.2 : 0.4), side = half * 2;
-      ctx.fillStyle = C_HULL;
+      var hpad = cs * 0.085;
+      if (hpad < 0.4) hpad = 0.4; else if (hpad > 1.4) hpad = 1.4;
+      var half = cs * 0.5 - hpad, side = half * 2;
+      /* In DAMAGE a cell with nothing on it is not faint, it is black: the
+         heat map has no reading for it and saying so is the reading. */
+      ctx.fillStyle = dmg ? C_DMG_EMPTY : C_HULL;
       ctx.beginPath();
       for (i = 0; i < rec.cellCount; i++) {
         ctx.rect(rec.cells[i * 2] * cs - half, rec.cells[i * 2 + 1] * cs - half, side, side);
@@ -721,30 +1022,62 @@ function BattleScreen(opts) {
       ctx.fill();
     }
 
-    var rad = cs > 14 ? 3 : 1.5, pad = cs > 14 ? 1.2 : 0.4;
-    var art = cs >= 10;                 /* below this a cell is a smudge     */
-    var fx = art && sheets !== null;
+    if (!showMods) { ctx.restore(); return; }   /* HULL: the ship, and nothing on it */
+
+    /* WHY THE CELLS USED TO CHANGE SIZE MID-FIGHT. The camera zooms with the
+       gap between the ships, so `cs` — the pixels per cell — slides the whole
+       match. These two were STEPPED on it: at cs 14 the padding jumped from
+       0.4 to 1.2 and the corner radius from 1.5 to 3, so every module tile
+       shrank by 1.6px in the same frame, which reads as the grid itself
+       resizing. They ride the zoom smoothly now and the step is gone. */
+    var pad = cs * 0.085; if (pad < 0.4) pad = 0.4; else if (pad > 1.4) pad = 1.4;
+    var rad = cs * 0.21;  if (rad < 1)   rad = 1;   else if (rad > 3.4) rad = 3.4;
+    /* THE OLD CUT-OFF WAS ABOVE THE GAME. Module art was drawn at ten pixels a
+       cell and up — and the arena never gets there, so MODULES mode has been
+       showing coloured plates and no pictures for its whole life. Six is where
+       a contain-fitted icon stops being readable, so six is the cut-off. */
+    var art = !dmg && cs >= 6;
+    /* The overlays are NOT art: an unpowered module and one being patched
+       still say so in DAMAGE, which is exactly where it matters most. They
+       only need the camera close enough for a sprite to read. */
+    var fx = cs >= 6 && sheets !== null;
     for (i = 0; i < rec.mods.length; i++) {
       var r = rec.mods[i], m = r.m;
       var mw = m.w * cs - pad * 2, mh = m.h * cs - pad * 2;
       var x = m.lx * cs - m.w * cs / 2 + pad, y = m.ly * cs - m.h * cs / 2 + pad;
 
       if (!m.alive) {
-        fillRR(ctx, x, y, mw, mh, rad, C_DEAD);
-        strokeRR(ctx, x, y, mw, mh, rad, C_DEAD_EDGE, 1);
+        fillRR(ctx, x, y, mw, mh, rad, dmg ? C_DMG_DEAD : C_DEAD);
+        strokeRR(ctx, x, y, mw, mh, rad, dmg ? C_DMG_DEDGE : C_DEAD_EDGE, 1);
         continue;
       }
       var hf = m.maxHealth > 0 ? m.health / m.maxHealth : 1;
-      var step = ((1 - hf) * (TINT_STEPS - 1)) | 0;
-      if (step < 0) step = 0; else if (step > TINT_STEPS - 1) step = TINT_STEPS - 1;
+      if (hf < 0) hf = 0; else if (hf > 1) hf = 1;
 
-      fillRR(ctx, x, y, mw, mh, rad, r.fills[step]);
-      if (art && r.img && r.img.complete && r.img.naturalWidth) {
-        ctx.globalAlpha = ship.destroyed ? 0.5 : 0.9;
-        ctx.drawImage(r.img, x, y, mw, mh);
-        ctx.globalAlpha = ship.destroyed ? 0.55 : 1;
+      if (dmg) {
+        /* One lookup into the ramp, fill and edge from the same place, and
+           nothing on top — no art, no category colour. What is left of the
+           module IS the module here. */
+        var di = (hf * (DMG_STEPS - 1) + 0.5) | 0;
+        fillRR(ctx, x, y, mw, mh, rad, dmgFill[di]);
+        strokeRR(ctx, x, y, mw, mh, rad, dmgEdge[di], 1.1);
+      } else {
+        var step = ((1 - hf) * (TINT_STEPS - 1)) | 0;
+        if (step < 0) step = 0; else if (step > TINT_STEPS - 1) step = TINT_STEPS - 1;
+
+        /* Opaque base first, then the health tint over it: a fitted cell is a
+           surface, so the hull render behind stops at its edge rather than
+           reading through the module sitting on it. */
+        fillRR(ctx, x, y, mw, mh, rad, C_MOD_BASE);
+        fillRR(ctx, x, y, mw, mh, rad, r.fills[step]);
+        if (art && r.img && r.img.complete && r.img.naturalWidth) {
+          ctx.globalAlpha = ship.destroyed ? 0.5 : 0.9;
+          drawContain(ctx, r.img, x, y, mw, mh);
+          ctx.globalAlpha = ship.destroyed ? 0.55 : 1;
+        }
+        strokeRR(ctx, x, y, mw, mh, rad, r.edges[step], 1.1);
+        drawVariant(ctx, m.mod, x, y, mw, mh);
       }
-      strokeRR(ctx, x, y, mw, mh, rad, r.edges[step], 1.1);
 
       /* a module with no power gets the energy sheet crackling over it —
          the flat dim panel it used to get is the fallback for zoom levels
@@ -1211,7 +1544,8 @@ function BattleScreen(opts) {
     fillRR(ctx, SPD.x, SPD.y, SPD.w, SPD.h, 8, 'rgba(6,12,16,0.85)');
     strokeRR(ctx, SPD.x, SPD.y, SPD.w, SPD.h, 8, T.edgeUp, 1);
     for (var i = 0; i < 4; i++) {
-      var r = { x: SPD.x + 3 + i * (SPD_CELL + 3), y: SPD.y + 3, w: SPD_CELL, h: SPD_CH };
+      var r = { x: SPD.x + 3 + i * (SPD_CELL + 3), y: SPD.y + (SPD_H - SPD_CH) / 2,
+                w: SPD_CELL, h: SPD_CH };
       var on = i === 0 ? paused : (!paused && speedIx === i - 1);
       if (on) fillRR(ctx, r.x, r.y, r.w, r.h, 5, T.accent);
       if (i === 0) {
@@ -1344,35 +1678,45 @@ function BattleScreen(opts) {
          VW / 2, cy - 74,
          { font: T.mono(12), fill: T.accent, align: 'center', baseline: 'middle', track: 4 });
 
-    /* two names either side of a VS, measured so the pair centres as a group */
+    /* THE VS IS THE ANCHOR, and everything hangs off it. The card used to
+       measure both names and centre the whole group, which meant the VS itself
+       wandered left and right with the length of the two hulls — a Light
+       Fighter against a USS Centurion put it well off centre. It sits on the
+       middle of the screen now and does not move: your side is right-aligned
+       into it and theirs is left-aligned out of it, so the two blocks face
+       each other across it and each side's two lines share an edge with its
+       own name. Each name is glowed in its own colour, which is what makes the
+       pair read as two sides rather than as one heading. */
     var pn = (pd ? pd.displayName : 'YOUR HULL').toUpperCase();
     var en = (ed ? ed.displayName : 'CONTACT').toUpperCase();
-    ctx.font = T.head(44, 700);
-    var pw2 = ctx.measureText(pn).width + 4 * pn.length;
-    var ew = ctx.measureText(en).width + 4 * en.length;
     ctx.font = T.head(20, 600);
     var vw = ctx.measureText('VS').width + 3 * 2;
     var gap = 34;
-    var left = VW / 2 - (pw2 + gap + vw + gap + ew) / 2;
+    var pRight = VW / 2 - vw / 2 - gap;      /* your side ends here   */
+    var eLeft  = VW / 2 + vw / 2 + gap;      /* theirs starts here    */
 
-    text(ctx, pn, left, cy - 4,
-         { font: T.head(44, 700), fill: '#EAF5FA', baseline: 'middle', track: 4 });
+    text(ctx, 'VS', VW / 2, cy - 4,
+         { font: T.head(20, 600), fill: '#6F8795', align: 'center',
+           baseline: 'middle', track: 3 });
+
+    text(ctx, pn, pRight, cy - 4,
+         { font: T.head(44, 700), fill: T.accent, align: 'right',
+           baseline: 'middle', track: 4,
+           glow: 'rgba(56,197,216,0.55)', glowBlur: 26 });
     text(ctx, 'CAPTAIN ' + Save.summary(Save.pilot()).name.toUpperCase() +
               ' \u00b7 T' + Progress.tierOf(pd) +
               ' \u00b7 FIT ' + ((opts.fitIndex === undefined ? 0 : opts.fitIndex) + 1),
-         left, cy + 30,
-         { font: T.mono(12), fill: T.accent, baseline: 'middle' });
+         pRight, cy + 30,
+         { font: T.mono(12), fill: T.accent, align: 'right', baseline: 'middle' });
 
-    text(ctx, 'VS', left + pw2 + gap, cy - 4,
-         { font: T.head(20, 600), fill: '#6F8795', baseline: 'middle', track: 3 });
-
-    var ex = left + pw2 + gap + vw + gap;
-    text(ctx, en, ex, cy - 4,
-         { font: T.head(44, 700), fill: '#F6DEDB', baseline: 'middle', track: 4 });
-    /* the pilot handle, not the hull — the hull is the 44px line above it */
+    text(ctx, en, eLeft, cy - 4,
+         { font: T.head(44, 700), fill: T.danger, align: 'left',
+           baseline: 'middle', track: 4,
+           glow: 'rgba(228,85,74,0.55)', glowBlur: 26 });
+    /* the pilot handle, not the hull */
     var handle = (opponent.callsign || opponent.name).toUpperCase();
-    text(ctx, handle + ' \u00b7 T' + tier, ex, cy + 30,
-         { font: T.mono(12), fill: '#FF8A80', baseline: 'middle' });
+    text(ctx, handle + ' \u00b7 T' + tier, eLeft, cy + 30,
+         { font: T.mono(12), fill: '#FF8A80', align: 'left', baseline: 'middle' });
     ctx.restore();
   }
 
@@ -1390,9 +1734,24 @@ function BattleScreen(opts) {
            baseline: 'middle', track: 4 });
     ctx.translate(VW / 2, VH / 2 + 22);
     ctx.scale(sc, sc);
-    ctx.shadowColor = 'rgba(56,197,216,0.45)'; ctx.shadowBlur = 50;
-    text(ctx, n, 0, 0,
-         { font: T.mono(150, 600), fill: T.accent, align: 'center', baseline: 'middle' });
+
+    /* THE GLOW IS THREE THINGS, NOT ONE. A single 50px shadow on a 150px
+       glyph spreads so thin it reads as a smudge. A soft disc behind the
+       digit carries the light out into the field, a wide shadow pass gives
+       the halo, and a tight one puts an edge back on the numeral so it stays
+       crisp inside its own glow. */
+    var gr = ctx.createRadialGradient(0, 0, 0, 0, 0, 124);
+    gr.addColorStop(0,    'rgba(56,197,216,0.20)');
+    gr.addColorStop(0.45, 'rgba(56,197,216,0.09)');
+    gr.addColorStop(1,    'rgba(56,197,216,0)');
+    ctx.fillStyle = gr;
+    ctx.beginPath(); ctx.arc(0, 0, 124, 0, Math.PI * 2); ctx.fill();
+
+    var cf = { font: T.mono(150, 600), fill: T.accent, align: 'center', baseline: 'middle' };
+    ctx.shadowColor = 'rgba(56,197,216,0.50)'; ctx.shadowBlur = 38;
+    text(ctx, n, 0, 0, cf);
+    ctx.shadowColor = 'rgba(120,236,250,0.45)'; ctx.shadowBlur = 14;
+    text(ctx, n, 0, 0, cf);
     ctx.restore();
   }
 
@@ -1416,7 +1775,16 @@ function BattleScreen(opts) {
     ctx.translate(VW / 2, VH / 2);
     ctx.scale(1 + 0.08 * k, 1 + 0.08 * k);
     ctx.shadowColor = 'rgba(56,197,216,0.6)'; ctx.shadowBlur = 40;
-    text(ctx, 'FIGHT', 0, 0,
+    /* CENTRED ON THE LETTERS, NOT ON THE EM BOX. Canvas's `middle` baseline
+       centres the font's em square, and a line of capitals sits high in that
+       square — so the word floated above the middle of its own band by about
+       a tenth of its height. Measuring the ink and splitting the difference
+       puts FIGHT where the eye expects it. The word is all caps and one
+       string, so this is measured once per frame and not per glyph. */
+    ctx.font = T.head(96, 700);
+    var fm = ctx.measureText('FIGHT');
+    var dy = ((fm.actualBoundingBoxAscent || 0) - (fm.actualBoundingBoxDescent || 0)) / 2;
+    text(ctx, 'FIGHT', 0, dy,
          { font: T.head(96, 700), fill: '#EAF5FA', align: 'center',
            baseline: 'middle', track: 16 });
     ctx.restore();
@@ -1467,8 +1835,8 @@ function BattleScreen(opts) {
       resWhy = won ? opponent.name + ' lost its last weapon'
                    : 'Your last weapon was shot away';
     } else {
-      resWhy = won ? opponent.name + ' lost its last reactor'
-                   : 'Your last reactor was destroyed';
+      resWhy = won ? opponent.name + ' lost its last power source'
+                   : 'Your last power source was destroyed';
     }
 
 
@@ -1513,8 +1881,10 @@ function BattleScreen(opts) {
     enter: function () {
       Music.to('battle');
       buildTints();
+      buildDamageRamp();
       buildParticleColours();
       buildParticles();
+      buildDeathQ();
       buildStars();
       buildEffects();
       pickBackdrop();
@@ -1531,6 +1901,7 @@ function BattleScreen(opts) {
         measureShields(world);
         pShip = buildShipRecord(world.player);
         eShip = buildShipRecord(world.enemy);
+        eShip.foe = true;
         bBall = new Int16Array(Sim.POOL); bMiss = new Int16Array(Sim.POOL);
         bIcpt = new Int16Array(Sim.POOL); bJunk = new Int16Array(Sim.POOL);
         bMine = new Int16Array(Sim.POOL);
@@ -1572,6 +1943,7 @@ function BattleScreen(opts) {
            dt on the way in is the whole of the fast-forward */
         world.step(dt * SPEEDS[speedIx]);
         drainEvents(world);
+        tickDeath(dt);
         stepParticles(dt);
         stepShipFX(pShip, dt);
         stepShipFX(eShip, dt);
@@ -1627,13 +1999,22 @@ function BattleScreen(opts) {
       drawSpeed(ctx);
       if (live()) drawToasts(ctx);
 
+      /* HULL strips the fit off both ships and leaves the hulls flying. */
+      var vs = UI.segment(ctx, viewTabX(), HUD_TOP,
+                          VIEW_LABELS, VIEW_MODES.indexOf(viewMode),
+                          false, HUD_H);
+      if (vs.picked >= 0) {
+        viewMode = VIEW_MODES[vs.picked];
+        Save.setHullView('battle', viewMode);
+      }
+
       if (!handedOver) {
         var q = BTN_QUIT, hot = UI.held(q);
         fillRR(ctx, q.x, q.y, q.w, q.h, 8,
-               hot ? 'rgba(228,85,74,0.22)' : 'rgba(6,12,16,0.85)');
-        strokeRR(ctx, q.x, q.y, q.w, q.h, 8, hot ? '#FF8A80' : '#E4554A', 1);
-        icon(ctx, 'x', q.x + q.w / 2, q.y + q.h / 2, 17,
-             hot ? '#FF8A80' : '#E4554A', 2);
+               hot ? 'rgba(48,14,16,0.92)' : 'rgba(24,10,11,0.85)');
+        strokeRR(ctx, q.x, q.y, q.w, q.h, 8,
+                 hot ? '#FF8A80' : 'rgba(228,85,74,0.5)', 1);
+        icon(ctx, 'x', q.x + q.w / 2, q.y + q.h / 2, 18, '#FF8A80', 2);
         if (UI.zone(q, 'back')) { handedOver = true; onDone(null); return; }
       }
     }

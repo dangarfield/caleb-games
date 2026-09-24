@@ -1,575 +1,1047 @@
 [
-{
-"at": 1,
-"id": "first_blood",
-"n": "First Blood",
-"d": "Win your first battle",
-"c": {
-"t": "wins",
-"n": 1
-}
-},
-{
-"at": 1,
-"id": "shakedown",
-"n": "Shakedown",
-"d": "Fill every cell on a hull",
-"c": {
-"t": "fillCells"
-}
-},
-{
-"at": 2,
-"id": "double_tap",
-"n": "Double Tap",
-"d": "Win two battles in a row",
-"c": {
-"t": "streak",
-"n": 2
-}
-},
-{
-"at": 3,
-"id": "broadside",
-"n": "Broadside",
-"d": "Win with four or more weapons fitted",
-"c": {
-"t": "minWeapons",
-"n": 4
-}
-},
-{
-"at": 3,
-"id": "gate_t2",
-"n": "Field Promotion",
-"d": "Beat a Tier 2 opponent flying a Tier 1 hull",
-"c": {
-"t": "step",
-"hull": 1,
-"opp": 2
-},
-"gate": 2
-},
-{
-"at": 4,
-"id": "untouched",
-"n": "Untouched",
-"d": "Win with 90% of your hull intact",
-"c": {
-"t": "health",
-"min": 0.9
-}
-},
-{
-"at": 5,
-"id": "solid_shot",
-"n": "Solid Shot",
-"d": "Win using ballistic weapons only",
-"c": {
-"t": "only",
-"dt": "ballistic"
-}
-},
-{
-"at": 6,
-"id": "quick_work",
-"n": "Quick Work",
-"d": "Win a battle in under 20 seconds",
-"c": {
-"t": "time",
-"max": 20
-}
-},
-{
-"at": 7,
-"id": "second_op",
-"n": "Second Opinion",
-"d": "Save two layouts on the same ship",
-"c": {
-"t": "layouts",
-"n": 2
-}
-},
-{
-"at": 8,
-"id": "hat_trick",
-"n": "Hat Trick",
-"d": "Win three battles in a row",
-"c": {
-"t": "streak",
-"n": 3
-}
-},
-{
-"at": 8,
-"id": "gate_t3",
-"n": "Line Commission",
-"d": "Beat a Tier 3 opponent flying a Tier 2 hull",
-"c": {
-"t": "step",
-"hull": 2,
-"opp": 3
-},
-"gate": 3
-},
-{
-"at": 9,
-"id": "power_surplus",
-"n": "Power Surplus",
-"d": "Win with three or more reactors fitted",
-"c": {
-"t": "minReactors",
-"n": 3
-}
-},
-{
-"at": 10,
-"id": "light_touch",
-"n": "Light Touch",
-"d": "Win flying a hull of 15 cells or fewer",
-"c": {
-"t": "cells",
-"max": 15
-}
-},
-{
-"at": 11,
-"id": "core_breach",
-"n": "Core Breach",
-"d": "Win by destroying every enemy reactor",
-"c": {
-"t": "reason",
-"v": "reactors"
-}
-},
-{
-"at": 12,
-"id": "sea_change",
-"n": "Sea Change",
-"d": "Win flying a hull you have never won with",
-"c": {
-"t": "newHull"
-}
-},
-{
-"at": 13,
-"id": "shield_wall",
-"n": "Shield Wall",
-"d": "Win with a shield generator fitted",
-"c": {
-"t": "has",
-"sub": "shield"
-}
-},
-{
-"at": 14,
-"id": "sparring",
-"n": "Sparring",
-"d": "Win five battles at your own tier",
-"c": {
-"t": "winsAtOwnTier",
-"n": 5
-}
-},
-{
-"at": 15,
-"id": "packed_tight",
-"n": "Packed Tight",
-"d": "Win with every cell on your hull filled",
-"c": {
-"t": "fullWin"
-}
-},
-{
-"at": 15,
-"id": "gate_t4",
-"n": "Heavy Commission",
-"d": "Beat a Tier 4 opponent flying a Tier 3 hull",
-"c": {
-"t": "step",
-"hull": 3,
-"opp": 4
-},
-"gate": 4
-},
-{
-"at": 16,
-"id": "beam_work",
-"n": "Beam Work",
-"d": "Win using laser weapons only",
-"c": {
-"t": "only",
-"dt": "laser"
-}
-},
-{
-"at": 17,
-"id": "naked",
-"n": "Naked Aggression",
-"d": "Win with no shields fitted",
-"c": {
-"t": "without",
-"sub": "shield"
-}
-},
-{
-"at": 18,
-"id": "interceptor",
-"n": "Interceptor",
-"d": "Win with a point-defence turret fitted",
-"c": {
-"t": "has",
-"sub": "pointdefense"
-}
-},
-{
-"at": 19,
-"id": "four_row",
-"n": "Four in a Row",
-"d": "Win four battles in a row",
-"c": {
-"t": "streak",
-"n": 4
-}
-},
-{
-"at": 20,
-"id": "field_repair",
-"n": "Field Repair",
-"d": "Win with a repair bay fitted",
-"c": {
-"t": "has",
-"sub": "repair"
-}
-},
-{
-"at": 21,
-"id": "hammer_time",
-"n": "Hammer Time",
-"d": "Win twice flying the Hammerhead",
-"c": {
-"t": "hullWins",
-"ship": "Hammerhead",
-"n": 2
-}
-},
-{
-"at": 22,
-"id": "rearmed",
-"n": "Rearmed",
-"d": "Win at the same tier with two different hulls",
-"c": {
-"t": "twoHulls"
-}
-},
-{
-"at": 23,
-"id": "salvo",
-"n": "Salvo",
-"d": "Win using missile weapons only",
-"c": {
-"t": "only",
-"dt": "missile"
-}
-},
-{
-"at": 24,
-"id": "three_ways",
-"n": "Three Ways",
-"d": "Save all three layouts on the same ship",
-"c": {
-"t": "layouts",
-"n": 3
-}
-},
-{
-"at": 25,
-"id": "minelayer",
-"n": "Minelayer",
-"d": "Win with a mine launcher fitted",
-"c": {
-"t": "has",
-"sub": "mine"
-}
-},
-{
-"at": 25,
-"id": "gate_t5",
-"n": "Capital Commission",
-"d": "Beat a Tier 5 opponent flying a Tier 4 hull",
-"c": {
-"t": "step",
-"hull": 4,
-"opp": 5
-},
-"gate": 5
-},
-{
-"at": 26,
-"id": "ten_up",
-"n": "Ten Up",
-"d": "Win ten battles in total",
-"c": {
-"t": "wins",
-"n": 10
-}
-},
-{
-"at": 27,
-"id": "disarmed",
-"n": "Disarmed",
-"d": "Win by destroying every enemy weapon",
-"c": {
-"t": "reason",
-"v": "disarmed"
-}
-},
-{
-"at": 28,
-"id": "heavy_hand",
-"n": "Heavy Hand",
-"d": "Win flying a hull of 80 cells or more",
-"c": {
-"t": "cells",
-"min": 80
-}
-},
-{
-"at": 29,
-"id": "layered",
-"n": "Layered",
-"d": "Win with armour, shields and point defence all fitted",
-"c": {
-"t": "hasAll",
-"subs": [
-"armor",
-"shield",
-"pointdefense"
-]
-}
-},
-{
-"at": 30,
-"id": "overkill",
-"n": "Overkill",
-"d": "Win without losing a single module",
-"c": {
-"t": "noLoss"
-}
-},
-{
-"at": 31,
-"id": "five_straight",
-"n": "Five Straight",
-"d": "Win five battles in a row",
-"c": {
-"t": "streak",
-"n": 5
-}
-},
-{
-"at": 32,
-"id": "junkyard",
-"n": "Junkyard",
-"d": "Win with a scrap launcher fitted",
-"c": {
-"t": "has",
-"sub": "junk"
-}
-},
-{
-"at": 33,
-"id": "fast_capital",
-"n": "Fast Capital",
-"d": "Win in under 30 seconds flying a Tier 3 hull",
-"c": {
-"t": "time",
-"max": 30,
-"hullTier": 3
-}
-},
-{
-"at": 34,
-"id": "full_deck",
-"n": "Full Deck",
-"d": "Fill every cell on a hull of 100 cells or more",
-"c": {
-"t": "fillCells",
-"min": 100
-}
-},
-{
-"at": 35,
-"id": "sixth_sense",
-"n": "Sixth Sense",
-"d": "Win six battles in a row",
-"c": {
-"t": "streak",
-"n": 6
-}
-},
-{
-"at": 36,
-"id": "veteran",
-"n": "Veteran",
-"d": "Win twenty battles in total",
-"c": {
-"t": "wins",
-"n": 20
-}
-},
-{
-"at": 36,
-"id": "gate_t6",
-"n": "Carrier Command",
-"d": "Beat a Tier 6 opponent flying a Tier 5 hull",
-"c": {
-"t": "step",
-"hull": 5,
-"opp": 6
-},
-"gate": 6
-},
-{
-"at": 37,
-"id": "warp_out",
-"n": "Warp Out",
-"d": "Win with a warp drive fitted",
-"c": {
-"t": "has",
-"sub": "warp"
-}
-},
-{
-"at": 38,
-"id": "gunline",
-"n": "Gunline",
-"d": "Win with ten or more weapons fitted",
-"c": {
-"t": "minWeapons",
-"n": 10
-}
-},
-{
-"at": 39,
-"id": "triple",
-"n": "Triple Threat",
-"d": "Win with ballistic, laser and missile all fitted",
-"c": {
-"t": "allTypes"
-}
-},
-{
-"at": 40,
-"id": "perfectionist",
-"n": "Perfectionist",
-"d": "Win eight battles in a row",
-"c": {
-"t": "streak",
-"n": 8
-}
-},
-{
-"at": 41,
-"id": "untouchable",
-"n": "Untouchable",
-"d": "Beat a Tier 7 opponent with 75% of your hull intact",
-"c": {
-"t": "health",
-"min": 0.75,
-"oppTier": 7
-}
-},
-{
-"at": 42,
-"id": "shipwright",
-"n": "Shipwright",
-"d": "Own every hull in one tier",
-"c": {
-"t": "ownTier"
-}
-},
-{
-"at": 43,
-"id": "turret_master",
-"n": "Turret Master",
-"d": "Win with three or more turrets fitted",
-"c": {
-"t": "minTurrets",
-"n": 3
-}
-},
-{
-"at": 44,
-"id": "dreadnought",
-"n": "Dreadnought",
-"d": "Fill every cell on a hull of 170 cells or more",
-"c": {
-"t": "fillCells",
-"min": 170
-}
-},
-{
-"at": 45,
-"id": "fleet_admiral",
-"n": "Fleet Admiral",
-"d": "Win fifty battles in total",
-"c": {
-"t": "wins",
-"n": 50
-}
-},
-{
-"at": 46,
-"id": "flawless",
-"n": "Flawless",
-"d": "Win ten battles at Tier 7 without losing one",
-"c": {
-"t": "streakAtTier",
-"n": 10,
-"oppTier": 7
-}
-},
-{
-"at": 46,
-"id": "gate_t7",
-"n": "Fleet Command",
-"d": "Beat a Tier 7 opponent flying a Tier 6 hull",
-"c": {
-"t": "step",
-"hull": 6,
-"opp": 7
-},
-"gate": 7
-},
-{
-"at": 47,
-"id": "grand_design",
-"n": "Grand Design",
-"d": "Win with a Grand Reactor fitted",
-"c": {
-"t": "hasModule",
-"m": "Reactor4x4"
-}
-},
-{
-"at": 48,
-"id": "ten_straight",
-"n": "Ten Straight",
-"d": "Win ten battles in a row",
-"c": {
-"t": "streak",
-"n": 10
-}
-},
-{
-"at": 49,
-"id": "last_word",
-"n": "Last Word",
-"d": "Beat a Tier 7 opponent without losing a single module",
-"c": {
-"t": "noLoss",
-"oppTier": 7
-}
-}
+ {
+  "at": 1,
+  "id": "fly_small_fighter",
+  "n": "Light Fighter",
+  "d": "Win 3 battles flying the Light Fighter",
+  "c": {
+   "t": "hullWins",
+   "ship": "Small_Fighter",
+   "n": 3
+  }
+ },
+ {
+  "at": 2,
+  "id": "fly_heavy_fighter",
+  "n": "Heavy Fighter",
+  "d": "Win 3 battles flying the Heavy Fighter",
+  "c": {
+   "t": "hullWins",
+   "ship": "Heavy_Fighter",
+   "n": 3
+  }
+ },
+ {
+  "at": 3,
+  "id": "fly_lightning",
+  "n": "Lightning",
+  "d": "Win 3 battles flying the Lightning",
+  "c": {
+   "t": "hullWins",
+   "ship": "Lightning",
+   "n": 3
+  }
+ },
+ {
+  "at": 4,
+  "id": "use_laser1x1",
+  "n": "Small laser",
+  "d": "Win a battle with the Small laser fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "Laser1x1"
+  }
+ },
+ {
+  "at": 5,
+  "id": "use_shieldgenerator1x1",
+  "n": "Combat Shield",
+  "d": "Win a battle with the Combat Shield fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "ShieldGenerator1x1"
+  }
+ },
+ {
+  "at": 6,
+  "id": "fly_wing",
+  "n": "Wing",
+  "d": "Win 3 battles flying the Wing",
+  "c": {
+   "t": "hullWins",
+   "ship": "Wing",
+   "n": 3
+  }
+ },
+ {
+  "at": 7,
+  "id": "fly_kabuto",
+  "n": "Type K4-8U70",
+  "d": "Win 3 battles flying the Type K4-8U70",
+  "c": {
+   "t": "hullWins",
+   "ship": "Kabuto",
+   "n": 3
+  }
+ },
+ {
+  "at": 8,
+  "id": "fly_tie_fighter",
+  "n": "Interceptor",
+  "d": "Win 3 battles flying the Interceptor",
+  "c": {
+   "t": "hullWins",
+   "ship": "TIE_Fighter",
+   "n": 3
+  }
+ },
+ {
+  "at": 9,
+  "id": "fly_corvette",
+  "n": "Raptor",
+  "d": "Win 3 battles flying the Raptor",
+  "c": {
+   "t": "hullWins",
+   "ship": "Corvette",
+   "n": 3
+  }
+ },
+ {
+  "at": 10,
+  "id": "use_warpengine1x2",
+  "n": "Warp Drive",
+  "d": "Win a battle with the Warp Drive fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "WarpEngine1x2"
+  }
+ },
+ {
+  "at": 11,
+  "id": "fly_raven",
+  "n": "Raven",
+  "d": "Win 3 battles flying the Raven",
+  "c": {
+   "t": "hullWins",
+   "ship": "Raven",
+   "n": 3
+  }
+ },
+ {
+  "at": 12,
+  "id": "use_laser1x2_2",
+  "n": "Laser Beam",
+  "d": "Win a battle with the Laser Beam fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "Laser1x2_2"
+  }
+ },
+ {
+  "at": 13,
+  "id": "fly_viper",
+  "n": "Viper",
+  "d": "Win 3 battles flying the Viper",
+  "c": {
+   "t": "hullWins",
+   "ship": "Viper",
+   "n": 3
+  }
+ },
+ {
+  "at": 14,
+  "id": "fly_dart",
+  "n": "Dart",
+  "d": "Win 3 battles flying the Dart",
+  "c": {
+   "t": "hullWins",
+   "ship": "Dart",
+   "n": 3
+  }
+ },
+ {
+  "at": 15,
+  "id": "use_ballisticturret2x2",
+  "n": "Vulcan Turret",
+  "d": "Win a battle with the Vulcan Turret fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "BallisticTurret2x2"
+  }
+ },
+ {
+  "at": 16,
+  "id": "fly_ironwing",
+  "n": "Ironwing",
+  "d": "Win 3 battles flying the Ironwing",
+  "c": {
+   "t": "hullWins",
+   "ship": "Ironwing",
+   "n": 3
+  }
+ },
+ {
+  "at": 17,
+  "id": "use_laser1x2_3",
+  "n": "Laser Beam",
+  "d": "Win a battle with the Laser Beam fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "Laser1x2_3"
+  }
+ },
+ {
+  "at": 18,
+  "id": "fly_sparrow",
+  "n": "PSS Sparrow",
+  "d": "Win 3 battles flying the PSS Sparrow",
+  "c": {
+   "t": "hullWins",
+   "ship": "Sparrow",
+   "n": 3
+  }
+ },
+ {
+  "at": 19,
+  "id": "use_rocketturret2x2",
+  "n": "Rocket Turret",
+  "d": "Win a battle with the Rocket Turret fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "RocketTurret2x2"
+  }
+ },
+ {
+  "at": 20,
+  "id": "use_ballisticturret2x2_2",
+  "n": "Vulcan Turret",
+  "d": "Win a battle with the Vulcan Turret fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "BallisticTurret2x2_2"
+  }
+ },
+ {
+  "at": 21,
+  "id": "fly_scythe",
+  "n": "Scythe",
+  "d": "Win 3 battles flying the Scythe",
+  "c": {
+   "t": "hullWins",
+   "ship": "Scythe",
+   "n": 3
+  }
+ },
+ {
+  "at": 22,
+  "id": "use_scraplauncher2x3",
+  "n": "Junk Launcher",
+  "d": "Win a battle with the Junk Launcher fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "ScrapLauncher2x3"
+  }
+ },
+ {
+  "at": 23,
+  "id": "use_engine2x2",
+  "n": "Large Ion Drive",
+  "d": "Win a battle with the Large Ion Drive fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "Engine2x2"
+  }
+ },
+ {
+  "at": 24,
+  "id": "use_rocketturret2x2_2",
+  "n": "Rocket Turret",
+  "d": "Win a battle with the Rocket Turret fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "RocketTurret2x2_2"
+  }
+ },
+ {
+  "at": 25,
+  "id": "fly_valkyrie",
+  "n": "Valkyrie",
+  "d": "Win 3 battles flying the Valkyrie",
+  "c": {
+   "t": "hullWins",
+   "ship": "Valkyrie",
+   "n": 3
+  }
+ },
+ {
+  "at": 26,
+  "id": "use_laserturret2x2",
+  "n": "Laser Turret",
+  "d": "Win a battle with the Laser Turret fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "LaserTurret2x2"
+  }
+ },
+ {
+  "at": 27,
+  "id": "fly_arrow",
+  "n": "Arrow",
+  "d": "Win 3 battles flying the Arrow",
+  "c": {
+   "t": "hullWins",
+   "ship": "Arrow",
+   "n": 3
+  }
+ },
+ {
+  "at": 28,
+  "id": "use_rocketlauncher1x3",
+  "n": "Missile Launcher",
+  "d": "Win a battle with the Missile Launcher fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "RocketLauncher1x3"
+  }
+ },
+ {
+  "at": 29,
+  "id": "use_rocketturret2x2_3",
+  "n": "Rocket Turret",
+  "d": "Win a battle with the Rocket Turret fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "RocketTurret2x2_3"
+  }
+ },
+ {
+  "at": 30,
+  "id": "use_armoredreactor2x2",
+  "n": "Medium Armored Reactor",
+  "d": "Win a battle with the Medium Armored Reactor fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "ArmoredReactor2x2"
+  }
+ },
+ {
+  "at": 31,
+  "id": "fly_rapier",
+  "n": "Rapier",
+  "d": "Win 3 battles flying the Rapier",
+  "c": {
+   "t": "hullWins",
+   "ship": "Rapier",
+   "n": 3
+  }
+ },
+ {
+  "at": 32,
+  "id": "use_minelauncher3x2",
+  "n": "Mine Launcher",
+  "d": "Win a battle with the Mine Launcher fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "MineLauncher3x2"
+  }
+ },
+ {
+  "at": 33,
+  "id": "fly_hammerhead",
+  "n": "Hammerhead",
+  "d": "Win 3 battles flying the Hammerhead",
+  "c": {
+   "t": "hullWins",
+   "ship": "Hammerhead",
+   "n": 3
+  }
+ },
+ {
+  "at": 34,
+  "id": "use_repairbay3x2",
+  "n": "Repair Bay",
+  "d": "Win a battle with the Repair Bay fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "RepairBay3x2"
+  }
+ },
+ {
+  "at": 35,
+  "id": "fly_miran",
+  "n": "PSS Miran",
+  "d": "Win 3 battles flying the PSS Miran",
+  "c": {
+   "t": "hullWins",
+   "ship": "Miran",
+   "n": 3
+  }
+ },
+ {
+  "at": 36,
+  "id": "fly_kahje",
+  "n": "Kahje",
+  "d": "Win 3 battles flying the Kahje",
+  "c": {
+   "t": "hullWins",
+   "ship": "Kahje",
+   "n": 3
+  }
+ },
+ {
+  "at": 37,
+  "id": "use_minelauncher3x2_2",
+  "n": "Mine Launcher",
+  "d": "Win a battle with the Mine Launcher fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "MineLauncher3x2_2"
+  }
+ },
+ {
+  "at": 38,
+  "id": "use_shotgun2x3",
+  "n": "Gaussian Shotgun",
+  "d": "Win a battle with the Gaussian Shotgun fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "Shotgun2x3"
+  }
+ },
+ {
+  "at": 39,
+  "id": "use_plasmaarmor1x2",
+  "n": "Plasma Armor",
+  "d": "Win a battle with the Plasma Armor fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "PlasmaArmor1x2"
+  }
+ },
+ {
+  "at": 40,
+  "id": "fly_orkaan",
+  "n": "Orkaan",
+  "d": "Win 3 battles flying the Orkaan",
+  "c": {
+   "t": "hullWins",
+   "ship": "Orkaan",
+   "n": 3
+  }
+ },
+ {
+  "at": 41,
+  "id": "use_reactivearmor1x1",
+  "n": "Small Reactive Armor",
+  "d": "Win a battle with the Small Reactive Armor fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "ReactiveArmor1x1"
+  }
+ },
+ {
+  "at": 42,
+  "id": "fly_starbridge",
+  "n": "Starbridge",
+  "d": "Win 5 battles flying the Starbridge",
+  "c": {
+   "t": "hullWins",
+   "ship": "Starbridge",
+   "n": 5
+  }
+ },
+ {
+  "at": 43,
+  "id": "use_fusionray1x3",
+  "n": "Fusion Ray",
+  "d": "Win a battle with the Fusion Ray fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "FusionRay1x3"
+  }
+ },
+ {
+  "at": 44,
+  "id": "fly_morningstar",
+  "n": "Morningstar",
+  "d": "Win 5 battles flying the Morningstar",
+  "c": {
+   "t": "hullWins",
+   "ship": "Morningstar",
+   "n": 5
+  }
+ },
+ {
+  "at": 45,
+  "id": "use_torpedolauncher1x4",
+  "n": "Torpedo Launcher",
+  "d": "Win a battle with the Torpedo Launcher fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "TorpedoLauncher1x4"
+  }
+ },
+ {
+  "at": 46,
+  "id": "use_armor3x3",
+  "n": "Large Steel Armor",
+  "d": "Win a battle with the Large Steel Armor fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "Armor3x3"
+  }
+ },
+ {
+  "at": 47,
+  "id": "fly_falcon",
+  "n": "Age Eagle",
+  "d": "Win 5 battles flying the Age Eagle",
+  "c": {
+   "t": "hullWins",
+   "ship": "Falcon",
+   "n": 5
+  }
+ },
+ {
+  "at": 48,
+  "id": "fly_broadsword",
+  "n": "Broadsword",
+  "d": "Win 5 battles flying the Broadsword",
+  "c": {
+   "t": "hullWins",
+   "ship": "Broadsword",
+   "n": 5
+  }
+ },
+ {
+  "at": 49,
+  "id": "use_solararmor3x3",
+  "n": "Large Solar Armor",
+  "d": "Win a battle with the Large Solar Armor fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "SolarArmor3x3"
+  }
+ },
+ {
+  "at": 50,
+  "id": "fly_hawk",
+  "n": "Hawk",
+  "d": "Win 5 battles flying the Hawk",
+  "c": {
+   "t": "hullWins",
+   "ship": "Hawk",
+   "n": 5
+  }
+ },
+ {
+  "at": 51,
+  "id": "use_missilebattery4x2",
+  "n": "Arsenal Wall",
+  "d": "Win a battle with the Arsenal Wall fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "MissileBattery4x2"
+  }
+ },
+ {
+  "at": 52,
+  "id": "use_armoredreactor3x3",
+  "n": "Large Armored Reactor",
+  "d": "Win a battle with the Large Armored Reactor fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "ArmoredReactor3x3"
+  }
+ },
+ {
+  "at": 53,
+  "id": "fly_javelin",
+  "n": "Javelin",
+  "d": "Win 5 battles flying the Javelin",
+  "c": {
+   "t": "hullWins",
+   "ship": "Javelin",
+   "n": 5
+  }
+ },
+ {
+  "at": 54,
+  "id": "fly_wanderer",
+  "n": "Wanderer",
+  "d": "Win 5 battles flying the Wanderer",
+  "c": {
+   "t": "hullWins",
+   "ship": "Wanderer",
+   "n": 5
+  }
+ },
+ {
+  "at": 55,
+  "id": "use_pulselaser2x3",
+  "n": "Pulse Laser",
+  "d": "Win a battle with the Pulse Laser fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "PulseLaser2x3"
+  }
+ },
+ {
+  "at": 56,
+  "id": "fly_elk",
+  "n": "PSS EL-K",
+  "d": "Win 5 battles flying the PSS EL-K",
+  "c": {
+   "t": "hullWins",
+   "ship": "Elk",
+   "n": 5
+  }
+ },
+ {
+  "at": 57,
+  "id": "use_reactivearmor2x2",
+  "n": "Medium Reactive Armor",
+  "d": "Win a battle with the Medium Reactive Armor fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "ReactiveArmor2x2"
+  }
+ },
+ {
+  "at": 58,
+  "id": "use_engine2x3",
+  "n": "Grand Ion Drive",
+  "d": "Win a battle with the Grand Ion Drive fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "Engine2x3"
+  }
+ },
+ {
+  "at": 59,
+  "id": "fly_myrmidon",
+  "n": "Myrmidon",
+  "d": "Win 5 battles flying the Myrmidon",
+  "c": {
+   "t": "hullWins",
+   "ship": "Myrmidon",
+   "n": 5
+  }
+ },
+ {
+  "at": 60,
+  "id": "fly_charger",
+  "n": "Charger",
+  "d": "Win 5 battles flying the Charger",
+  "c": {
+   "t": "hullWins",
+   "ship": "Charger",
+   "n": 5
+  }
+ },
+ {
+  "at": 61,
+  "id": "use_rocketlauncher2x3",
+  "n": "Scorpion Launcher",
+  "d": "Win a battle with the Scorpion Launcher fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "RocketLauncher2x3"
+  }
+ },
+ {
+  "at": 62,
+  "id": "fly_wraith",
+  "n": "Wraith",
+  "d": "Win 5 battles flying the Wraith",
+  "c": {
+   "t": "hullWins",
+   "ship": "Wraith",
+   "n": 5
+  }
+ },
+ {
+  "at": 63,
+  "id": "use_rocketlauncher1x4",
+  "n": "Impact Missile",
+  "d": "Win a battle with the Impact Missile fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "RocketLauncher1x4"
+  }
+ },
+ {
+  "at": 64,
+  "id": "use_laser2x4",
+  "n": "Arcfusion Array",
+  "d": "Win a battle with the Arcfusion Array fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "Laser2x4"
+  }
+ },
+ {
+  "at": 65,
+  "id": "fly_warrior",
+  "n": "Warrior",
+  "d": "Win 5 battles flying the Warrior",
+  "c": {
+   "t": "hullWins",
+   "ship": "Warrior",
+   "n": 5
+  }
+ },
+ {
+  "at": 66,
+  "id": "fly_cerberos",
+  "n": "Cerberos",
+  "d": "Win 5 battles flying the Cerberos",
+  "c": {
+   "t": "hullWins",
+   "ship": "Cerberos",
+   "n": 5
+  }
+ },
+ {
+  "at": 67,
+  "id": "use_rocketflakturret3x3",
+  "n": "Flak Rocket Turret",
+  "d": "Win a battle with the Flak Rocket Turret fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "RocketFlakTurret3x3"
+  }
+ },
+ {
+  "at": 68,
+  "id": "fly_therion",
+  "n": "Therion",
+  "d": "Win 5 battles flying the Therion",
+  "c": {
+   "t": "hullWins",
+   "ship": "Therion",
+   "n": 5
+  }
+ },
+ {
+  "at": 69,
+  "id": "fly_stardestroyer",
+  "n": "Destroyer Vega",
+  "d": "Win 5 battles flying the Destroyer Vega",
+  "c": {
+   "t": "hullWins",
+   "ship": "StarDestroyer",
+   "n": 5
+  }
+ },
+ {
+  "at": 70,
+  "id": "fly_phantom",
+  "n": "Phantom",
+  "d": "Win 5 battles flying the Phantom",
+  "c": {
+   "t": "hullWins",
+   "ship": "Phantom",
+   "n": 5
+  }
+ },
+ {
+  "at": 71,
+  "id": "fly_krigerskold",
+  "n": "Krigerskold",
+  "d": "Win 5 battles flying the Krigerskold",
+  "c": {
+   "t": "hullWins",
+   "ship": "Krigerskold",
+   "n": 5
+  }
+ },
+ {
+  "at": 72,
+  "id": "use_rocketflakturret3x3_2",
+  "n": "Flak Rocket Turret",
+  "d": "Win a battle with the Flak Rocket Turret fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "RocketFlakTurret3x3_2"
+  }
+ },
+ {
+  "at": 73,
+  "id": "fly_baron",
+  "n": "Baron",
+  "d": "Win 5 battles flying the Baron",
+  "c": {
+   "t": "hullWins",
+   "ship": "Baron",
+   "n": 5
+  }
+ },
+ {
+  "at": 74,
+  "id": "use_piercingballisticturret3x3",
+  "n": "Quantum Turret",
+  "d": "Win a battle with the Quantum Turret fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "PiercingBallisticTurret3x3"
+  }
+ },
+ {
+  "at": 75,
+  "id": "fly_eidolon",
+  "n": "Eidolon",
+  "d": "Win 5 battles flying the Eidolon",
+  "c": {
+   "t": "hullWins",
+   "ship": "Eidolon",
+   "n": 5
+  }
+ },
+ {
+  "at": 76,
+  "id": "fly_sleipnir",
+  "n": "Sleipnir",
+  "d": "Win 5 battles flying the Sleipnir",
+  "c": {
+   "t": "hullWins",
+   "ship": "Sleipnir",
+   "n": 5
+  }
+ },
+ {
+  "at": 77,
+  "id": "fly_duke",
+  "n": "Duke",
+  "d": "Win 5 battles flying the Duke",
+  "c": {
+   "t": "hullWins",
+   "ship": "Duke",
+   "n": 5
+  }
+ },
+ {
+  "at": 78,
+  "id": "use_ballistic2x4",
+  "n": "Hyperion Chaingun",
+  "d": "Win a battle with the Hyperion Chaingun fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "Ballistic2x4"
+  }
+ },
+ {
+  "at": 79,
+  "id": "use_piercingballisticturret3x3_2",
+  "n": "Quantum Turret",
+  "d": "Win a battle with the Quantum Turret fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "PiercingBallisticTurret3x3_2"
+  }
+ },
+ {
+  "at": 80,
+  "id": "fly_captain",
+  "n": "Captain",
+  "d": "Win 5 battles flying the Captain",
+  "c": {
+   "t": "hullWins",
+   "ship": "Captain",
+   "n": 5
+  }
+ },
+ {
+  "at": 81,
+  "id": "fly_crusader",
+  "n": "Crusader",
+  "d": "Win 5 battles flying the Crusader",
+  "c": {
+   "t": "hullWins",
+   "ship": "Crusader",
+   "n": 5
+  }
+ },
+ {
+  "at": 82,
+  "id": "use_shotgun3x4",
+  "n": "Gaussian War Shotgun",
+  "d": "Win a battle with the Gaussian War Shotgun fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "Shotgun3x4"
+  }
+ },
+ {
+  "at": 83,
+  "id": "fly_mjollnir",
+  "n": "Mjollnir",
+  "d": "Win 7 battles flying the Mjollnir",
+  "c": {
+   "t": "hullWins",
+   "ship": "Mjollnir",
+   "n": 7
+  }
+ },
+ {
+  "at": 84,
+  "id": "use_ballisticarmor3x2",
+  "n": "Ballistic Armor",
+  "d": "Win a battle with the Ballistic Armor fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "BallisticArmor3x2"
+  }
+ },
+ {
+  "at": 85,
+  "id": "fly_revenant",
+  "n": "Revenant",
+  "d": "Win 7 battles flying the Revenant",
+  "c": {
+   "t": "hullWins",
+   "ship": "Revenant",
+   "n": 7
+  }
+ },
+ {
+  "at": 86,
+  "id": "fly_arbiter",
+  "n": "Arbiter",
+  "d": "Win 7 battles flying the Arbiter",
+  "c": {
+   "t": "hullWins",
+   "ship": "Arbiter",
+   "n": 7
+  }
+ },
+ {
+  "at": 87,
+  "id": "fly_vindicator",
+  "n": "Vindicator",
+  "d": "Win 7 battles flying the Vindicator",
+  "c": {
+   "t": "hullWins",
+   "ship": "Vindicator",
+   "n": 7
+  }
+ },
+ {
+  "at": 88,
+  "id": "fly_thane",
+  "n": "Thane",
+  "d": "Win 7 battles flying the Thane",
+  "c": {
+   "t": "hullWins",
+   "ship": "Thane",
+   "n": 7
+  }
+ },
+ {
+  "at": 89,
+  "id": "fly_radiantx",
+  "n": "Radiant-X",
+  "d": "Win 7 battles flying the Radiant-X",
+  "c": {
+   "t": "hullWins",
+   "ship": "RadiantX",
+   "n": 7
+  }
+ },
+ {
+  "at": 90,
+  "id": "fly_ritari",
+  "n": "Ritari",
+  "d": "Win 7 battles flying the Ritari",
+  "c": {
+   "t": "hullWins",
+   "ship": "Ritari",
+   "n": 7
+  }
+ },
+ {
+  "at": 91,
+  "id": "use_fusionturret4x4",
+  "n": "Melee Fusion Turret",
+  "d": "Win a battle with the Melee Fusion Turret fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "FusionTurret4x4"
+  }
+ },
+ {
+  "at": 92,
+  "id": "fly_oblivionark",
+  "n": "Oblivion Ark",
+  "d": "Win 7 battles flying the Oblivion Ark",
+  "c": {
+   "t": "hullWins",
+   "ship": "Oblivionark",
+   "n": 7
+  }
+ },
+ {
+  "at": 93,
+  "id": "fly_khonarl",
+  "n": "Khonarl",
+  "d": "Win 7 battles flying the Khonarl",
+  "c": {
+   "t": "hullWins",
+   "ship": "Khonarl",
+   "n": 7
+  }
+ },
+ {
+  "at": 94,
+  "id": "use_laser4x9",
+  "n": "Doomsday Laser",
+  "d": "Win a battle with the Doomsday Laser fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "Laser4x9"
+  }
+ },
+ {
+  "at": 95,
+  "id": "fly_prophet",
+  "n": "Prophet",
+  "d": "Win 7 battles flying the Prophet",
+  "c": {
+   "t": "hullWins",
+   "ship": "Prophet",
+   "n": 7
+  }
+ },
+ {
+  "at": 96,
+  "id": "fly_achilles",
+  "n": "Achilles",
+  "d": "Win 7 battles flying the Achilles",
+  "c": {
+   "t": "hullWins",
+   "ship": "Achilles",
+   "n": 7
+  }
+ },
+ {
+  "at": 97,
+  "id": "fly_centurion",
+  "n": "USS Centurion",
+  "d": "Win 7 battles flying the USS Centurion",
+  "c": {
+   "t": "hullWins",
+   "ship": "Centurion",
+   "n": 7
+  }
+ },
+ {
+  "at": 98,
+  "id": "use_emplauncher1x5",
+  "n": "EMP Launcher",
+  "d": "Win a battle with the EMP Launcher fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "EMPLauncher1x5"
+  }
+ },
+ {
+  "at": 99,
+  "id": "use_shinyarmor1x4",
+  "n": "Glossy shiny armor",
+  "d": "Win a battle with the Glossy shiny armor fitted",
+  "c": {
+   "t": "hasModule",
+   "m": "ShinyArmor1x4"
+  }
+ }
 ]

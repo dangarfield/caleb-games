@@ -21,7 +21,7 @@ All 75 games in Garfield Boys' Arcade (76 directories — Archers has legacy 2D 
 | Speed Racer | games/driven-wild/ | 3D racing with player select, jump ramps + flip/boost (formerly DR1V3N WILD) |
 | Fling | games/fling/ | Physics flinging game |
 | Free Kick | games/freekick/ | 3D perspective penalty kicks |
-| Fleet Forge | games/fleet-forge/ | Ship-fitting auto-battler — build a hull, fight a nine-rung AI ladder |
+| Fleet Forge | games/fleet-forge/ | Ship-fitting auto-battler — build a hull, climb a 100-level ladder |
 | Frogger | games/frogger/ | Classic road-crossing |
 | Fruit Ninja | games/fruitninja/ | Swipe-to-slice fruit |
 | Tower of Hanoi | games/hanoi/ | Disc-stacking puzzle with undo |

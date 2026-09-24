@@ -7,7 +7,7 @@
     <meta http-equiv="Expires" content="0">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <meta name="mobile-web-app-capable" content="yes">
-  <link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <title>Garfield Boys' Arcade</title>
   <style>
     * {
@@ -1447,11 +1447,11 @@
     </a>
 
 
-    <!-- <a href="games/fleet-forge/" class="game-card card-fleet-forge">
+    <a href="games/fleet-forge/" class="game-card card-fleet-forge">
       <div class="game-icon" aria-hidden="true">&#128760;</div>
       <div class="game-title">Fleet Forge</div>
       <div class="game-desc">Bolt a warship together cell by cell, then watch it fight its way up the ladder.</div>
-    </a> -->
+    </a>
 
   </div>
 
@@ -1460,7 +1460,7 @@
   <div id="settingsPanel">
     <div class="settings-box">
       <div class="settings-header">
-        <h2>Game Data (localStorage)</h2>
+        <h2>Game Data</h2>
         <button class="settings-close" onclick="closeSettings()">&times;</button>
       </div>
       <div id="settingsContent"></div>
@@ -1538,9 +1538,31 @@
       return '<span style="margin-left:8px;font-size:0.7rem;color:rgba(255,255,255,0.4);">' +
         fmtSize(chars) + '</span>';
     }
+    /* A readable name for a key: the shared-object sub-keys already read well; per-game items are
+       "calebArcadeData:<game>[:<sub>]" in both localStorage and the IndexedDB store. */
+    function prettyKey(key) {
+      if (keyLabels[key]) return keyLabels[key];
+      var m = /^calebArcadeData:([^:]+)(?::(.+))?$/.exec(key);
+      return m ? m[1] + (m[2] ? ' — ' + m[2] : '') : key;
+    }
+    function groupHead(text, note) {
+      return '<div style="margin:14px 0 4px;padding:6px 8px;color:rgba(255,255,255,0.5);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;">' +
+        text + (note ? '<span style="text-transform:none;letter-spacing:0;margin-left:8px;color:rgba(255,255,255,0.35);">' + note + '</span>' : '') + '</div>';
+    }
+    function sectionHtml(id, title, key, size, clearCall, body) {
+      var h = '<div class="data-section" id="section-' + id + '">';
+      h += '<div class="data-section-header" onclick="toggleSection(\'' + id + '\')">';
+      h += '<span class="data-section-title">' + escHtml(title) + '</span>';
+      if (key && key !== title) h += '<span style="margin-left:8px;font-size:0.7rem;color:rgba(255,255,255,0.3);">' + escHtml(key) + '</span>';
+      h += sizeTag(size);
+      h += '<div class="data-section-actions"><button class="data-clear-btn" onclick="event.stopPropagation();' + clearCall + '">Clear</button></div></div>';
+      h += '<div class="data-section-body"><div class="json-tree">' + body + '</div></div></div>';
+      return h;
+    }
+    function jsArg(s) { return escHtml(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+
     function renderSettings() {
       var content = document.getElementById('settingsContent');
-      if (localStorage.length === 0) { content.innerHTML = '<div class="no-data">No saved data found.</div>'; return; }
       var used = 0;
       for (var u = 0; u < localStorage.length; u++) {
         var uk = localStorage.key(u);
@@ -1548,57 +1570,130 @@
       }
       var html = '<div style="margin-bottom:10px;padding:8px 10px;border-radius:8px;' +
         'background:rgba(108,92,231,0.18);font-size:0.8rem;color:rgba(255,255,255,0.75);">' +
-        'All games are using <b>' + fmtSize(used) + '</b> of about 5 MB — the browser\'s limit ' +
-        'for the whole arcade. When it is full, no game can save; clear one below to make room.' +
+        'localStorage: <b>' + fmtSize(used) + '</b> of about 5 MB — the browser\'s limit ' +
+        'for the whole arcade. When it is full, no game can save; clear one below to make room. ' +
+        'Newer games save to the arcade database (IndexedDB) instead, which has far more room.' +
         '</div>';
-      // Collect all keys sorted, with calebArcadeData first
+
       var allKeys = [];
       for (var i = 0; i < localStorage.length; i++) allKeys.push(localStorage.key(i));
-      allKeys.sort(function(a,b) { return a === 'calebArcadeData' ? -1 : b === 'calebArcadeData' ? 1 : a.localeCompare(b); });
+      var shared = allKeys.filter(function (k) { return k === 'calebArcadeData'; });
+      var perGame = allKeys.filter(function (k) { return k.indexOf('calebArcadeData:') === 0; }).sort();
+      var other = allKeys.filter(function (k) { return k !== 'calebArcadeData' && k.indexOf('calebArcadeData:') !== 0; })
+        .sort(function (a, b) { return prettyKey(a).localeCompare(prettyKey(b)); });
 
-      for (var k = 0; k < allKeys.length; k++) {
-        var key = allKeys[k];
-        var raw = localStorage.getItem(key);
-        var val;
-        try { val = JSON.parse(raw); } catch(e) { val = raw; }
-        var label = keyLabels[key] || key;
-        var safeId = key.replace(/[^a-zA-Z0-9]/g,'_');
-        var safeKey = escHtml(key).replace(/'/g,"\\'");
-
-        // For calebArcadeData, show each sub-key as its own section
-        if (key === 'calebArcadeData' && val && typeof val === 'object' && !Array.isArray(val)) {
-          var subKeys = Object.keys(val);
-          if (subKeys.length === 0) continue;
-          html += '<div style="margin-bottom:4px;padding:6px 8px;color:rgba(255,255,255,0.5);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;">Arcade Shared Data</div>';
-          subKeys.forEach(function(sk) {
-            var subId = 'section-arcade_' + sk.replace(/[^a-zA-Z0-9]/g,'_');
-            html += '<div class="data-section" id="' + subId + '">';
-            html += '<div class="data-section-header" onclick="document.getElementById(\'' + subId + '\').classList.toggle(\'expanded\')">';
-            html += '<span class="data-section-title">' + escHtml(sk) + '</span>';
-            html += sizeTag(JSON.stringify(val[sk] === undefined ? null : val[sk]).length);
-            html += '<div class="data-section-actions">';
-            html += '<button class="data-clear-btn" onclick="event.stopPropagation();confirmClearSubKey(\'' + escHtml(sk).replace(/'/g,"\\'") + '\', this)">Clear</button>';
-            html += '</div></div>';
-            html += '<div class="data-section-body"><div class="json-tree">' + renderJson(val[sk]) + '</div></div>';
-            html += '</div>';
+      // 1. The legacy shared object: one section per game inside it
+      shared.forEach(function (key) {
+        var raw = localStorage.getItem(key), val;
+        try { val = JSON.parse(raw); } catch (e) { val = raw; }
+        if (val && typeof val === 'object' && !Array.isArray(val)) {
+          var subKeys = Object.keys(val).sort();
+          if (!subKeys.length) return;
+          html += groupHead('Arcade shared data (legacy)', 'localStorage · calebArcadeData · ' + fmtSize(raw.length));
+          subKeys.forEach(function (sk) {
+            html += sectionHtml('arcade_' + sk.replace(/[^a-zA-Z0-9]/g, '_'), sk, '',
+              JSON.stringify(val[sk] === undefined ? null : val[sk]).length,
+              "confirmClearSubKey('" + jsArg(sk) + "', this)", renderJson(val[sk]));
           });
         } else {
-          html += '<div class="data-section" id="section-' + safeId + '">';
-          html += '<div class="data-section-header" onclick="toggleSection(\'' + safeId + '\')">';
-          html += '<span class="data-section-title">' + escHtml(label) + '</span>';
-          html += '<span style="margin-left:8px;font-size:0.7rem;color:rgba(255,255,255,0.3);">' + escHtml(key) + '</span>';
-          html += sizeTag(key.length + (raw || '').length);
-          html += '<div class="data-section-actions">';
-          html += '<button class="data-clear-btn" onclick="event.stopPropagation();confirmClearKey(\'' + safeKey + '\', this)">Clear</button>';
-          html += '</div></div>';
-          html += '<div class="data-section-body"><div class="json-tree">' + renderJson(val) + '</div></div>';
-          html += '</div>';
+          html += groupHead('Arcade shared data (legacy)');
+          html += sectionHtml('ls_calebArcadeData', 'Arcade Shared Data', key, key.length + (raw || '').length,
+            "confirmClearKey('calebArcadeData', this)", renderJson(val));
         }
-      }
+      });
+      // 2. Per-game localStorage items and 3. everything else in localStorage
+      [[perGame, 'Per-game saves', 'localStorage · calebArcadeData:&lt;game&gt;'], [other, 'Other localStorage keys', '']].forEach(function (g) {
+        if (!g[0].length) return;
+        html += groupHead(g[1], g[2]);
+        g[0].forEach(function (key) {
+          var raw = localStorage.getItem(key), val;
+          try { val = JSON.parse(raw); } catch (e) { val = raw; }
+          html += sectionHtml('ls_' + key.replace(/[^a-zA-Z0-9]/g, '_'), prettyKey(key), key, key.length + (raw || '').length,
+            "confirmClearKey('" + jsArg(key) + "', this)", renderJson(val));
+        });
+      });
+      // 4. The IndexedDB arcade store — filled in once the database answers
+      html += '<div id="idbSettings">' + groupHead('Arcade database (IndexedDB)', 'loading…') + '</div>';
       content.innerHTML = html;
+      renderIdbSettings();
+    }
+
+    /* The IndexedDB side: database "arcade", object store "kv" — the same one every game's
+       arcade-store.js uses (games/dragonseed/js/store.js is the reference copy). Opened here
+       directly and closed straight after, so the hub never holds a connection a game waits on. */
+    var idbValues = {};
+    function idbOpen(cb) {
+      var req;
+      try { req = indexedDB.open('arcade', 1); } catch (e) { return cb(null); }
+      req.onupgradeneeded = function () { try { req.result.createObjectStore('kv'); } catch (e) {} };
+      req.onsuccess = function () { cb(req.result); };
+      req.onerror = req.onblocked = function () { cb(null); };
+    }
+    function idbAll(cb) {
+      idbOpen(function (db) {
+        if (!db) return cb(null);
+        var out = [], r;
+        try { r = db.transaction('kv', 'readonly').objectStore('kv').openCursor(); }
+        catch (e) { db.close(); return cb([]); }
+        r.onsuccess = function () {
+          var c = r.result;
+          if (c) { out.push({ key: String(c.key), value: c.value }); c.continue(); return; }
+          db.close(); cb(out);
+        };
+        r.onerror = function () { db.close(); cb(out); };
+      });
+    }
+    function idbDelete(key, cb) {
+      idbOpen(function (db) {
+        if (!db) return cb(false);
+        try {
+          var tx = db.transaction('kv', 'readwrite');
+          tx.objectStore('kv').delete(key);
+          tx.oncomplete = function () { db.close(); cb(true); };
+          tx.onerror = function () { db.close(); cb(false); };
+        } catch (e) { db.close(); cb(false); }
+      });
+    }
+    function renderIdbSettings() {
+      var box = document.getElementById('idbSettings');
+      idbAll(function (items) {
+        if (!box) return;
+        if (items === null) { box.innerHTML = groupHead('Arcade database (IndexedDB)', 'not available in this browser window'); return; }
+        idbValues = {};
+        var total = 0, h = '';
+        items.sort(function (a, b) { return prettyKey(a.key).localeCompare(prettyKey(b.key)); });
+        items.forEach(function (it, n) {
+          var size = -1;
+          try { size = JSON.stringify(it.value).length; } catch (e) {}
+          total += Math.max(0, size);
+          idbValues[it.key] = it.value;
+          var id = 'idb_' + n;
+          // bodies can be big (whole replays, ship designs): render the tree only when opened
+          h += sectionHtml(id, prettyKey(it.key), it.key, Math.max(0, size),
+            "confirmClearIdb('" + jsArg(it.key) + "', this)",
+            '<span class="json-null" data-idb="' + escHtml(it.key) + '">…</span>');
+        });
+        box.innerHTML = groupHead('Arcade database (IndexedDB)', items.length ? fmtSize(total) + ' · a game left open in another tab can write its save back after you clear it' : '') +
+          (h || '<div class="no-data">Nothing saved in the arcade database yet.</div>');
+      });
+    }
+    function confirmClearIdb(key, btn) {
+      if (btn.classList.contains('confirm')) {
+        idbDelete(key, function () { renderSettings(); });
+      } else {
+        btn.classList.add('confirm');
+        btn.textContent = 'Confirm?';
+        setTimeout(function() { btn.classList.remove('confirm'); btn.textContent = 'Clear'; }, 3000);
+      }
     }
     function toggleSection(sectionId) {
-      document.getElementById('section-' + sectionId).classList.toggle('expanded');
+      var sec = document.getElementById('section-' + sectionId);
+      sec.classList.toggle('expanded');
+      var lazy = sec.querySelector('[data-idb]');
+      if (lazy && sec.classList.contains('expanded')) {
+        var k = lazy.getAttribute('data-idb');
+        lazy.parentNode.innerHTML = renderJson(idbValues[k] === undefined ? null : idbValues[k]);
+      }
     }
     function confirmClearKey(key, btn) {
       if (btn.classList.contains('confirm')) {

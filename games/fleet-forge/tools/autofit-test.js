@@ -2,47 +2,45 @@
  *   node tools/autofit-test.js            # summary
  *   node tools/autofit-test.js --verbose  # a line per fit
  */
-var fs = require('fs'), path = require('path'), vm = require('vm');
-var ROOT = path.join(__dirname, '..');
-var DATA = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/data.json'), 'utf8'));
+var L = require('./load');
 
-var sb = { console: console, Math: Math, JSON: JSON };
-sb.global = sb; vm.createContext(sb);
-sb.Data = { modules: DATA.modules, ships: DATA.ships,
-            module: function (k) { return DATA.modules[k]; },
-            ship: function (k) { return DATA.ships[k]; } };
-['js/geom.js', 'js/autofit.js'].forEach(function (f) {
-  vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), sb, { filename: f });
-});
-var Geom = sb.Geom, Autofit = sb.Autofit;
+/* The skill dial, swept: every hull and every recipe must come out flyable at
+   every one of these, not only at the two ends. */
+var SKILLS = [50, 75, 100];
+var sb = L.sandbox(['js/geom.js', 'js/autofit.js']);
+var Geom = sb.Geom, Autofit = sb.Autofit, DATA = sb.Data;
 
 var verbose = process.argv.indexOf('--verbose') >= 0;
 var fails = 0, runs = 0, worst = [];
 
 /* the level gate the player actually plays under: a fit built at level N may
    only use what level N has unlocked */
-var PROG = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/progression.json'), 'utf8'));
+var PROG = L.read('data/progression.json');
 function allowAt(level) {
   return function (m) { return (PROG.moduleLevel[m.key] || 99) <= level; };
 }
 
-Object.keys(DATA.ships).forEach(function (key) {
-  var ship = DATA.ships[key];
-  if ((ship.lr || 0) > 50) return;                 /* the Drone is not flyable */
-  var level = ship.lr || 1;
+/* Every hull the game would let you fly, which is what `shipList` means — no
+   level threshold standing in for a ship, and no names. A hull that cannot be
+   fitted is a FAILURE to report, not a row to skip. */
+DATA.shipList.forEach(function (ship) {
+  var key = ship.key;
+  /* the LADDER level the hull arrives at, which is the scale `moduleLevel`
+     answers in — its source level is a different axis entirely */
+  var level = PROG.shipLevel[ship.key] || PROG.maxLevel;
   Autofit.WEAPON_MODES.forEach(function (w) {
     Autofit.ARMOUR_MODES.forEach(function (a) {
       Autofit.PRIORITY_MODES.forEach(function (p) {
-        Autofit.PLACEMENT_MODES.forEach(function (pl) {
+        SKILLS.forEach(function (sk) {
           runs++;
           var fit = Autofit.build(ship, { weapons: w, armour: a, priority: p,
-                                          placement: pl, seed: 7, allow: allowAt(level) },
+                                          skill: sk, seed: 7, allow: allowAt(level) },
                                   DATA.modules);
           var v = Geom.validate(ship, fit, DATA.modules);
           var s = v.stats;
           if (!v.ok) {
             fails++;
-            console.log('FAIL ' + key + ' lv' + level + ' [' + w + '/' + a + '/' + p + '/' + pl + '] ' +
+            console.log('FAIL ' + key + ' lv' + level + ' [' + w + '/' + a + '/' + p + '/sk' + sk + '] ' +
                         v.errors.join('; '));
           } else if (verbose) {
             console.log('ok   ' + key.padEnd(15) + (w + '/' + a + '/' + p + '/' + pl).padEnd(34) +
@@ -68,21 +66,34 @@ if (worst.length) {
 
 /* Clever placement has to actually differ from random, or the mode is a lie:
    plate should sit further forward and reactors further aft. */
+/* A spread of hulls across the roster, smallest to largest, without naming
+   any. Sampling beats a fixed list: the roster is curated in the data, and a
+   named hull that has since been cleared out turns a check into a crash. */
+function sample(n) {
+  var all = DATA.shipList.slice().sort(function (a, b) {
+    return Geom.shipGrid(a).capacity - Geom.shipGrid(b).capacity;
+  });
+  if (all.length <= n) return all;
+  var out = [];
+  for (var i = 0; i < n; i++) out.push(all[Math.round(i * (all.length - 1) / (n - 1))]);
+  return out;
+}
+
 function centroid(ship, fit, pred) {
   var g = Geom.shipGrid(ship), n = 0, sum = 0;
   fit.forEach(function (p) {
     var m = DATA.modules[p.moduleId];
     if (!pred(m)) return;
-    n++; sum += 1 - (p.row + (m.h - 1) / 2) / Math.max(1, g.h - 1);
+    n++; sum += 1 - (p.row + (m.height - 1) / 2) / Math.max(1, g.h - 1);
   });
   return n ? sum / n : null;
 }
 console.log('\nclever vs random — how far forward each class sits (1 = nose)');
-['Hammerhead', 'Warrior', 'Arbiter'].forEach(function (key) {
-  var ship = DATA.ships[key];
+sample(3).forEach(function (ship) {
+  var key = ship.key;
   var o = { weapons: 'mix', armour: 'mix', priority: 'mix', seed: 3, allow: allowAt(50) };
-  var cl = Autofit.build(ship, Object.assign({ placement: 'clever' }, o), DATA.modules);
-  var rn = Autofit.build(ship, Object.assign({ placement: 'random' }, o), DATA.modules);
+  var cl = Autofit.build(ship, Object.assign({ skill: 100 }, o), DATA.modules);
+  var rn = Autofit.build(ship, Object.assign({ skill: 50 }, o), DATA.modules);
   function row(label, pred) {
     var a = centroid(ship, cl, pred), b = centroid(ship, rn, pred);
     console.log('  ' + key.padEnd(12) + label.padEnd(10) +
@@ -102,9 +113,7 @@ console.log('\n' + (runs - fails) + ' of ' + runs + ' fits flyable' +
    same seed — only the placement mode differs. If clever does not out-fight
    random, the scores are decoration. */
 if (process.argv.indexOf('--fight') >= 0) {
-  ['js/sim/modules.js', 'js/sim/ai.js', 'js/sim/sim.js'].forEach(function (f) {
-    vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), sb, { filename: f });
-  });
+  L.sandbox(['js/sim/modules.js', 'js/sim/ai.js', 'js/sim/sim.js'], null, sb);
   var Sim = sb.Sim;
   function run(a, b, seed) {
     var w = Sim.create({ playerFit: a, enemyFit: b, seed: seed });
@@ -114,12 +123,11 @@ if (process.argv.indexOf('--fight') >= 0) {
   }
   console.log('\nclever vs random, same hull and recipe, 6 seeds each');
   var cw = 0, rw = 0, dr = 0;
-  ['Lightning', 'Raven', 'Hammerhead', 'Broadsword', 'Warrior', 'Duke', 'Arbiter']
-    .forEach(function (key) {
-      var ship = DATA.ships[key], lv = ship.lr || 1, win = 0;
+  sample(7).forEach(function (ship) {
+      var key = ship.key, lv = PROG.shipLevel[ship.key] || PROG.maxLevel, win = 0;
       var o = { weapons: 'mix', armour: 'mix', priority: 'mix', seed: 11, allow: allowAt(lv) };
-      var cl = { shipId: key, modules: Autofit.build(ship, Object.assign({ placement: 'clever' }, o), DATA.modules) };
-      var rn = { shipId: key, modules: Autofit.build(ship, Object.assign({ placement: 'random' }, o), DATA.modules) };
+      var cl = { shipId: key, modules: Autofit.build(ship, Object.assign({ skill: 100 }, o), DATA.modules) };
+      var rn = { shipId: key, modules: Autofit.build(ship, Object.assign({ skill: 50 }, o), DATA.modules) };
       for (var s2 = 1; s2 <= 6; s2++) {
         var r2 = run(cl, rn, s2 * 613);
         if (r2 === 'player') { win++; cw++; } else if (r2 === 'enemy') rw++; else dr++;

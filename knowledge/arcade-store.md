@@ -101,9 +101,12 @@ Nothing else is touched.
 
 ## The hub
 
-The hub's ⚙ panel lists `localStorage` keys. Games on the store will not appear
-there; it wants a second list from `ArcadeStore.list()`. Until that is done,
-"clear this game" for a store-backed game means clearing it from inside the game.
+The hub's ⚙ panel (root `index.html`, footer) lists the IndexedDB items alongside the
+localStorage ones: it opens database `arcade`, store `kv` directly, reads every key,
+shows sizes, renders a value only when its section is opened, and deletes one key on a
+confirmed Clear. It closes the connection straight after each read or delete. A game left
+open in another tab still holds its items in memory and can write them back after a clear,
+so close the game first.
 
 ## The file
 

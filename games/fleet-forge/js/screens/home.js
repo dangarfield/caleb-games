@@ -66,7 +66,18 @@ var HomeScreen = (function () {
     }
 
     var cx = r.x + r.w / 2;
-    hatchDisc(ctx, cx, r.y + 48, 68, on ? T.accent : T.edgeUp);
+    /* The portrait, ringed the way the design rings it: the accent and a glow
+       on the pilot you are about to be, a quiet edge on the other. */
+    if (on) {
+      ctx.save();
+      ctx.shadowColor = 'rgba(56,197,216,0.35)'; ctx.shadowBlur = 18;
+      avatarDisc(ctx, cx, r.y + 48, 68, Data.pilotImg(s.id), T.accent, 2);
+      ctx.restore();
+    } else {
+      ctx.globalAlpha = 0.85;
+      avatarDisc(ctx, cx, r.y + 48, 68, Data.pilotImg(s.id), 'rgba(120,170,200,0.3)', 2);
+      ctx.globalAlpha = 1;
+    }
 
     text(ctx, s.name.toUpperCase(), cx, r.y + 103,
          { font: T.head(22, 700), fill: on ? '#EAF5FA' : '#C7D6DE',
@@ -89,7 +100,7 @@ var HomeScreen = (function () {
     /* two mono lines at line-height 1.6 */
     var meta = s.started
       ? [(s.tierName + ' T' + s.tier + ' · ' + s.hull).toUpperCase(),
-         s.ops + ' OPS COMPLETE']
+         s.ops + ' GOALS COMPLETE']
       : ['NO FLIGHT RECORD', 'NEW PILOT'];
     var mf = T.mono(10.5), mc = on ? '#8FB6C6' : T.muted;
     text(ctx, fitText(ctx, meta[0], r.w - 20, mf), cx, r.y + 168.4,
@@ -114,6 +125,19 @@ var HomeScreen = (function () {
 
   return {
     enter: function () { sel = Save.pilot(); Music.to('hangar'); },
+
+    /* `d` — the debug pilot. Level 100, every hull claimed and autofitted,
+       every operation ticked, and NOTHING WRITTEN: the save on this machine is
+       untouched and a reload puts the real pilot back. It is here rather than
+       behind a button because it is for whoever is building the game, not for
+       whoever is playing it. */
+    key: function (k) {
+      if (k !== 'd' && k !== 'D') return false;
+      if (!Save.debugPilot()) return false;
+      Sfx.play('confirm');
+      App.replace(FleetScreen);
+      return true;
+    },
 
     draw: function (ctx) {
       drawBackdrop(ctx);

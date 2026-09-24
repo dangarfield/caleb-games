@@ -24,8 +24,8 @@
 var FleetScreen = (function () {
   var tierSel = 1;
   var hs = { x: 0, v: 0, grab: false };        /* the hull strip's scroll */
-  var opsTab = 'ops';                          /* 'ops' | 'unlocks' */
-  var msg = null, msgT = 0;
+  var panelOpen = false;                       /* the GOAL drop-down */
+  var chipRect = null;                         /* where the chip was drawn   */
 
   /* ---- the design's boxes, at 1333x690 ---------------------------------
      Handoff 1aa: two columns, `minmax(0,1fr) 324px`. There used to be a third,
@@ -33,19 +33,33 @@ var FleetScreen = (function () {
      everything it held now sits on the active hull's own card, where the thing
      being configured and the controls that configure it are in one place, and
      the operations column took half its width. */
-  var BAR_H = 58, BAR_L = 140, BAR_R = 18;     /* 140px reserved for ← Games */
+  var BAR_H = 58, BAR_L = 140;                 /* 140px reserved for ← Games */
+  var BAR_R = App.RIGHT_INSET;                 /* and the mute button's corner */
   var BODY_Y = BAR_H, BODY_H = VH - BAR_H;     /* 58 .. 690 */
-  var OPS_W = 324;
-  var OPS_X = VW - OPS_W;
 
-  var FLEET = { x: 12, y: BODY_Y + 9, w: OPS_X - 24, h: BODY_H - 18 };
+  /* THE 324px COLUMN IS GONE. It held OPERATIONS and UNLOCKS behind a two-tab
+     toggle — a quarter of the hangar, permanently, for a list with exactly one
+     live row in it: the ladder is linear, so there is only ever one goal open.
+     The handoff puts that one goal in the bar as a chip and hangs the rest
+     under it, which gives the fleet the whole width and costs a tap nobody was
+     making anyway. */
+  var FLEET = { x: 12, y: BODY_Y + 9, w: VW - 24, h: BODY_H - 18 };
   var RAIL  = { x: FLEET.x, y: FLEET.y, w: FLEET.w, h: 40 };
   var STRIP  = { x: FLEET.x, y: RAIL.y + RAIL.h + 8,
                  w: FLEET.w, h: FLEET.h - RAIL.h - 8 };
   var CARD_W = STRIP.h * 2 / 3, CARD_GAP = 10;  /* portrait 2:3, min 176 */
-  var OPS   = { x: OPS_X + 1 + 10, y: BODY_Y + 9, w: OPS_W - 1 - 20, h: BODY_H - 18 };
+  /* the drop-down, handoff 1a: 340 wide, 6 under the bar, on the mute
+     button's own right inset, and never taller than the screen less 12 */
+  var PANEL = { w: 340, x: VW - BAR_R - 340, y: BAR_H + 6, maxH: VH - BAR_H - 18 };
+  var PANEL_PAD_X = 11, PANEL_PAD_Y = 10, PANEL_GAP = 5;
 
-  function say(s) { msg = s; msgT = 3.5; }
+  /* THE HANGAR SAYS NOTHING. It used to throw a toast for a locked tier, a
+     locked hull, a hull joining the fleet and a fit that will not fly — four
+     notices for four things the cards already say in place: a locked tier tab
+     is drawn locked, a locked hull carries the level it wants, claiming one
+     visibly moves it into the fleet, and an unflyable fit says NOT FLIGHT
+     READY on the button you just pressed. A line that repeats what is already
+     on screen is noise, so there is no `say` here any more. */
   function k(n) {
     n = Math.round(n || 0);
     return n >= 10000 ? (n / 1000).toFixed(0) + 'k'
@@ -76,10 +90,98 @@ var FleetScreen = (function () {
     ctx.fillStyle = T.rule;
     ctx.fillRect(x, mid - 10, 1, 20);
     x += 1 + 14;
+    ctx.font = T.head(13, 600);
     text(ctx, 'HANGAR', x, mid,
          { font: T.head(13, 600), fill: T.accent, baseline: 'middle', track: 2.4 });
+    x += ctx.measureText('HANGAR').width + 2.4 * 6 + 14;
 
-    drawPilotChip(ctx, mid);
+    /* HULL shows the hull on its own; MODULES puts the fit on top of it. */
+    var seg = UI.segment(ctx, x, mid - 29 / 2, ['HULL', 'MODULES'],
+                         Save.hullView('hangar') === 'hull' ? 0 : 1);
+    if (seg.picked >= 0) Save.setHullView('hangar', seg.picked ? 'modules' : 'hull');
+
+
+    var pilot = drawPilotChip(ctx, mid);
+    drawGoalChip(ctx, mid, pilot.x - 14, x + seg.w + 14);
+  }
+
+  /* ---- the GOAL chip ---------------------------------------------------
+     Handoff 1a: 40 tall, the word GOAL, the objective over a 3px bar, the
+     count, a chevron. `flex: 0 1 auto; min-width: 0` in the design, so it
+     takes what it needs and gives way to the pilot pill when the bar is
+     tight — measured, then clamped to the gap it has been left. */
+  function drawGoalChip(ctx, mid, rightX, leftX) {
+    var op = Progress.available()[0] || null;
+    var pr = op ? Progress.opProgress(op) : null;
+    var label = op ? (op.desc || op.name) : 'All goals complete';
+    var cnt = pr ? (pr.have + '/' + pr.need) : '';
+
+    ctx.font = T.head(11, 700);
+    var wLab = ctx.measureText('GOAL').width + 1.8 * 4;
+    ctx.font = T.mono(12);
+    var wCnt = cnt ? ctx.measureText(cnt).width : 0;
+    /* 12 in, gap 9, the text column, gap 9, the count, 2, the chevron, 10 out */
+    var fixed = 12 + wLab + 9 + (cnt ? wCnt + 9 : 0) + 8 + 7 + 10;
+    ctx.font = T.body(13, 500);
+    var wWant = fixed + Math.min(ctx.measureText(label).width, 280);
+    var room = rightX - leftX;
+    var w = Math.min(wWant, room);
+    if (w < fixed + 40) { chipRect = null; return; }   /* no room to draw it at all */
+
+    var h = 40, r = { x: rightX - w, y: mid - h / 2, w: w, h: h };
+    chipRect = r;                 /* so a tap on it is not read as "outside" */
+    fillRR(ctx, r.x, r.y, r.w, r.h, 6, 'rgba(232,163,61,0.07)');
+    strokeRR(ctx, r.x, r.y, r.w, r.h, 6, 'rgba(232,163,61,0.45)', 1);
+
+    var tx = r.x + 12;
+    text(ctx, 'GOAL', tx, mid,
+         { font: T.head(11, 700), fill: T.warn, baseline: 'middle', track: 1.8 });
+    tx += wLab + 9;
+
+    var colW = r.x + r.w - 10 - 7 - 8 - (cnt ? wCnt + 9 : 0) - tx;
+    text(ctx, fitText(ctx, label, colW, T.body(13, 500)), tx, pr ? mid - 7 : mid,
+         { font: T.body(13, 500), fill: T.ink, baseline: 'middle' });
+    if (pr) {
+      var by = mid + 7;
+      fillRR(ctx, tx, by, colW, 3, 1.5, T.track);
+      if (pr.have > 0) {
+        fillRR(ctx, tx, by, Math.max(2, colW * pr.have / pr.need), 3, 1.5, T.warn);
+      }
+      text(ctx, cnt, tx + colW + 9, mid,
+           { font: T.mono(12), fill: T.warn, baseline: 'middle' });
+    }
+    chevron(ctx, r.x + r.w - 10 - 7, mid, panelOpen);
+
+    if (UI.zone(r, 'toggle')) panelOpen = !panelOpen;
+  }
+
+  /* Two strokes, mitred, in the 12px the level number would have taken — the
+     short arm down-right, the long arm up-right. */
+  function tick(ctx, x, cy, colour) {
+    ctx.save();
+    ctx.strokeStyle = colour;
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x + 1, cy + 0.5);
+    ctx.lineTo(x + 4.5, cy + 4);
+    ctx.lineTo(x + 11, cy - 4.5);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /* The design's chevron is a 7x7 square with two borders, rotated: pointing
+     down when the panel is shut and up when it is open. */
+  function chevron(ctx, x, cy, up) {
+    ctx.save();
+    ctx.translate(x + 3.5, cy + (up ? 2 : -2));
+    ctx.rotate((up ? -135 : 45) * Math.PI / 180);
+    ctx.strokeStyle = '#8FA3B0'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(3.5, -3.5); ctx.lineTo(3.5, 3.5); ctx.lineTo(-3.5, 3.5);
+    ctx.stroke();
+    ctx.restore();
   }
 
   /* The pilot pill on the right of the bar: avatar, name over ops, a rule, and
@@ -88,28 +190,30 @@ var FleetScreen = (function () {
      edge, not the left. */
   function drawPilotChip(ctx, mid) {
     var s = Save.summary(Save.pilot());
-    var name = 'CAPTAIN ' + s.name.toUpperCase(), sub = s.ops + ' OPS COMPLETE';
+    var name = 'CAPTAIN ' + s.name.toUpperCase();
     ctx.font = T.head(14, 600);
-    var wName = ctx.measureText(name).width + 1.4 * name.length;
-    ctx.font = T.mono(10);
-    var wSub = ctx.measureText(sub).width;
-    var wText = Math.max(wName, wSub);
+    var wText = ctx.measureText(name).width + 1.4 * name.length;
     ctx.font = T.mono(17, 600);
     var wNum = ctx.measureText(String(s.level)).width;
     ctx.font = T.head(9);
     var wLv = Math.max(wNum, ctx.measureText('LEVEL').width + 1.4 * 5);
 
-    var w = 6 + 28 + 10 + wText + 10 + 1 + 10 + wLv + 13, h = 42;
+    var w = 6 + 32 + 10 + wText + 10 + 1 + 10 + wLv + 13, h = 42;
     var r = { x: VW - BAR_R - w, y: mid - h / 2, w: w, h: h };
 
     fillRR(ctx, r.x, r.y, r.w, r.h, 22, 'rgba(16,26,34,0.8)');
     strokeRR(ctx, r.x, r.y, r.w, r.h, 22, T.edge, 1);
 
-    hatchDisc(ctx, r.x + 6 + 14, mid, 28, 'rgba(140,190,215,0.25)');
-    var tx = r.x + 6 + 28 + 10;
-    text(ctx, name, tx, mid - 7,
+    /* 32 across with a 1px accent ring, as the handoff has it — the pill grew
+       four pixels to take it. */
+    avatarDisc(ctx, r.x + 6 + 16, mid, 32, Data.pilotImg(s.id), T.accent, 1);
+    var tx = r.x + 6 + 32 + 10;
+    /* THE NAME SITS ON ITS OWN, CENTRED. It used to carry "34 OPS COMPLETE"
+       under it — a number that belongs with the goals, not with who is flying,
+       and the design has the pill as avatar, name, rule, level and nothing
+       else. The count still exists, at the head of the goal panel. */
+    text(ctx, name, tx, mid,
          { font: T.head(14, 600), fill: T.ink, baseline: 'middle', track: 1.4 });
-    text(ctx, sub, tx, mid + 9, { font: T.mono(10), fill: T.muted, baseline: 'middle' });
 
     var dx = tx + wText + 10;
     ctx.fillStyle = T.rule;
@@ -122,6 +226,7 @@ var FleetScreen = (function () {
          { font: T.head(9), fill: T.muted, align: 'center', baseline: 'middle', track: 1.4 });
 
     if (UI.zone(r, 'back')) App.replace(HomeScreen);
+    return r;
   }
 
   /* ---- tier rail ------------------------------------------------------
@@ -203,7 +308,7 @@ var FleetScreen = (function () {
 
       if (UI.zone(r, open ? 'toggle' : 'deny')) {
         if (open) { tierSel = t.n; hs.x = 0; hs.v = 0; }
-        else say('Tier ' + t.n + ' opens at level ' + t.fromLevel);
+        else Sfx.play('deny');
       }
       x += cw + 4;
     }
@@ -237,11 +342,11 @@ var FleetScreen = (function () {
     }
     ctx.restore();
 
-    if (max > 0) {          /* the strip's own rule, so it reads as scrollable */
-      var tw2 = STRIP.w * (STRIP.w / contentW);
-      fillRR(ctx, STRIP.x + (STRIP.w - tw2) * (hs.x / max), STRIP.y + STRIP.h - 3,
-             tw2, 3, 1.5, T.edge);
-    }
+    /* NO SCROLLBAR. There was a 3px thumb along the foot of the strip, and it
+       sat right under the cards' own buttons — a second horizontal rule in a
+       row that already has several. A card half off the edge of the screen
+       says the strip scrolls perfectly well, and the design does not draw one.
+       `max` is still what clamps the drag above; only the indicator is gone. */
 
     if (pick >= 0) {
       var s = list[pick];
@@ -251,8 +356,7 @@ var FleetScreen = (function () {
       if (Save.owned(s.key)) Save.setActiveShip(s.key);
       else if (Progress.shipUnlocked(s)) {
         Save.unlockShip(s.key); Save.setActiveShip(s.key);
-        say(s.displayName + ' joined your fleet');
-      } else say(s.displayName + ' unlocks at level ' + Progress.levelOfShip(s.key));
+      } else Sfx.play('deny');
     }
   }
 
@@ -283,18 +387,26 @@ var FleetScreen = (function () {
       dashRR(ctx, r.x, r.y, r.w, r.h, 8, T.edge);
     }
 
-    /* header: name left, tier badge right */
+    /* header: name left, then how big the hull is, then which tier it is.
+       The cell count is what a fit is actually budgeted against — a T4 with 65
+       cells and a T4 with 108 are different ships — so it sits beside the tier
+       rather than being something you only find in the fitting bay. */
     var hy = r.y + CARD_PAD;
     var badge = 'T' + Progress.tierOf(s);
+    var cells = Geom.shipGrid(s).capacity + ' CELLS';
     ctx.font = T.mono(11);
     var bw = ctx.measureText(badge).width + 10;
+    var cw = ctx.measureText(cells).width + 8;
     text(ctx, fitText(ctx, s.displayName.toUpperCase(),
-                      r.w - CARD_PAD * 2 - bw - 8, T.head(15, 700)),
+                      r.w - CARD_PAD * 2 - bw - cw - 12, T.head(15, 700)),
          r.x + CARD_PAD, hy + CARD_HEAD / 2,
          { font: T.head(15, 700), baseline: 'middle', track: 1.6,
            fill: active ? '#EAF5FA' : open ? '#C7D6DE' : '#5D7280' });
 
     var br = { x: r.x + r.w - CARD_PAD - bw, y: hy + 1, w: bw, h: 15 };
+    text(ctx, cells, br.x - 6, hy + CARD_HEAD / 2,
+         { font: T.mono(11), align: 'right', baseline: 'middle',
+           fill: active ? '#8FB6C6' : open ? '#6F8795' : '#4A5C68' });
     if (active) {
       fillRR(ctx, br.x, br.y, br.w, br.h, 2, T.accent);
       text(ctx, badge, br.x + br.w / 2, br.y + br.h / 2,
@@ -333,10 +445,16 @@ var FleetScreen = (function () {
          not shove its picture upwards to make room for the controls that just
          appeared. It used to inset the foot by however much the panel covered,
          which meant the ship jumped the moment you tapped the card. */
-      ShipView.draw(ctx, s, owned ? (layout || {}).modules : null,
-                    { x: well.x + 10, y: well.y + 10,
-                      w: well.w - 20, h: well.h - 20 },
-                    { maxCell: 44, solid: active ? '#0A151C' : '#0A1016' });
+      /* HULL is the ship and nothing else — no grid, no fit, no ground. MODULES
+         is the ship with its grid and whatever is bolted to it. */
+      var showMods = Save.hullView('hangar') === 'modules';
+      var box = { x: well.x + 10, y: well.y + 10, w: well.w - 20, h: well.h - 20 };
+      if (owned && showMods) {
+        ShipView.draw(ctx, s, (layout || {}).modules, box,
+                      { maxCell: 44, solid: active ? '#0A151C' : '#0A1016' });
+      } else {
+        ShipView.draw(ctx, s, null, box, { maxCell: 44, cells: false, artAlpha: 1 });
+      }
     } else {
       text(ctx, 'LOCKED', well.x + well.w / 2, well.y + well.h / 2,
            { font: T.mono(10), fill: '#5D7280', align: 'center', baseline: 'middle', track: 1 });
@@ -353,17 +471,35 @@ var FleetScreen = (function () {
         ctx.shadowColor = 'rgba(56,197,216,0.3)'; ctx.shadowBlur = 20;
         fillRR(ctx, b.x, b.y, b.w, b.h, 5, T.accent);
         ctx.restore();
+        text(ctx, 'ENTER ARENA', b.x + b.w / 2, b.y + b.h / 2,
+             { font: T.head(15, 700), fill: T.onAccent,
+               align: 'center', baseline: 'middle', track: 2.6 });
+        if (UI.zone(b, 'launch')) launchArena(s.key, layout);
       } else {
-        fillRR(ctx, b.x, b.y, b.w, b.h, 5, 'rgba(120,170,200,0.08)');
-        strokeRR(ctx, b.x, b.y, b.w, b.h, 5, T.edge, 1);
-      }
-      text(ctx, ready ? 'ENTER ARENA' : 'NOT FLIGHT READY', b.x + b.w / 2, b.y + b.h / 2,
-           { font: T.head(15, 700), fill: ready ? T.onAccent : T.sealed,
-             align: 'center', baseline: 'middle', track: 2.6 });
-      if (UI.zone(b, ready ? 'launch' : 'deny')) {
-        if (ready) launchArena(s.key, layout);
-        else say(Geom.validate(s, (layout && layout.modules) || [], Data.modules)
-                     .errors[0] || 'Fit is not flight ready');
+        /* A HULL THAT CANNOT FLY GETS THE WAY OUT NEXT TO THE PROBLEM. The
+           row was one dead NOT FLIGHT READY button that said no and offered
+           nothing; the fix — a default autofit — was two screens away in the
+           fitting bay. AUTOFIT takes the narrow half on the left, the verdict
+           expands into the rest. */
+        var afw = b.w < 260 ? 74 : 92;
+        var af = { x: b.x, y: b.y, w: afw, h: b.h };
+        var mb = { x: b.x + afw + 6, y: b.y, w: b.w - afw - 6, h: b.h };
+
+        fillRR(ctx, af.x, af.y, af.w, af.h, 5, 'rgba(56,197,216,0.08)');
+        strokeRR(ctx, af.x, af.y, af.w, af.h, 5, T.accent, 1);
+        text(ctx, 'AUTOFIT', af.x + af.w / 2, af.y + af.h / 2,
+             { font: T.head(13, 700), fill: T.accent,
+               align: 'center', baseline: 'middle', track: 1.6 });
+
+        fillRR(ctx, mb.x, mb.y, mb.w, mb.h, 5, 'rgba(120,170,200,0.08)');
+        strokeRR(ctx, mb.x, mb.y, mb.w, mb.h, 5, T.edge, 1);
+        text(ctx, fitText(ctx, 'NOT FLIGHT READY', mb.w - 12, T.head(15, 700)),
+             mb.x + mb.w / 2, mb.y + mb.h / 2,
+             { font: T.head(15, 700), fill: T.sealed,
+               align: 'center', baseline: 'middle', track: 2.6 });
+
+        if (UI.zone(af, 'autofit')) autofitInto(s);
+        else UI.zone(mb, 'deny');
       }
     } else if (open) {
       strokeRR(ctx, b.x, b.y, b.w, b.h, 5, T.edgeUp, 1);
@@ -475,7 +611,7 @@ var FleetScreen = (function () {
       statChip(ctx, 'DPS', k(stats.dps), T.cat.ballistic, sx, sy);
     } else {
       sx = statChip(ctx, 'CELLS', String(Geom.shipGrid(s).capacity), T.ink, sx, sy);
-      statChip(ctx, 'LV', String(s.lr || 1), T.accent, sx, sy);
+      statChip(ctx, 'LV', String(s.requiredLevelSource || 1), T.accent, sx, sy);
     }
   }
 
@@ -510,148 +646,250 @@ var FleetScreen = (function () {
     return out.length ? out : [''];
   }
 
-  /* ---- operations / unlocks column (324px) ----------------------------- */
-  function drawOps(ctx) {
-    ctx.fillStyle = 'rgba(4,8,11,0.85)';
-    ctx.fillRect(OPS_X, BODY_Y, OPS_W, BODY_H);
-    ctx.fillStyle = T.rule;
-    ctx.fillRect(OPS_X, BODY_Y, 1, BODY_H);
+  /* ---- the GOAL panel --------------------------------------------------
+     Handoff 1a: one drop-down under the chip holding both halves of the old
+     column — the goal on top, the unlocks under it, one dashed row each for
+     what is still sealed. There are no tabs because there is nothing to
+     choose between: these are two readings of the same ladder, and the old
+     toggle made you flip between them to answer one question ("what am I
+     doing, and what does it get me").
 
-    var showOps = opsTab === 'ops';
-    var all = Progress.all(), done = 0;
-    for (var i = 0; i < all.length; i++) if (Progress.done(all[i].id)) done++;
+     Rows are measured, not fixed, so the panel is exactly as tall as what is
+     in it and never the 614 it is allowed. */
+  var ROW_H = 26, HEAD_H = 13, SEAL_H = 26, SECTION_GAP = 8;
+  var UNLOCKS = 6, HAD = 3;        /* still to come, and just handed over     */
 
-    text(ctx, showOps ? 'OPERATIONS' : 'UNLOCKS', OPS.x, OPS.y + 7,
-         { font: T.head(11), fill: '#8FA3B0', baseline: 'middle', track: 2 });
-    text(ctx, showOps ? (done + '/' + all.length + ' DONE')
-                     : ('NEXT ' + Progress.upcoming(12).length),
-         OPS.x + OPS.w, OPS.y + 7,
-         { font: T.mono(10), fill: T.muted, align: 'right', baseline: 'middle' });
-
-    var toggleH = 31, y = OPS.y + 14 + 5;
-    var floor = OPS.y + OPS.h - toggleH - 5;
-
-    if (showOps) y = drawOpList(ctx, y, floor);
-    else         y = drawUnlockList(ctx, y, floor);
-
-    /* OPS / UNLOCKS toggle, at the foot of the column */
-    var tr = { x: OPS.x, y: OPS.y + OPS.h - toggleH, w: OPS.w, h: toggleH };
-    fillRR(ctx, tr.x, tr.y, tr.w, tr.h, 6, 'rgba(10,16,21,0.8)');
-    strokeRR(ctx, tr.x, tr.y, tr.w, tr.h, 6, T.edgeUp, 1);
-    var hw = (tr.w - 6 - 3) / 2;
-    ['OPS', 'UNLOCKS'].forEach(function (lab, j) {
-      var on = (j === 0) === showOps;
-      var r = { x: tr.x + 3 + j * (hw + 3), y: tr.y + 3, w: hw, h: tr.h - 6 };
-      if (on) fillRR(ctx, r.x, r.y, r.w, r.h, 4, T.accent);
-      text(ctx, lab, r.x + r.w / 2, r.y + r.h / 2,
-           { font: T.head(11, 700), fill: on ? T.onAccent : '#8FA3B0',
-             align: 'center', baseline: 'middle', track: 1.6 });
-      if (UI.zone(r, 'toggle')) opsTab = j === 0 ? 'ops' : 'unlocks';
-    });
+  function opsDoneCount() {
+    var all = Progress.all(), n = 0;
+    for (var i = 0; i < all.length; i++) if (Progress.done(all[i].id)) n++;
+    return n;
   }
 
-  function drawOpList(ctx, y, floor) {
-    var list = Progress.available(), gate = Progress.currentGate();
-    /* the gate first when there is one — it is the wall, not one of the choices */
-    if (gate) {
-      list = [gate].concat(list.filter(function (o) { return o.id !== gate.id; }));
-    }
-    var shown = 0, LH = 14;
-    for (var i = 0; i < list.length; i++) {
-      var o = list[i], pr = Progress.opProgress(o);
-      var near = pr.need > 1 && pr.have / pr.need >= 0.5;
+  /* One line each, and the goal card is as tall as its wrapped text. */
+  function goalCardH(ctx, op) {
+    if (!op) return ROW_H;
+    var lines = wrapText(ctx, op.desc || op.name, PANEL.w - PANEL_PAD_X * 2 - 16 - 34,
+                         T.body(13, 500), 2);
+    return 7 + lines.length * 16 + 5 + 3 + 7;
+  }
 
-      /* The description WRAPS rather than being cut off with an ellipsis: an
-         operation you cannot read the second half of is not an objective, and
-         the row is cheap to make taller. Two lines is the cap — past that the
-         text wants shortening, not more room. */
-      ctx.font = T.mono(10);
-      var cnt = pr.have + '/' + pr.need;
-      var cw = ctx.measureText(cnt).width;
-      var lines = wrapText(ctx, o.desc || o.name, OPS.w - 16 - cw - 8,
-                           T.body(12, 500), 2);
-      var rowH = 19 + LH * lines.length;
+  function panelRect(ctx) {
+    var op = Progress.available()[0] || null;
+    /* what you have just been given, then what is still to come */
+    var up = Progress.recent(HAD).concat(Progress.upcoming(UNLOCKS));
+    var h = PANEL_PAD_Y * 2
+          + HEAD_H + PANEL_GAP
+          + goalCardH(ctx, op) + PANEL_GAP
+          + SEAL_H + PANEL_GAP
+          + SECTION_GAP + PANEL_GAP
+          + HEAD_H + PANEL_GAP
+          + up.length * (ROW_H + PANEL_GAP)
+          + SEAL_H;
+    if (h > PANEL.maxH) h = PANEL.maxH;
+    return { x: PANEL.x, y: PANEL.y, w: PANEL.w, h: h, op: op, up: up };
+  }
 
-      if (y + rowH > floor - 27) break;                /* leave room for the seal */
-      var r = { x: OPS.x, y: y, w: OPS.w, h: rowH };
+  /* A section heading: the name left, a reading of where you are right. */
+  function panelHead(ctx, x, y, w, left, right) {
+    text(ctx, left, x, y + HEAD_H / 2,
+         { font: T.head(11), fill: '#8FA3B0', baseline: 'middle', track: 2 });
+    text(ctx, right, x + w, y + HEAD_H / 2,
+         { font: T.mono(10), fill: '#6F8795', align: 'right', baseline: 'middle' });
+    return y + HEAD_H + PANEL_GAP;
+  }
 
-      if (near || o === gate) {
-        fillRR(ctx, r.x, r.y, r.w, r.h, 5, 'rgba(232,163,61,0.06)');
-        strokeRR(ctx, r.x, r.y, r.w, r.h, 5, 'rgba(232,163,61,0.4)', 1);
-      } else {
-        strokeRR(ctx, r.x, r.y, r.w, r.h, 5, T.edge, 1);
-      }
+  /* The dashed row standing for everything not yet revealed. */
+  function sealedRow(ctx, x, y, w, label, n) {
+    dashRR(ctx, x, y, w, SEAL_H, 5, T.edge);
+    strokeRR(ctx, x + 8, y + (SEAL_H - 9) / 2, 7, 9, 1, T.sealed, 1);
+    text(ctx, label, x + 8 + 7 + 6, y + SEAL_H / 2,
+         { font: T.body(12), fill: '#5D7280', baseline: 'middle' });
+    text(ctx, String(n), x + w - 8, y + SEAL_H / 2,
+         { font: T.mono(11), fill: '#6F8795', align: 'right', baseline: 'middle' });
+    return y + SEAL_H + PANEL_GAP;
+  }
 
+  function drawGoalPanel(ctx) {
+    if (!panelOpen) return;
+    var R = panelRect(ctx);
+
+    /* the scrim, from under the bar down — the bar itself stays live, so the
+       chip can shut what it opened */
+    ctx.fillStyle = 'rgba(2,5,8,0.45)';
+    ctx.fillRect(0, BODY_Y, VW, VH - BODY_Y);
+
+    fillRR(ctx, R.x, R.y, R.w, R.h, 8, 'rgba(6,11,15,0.97)');
+    strokeRR(ctx, R.x, R.y, R.w, R.h, 8, 'rgba(120,170,200,0.22)', 1);
+
+    var x = R.x + PANEL_PAD_X, w = R.w - PANEL_PAD_X * 2, y = R.y + PANEL_PAD_Y;
+
+    /* ---- the goal ---- */
+    y = panelHead(ctx, x, y, w, 'GOAL', opsDoneCount() + ' DONE');
+
+    var op = R.op, ch = goalCardH(ctx, op);
+    if (op) {
+      var pr = Progress.opProgress(op);
+      fillRR(ctx, x, y, w, ch, 5, 'rgba(232,163,61,0.06)');
+      strokeRR(ctx, x, y, w, ch, 5, 'rgba(232,163,61,0.4)', 1);
+      ctx.font = T.mono(11);
+      var cnt = pr.have + '/' + pr.need, cw = ctx.measureText(cnt).width;
+      var lines = wrapText(ctx, op.desc || op.name, w - 16 - cw - 8, T.body(13, 500), 2);
       for (var li = 0; li < lines.length; li++) {
-        text(ctx, lines[li], r.x + 8, r.y + 6 + LH * li + 7,
-             { font: T.body(12, 500), fill: T.ink, baseline: 'middle' });
+        text(ctx, lines[li], x + 8, y + 7 + li * 16 + 8,
+             { font: T.body(13, 500), fill: T.ink, baseline: 'middle' });
       }
-      /* the count sits on the first line, where the eye starts */
-      text(ctx, cnt, r.x + r.w - 8, r.y + 13,
-           { font: T.mono(10), fill: near ? T.warn : '#8FA3B0',
-             align: 'right', baseline: 'middle' });
-
-      var bw = r.w - 16, byy = r.y + rowH - 10;
-      fillRR(ctx, r.x + 8, byy, bw, 3, 1.5, T.track);
+      text(ctx, cnt, x + w - 8, y + 15,
+           { font: T.mono(11), fill: T.warn, align: 'right', baseline: 'middle' });
+      var by = y + ch - 7 - 3;
+      fillRR(ctx, x + 8, by, w - 16, 3, 1.5, T.track);
       if (pr.have > 0) {
-        fillRR(ctx, r.x + 8, byy, Math.max(2, bw * pr.have / pr.need), 3, 1.5,
-               near ? T.warn : '#8FA3B0');
+        fillRR(ctx, x + 8, by, Math.max(2, (w - 16) * pr.have / pr.need), 3, 1.5, T.warn);
       }
-      y += rowH + 5;
-      shown++;
-    }
-
-    /* one sealed row standing for everything not yet revealed: the whole tree
-       less what is on offer and what is already done. */
-    var ops = Progress.all(), d = 0;
-    for (var h = 0; h < ops.length; h++) if (Progress.done(ops[h].id)) d++;
-    var hidden = ops.length - Progress.available().length - d;
-    if (hidden > 0 && y + 27 <= floor) {
-      dashRR(ctx, OPS.x, y, OPS.w, 27, 5, T.edge);
-      text(ctx, hidden === 1 ? 'Sealed op' : hidden + ' sealed ops', OPS.x + 8, y + 13.5,
-           { font: T.body(12), fill: '#5D7280', baseline: 'middle' });
-      strokeRR(ctx, OPS.x + OPS.w - 15, y + 9, 7, 9, 1, T.sealed, 1);
-      y += 27 + 5;
-    }
-    if (!shown && hidden <= 0) {
-      text(ctx, 'ALL OPERATIONS COMPLETE', OPS.x + OPS.w / 2, y + 14,
+    } else {
+      strokeRR(ctx, x, y, w, ch, 5, T.edge, 1);
+      text(ctx, 'ALL GOALS COMPLETE', x + w / 2, y + ch / 2,
            { font: T.mono(10), fill: T.ready, align: 'center', baseline: 'middle', track: 1 });
     }
-    return y;
-  }
+    y += ch + PANEL_GAP;
 
-  function drawUnlockList(ctx, y, floor) {
-    text(ctx, 'YOU ARE LEVEL ' + Progress.level(), OPS.x + 2, y + 7,
-         { font: T.mono(10), fill: T.muted, baseline: 'middle' });
-    y += 14 + 5;
+    var all = Progress.all().length, done = opsDoneCount();
+    y = sealedRow(ctx, x, y, w, 'Sealed goals', all - done - (op ? 1 : 0));
+    y += SECTION_GAP;
 
-    var up = Progress.upcoming(12);
+    /* ---- what it unlocks ---- */
+    y = panelHead(ctx, x, y, w, 'UNLOCKS', 'LEVEL ' + Progress.level());
+
+    var up = R.up, floor = R.y + R.h - PANEL_PAD_Y - SEAL_H;
+    /* The first row still to come is the amber one — the next thing you get.
+       Rows above it are things you already have, and they are the accent's, so
+       the list reads in one glance as behind me / next / after that. */
+    var nextIx = -1;
+    for (var n = 0; n < up.length; n++) if (!up[n].had) { nextIx = n; break; }
     for (var i = 0; i < up.length; i++) {
-      if (y + 39 > floor) break;
-      var u = up[i], first = i === 0;
-      var r = { x: OPS.x, y: y, w: OPS.w, h: 39 };
+      if (y + ROW_H > floor) break;
+      var u = up[i], first = i === nextIx, had = !!u.had;
       if (first) {
-        fillRR(ctx, r.x, r.y, r.w, r.h, 5, 'rgba(232,163,61,0.06)');
-        strokeRR(ctx, r.x, r.y, r.w, r.h, 5, 'rgba(232,163,61,0.45)', 1);
+        fillRR(ctx, x, y, w, ROW_H, 5, 'rgba(232,163,61,0.06)');
+        strokeRR(ctx, x, y, w, ROW_H, 5, 'rgba(232,163,61,0.45)', 1);
+      } else if (had) {
+        fillRR(ctx, x, y, w, ROW_H, 5, 'rgba(56,197,216,0.05)');
+        strokeRR(ctx, x, y, w, ROW_H, 5, 'rgba(56,197,216,0.38)', 1);
       } else {
-        strokeRR(ctx, r.x, r.y, r.w, r.h, 5, T.edge, 1);
+        strokeRR(ctx, x, y, w, ROW_H, 5, 'rgba(120,170,200,0.14)', 1);
       }
-      text(ctx, String(u.level), r.x + 8, r.y + 13,
-           { font: T.mono(12, 600), fill: first ? T.warn : '#8FA3B0', baseline: 'middle' });
-      var tx = r.x + 8 + 26 + 8;
-      text(ctx, fitText(ctx, u.label, r.w - (tx - r.x) - 8, T.body(12, 500)), tx, r.y + 13,
-           { font: T.body(12, 500), fill: T.ink, baseline: 'middle' });
+      /* A row you already have shows a tick, not a level: the level it arrived
+         on is history, and the only thing worth saying about it is that it is
+         yours. Drawn, not typed — a glyph would depend on the font having one
+         and would sit on the text baseline rather than in the row. */
+      if (had) tick(ctx, x + 8, y + ROW_H / 2, T.accent);
+      else text(ctx, String(u.level), x + 8, y + ROW_H / 2,
+                { font: T.mono(12, 600), fill: first ? T.warn : '#8FA3B0',
+                  baseline: 'middle' });
+      /* the kind sits on the SAME line, right — the old column put it on a
+         second one and paid 13px a row for it */
       var kindLabel = u.kind === 'ship' ? 'SHIP' : u.family.toUpperCase();
       var kindTint = u.kind === 'ship' ? T.accent : T.fam[u.family] || T.fam.utility;
-      text(ctx, kindLabel, tx, r.y + 27,
+      ctx.font = T.mono(9.5);
+      var kw = ctx.measureText(kindLabel).width + 0.6 * kindLabel.length;
+      var nx = x + 8 + 22 + 8;
+      /* THE HULL CARD'S OWN TIER BADGE, not a "· T2" glued to the name — same
+         mono 11 in a 15-tall outlined pill, so a tier reads the same wherever
+         it appears. The badge is measured first and the name is fitted to what
+         is left, or a long hull name would push it off the row. */
+      var tb = 0;
+      if (u.tier) { ctx.font = T.mono(11); tb = ctx.measureText('T' + u.tier).width + 10 + 6; }
+      text(ctx, fitText(ctx, u.label, x + w - 8 - kw - 8 - tb - nx, T.body(12, 500)),
+           nx, y + ROW_H / 2,
+           { font: T.body(12, 500), fill: T.ink, baseline: 'middle' });
+      if (u.tier) {
+        var bt = first ? T.warn : had ? T.accent : '#8FA3B0';
+        ctx.font = T.body(12, 500);
+        var bx = nx + ctx.measureText(fitText(ctx, u.label,
+                     x + w - 8 - kw - 8 - tb - nx, T.body(12, 500))).width + 6;
+        var bw2 = tb - 6, by2 = y + (ROW_H - 15) / 2;
+        strokeRR(ctx, bx, by2, bw2, 15, 2, bt + '99', 1);
+        text(ctx, 'T' + u.tier, bx + bw2 / 2, by2 + 7.5,
+             { font: T.mono(11), fill: bt, align: 'center', baseline: 'middle' });
+      }
+      text(ctx, kindLabel, x + w - 8 - kw, y + ROW_H / 2,
            { font: T.mono(9.5), fill: kindTint, baseline: 'middle', track: 0.6 });
-      y += 39 + 5;
+      y += ROW_H + PANEL_GAP;
     }
     if (!up.length) {
-      text(ctx, 'EVERYTHING IS UNLOCKED', OPS.x + OPS.w / 2, y + 14,
+      text(ctx, 'EVERYTHING IS UNLOCKED', x + w / 2, y + ROW_H / 2,
            { font: T.mono(10), fill: T.ready, align: 'center', baseline: 'middle', track: 1 });
+      y += ROW_H + PANEL_GAP;
     }
-    return y;
+    /* Only the rows still to COME come off the sealed count — the ones you
+       already own were never in it. */
+    var ahead = 0;
+    for (var s2 = 0; s2 < up.length; s2++) if (!up[s2].had) ahead++;
+    sealedRow(ctx, x, y, w, 'Sealed unlocks', sealedUnlocks(ahead));
+  }
+
+  /* Everything the ladder still owes, less what this panel is already showing.
+     Counted off the roster rather than by asking `upcoming` for a thousand
+     rows and measuring the answer — this runs every frame the panel is open. */
+  function sealedUnlocks(shown) {
+    var lv = Progress.level(), n = 0, i;
+    for (i = 0; i < Data.shipList.length; i++) {
+      if (Progress.levelOfShip(Data.shipList[i].key) > lv) n++;
+    }
+    var mk = Object.keys(Data.modules);
+    for (i = 0; i < mk.length; i++) {
+      if (Progress.levelOfModule(mk[i]) > lv) n++;
+    }
+    n -= shown;
+    return n > 0 ? n : 0;
+  }
+
+  /* A TAP ANYWHERE BUT THE PANEL SHUTS IT, bar included. Two separate jobs in
+     here, and they are not the same rule:
+
+     1. SHUTTING. Any tap outside the panel and outside the chip closes it —
+        including in the top bar, which the scrim does not cover. The chip is
+        excluded because it has its own toggle: closing here and toggling there
+        in the same frame would cancel out and the panel would never shut.
+        Closing does NOT swallow the tap in the bar, so mute, GAMES and the
+        pilot pill still do their job on the way past, which is what a person
+        tapping them meant.
+
+     2. SWALLOWING. Hit-testing is paint order — the first zone drawn under the
+        finger claims it — and the panel paints last, so a tap on the scrim
+        would otherwise land on the hull card behind it. Only the body is
+        swallowed, and only while the panel is up.
+
+     Runs before anything paints, which is why it can claim at all. */
+  function panelHits() {
+    if (!panelOpen) return;
+    var p = App.ptr;
+    var R = { x: PANEL.x, y: PANEL.y, w: PANEL.w, h: PANEL.maxH };
+    var onPanel = App.inRect(p.x, p.y, R);
+    var onChip  = chipRect && App.inRect(p.x, p.y, chipRect);
+
+    if (p.upThisFrame && !p.dragged && !onPanel && !onChip) panelOpen = false;
+    if (!onPanel && p.y >= BAR_H) p.claimed = true;
+  }
+
+  /* Fit the selected hull's selected slot, and only with what this pilot has
+     unlocked. The slot is whichever one the card is showing, so the button
+     fills the fit you are looking at and not some other one. The card redraws
+     from the save, so there is nothing to announce: the button under your
+     finger becomes ENTER ARENA.
+
+     ONE RECIPE, NOT THE BAY'S. This button has no menu, so it is not a
+     shortcut to the bay's defaults — it is the one fit it makes: ballistic
+     guns, mostly armour, weapons first. Plain, sturdy and aggressive, which is
+     what a hull that cannot fly wants in order to be able to. Anything else is
+     what the fitting bay's own AUTOFIT menu is for. */
+  function autofitInto(s) {
+    var ix = Save.activeLayoutIndex(s.key);
+    var built = Autofit.build(s, {
+      weapons: 'ballistic', armour: 'armour', priority: 'weapons',
+      allow: function (m) { return Progress.moduleUnlocked(m); }
+    }, Data.modules);
+    var cur = Save.layout(s.key, ix);
+    Save.setLayout(s.key, ix, { name: (cur && cur.name) || '', modules: built });
   }
 
   /* ---- into the arena --------------------------------------------------
@@ -666,8 +904,8 @@ var FleetScreen = (function () {
     var ship = Data.ship(key);
     var fit = { shipId: key, modules: layout.modules };
     var tier = Progress.tierOf(ship);
-    var opp = Opponents.draw(tier);
-    if (!opp) { say('No contacts at tier ' + tier); return; }
+    var opp = Opponents.draw(ship);
+    if (!opp) { Sfx.play('deny'); return; }
     var fitIx = Save.activeLayoutIndex(key);
 
     App.push(BattleScreen({
@@ -717,6 +955,7 @@ var FleetScreen = (function () {
 
   return {
     enter: function () {
+      panelOpen = false; chipRect = null;
       var key = Save.activeShip();
       if (key && Data.ship(key)) tierSel = Progress.tierOf(Data.ship(key));
       hs.x = 0; hs.v = 0;
@@ -727,23 +966,15 @@ var FleetScreen = (function () {
       if (key && Data.ship(key)) tierSel = Progress.tierOf(Data.ship(key));
       Music.to('hangar');
     },
-    update: function (dt) { if (msgT > 0) { msgT -= dt; if (msgT <= 0) msg = null; } },
+    update: function () {},
 
     draw: function (ctx) {
+      panelHits();
       drawGround(ctx);
       drawTopBar(ctx);
       drawTierRail(ctx);
       drawHullStrip(ctx);
-      drawOps(ctx);
-
-      if (msg) {
-        ctx.font = T.mono(11);
-        var mw = ctx.measureText(msg).width + 28;
-        fillRR(ctx, FLEET.x, VH - 40, mw, 26, 13, 'rgba(4,8,11,0.88)');
-        strokeRR(ctx, FLEET.x, VH - 40, mw, 26, 13, T.edge, 1);
-        text(ctx, msg, FLEET.x + 14, VH - 27,
-             { font: T.mono(11), fill: '#8FB6C6', baseline: 'middle' });
-      }
+      drawGoalPanel(ctx);
     }
   };
 })();

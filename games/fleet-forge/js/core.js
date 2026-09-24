@@ -108,6 +108,24 @@ var App = (function () {
 
   function inRect(x, y, r) { return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h; }
 
+  /* ---- the arcade's back button, in game units --------------------------
+     The back link is an HTML anchor pinned to the WINDOW at a fixed CSS size,
+     so how much of the stage it covers depends on how big the stage is: at
+     1333 across it is about 117 units wide, and on a small window it is
+     proportionally wider. `SAFE_TL` is the static worst case, which is why a
+     screen that lays out from it sits further right than the design does.
+     This measures the real thing instead, so a bar can put its first control
+     exactly where the handoff puts it and still never end up underneath the
+     link on a small screen. */
+  var safeW = SAFE_TL.w;
+  function measureSafe() {
+    var el = document.getElementById('backBtn');
+    if (!el || !scale) { safeW = SAFE_TL.w; return; }
+    var r = el.getBoundingClientRect();
+    if (!r.width) { safeW = SAFE_TL.w; return; }
+    safeW = (r.right * dpr - offX) / scale;
+  }
+
   /* ---- stage ---------------------------------------------------------- */
   function resize() {
     dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -117,6 +135,7 @@ var App = (function () {
     scale = Math.min(canvas.width / VW, canvas.height / VH);
     offX = (canvas.width  - VW * scale) / 2;
     offY = (canvas.height - VH * scale) / 2;
+    measureSafe();
   }
 
   /* ---- the screen transition -------------------------------------------
@@ -131,6 +150,40 @@ var App = (function () {
   var fade = 0, FADE_S = 0.28;
   function beginFade() { fade = 1; }
 
+  /* ---- the mute, on every screen ---------------------------------------
+     The one control that outlives the screen stack, so it lives here rather
+     than being redrawn by each screen and forgotten by the next one. Screens
+     keep out of its way by laying their top-right content out from
+     `App.RIGHT_INSET` instead of their own margin. */
+  /* The handoff's: a 38px disc pinned at right 18, top 10, on every page. Its
+     top bars reserve `0 66px` on the right — 18 + 38 + a 10px gap — which is
+     what `RIGHT_INSET` is. */
+  var MUTE_SZ = 38, MUTE_M = 18;
+  var MUTE = { x: VW - MUTE_M - MUTE_SZ, y: 10, w: MUTE_SZ, h: MUTE_SZ };
+  var RIGHT_INSET = MUTE_M + MUTE_SZ + 10;
+
+  function drawMute(ctx) {
+    var off = (typeof Music !== 'undefined') && Music.muted();
+    var down = UI.held(MUTE);
+    var cx = MUTE.x + MUTE.w / 2, cy = MUTE.y + MUTE.h / 2, r = MUTE.w / 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = down ? 'rgba(18,32,42,0.95)' : 'rgba(6,12,16,0.92)';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - 0.5, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(120,170,200,0.3)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    soundIcon(ctx, cx, cy, !off, T.accent);
+  }
+
+  function toggleMute() {
+    if (typeof Music === 'undefined') return;
+    var off = Music.mute(!Music.muted());
+    if (typeof Save !== 'undefined' && Save.setMuted) Save.setMuted(off);
+  }
+
   /* ---- loop ----------------------------------------------------------- */
   function frame(t) {
     if (!running) return;
@@ -144,10 +197,28 @@ var App = (function () {
     ctx.setTransform(scale, 0, 0, scale, offX, offY);
     ctx.beginPath(); ctx.rect(0, 0, VW, VH); ctx.clip();
 
+    /* Hit-tested BEFORE the screen draws, so it wins the tap: a widget
+       hit-tests as it draws, and otherwise whichever happened to be drawn
+       first would win — draw order deciding behaviour. Drawn after, so it is
+       on top.
+
+       ONLY THE HIT CLAIMS. An earlier version also claimed while the button
+       was merely HELD, which quietly broke it: `claimed` is reset on
+       pointerdown and nowhere else, so the press frame set it and it was still
+       set on the release frame — where `hit()` requires `!claimed` and so
+       refused. The button then only worked when press and release landed in
+       the same frame, which is to say at random. */
+    var muteTap = UI.hit(MUTE);
+    if (muteTap) ptr.claimed = true;
+
     if (top) {
       if (top.update) top.update(dt);
       if (top.draw) top.draw(ctx, dt);
     }
+    drawMute(ctx);
+    /* Toggled before the cue so that turning sound back ON is audible; turning
+       it off swallows its own blip, which is the right way round. */
+    if (muteTap) { toggleMute(); Sfx.play('tap'); }
 
     if (fade > 0) {
       fade -= dt / FADE_S;
@@ -166,6 +237,12 @@ var App = (function () {
 
   return {
     ptr: ptr, pinch: pinch, wheel: wheel, inRect: inRect,
+    /* Where a screen's top-right content has to stop, so it does not sit under
+       the mute button. */
+    MUTE: MUTE, RIGHT_INSET: RIGHT_INSET,
+    /* Where a screen's top-LEFT content has to start, so it does not sit
+       under the arcade's back link. Measured, not assumed — see above. */
+    safeLeft: function () { return safeW; },
     get ctx() { return ctx; },
 
     init: function () {
@@ -173,6 +250,16 @@ var App = (function () {
       ctx = canvas.getContext('2d', { alpha: false });
       resize();
       window.addEventListener('resize', resize);
+      /* Keys go to whichever screen is on top, if it wants them. The game is
+         touch-first and nothing needs a keyboard to play; this is here so a
+         screen can carry a developer shortcut without every screen having to
+         own a listener and remember to take it off again. Modified keys are
+         left to the browser, so Ctrl-R still reloads. */
+      window.addEventListener('keydown', function (e) {
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        var top = stack[stack.length - 1];
+        if (top && top.key && top.key(e.key)) e.preventDefault();
+      });
       canvas.addEventListener('pointerdown', onDown);
       canvas.addEventListener('pointermove', onMove);
       canvas.addEventListener('pointerup', onUp);
@@ -253,6 +340,46 @@ var UI = (function () {
       var h = hit(r);
       if (h) { p.claimed = true; Sfx.play(cue || 'tap'); }
       return h;
+    },
+
+    /* The handoff's segmented control: 3px of padding round tabs of 5px 10px,
+       radius 6 outside and 4 in, 11px condensed caps tracked 1.6, the active
+       one filled with the accent. Returns the index tapped, or -1, and reports
+       its own width so the caller can lay out what follows it.
+
+       `measure` draws nothing and only returns the width, for a bar that has to
+       know how wide this is before it decides where things go. */
+    segment: function (ctx, x, y, labels, active, measure, height) {
+      var PAD = 3, TPX = 10, TPY = 5, TRACK = 1.6, FS = 11;
+      /* The control is 29 tall by default — padding plus one 5px/10px tab. A
+         caller on a row of 38px pills passes 38 so it lines up with them, the
+         way the handoff's arena bar does; the tabs keep their own size and
+         sit in the middle of it. */
+      var H = height || 29;
+      var ih = 29 - PAD * 2, i, w = PAD, ws = [];
+      ctx.font = T.head(FS, 700);
+      for (i = 0; i < labels.length; i++) {
+        var tw = ctx.measureText(labels[i]).width + TRACK * labels[i].length + TPX * 2;
+        ws.push(tw); w += tw + (i ? PAD : 0);
+      }
+      w += PAD;
+      var box = { x: x, y: y, w: w, h: H };
+      if (measure) return { w: w, h: H, picked: -1, rect: box };
+
+      fillRR(ctx, box.x, box.y, box.w, box.h, 6, 'rgba(10,16,21,0.85)');
+      strokeRR(ctx, box.x, box.y, box.w, box.h, 6, 'rgba(120,170,200,0.2)', 1);
+
+      var tx = x + PAD, ty = y + (H - ih) / 2, picked = -1;
+      for (i = 0; i < labels.length; i++) {
+        var t = { x: tx, y: ty, w: ws[i], h: ih };
+        if (i === active) fillRR(ctx, t.x, t.y, t.w, t.h, 4, T.accent);
+        text(ctx, labels[i], t.x + t.w / 2, t.y + t.h / 2,
+             { font: T.head(FS, 700), align: 'center', baseline: 'middle', track: TRACK,
+               fill: i === active ? '#04080A' : '#8FA3B0' });
+        if (UI.zone(t, 'toggle') && i !== active) picked = i;
+        tx += ws[i] + PAD;
+      }
+      return { w: w, h: H, picked: picked, rect: box };
     },
 
     button: function (ctx, r, label, opts) {

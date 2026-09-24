@@ -39,7 +39,7 @@ the *how-to-think* detail (boilerplate, audio recipes, UX patterns) lives in
 - **Two tabs.** An old tab left open on the same game saves the state IT is holding, and reloading the tab you were playing lands you on the other one's position. Any game whose save is worth keeping should stamp it with `sid` (which tab) and `gen` (a counter that only goes up) and write with `{guard: true}`; the store then refuses a stale tab inside the transaction. Recipe in `knowledge/arcade-store.md`.
 - **Legacy — do not change it:** most existing games share ONE `calebArcadeData` object in localStorage with their data under `data.<gameName>`, and some newer ones have their own `calebArcadeData:<game>` item there. Both still work and stay. Never migrate a game off localStorage while fixing something unrelated; the only reason to move one is that it is the game whose saves are actually failing. When you do move one, the store imports whatever it finds under its keys in localStorage on first run and removes it from there, which also gives the shelf its space back.
 - Save paths still owe the prune-ladder rules in `docs/decisions.memory.md` (2026-08-23).
-- **Known gap:** the hub's ⚙ panel lists `localStorage` keys, so a store-backed game does not appear in it. It wants a second list from `ArcadeStore.list()`.
+- **The hub's ⚙ panel shows both cupboards:** the legacy shared object (per game), `calebArcadeData:<game>` localStorage items, other localStorage keys, and every IndexedDB item in the `arcade` / `kv` store — each viewable and clearable.
 
 ## When you finish
 - The game's `docs/game-<name>.md` node MUST reflect reality (features, files, and any bug fixed appended to its `## Memory` section). This is enforced by the `docs-writeback` hook.

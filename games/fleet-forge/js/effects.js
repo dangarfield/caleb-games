@@ -48,7 +48,7 @@ var Effects = (function () {
 
   /* The frame geometry of one spritesheet, built once. `fps` 0 means the sheet
      is a bag of variants rather than an animation — the junk sheet's sixteen
-     debris chunks — and `dur` is 0 for it. */
+     debris chunks — and `duration` is 0 for it. */
   function sheet(name) {
     if (sheets.hasOwnProperty(name)) return sheets[name];
     var d = cfg && cfg.sheets ? cfg.sheets[name] : null;

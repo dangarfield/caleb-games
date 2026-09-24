@@ -26,7 +26,10 @@ function ResultScreen(o) {
   /* ---- the design's boxes, at 1333x690 -------------------------------- */
   var RAIL_W = 340;
   var L = { x: 20, y: 58, w: VW - RAIL_W - 40, h: VH - 58 - 16 };
-  var R = { x: VW - RAIL_W + 1 + 14, y: 12, w: RAIL_W - 1 - 28, h: VH - 24 };
+  /* The rail starts below the mute button's row rather than beside it: it is
+     full-height and there is no room to take out of its width. */
+  var R = { x: VW - RAIL_W + 1 + 14, y: 12 + App.MUTE.h + 8,
+            w: RAIL_W - 1 - 28, h: VH - 24 - App.MUTE.h - 8 };
   var TILE_H = 48, BTN_H = 44, GAP = 11;
   var TITLE_H = 49.7;                 /* 54px at line-height 0.92 */
   var HEAD_H = TITLE_H + 6 + 15.6;
@@ -80,7 +83,7 @@ function ResultScreen(o) {
       var md = Data.module(u.modules[mi]);
       if (md) unlocked.push({ label: md.displayName,
                               sub: T.familyOf(md).toUpperCase() + ' · ' +
-                                   md.w + '×' + md.h,
+                                   md.width + '×' + md.height,
                               tint: T.fam[T.familyOf(md)] || T.fam.utility,
                               code: initials(md.displayName) });
     }
@@ -234,7 +237,7 @@ function ResultScreen(o) {
       var tx = gx + w1 + 6 + w2 + 6 + ctx.measureText(String(to)).width + 12;
       text(ctx, 'LEVEL UP', tx, y + 21,
            { font: T.head(17, 700), fill: '#EAF5FA', baseline: 'middle', track: 2 });
-      text(ctx, opsDone() + ' OPS COMPLETE', tx, y + 38,
+      text(ctx, opsDone() + ' GOALS COMPLETE', tx, y + 38,
            { font: T.mono(10), fill: '#8FB6C6', baseline: 'middle' });
     } else {
       fillRR(ctx, R.x, y, R.w, h, 8, 'rgba(10,16,21,0.75)');
@@ -336,7 +339,9 @@ function ResultScreen(o) {
       y = railLabel(ctx, 'HOLD', y);
       text(ctx, fitText(ctx, 'NO UNLOCKS · NEXT AT LEVEL ' + next.level, R.w, T.mono(11)),
            R.x, y + 7, { font: T.mono(11), fill: T.muted, baseline: 'middle' });
-      text(ctx, fitText(ctx, next.label.toUpperCase() + ' WAITING THERE', R.w, T.mono(11)),
+      /* `upcoming` carries the tier as a number now, so the sentence adds it */
+      var nextName = next.label + (next.tier ? ' · T' + next.tier : '');
+      text(ctx, fitText(ctx, nextName.toUpperCase() + ' WAITING THERE', R.w, T.mono(11)),
            R.x, y + 24, { font: T.mono(11), fill: T.muted, baseline: 'middle' });
     }
 

@@ -68,7 +68,7 @@ var SimModules = (function () {
     JUNK_COUNT: 8, JUNK_HEALTH: 15, JUNK_SPEED: 30, JUNK_DECEL: 0.95,
     JUNK_LIFETIME: 10, JUNK_STAGGER: 0.2, JUNK_RADIUS: 0.5,
 
-    /* How far from the enemy a launcher actually wants to sit. `rng` on a mine
+    /* How far from the enemy a launcher actually wants to sit. `range` on a mine
        or junk launcher is only the "may I fire?" gate — the projectiles
        decelerate to a halt about this far from the muzzle, so a minelayer that
        parks at its nominal 100-unit range lays mines nobody will ever touch.
@@ -89,11 +89,22 @@ var SimModules = (function () {
     WARP_BASE_COOLDOWN: 5, WARP_CELL_DIVISOR: 6, WARP_JITTER: 2,
 
     /* movement — see the note in sim.js on why the old 0.02/0.0001 are gone */
-    TURN_SCALE: 120, THRUST_SCALE: 12, DAMPING: 0.98, STRAFE_FRACTION: 0.3,
+    /* RETUNED WHEN HULL MASS WENT AWAY. Both of these divide by ship mass, and
+       mass used to be dominated by the hull's own `rm` (4,500-34,000). The new
+       ship data has no such field, so mass is the fit alone and the median
+       thrust-to-mass went from 0.57 to 4.51 — a 7.9x jump in acceleration and
+       turn rate from a data change, not a design one. Divided by that, so a
+       middling hull flies as it did.
+
+       What HAS changed on purpose: the spread. Thrust-to-mass used to run
+       0.50-0.73 across the roster, a factor of 1.5 — the hull decided and the
+       fit barely mattered. It now runs 2.15-9.96, a factor of 4.6, and what
+       you bolt on is most of it. */
+    TURN_SCALE: 15, THRUST_SCALE: 1.5, DAMPING: 0.98, STRAFE_FRACTION: 0.3,
     FACING_CONE: Math.PI / 4
   };
 
-  /* mef note: raw `mef` runs 25..150 while `dmg` is already the per-missile
+  /* raw `missileExplosionForce` runs 25..150 while `damage` is already the per-missile
      damage. Used raw, one MissileBattery cell hit deals 17 * 25 = 425, which is
      why the old build multiplied the whole missile path by a debug 0.1. `mef`
      is a percentage; scaling it here is the honest version of that fudge and
@@ -105,14 +116,14 @@ var SimModules = (function () {
   }
   function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
-  /* `ats` is keyed "Instantanious_Fire_Rate" but the values say otherwise: the
+  /* `attackSpeed` is keyed "Instantanious_Fire_Rate" but the values say otherwise: the
      Hyperion Chaingun is 0.05, the Capital Cannon 3.5, the Torpedo Launcher
      5.3. It is the reload interval in seconds. The old build used 1/ats, which
      gave the biggest gun in the game three shots a second and the chaingun one
      every 3.3s. 0 means "as fast as the weapon can cycle" — for the beam
      weapons that carry it, `msd` is what actually paces them. */
   function reload(mod) {
-    var a = num(mod.ats, 0);
+    var a = num(mod.attackSpeed, 0);
     return a > 0 ? a : 0;
   }
 
@@ -120,21 +131,26 @@ var SimModules = (function () {
   /* module state                                                        */
   /* ------------------------------------------------------------------ */
 
-  function init(mod, col, row) {
+  /* `bonus` is the hull's resolved bonus list. Everything below reads `eff`,
+     the module as this hull makes it, never the shared record. */
+  function init(mod, col, row, bonus) {
+    var eff = (typeof Geom !== 'undefined' && Geom.applyBonus)
+                ? Geom.applyBonus(mod, bonus) : mod;
     /* BUG 12: the old `parseInt(hlt || 100)` turned a literal 0 into
        maxHealth 0 and every health fraction into NaN. Read it explicitly, and
        a module that really has no health starts destroyed. */
-    var mh = num(mod.hlt, 100);
+    var mh = num(eff.health, 100);
     if (!(mh > 0)) mh = 0;
 
     var m = {
-      key: mod.key, mod: mod, col: col, row: row, w: mod.w || 1, h: mod.h || 1,
-      cat: mod.c || 0, subtype: mod.subtype || '',
+      key: mod.key, mod: mod, s: eff, col: col, row: row,
+      w: mod.width || 1, h: mod.height || 1,
+      cat: mod.category || 0, subtype: mod.subtype || '',
       maxHealth: mh, health: mh, alive: mh > 0,
-      armor: num(mod.a, 0),
-      /* `r` in the data is 0.4..1 — the fraction of laser damage that gets
+      armor: num(eff.armor, 0),
+      /* `reflect` in the data is 0.4..1 — the fraction of laser damage that gets
          through, i.e. (1 - reflect). The old build divided it by 100. */
-      dmgMul: clamp(num(mod.r, 1), 0, 1),
+      dmgMul: clamp(num(eff.reflect, 1), 0, 1),
       powered: true,
       lx: 0, ly: 0, wx: 0, wy: 0, flash: 0,
       cool: 0, beam: -1,
@@ -148,27 +164,27 @@ var SimModules = (function () {
 
     switch (m.subtype) {
       case 'shield':
-        m.shieldR = num(mod.sr, 0);
-        m.shieldMax = num(mod.sa, 0);
+        m.shieldR = num(eff.shieldRadius, 0);
+        m.shieldMax = num(eff.shieldStrength, 0);
         m.shield = m.shieldMax;
-        m.shieldCap = num(mod.smr, 0);
-        m.shieldRegen = num(mod.srs, 0);
+        m.shieldCap = num(eff.shieldMaxRegen, 0);
+        m.shieldRegen = num(eff.shieldRegenSpeed, 0);
         m.sinceHit = C.SHIELD_REGEN_DELAY;
         break;
       case 'repair':
         m.repairLeft = C.REPAIR_CAPACITY;
         break;
       case 'pointdefense':
-        m.pdR = num(mod.pdr, 19);
+        m.pdR = num(eff.pdRadius, 19);
         break;
       case 'afterburner':
-        m.abDur = num(mod.dur, 0) || num(mod.dc, 3);
-        m.abCd = num(mod.cd, 10);
-        m.abSpeed = num(mod.mvmb, 2) || 2;
-        m.abThrust = num(mod.tb, 1.5) || 1.5;
+        m.abDur = num(eff.duration, 0) || num(eff.deadCone, 3);
+        m.abCd = num(eff.cooldown, 10);
+        m.abSpeed = num(eff.movementBoost, 2) || 2;
+        m.abThrust = num(eff.turnBoost, 1.5) || 1.5;
         break;
       case 'warp':
-        m.warpPower = num(mod.ep, 0) || 1;
+        m.warpPower = num(eff.thrustPower, 0) || 1;
         break;
       case 'mine':
       case 'junk':
@@ -179,11 +195,11 @@ var SimModules = (function () {
     return m;
   }
 
-  /* The distance a weapon wants to be used at, which is not always its `rng`. */
+  /* The distance a weapon wants to be used at, which is not always its `range`. */
   function effectiveRange(m) {
     if (m.subtype === 'mine') return C.MINE_ENGAGE;
     if (m.subtype === 'junk') return C.JUNK_ENGAGE;
-    return num(m.mod.rng, 50);
+    return num(m.s.range, 50);
   }
 
   function isWeapon(m) {
@@ -193,6 +209,14 @@ var SimModules = (function () {
     return (m.cat & CAT.WEAPON) !== 0 || m.subtype === 'mine' || m.subtype === 'junk';
   }
   function isReactor(m) { return (m.cat & CAT.REACTOR) !== 0; }
+  /* A POWER SOURCE IS NOT ALWAYS A REACTOR. Five modules in the data generate
+     power without being one — the Solar Armor family, and Small Laser v2,
+     which is a gun that feeds the ship. This is a separate predicate rather
+     than a wider `isReactor` because that one also decides what explodes when
+     it dies, and a solar plate does not take the hull with it. */
+  function makesPower(m) {
+    return (m.cat & CAT.REACTOR) !== 0 || num(m.s.powerGeneration, 0) > 0;
+  }
   function isThruster(m) { return m.subtype === 'engine'; }
   function online(m) { return m.alive && m.powered; }
   function healthFrac(m) { return m.maxHealth > 0 ? m.health / m.maxHealth : 0; }
@@ -265,7 +289,7 @@ var SimModules = (function () {
   function fireBallistic(w, ship, m, enemy, t) {
     var d = m.mod;
     var a = aimAngle(w, ship, m, t);
-    var ss = num(d.ss, 0) * DEG;
+    var ss = num(d.shootSpread, 0) * DEG;
     if (ss > 0) a += (Sim.rnd(w) - 0.5) * ss;
 
     var p = Sim.spawn(w, 0, ship, m);
@@ -274,18 +298,18 @@ var SimModules = (function () {
     p.rot = a;
     p.vx = Math.cos(a) * C.BALLISTIC_SPEED;
     p.vy = Math.sin(a) * C.BALLISTIC_SPEED;
-    p.dmg = num(d.dmg, 1);
-    p.rf = num(d.rf, 0); p.rp = num(d.rp, 0); p.ip = num(d.ip, 0);
-    p.ddo = num(d.ddo, 0); p.pen = 0;
+    p.damage = num(d.damage, 1);
+    p.recoilForce = num(d.recoilForce, 0); p.recoilPush = num(d.recoilPush, 0); p.impactPush = num(d.impactPush, 0);
+    p.antiDamageDropOff = num(d.antiDamageDropOff, 0); p.pen = 0;
     /* BUG 1: the old code compared travelDistance against `this.range`, a
        property that only ever existed on the weapon, never on the Scene — so a
        bullet that missed lived forever. Every shot now carries its own range. */
-    p.maxDist = num(d.rng, 50);
+    p.maxDist = num(d.range, 50);
     p.radius = 0.15;
   }
 
   function fireMissile(w, ship, m, enemy, t) {
-    var d = m.mod, n = Math.max(1, num(d.mc, 1));
+    var d = m.mod, n = Math.max(1, num(d.missileCount, 1));
     for (var i = 0; i < n; i++) {
       var tgt = (i === 0) ? t : SimAI.pickTarget(ship, m, enemy);
       if (!tgt) continue;
@@ -294,21 +318,21 @@ var SimModules = (function () {
 
       var p = Sim.spawn(w, 1, ship, m);
       if (!p) return;
-      var spd = num(d.mspd, 30) || 30;   /* torpedoes ship mspd:0 */
+      var spd = num(d.missileSpeed, 30) || 30;   /* torpedoes ship mspd:0 */
       p.x = m.wx; p.y = m.wy; p.px = p.x; p.py = p.y;
       p.rot = a;
       p.speed = spd * C.MISSILE_START_SPEED;
       p.maxSpeed = spd;
       p.accel = spd * C.MISSILE_ACCEL;
       p.vx = ship.vx; p.vy = ship.vy;             /* missiles inherit ship velocity */
-      p.dmg = num(d.dmg, 1);
-      p.expR = num(d.mer, 0);
-      p.expF = num(d.mef, 0) * C.MEF_SCALE;
-      p.turn = (1 - num(d.macc, 0) / C.MISSILE_ACC_DIVISOR) * C.MISSILE_TURN_RATE;
+      p.damage = num(d.damage, 1);
+      p.expR = num(d.missileExplosionRadius, 0);
+      p.expF = num(d.missileExplosionForce, 0) * C.MEF_SCALE;
+      p.turn = (1 - num(d.missileAcceleration, 0) / C.MISSILE_ACC_DIVISOR) * C.MISSILE_TURN_RATE;
       if (p.turn < 0) p.turn = 0;
-      p.fuel = num(d.mfj, 25);
-      p.maxLife = num(d.mlf, 4) || 4;
-      p.maxDist = num(d.rng, 50) * C.MISSILE_RANGE_FACTOR;
+      p.fuel = num(d.missileFlightJitter, 25);
+      p.maxLife = num(d.missileLifetime, 4) || 4;
+      p.maxDist = num(d.range, 50) * C.MISSILE_RANGE_FACTOR;
       p.tMod = tgt; p.tShip = enemy;
       p.radius = 0.2;
     }
@@ -316,15 +340,15 @@ var SimModules = (function () {
 
   function fireLaser(w, ship, m, enemy, t) {
     var d = m.mod;
-    var dur = num(d.msd, 0) || C.LASER_MIN_DURATION;
+    var dur = num(d.maxShootDuration, 0) || C.LASER_MIN_DURATION;
     var b = Sim.spawnBeam(w, ship, m, enemy, t);
     if (!b) return;
     b.dur = dur; b.t = 0;
-    b.range = num(d.rng, 50);
+    b.range = num(d.range, 50);
     /* BUG 7: the old build clamped every 1/60s tick to >= 1 damage, so any
        beam with a duration of a second dealt at least 60. The floor is a
        property of the shot. */
-    b.base = num(d.dmg, 1) * dur * ramp(w.time);
+    b.base = num(d.damage, 1) * dur * ramp(w.time);
     retargetBeam(w, b);
   }
 
@@ -372,11 +396,11 @@ var SimModules = (function () {
   function interceptChance(m, p) {
     var d = m.mod;
     if (p.kind === 1) {
-      if (p.maxSpeed < 10) return num(d.pdmnc, 0.2);
-      if (p.turn <= 0.2)   return num(d.pdtc, 0.25);
-      return num(d.pdmsc, 0.4);
+      if (p.maxSpeed < 10) return num(d.pdMineShootDownChance, 0.2);
+      if (p.turn <= 0.2)   return num(d.pdTorpedoShootDownChance, 0.25);
+      return num(d.pdMissileShootDownChance, 0.4);
     }
-    if (p.kind === 4) return num(d.pdmnc, 0.2);
+    if (p.kind === 4) return num(d.pdMineShootDownChance, 0.2);
     /* BUG 13: this used to be a bare 0.3 buried in a method body. */
     if (p.kind === 0) return C.PD_BALLISTIC_INTERCEPT;
     return 0;
@@ -442,7 +466,7 @@ var SimModules = (function () {
        real range check against the enemy. */
     if (w.over || !m.powered || m.cool > 0) return;
     var dx = enemy.x - ship.x, dy = enemy.y - ship.y;
-    var rng = num(m.mod.rng, 50);
+    var rng = num(m.s.range, 50);
     if (dx * dx + dy * dy > rng * rng) return;
 
     m.cool = reload(m.mod);
@@ -454,9 +478,9 @@ var SimModules = (function () {
       p.x = m.wx; p.y = m.wy; p.px = p.x; p.py = p.y;
       p.vx = Math.cos(a) * spd; p.vy = Math.sin(a) * spd;
       p.decel = C.MINE_DECEL;
-      p.dmg = num(m.mod.dmg, 50);
-      p.expR = num(m.mod.mer, 0) || C.MINE_DEFAULT_RADIUS;
-      p.expF = num(m.mod.mef, 0) * C.MEF_SCALE || 1;
+      p.damage = num(m.s.damage, 50);
+      p.expR = num(m.s.missileExplosionRadius, 0) || C.MINE_DEFAULT_RADIUS;
+      p.expF = num(m.s.missileExplosionForce, 0) * C.MEF_SCALE || 1;
       p.health = C.MINE_HEALTH; p.maxHealth = C.MINE_HEALTH;
       p.maxLife = C.MINE_LIFETIME;
       p.maxDist = rng;
@@ -482,7 +506,7 @@ var SimModules = (function () {
 
     if (w.over || !m.powered || m.cool > 0 || m.pend > 0) return;
     var dx = enemy.x - ship.x, dy = enemy.y - ship.y;
-    var rng = num(m.mod.rng, 30);
+    var rng = num(m.s.range, 30);
     if (dx * dx + dy * dy > rng * rng) return;
 
     m.cool = reload(m.mod);
@@ -492,7 +516,7 @@ var SimModules = (function () {
   }
 
   function releaseJunk(w, ship, m) {
-    var spread = num(m.mod.ss, 10) * DEG;
+    var spread = num(m.s.shootSpread, 10) * DEG;
     var a = m.pendAngle + (Sim.rnd(w) - 0.5) * spread;
     var spd = C.JUNK_SPEED * (0.7 + Sim.rnd(w) * 0.6);
     var p = Sim.spawn(w, 3, ship, m);
@@ -502,7 +526,7 @@ var SimModules = (function () {
     p.decel = C.JUNK_DECEL;
     p.health = C.JUNK_HEALTH; p.maxHealth = C.JUNK_HEALTH;
     p.maxLife = C.JUNK_LIFETIME;
-    p.maxDist = num(m.mod.rng, 30);
+    p.maxDist = num(m.s.range, 30);
     p.radius = C.JUNK_RADIUS;
     p.spin = (Sim.rnd(w) - 0.5) * 3;
   }
@@ -510,7 +534,7 @@ var SimModules = (function () {
   /* ---- reactor chain blast ------------------------------------------ */
 
   function reactorBlast(w, ship, src) {
-    var er = num(src.mod.er, 0), ed = num(src.mod.ed, 0);
+    var er = num(src.s.explosionRadius, 0), ed = num(src.s.explosionDamage, 0);
     if (er <= 0 || ed <= 0) return;
 
     for (var j = 0; j < ship.modules.length; j++) {
@@ -528,7 +552,7 @@ var SimModules = (function () {
                  "must be in a straight line" — but its own sample code fell
                  through to dc+dr for the diagonal case, and the old build
                  copied that, so a reactor nuked the whole quadrant. Straight
-                 lines only. The `er` values (1..5) are small enough that this
+                 lines only. The `explosionRadius` values (1..5) are small enough that this
                  stays a local blast, which is clearly the intent. */
               if (dc !== 0 && dr !== 0) continue;
               var d = dc + dr;
@@ -561,8 +585,8 @@ var SimModules = (function () {
     for (i = 0; i < ship.modules.length; i++) {
       m = ship.modules[i];
       if (!m.alive) continue;
-      gen += num(m.mod.pg, 0);
-      use += num(m.mod.pu, 0);
+      gen += num(m.s.powerGeneration, 0);
+      use += num(m.s.powerUse, 0);
     }
     var deficit = use - gen;
     ship.powerGen = gen; ship.powerUse = use;
@@ -577,7 +601,7 @@ var SimModules = (function () {
     for (i = 0; i < order.length; i++) {
       m = order[i];
       if (!m.alive) { m.powered = true; continue; }
-      var pu = num(m.mod.pu, 0);
+      var pu = num(m.s.powerUse, 0);
       if (deficit > 0 && pu > 0) {
         m.powered = false;
         deficit -= pu;
@@ -590,18 +614,19 @@ var SimModules = (function () {
   function buildPowerOrder(ship) {
     var list = [];
     for (var i = 0; i < ship.modules.length; i++) {
-      if (num(ship.modules[i].mod.pu, 0) > 0) list.push(ship.modules[i]);
+      if (num(ship.modules[i].s.powerUse, 0) > 0) list.push(ship.modules[i]);
     }
     list.sort(function (a, b) {
       return powerPriority(a) - powerPriority(b) ||
-             num(b.mod.pu, 0) - num(a.mod.pu, 0);
+             num(b.s.powerUse, 0) - num(a.s.powerUse, 0);
     });
     ship.powerOrder = list;
   }
 
   return {
     C: C, init: init, tick: tick,
-    isWeapon: isWeapon, effectiveRange: effectiveRange, isReactor: isReactor, isThruster: isThruster,
+    isWeapon: isWeapon, effectiveRange: effectiveRange, isReactor: isReactor,
+    makesPower: makesPower, isThruster: isThruster,
     online: online, healthFrac: healthFrac,
     afterArmor: afterArmor, afterReflect: afterReflect, ramp: ramp,
     shieldUp: shieldUp, shieldAbsorb: shieldAbsorb,

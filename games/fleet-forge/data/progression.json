@@ -1,76 +1,86 @@
 {
  "version": 1,
- "maxLevel": 50,
+ "maxLevel": 100,
  "tiers": [
   {
    "n": 1,
    "name": "Fighter",
-   "lr": [
+   "levelRange": [
     1,
-    3
+    8
    ],
    "fromLevel": 1,
-   "toLevel": 3
+   "toLevel": 8
   },
   {
    "n": 2,
    "name": "Corvette",
-   "lr": [
-    4,
-    8
+   "levelRange": [
+    9,
+    20
    ],
-   "fromLevel": 4,
-   "toLevel": 8
+   "fromLevel": 9,
+   "toLevel": 20
   },
   {
    "n": 3,
    "name": "Frigate",
-   "lr": [
-    9,
-    15
+   "levelRange": [
+    21,
+    41
    ],
-   "fromLevel": 9,
-   "toLevel": 15
+   "fromLevel": 21,
+   "toLevel": 41
   },
   {
    "n": 4,
    "name": "Cruiser",
-   "lr": [
-    16,
-    25
+   "levelRange": [
+    42,
+    58
    ],
-   "fromLevel": 16,
-   "toLevel": 25
+   "fromLevel": 42,
+   "toLevel": 58
   },
   {
    "n": 5,
    "name": "Battleship",
-   "lr": [
-    26,
-    36
+   "levelRange": [
+    59,
+    72
    ],
-   "fromLevel": 26,
-   "toLevel": 36
+   "fromLevel": 59,
+   "toLevel": 72
   },
   {
    "n": 6,
    "name": "Carrier",
-   "lr": [
-    37,
-    46
+   "levelRange": [
+    73,
+    82
    ],
-   "fromLevel": 37,
-   "toLevel": 46
+   "fromLevel": 73,
+   "toLevel": 82
   },
   {
    "n": 7,
    "name": "Supercarrier",
-   "lr": [
-    47,
-    53
+   "levelRange": [
+    83,
+    89
    ],
-   "fromLevel": 47,
-   "toLevel": 50
+   "fromLevel": 83,
+   "toLevel": 89
+  },
+  {
+   "n": 8,
+   "name": "Galactic Carrier",
+   "levelRange": [
+    90,
+    100
+   ],
+   "fromLevel": 90,
+   "toLevel": 100
   }
  ],
  "levels": [
@@ -82,23 +92,10 @@
    ],
    "modules": [
     "Ballistic1x1",
-    "Engine1x1",
-    "Reactor1x1",
-    "Armor1x1"
-   ]
-  },
-  {
-   "level": 1,
-   "tier": 1,
-   "ships": [
-    "Small_Fighter"
-   ],
-   "modules": [
-    "Ballistic1x1",
-    "Engine1x1",
-    "Reactor1x1",
+    "Ballistic1x2",
     "Armor1x1",
-    "Ballistic1x2"
+    "Engine1x1",
+    "Reactor1x1"
    ]
   },
   {
@@ -117,33 +114,104 @@
    "ships": [
     "Lightning"
    ],
+   "modules": []
+  },
+  {
+   "level": 4,
+   "tier": 1,
+   "ships": [],
    "modules": [
-    "ShieldGenerator1x1",
     "Laser1x1"
    ]
   },
   {
-   "level": 4,
-   "tier": 2,
+   "level": 5,
+   "tier": 1,
+   "ships": [],
+   "modules": [
+    "ShieldGenerator1x1"
+   ]
+  },
+  {
+   "level": 6,
+   "tier": 1,
    "ships": [
-    "Wing",
-    "Corvette"
+    "Wing"
+   ],
+   "modules": [
+    "Ballistic1x1_2",
+    "Ballistic1x2_2",
+    "Armor1x1_1",
+    "Engine1x1_1"
+   ]
+  },
+  {
+   "level": 7,
+   "tier": 1,
+   "ships": [
+    "Kabuto"
+   ],
+   "modules": [
+    "Laser1x2",
+    "RocketLauncher1x2_2"
+   ]
+  },
+  {
+   "level": 8,
+   "tier": 1,
+   "ships": [
+    "TIE_Fighter"
    ],
    "modules": []
   },
   {
-   "level": 5,
+   "level": 9,
+   "tier": 2,
+   "ships": [
+    "Corvette"
+   ],
+   "modules": [
+    "Laser1x1_2"
+   ]
+  },
+  {
+   "level": 10,
+   "tier": 2,
+   "ships": [],
+   "modules": [
+    "ShieldGenerator1x1_2",
+    "WarpEngine1x2"
+   ]
+  },
+  {
+   "level": 11,
+   "tier": 2,
+   "ships": [
+    "Raven"
+   ],
+   "modules": []
+  },
+  {
+   "level": 12,
+   "tier": 2,
+   "ships": [],
+   "modules": [
+    "Laser1x2_2",
+    "SolarArmor1x1"
+   ]
+  },
+  {
+   "level": 13,
    "tier": 2,
    "ships": [
     "Viper"
    ],
    "modules": [
-    "Laser1x2",
-    "WarpEngine1x2"
+    "EngineVectored2x1"
    ]
   },
   {
-   "level": 6,
+   "level": 14,
    "tier": 2,
    "ships": [
     "Dart"
@@ -151,133 +219,255 @@
    "modules": []
   },
   {
-   "level": 7,
+   "level": 15,
    "tier": 2,
-   "ships": [
-    "Raven"
-   ],
+   "ships": [],
    "modules": [
-    "SolarArmor1x1",
-    "EngineVectored2x1"
-   ]
-  },
-  {
-   "level": 8,
-   "tier": 2,
-   "ships": [
-    "Ironwing"
-   ],
-   "modules": [
-    "Reactor2x2",
     "BallisticTurret2x2"
    ]
   },
   {
-   "level": 9,
+   "level": 16,
+   "tier": 2,
+   "ships": [
+    "Ironwing"
+   ],
+   "modules": []
+  },
+  {
+   "level": 17,
+   "tier": 2,
+   "ships": [],
+   "modules": [
+    "Laser1x2_3",
+    "Reactor2x2"
+   ]
+  },
+  {
+   "level": 18,
+   "tier": 2,
+   "ships": [
+    "Sparrow"
+   ],
+   "modules": [
+    "EngineVectored2x1_2"
+   ]
+  },
+  {
+   "level": 19,
+   "tier": 2,
+   "ships": [],
+   "modules": [
+    "RocketTurret2x2",
+    "Armor2x2"
+   ]
+  },
+  {
+   "level": 20,
+   "tier": 2,
+   "ships": [],
+   "modules": [
+    "BallisticTurret2x2_2",
+    "AfterBurner1x2"
+   ]
+  },
+  {
+   "level": 21,
+   "tier": 3,
+   "ships": [
+    "Scythe"
+   ],
+   "modules": []
+  },
+  {
+   "level": 22,
+   "tier": 3,
+   "ships": [],
+   "modules": [
+    "ScrapLauncher2x3"
+   ]
+  },
+  {
+   "level": 23,
+   "tier": 3,
+   "ships": [],
+   "modules": [
+    "Engine2x2"
+   ]
+  },
+  {
+   "level": 24,
+   "tier": 3,
+   "ships": [],
+   "modules": [
+    "Ballistic1x3",
+    "RocketTurret2x2_2"
+   ]
+  },
+  {
+   "level": 25,
    "tier": 3,
    "ships": [
     "Valkyrie"
    ],
    "modules": [
-    "AfterBurner1x2",
-    "Armor2x2",
-    "RocketTurret2x2"
-   ]
-  },
-  {
-   "level": 10,
-   "tier": 3,
-   "ships": [
-    "Scythe"
-   ],
-   "modules": [
-    "ScrapLauncher2x3",
-    "Engine2x2"
-   ]
-  },
-  {
-   "level": 11,
-   "tier": 3,
-   "ships": [],
-   "modules": [
-    "Ballistic1x3",
+    "BallisticTurret2x2_3",
     "PointDefense2x2"
    ]
   },
   {
-   "level": 12,
+   "level": 26,
    "tier": 3,
-   "ships": [
-    "Rapier"
-   ],
+   "ships": [],
    "modules": [
     "LaserTurret2x2"
    ]
   },
   {
-   "level": 13,
+   "level": 27,
    "tier": 3,
    "ships": [
     "Arrow"
    ],
+   "modules": []
+  },
+  {
+   "level": 28,
+   "tier": 3,
+   "ships": [],
    "modules": [
-    "RocketLauncher1x3",
-    "ArmoredReactor2x2",
+    "RocketLauncher1x3"
+   ]
+  },
+  {
+   "level": 29,
+   "tier": 3,
+   "ships": [],
+   "modules": [
+    "Ballistic1x3_2",
+    "RocketTurret2x2_3",
     "SolarArmor2x2"
    ]
   },
   {
-   "level": 14,
+   "level": 30,
    "tier": 3,
    "ships": [],
    "modules": [
-    "HardShieldGene1x1",
+    "PointDefense2x2_2",
+    "ArmoredReactor2x2"
+   ]
+  },
+  {
+   "level": 31,
+   "tier": 3,
+   "ships": [
+    "Rapier"
+   ],
+   "modules": [
+    "HardShieldGene1x1"
+   ]
+  },
+  {
+   "level": 32,
+   "tier": 3,
+   "ships": [],
+   "modules": [
     "MineLauncher3x2"
    ]
   },
   {
-   "level": 15,
+   "level": 33,
    "tier": 3,
    "ships": [
     "Hammerhead"
    ],
+   "modules": []
+  },
+  {
+   "level": 34,
+   "tier": 3,
+   "ships": [],
    "modules": [
+    "SolarArmor2x2_2",
     "RepairBay3x2"
    ]
   },
   {
-   "level": 16,
-   "tier": 4,
+   "level": 35,
+   "tier": 3,
    "ships": [
-    "Morningstar"
+    "Miran"
    ],
    "modules": [
-    "ShieldGenerator1x2",
-    "PiercingBallistic1x4"
+    "PointDefense2x2_3",
+    "ArmoredReactor2x2_2"
    ]
   },
   {
-   "level": 17,
-   "tier": 4,
+   "level": 36,
+   "tier": 3,
+   "ships": [
+    "Kahje"
+   ],
+   "modules": [
+    "PiercingBallistic1x4",
+    "HardShieldGene1x1_2"
+   ]
+  },
+  {
+   "level": 37,
+   "tier": 3,
+   "ships": [],
+   "modules": [
+    "ShieldGenerator1x2",
+    "MineLauncher3x2_2"
+   ]
+  },
+  {
+   "level": 38,
+   "tier": 3,
    "ships": [],
    "modules": [
     "Shotgun2x3"
    ]
   },
   {
-   "level": 18,
+   "level": 39,
+   "tier": 3,
+   "ships": [],
+   "modules": [
+    "PlasmaArmor1x2"
+   ]
+  },
+  {
+   "level": 40,
+   "tier": 3,
+   "ships": [
+    "Orkaan"
+   ],
+   "modules": []
+  },
+  {
+   "level": 41,
+   "tier": 3,
+   "ships": [],
+   "modules": [
+    "ReactiveArmor1x1"
+   ]
+  },
+  {
+   "level": 42,
    "tier": 4,
    "ships": [
-    "Starbridge",
-    "Falcon"
+    "Starbridge"
    ],
    "modules": [
-    "ReactiveArmor1x1",
     "Reactor3x3"
    ]
   },
   {
-   "level": 19,
+   "level": 43,
    "tier": 4,
    "ships": [],
    "modules": [
@@ -285,57 +475,101 @@
    ]
   },
   {
-   "level": 20,
+   "level": 44,
    "tier": 4,
    "ships": [
-    "Broadsword"
+    "Morningstar"
    ],
+   "modules": []
+  },
+  {
+   "level": 45,
+   "tier": 4,
+   "ships": [],
    "modules": [
-    "TorpedoLauncher1x4",
+    "TorpedoLauncher1x4"
+   ]
+  },
+  {
+   "level": 46,
+   "tier": 4,
+   "ships": [],
+   "modules": [
     "Armor3x3"
    ]
   },
   {
-   "level": 21,
+   "level": 47,
    "tier": 4,
    "ships": [
-    "Javelin"
+    "Falcon"
+   ],
+   "modules": []
+  },
+  {
+   "level": 48,
+   "tier": 4,
+   "ships": [
+    "Broadsword"
    ],
    "modules": [
     "Ballistic2x3"
    ]
   },
   {
-   "level": 22,
+   "level": 49,
    "tier": 4,
-   "ships": [
-    "Wanderer"
-   ],
+   "ships": [],
    "modules": [
     "SolarArmor3x3"
    ]
   },
   {
-   "level": 23,
+   "level": 50,
+   "tier": 4,
+   "ships": [
+    "Hawk"
+   ],
+   "modules": []
+  },
+  {
+   "level": 51,
    "tier": 4,
    "ships": [],
    "modules": [
-    "MissileBattery4x2",
+    "MissileBattery4x2"
+   ]
+  },
+  {
+   "level": 52,
+   "tier": 4,
+   "ships": [],
+   "modules": [
     "ArmoredReactor3x3"
    ]
   },
   {
-   "level": 24,
+   "level": 53,
    "tier": 4,
    "ships": [
-    "Hawk"
+    "Javelin"
+   ],
+   "modules": [
+    "Ballistic2x3_2"
+   ]
+  },
+  {
+   "level": 54,
+   "tier": 4,
+   "ships": [
+    "Wanderer"
    ],
    "modules": [
     "ShieldGenerator2x2"
    ]
   },
   {
-   "level": 25,
+   "level": 55,
    "tier": 4,
    "ships": [],
    "modules": [
@@ -343,36 +577,52 @@
    ]
   },
   {
-   "level": 26,
-   "tier": 5,
+   "level": 56,
+   "tier": 4,
    "ships": [
-    "Warrior"
+    "Elk"
    ],
+   "modules": []
+  },
+  {
+   "level": 57,
+   "tier": 4,
+   "ships": [],
    "modules": [
-    "ReactiveArmor2x2",
+    "ReactiveArmor2x2"
+   ]
+  },
+  {
+   "level": 58,
+   "tier": 4,
+   "ships": [],
+   "modules": [
     "Engine2x3"
    ]
   },
   {
-   "level": 27,
+   "level": 59,
+   "tier": 5,
+   "ships": [
+    "Myrmidon"
+   ],
+   "modules": [
+    "ShieldGenerator2x2_2"
+   ]
+  },
+  {
+   "level": 60,
    "tier": 5,
    "ships": [
     "Charger"
    ],
    "modules": [
+    "PulseLaser2x3_2",
     "BallisticTurret3x3"
    ]
   },
   {
-   "level": 28,
-   "tier": 5,
-   "ships": [
-    "Therion"
-   ],
-   "modules": []
-  },
-  {
-   "level": 29,
+   "level": 61,
    "tier": 5,
    "ships": [],
    "modules": [
@@ -380,18 +630,24 @@
    ]
   },
   {
-   "level": 30,
+   "level": 62,
    "tier": 5,
    "ships": [
-    "StarDestroyer",
     "Wraith"
    ],
+   "modules": []
+  },
+  {
+   "level": 63,
+   "tier": 5,
+   "ships": [],
    "modules": [
-    "RocketLauncher1x4"
+    "RocketLauncher1x4",
+    "Engine2x3_2"
    ]
   },
   {
-   "level": 31,
+   "level": 64,
    "tier": 5,
    "ships": [],
    "modules": [
@@ -399,25 +655,29 @@
    ]
   },
   {
-   "level": 32,
+   "level": 65,
+   "tier": 5,
+   "ships": [
+    "Warrior"
+   ],
+   "modules": [
+    "PulseLaser2x3_3",
+    "BallisticTurret3x3_2"
+   ]
+  },
+  {
+   "level": 66,
    "tier": 5,
    "ships": [
     "Cerberos"
    ],
-   "modules": []
-  },
-  {
-   "level": 33,
-   "tier": 5,
-   "ships": [
-    "Myrmidon"
-   ],
    "modules": [
-    "Ballistic1x5"
+    "Ballistic1x5",
+    "RocketLauncher2x3_2"
    ]
   },
   {
-   "level": 34,
+   "level": 67,
    "tier": 5,
    "ships": [],
    "modules": [
@@ -425,7 +685,23 @@
    ]
   },
   {
-   "level": 35,
+   "level": 68,
+   "tier": 5,
+   "ships": [
+    "Therion"
+   ],
+   "modules": []
+  },
+  {
+   "level": 69,
+   "tier": 5,
+   "ships": [
+    "StarDestroyer"
+   ],
+   "modules": []
+  },
+  {
+   "level": 70,
    "tier": 5,
    "ships": [
     "Phantom"
@@ -433,15 +709,27 @@
    "modules": []
   },
   {
-   "level": 36,
+   "level": 71,
    "tier": 5,
-   "ships": [],
+   "ships": [
+    "Krigerskold"
+   ],
    "modules": [
-    "FusionTurret3x3"
+    "FusionTurret3x3",
+    "RocketLauncher2x3_3"
    ]
   },
   {
-   "level": 37,
+   "level": 72,
+   "tier": 5,
+   "ships": [],
+   "modules": [
+    "RocketFlakTurret3x3_2",
+    "ReactiveArmor3x3"
+   ]
+  },
+  {
+   "level": 73,
    "tier": 6,
    "ships": [
     "Baron"
@@ -449,66 +737,15 @@
    "modules": []
   },
   {
-   "level": 38,
+   "level": 74,
    "tier": 6,
    "ships": [],
-   "modules": [
-    "ReactiveArmor3x3"
-   ]
-  },
-  {
-   "level": 39,
-   "tier": 6,
-   "ships": [
-    "Crusader"
-   ],
    "modules": [
     "PiercingBallisticTurret3x3"
    ]
   },
   {
-   "level": 40,
-   "tier": 6,
-   "ships": [
-    "Captain"
-   ],
-   "modules": []
-  },
-  {
-   "level": 41,
-   "tier": 6,
-   "ships": [],
-   "modules": [
-    "TorpedoLauncher2x4"
-   ]
-  },
-  {
-   "level": 42,
-   "tier": 6,
-   "ships": [
-    "Duke"
-   ],
-   "modules": []
-  },
-  {
-   "level": 43,
-   "tier": 6,
-   "ships": [],
-   "modules": [
-    "Ballistic2x4",
-    "Reactor4x4"
-   ]
-  },
-  {
-   "level": 44,
-   "tier": 6,
-   "ships": [
-    "Sleipnir"
-   ],
-   "modules": []
-  },
-  {
-   "level": 45,
+   "level": 75,
    "tier": 6,
    "ships": [
     "Eidolon"
@@ -516,7 +753,60 @@
    "modules": []
   },
   {
-   "level": 46,
+   "level": 76,
+   "tier": 6,
+   "ships": [
+    "Sleipnir"
+   ],
+   "modules": [
+    "FusionTurret3x3_2"
+   ]
+  },
+  {
+   "level": 77,
+   "tier": 6,
+   "ships": [
+    "Duke"
+   ],
+   "modules": [
+    "TorpedoLauncher2x4"
+   ]
+  },
+  {
+   "level": 78,
+   "tier": 6,
+   "ships": [],
+   "modules": [
+    "Ballistic2x4"
+   ]
+  },
+  {
+   "level": 79,
+   "tier": 6,
+   "ships": [],
+   "modules": [
+    "PiercingBallisticTurret3x3_2",
+    "Reactor4x4"
+   ]
+  },
+  {
+   "level": 80,
+   "tier": 6,
+   "ships": [
+    "Captain"
+   ],
+   "modules": []
+  },
+  {
+   "level": 81,
+   "tier": 6,
+   "ships": [
+    "Crusader"
+   ],
+   "modules": []
+  },
+  {
+   "level": 82,
    "tier": 6,
    "ships": [],
    "modules": [
@@ -524,17 +814,33 @@
    ]
   },
   {
-   "level": 47,
+   "level": 83,
    "tier": 7,
    "ships": [
-    "Thane"
+    "Mjollnir"
    ],
    "modules": [
     "RocketTurret3x4"
    ]
   },
   {
-   "level": 48,
+   "level": 84,
+   "tier": 7,
+   "ships": [],
+   "modules": [
+    "BallisticArmor3x2"
+   ]
+  },
+  {
+   "level": 85,
+   "tier": 7,
+   "ships": [
+    "Revenant"
+   ],
+   "modules": []
+  },
+  {
+   "level": 86,
    "tier": 7,
    "ships": [
     "Arbiter"
@@ -542,750 +848,1428 @@
    "modules": []
   },
   {
-   "level": 49,
+   "level": 87,
    "tier": 7,
    "ships": [
-    "Mjollnir"
+    "Vindicator"
    ],
    "modules": []
   },
   {
-   "level": 50,
+   "level": 88,
    "tier": 7,
    "ships": [
-    "Revenant",
-    "Vindicator"
+    "Thane"
+   ],
+   "modules": [
+    "RocketTurret3x4_2"
+   ]
+  },
+  {
+   "level": 89,
+   "tier": 7,
+   "ships": [
+    "RadiantX"
    ],
    "modules": [
     "Ballistic2x7"
    ]
+  },
+  {
+   "level": 90,
+   "tier": 8,
+   "ships": [
+    "Ritari"
+   ],
+   "modules": []
+  },
+  {
+   "level": 91,
+   "tier": 8,
+   "ships": [],
+   "modules": [
+    "FusionTurret4x4"
+   ]
+  },
+  {
+   "level": 92,
+   "tier": 8,
+   "ships": [
+    "Oblivionark"
+   ],
+   "modules": []
+  },
+  {
+   "level": 93,
+   "tier": 8,
+   "ships": [
+    "Khonarl"
+   ],
+   "modules": []
+  },
+  {
+   "level": 94,
+   "tier": 8,
+   "ships": [],
+   "modules": [
+    "Ballistic2x7_2",
+    "Laser4x9"
+   ]
+  },
+  {
+   "level": 95,
+   "tier": 8,
+   "ships": [
+    "Prophet"
+   ],
+   "modules": [
+    "ShinyArmor3x1"
+   ]
+  },
+  {
+   "level": 96,
+   "tier": 8,
+   "ships": [
+    "Achilles"
+   ],
+   "modules": []
+  },
+  {
+   "level": 97,
+   "tier": 8,
+   "ships": [
+    "Centurion"
+   ],
+   "modules": []
+  },
+  {
+   "level": 98,
+   "tier": 8,
+   "ships": [],
+   "modules": [
+    "EMPLauncher1x5"
+   ]
+  },
+  {
+   "level": 99,
+   "tier": 8,
+   "ships": [],
+   "modules": [
+    "ShinyArmor1x4"
+   ]
+  },
+  {
+   "level": 100,
+   "tier": 8,
+   "ships": [
+    "Kronos"
+   ],
+   "modules": []
   }
  ],
  "shipLevel": {
   "Small_Fighter": 1,
   "Heavy_Fighter": 2,
   "Lightning": 3,
-  "Wing": 4,
-  "Corvette": 4,
-  "Viper": 5,
-  "Dart": 6,
-  "Raven": 7,
-  "Ironwing": 8,
-  "Valkyrie": 9,
-  "Scythe": 10,
-  "Rapier": 12,
-  "Arrow": 13,
-  "Hammerhead": 15,
-  "Morningstar": 16,
-  "Starbridge": 18,
-  "Falcon": 18,
-  "Broadsword": 20,
-  "Javelin": 21,
-  "Wanderer": 22,
-  "Hawk": 24,
-  "Warrior": 26,
-  "Charger": 27,
-  "Therion": 28,
-  "StarDestroyer": 30,
-  "Wraith": 30,
-  "Cerberos": 32,
-  "Myrmidon": 33,
-  "Phantom": 35,
-  "Baron": 37,
-  "Crusader": 39,
-  "Captain": 40,
-  "Duke": 42,
-  "Sleipnir": 44,
-  "Eidolon": 45,
-  "Thane": 47,
-  "Arbiter": 48,
-  "Mjollnir": 49,
-  "Revenant": 50,
-  "Vindicator": 50
+  "Wing": 6,
+  "Kabuto": 7,
+  "TIE_Fighter": 8,
+  "Corvette": 9,
+  "Raven": 11,
+  "Viper": 13,
+  "Dart": 14,
+  "Ironwing": 16,
+  "Sparrow": 18,
+  "Scythe": 21,
+  "Valkyrie": 25,
+  "Arrow": 27,
+  "Rapier": 31,
+  "Hammerhead": 33,
+  "Miran": 35,
+  "Kahje": 36,
+  "Orkaan": 40,
+  "Starbridge": 42,
+  "Morningstar": 44,
+  "Falcon": 47,
+  "Broadsword": 48,
+  "Hawk": 50,
+  "Javelin": 53,
+  "Wanderer": 54,
+  "Elk": 56,
+  "Myrmidon": 59,
+  "Charger": 60,
+  "Wraith": 62,
+  "Warrior": 65,
+  "Cerberos": 66,
+  "Therion": 68,
+  "StarDestroyer": 69,
+  "Phantom": 70,
+  "Krigerskold": 71,
+  "Baron": 73,
+  "Eidolon": 75,
+  "Sleipnir": 76,
+  "Duke": 77,
+  "Captain": 80,
+  "Crusader": 81,
+  "Mjollnir": 83,
+  "Revenant": 85,
+  "Arbiter": 86,
+  "Vindicator": 87,
+  "Thane": 88,
+  "RadiantX": 89,
+  "Ritari": 90,
+  "Oblivionark": 92,
+  "Khonarl": 93,
+  "Prophet": 95,
+  "Achilles": 96,
+  "Centurion": 97,
+  "Kronos": 100
  },
  "moduleLevel": {
   "Ballistic1x1": 1,
+  "Ballistic1x2": 1,
+  "Armor1x1": 1,
   "Engine1x1": 1,
   "Reactor1x1": 1,
-  "Armor1x1": 1,
-  "Ballistic1x2": 1,
   "RocketLauncher1x2": 2,
-  "ShieldGenerator1x1": 3,
-  "Laser1x1": 3,
-  "Laser1x2": 5,
-  "WarpEngine1x2": 5,
-  "SolarArmor1x1": 7,
-  "EngineVectored2x1": 7,
-  "Reactor2x2": 8,
-  "BallisticTurret2x2": 8,
-  "AfterBurner1x2": 9,
-  "Armor2x2": 9,
-  "RocketTurret2x2": 9,
-  "ScrapLauncher2x3": 10,
-  "Engine2x2": 10,
-  "Ballistic1x3": 11,
-  "PointDefense2x2": 11,
-  "LaserTurret2x2": 12,
-  "RocketLauncher1x3": 13,
-  "ArmoredReactor2x2": 13,
-  "SolarArmor2x2": 13,
-  "HardShieldGene1x1": 14,
-  "MineLauncher3x2": 14,
-  "RepairBay3x2": 15,
-  "ShieldGenerator1x2": 16,
-  "PiercingBallistic1x4": 16,
-  "Shotgun2x3": 17,
-  "ReactiveArmor1x1": 18,
-  "Reactor3x3": 18,
-  "FusionRay1x3": 19,
-  "TorpedoLauncher1x4": 20,
-  "Armor3x3": 20,
-  "Ballistic2x3": 21,
-  "SolarArmor3x3": 22,
-  "MissileBattery4x2": 23,
-  "ArmoredReactor3x3": 23,
-  "ShieldGenerator2x2": 24,
-  "PulseLaser2x3": 25,
-  "ReactiveArmor2x2": 26,
-  "Engine2x3": 26,
-  "BallisticTurret3x3": 27,
-  "RocketLauncher2x3": 29,
-  "RocketLauncher1x4": 30,
-  "Laser2x4": 31,
-  "Ballistic1x5": 33,
-  "RocketFlakTurret3x3": 34,
-  "FusionTurret3x3": 36,
-  "ReactiveArmor3x3": 38,
-  "PiercingBallisticTurret3x3": 39,
-  "TorpedoLauncher2x4": 41,
-  "Ballistic2x4": 43,
-  "Reactor4x4": 43,
-  "Shotgun3x4": 46,
-  "RocketTurret3x4": 47,
-  "Ballistic2x7": 50
+  "Laser1x1": 4,
+  "ShieldGenerator1x1": 5,
+  "Ballistic1x1_2": 6,
+  "Ballistic1x2_2": 6,
+  "Armor1x1_1": 6,
+  "Engine1x1_1": 6,
+  "Laser1x2": 7,
+  "RocketLauncher1x2_2": 7,
+  "Laser1x1_2": 9,
+  "ShieldGenerator1x1_2": 10,
+  "WarpEngine1x2": 10,
+  "Laser1x2_2": 12,
+  "SolarArmor1x1": 12,
+  "EngineVectored2x1": 13,
+  "BallisticTurret2x2": 15,
+  "Laser1x2_3": 17,
+  "Reactor2x2": 17,
+  "EngineVectored2x1_2": 18,
+  "RocketTurret2x2": 19,
+  "Armor2x2": 19,
+  "BallisticTurret2x2_2": 20,
+  "AfterBurner1x2": 20,
+  "ScrapLauncher2x3": 22,
+  "Engine2x2": 23,
+  "Ballistic1x3": 24,
+  "RocketTurret2x2_2": 24,
+  "BallisticTurret2x2_3": 25,
+  "PointDefense2x2": 25,
+  "LaserTurret2x2": 26,
+  "RocketLauncher1x3": 28,
+  "Ballistic1x3_2": 29,
+  "RocketTurret2x2_3": 29,
+  "SolarArmor2x2": 29,
+  "PointDefense2x2_2": 30,
+  "ArmoredReactor2x2": 30,
+  "HardShieldGene1x1": 31,
+  "MineLauncher3x2": 32,
+  "SolarArmor2x2_2": 34,
+  "RepairBay3x2": 34,
+  "PointDefense2x2_3": 35,
+  "ArmoredReactor2x2_2": 35,
+  "PiercingBallistic1x4": 36,
+  "HardShieldGene1x1_2": 36,
+  "ShieldGenerator1x2": 37,
+  "MineLauncher3x2_2": 37,
+  "Shotgun2x3": 38,
+  "PlasmaArmor1x2": 39,
+  "ReactiveArmor1x1": 41,
+  "Reactor3x3": 42,
+  "FusionRay1x3": 43,
+  "TorpedoLauncher1x4": 45,
+  "Armor3x3": 46,
+  "Ballistic2x3": 48,
+  "SolarArmor3x3": 49,
+  "MissileBattery4x2": 51,
+  "ArmoredReactor3x3": 52,
+  "Ballistic2x3_2": 53,
+  "ShieldGenerator2x2": 54,
+  "PulseLaser2x3": 55,
+  "ReactiveArmor2x2": 57,
+  "Engine2x3": 58,
+  "ShieldGenerator2x2_2": 59,
+  "PulseLaser2x3_2": 60,
+  "BallisticTurret3x3": 60,
+  "RocketLauncher2x3": 61,
+  "RocketLauncher1x4": 63,
+  "Engine2x3_2": 63,
+  "Laser2x4": 64,
+  "PulseLaser2x3_3": 65,
+  "BallisticTurret3x3_2": 65,
+  "Ballistic1x5": 66,
+  "RocketLauncher2x3_2": 66,
+  "RocketFlakTurret3x3": 67,
+  "FusionTurret3x3": 71,
+  "RocketLauncher2x3_3": 71,
+  "RocketFlakTurret3x3_2": 72,
+  "ReactiveArmor3x3": 72,
+  "PiercingBallisticTurret3x3": 74,
+  "FusionTurret3x3_2": 76,
+  "TorpedoLauncher2x4": 77,
+  "Ballistic2x4": 78,
+  "PiercingBallisticTurret3x3_2": 79,
+  "Reactor4x4": 79,
+  "Shotgun3x4": 82,
+  "RocketTurret3x4": 83,
+  "BallisticArmor3x2": 84,
+  "RocketTurret3x4_2": 88,
+  "Ballistic2x7": 89,
+  "FusionTurret4x4": 91,
+  "Ballistic2x7_2": 94,
+  "Laser4x9": 94,
+  "ShinyArmor3x1": 95,
+  "EMPLauncher1x5": 98,
+  "ShinyArmor1x4": 99
  },
  "operations": [
   {
-   "id": "first_blood",
-   "name": "First Blood",
-   "desc": "Win your first battle",
+   "id": "fly_small_fighter",
+   "name": "Light Fighter",
+   "desc": "Win 3 battles flying the Light Fighter",
    "at": 1,
    "gate": 0,
    "cond": {
-    "t": "wins",
-    "n": 1
+    "t": "hullWins",
+    "ship": "Small_Fighter",
+    "n": 3
    }
   },
   {
-   "id": "shakedown",
-   "name": "Shakedown",
-   "desc": "Fill every cell on a hull",
-   "at": 1,
-   "gate": 0,
-   "cond": {
-    "t": "fillCells"
-   }
-  },
-  {
-   "id": "double_tap",
-   "name": "Double Tap",
-   "desc": "Win two battles in a row",
+   "id": "fly_heavy_fighter",
+   "name": "Heavy Fighter",
+   "desc": "Win 3 battles flying the Heavy Fighter",
    "at": 2,
    "gate": 0,
    "cond": {
-    "t": "streak",
-    "n": 2
+    "t": "hullWins",
+    "ship": "Heavy_Fighter",
+    "n": 3
    }
   },
   {
-   "id": "broadside",
-   "name": "Broadside",
-   "desc": "Win with four or more weapons fitted",
+   "id": "fly_lightning",
+   "name": "Lightning",
+   "desc": "Win 3 battles flying the Lightning",
    "at": 3,
    "gate": 0,
    "cond": {
-    "t": "minWeapons",
-    "n": 4
+    "t": "hullWins",
+    "ship": "Lightning",
+    "n": 3
    }
   },
   {
-   "id": "gate_t2",
-   "name": "Field Promotion",
-   "desc": "Beat a Tier 2 opponent flying a Tier 1 hull",
-   "at": 3,
-   "gate": 2,
-   "cond": {
-    "t": "step",
-    "hull": 1,
-    "opp": 2
-   }
-  },
-  {
-   "id": "untouched",
-   "name": "Untouched",
-   "desc": "Win with 90% of your hull intact",
+   "id": "use_laser1x1",
+   "name": "Small laser",
+   "desc": "Win a battle with the Small laser fitted",
    "at": 4,
    "gate": 0,
    "cond": {
-    "t": "health",
-    "min": 0.9
+    "t": "hasModule",
+    "m": "Laser1x1"
    }
   },
   {
-   "id": "solid_shot",
-   "name": "Solid Shot",
-   "desc": "Win using ballistic weapons only",
+   "id": "use_shieldgenerator1x1",
+   "name": "Combat Shield",
+   "desc": "Win a battle with the Combat Shield fitted",
    "at": 5,
    "gate": 0,
    "cond": {
-    "t": "only",
-    "dt": "ballistic"
+    "t": "hasModule",
+    "m": "ShieldGenerator1x1"
    }
   },
   {
-   "id": "quick_work",
-   "name": "Quick Work",
-   "desc": "Win a battle in under 20 seconds",
+   "id": "fly_wing",
+   "name": "Wing",
+   "desc": "Win 3 battles flying the Wing",
    "at": 6,
    "gate": 0,
    "cond": {
-    "t": "time",
-    "max": 20
+    "t": "hullWins",
+    "ship": "Wing",
+    "n": 3
    }
   },
   {
-   "id": "second_op",
-   "name": "Second Opinion",
-   "desc": "Save two layouts on the same ship",
+   "id": "fly_kabuto",
+   "name": "Type K4-8U70",
+   "desc": "Win 3 battles flying the Type K4-8U70",
    "at": 7,
    "gate": 0,
    "cond": {
-    "t": "layouts",
-    "n": 2
-   }
-  },
-  {
-   "id": "hat_trick",
-   "name": "Hat Trick",
-   "desc": "Win three battles in a row",
-   "at": 8,
-   "gate": 0,
-   "cond": {
-    "t": "streak",
+    "t": "hullWins",
+    "ship": "Kabuto",
     "n": 3
    }
   },
   {
-   "id": "gate_t3",
-   "name": "Line Commission",
-   "desc": "Beat a Tier 3 opponent flying a Tier 2 hull",
+   "id": "fly_tie_fighter",
+   "name": "Interceptor",
+   "desc": "Win 3 battles flying the Interceptor",
    "at": 8,
-   "gate": 3,
+   "gate": 0,
    "cond": {
-    "t": "step",
-    "hull": 2,
-    "opp": 3
+    "t": "hullWins",
+    "ship": "TIE_Fighter",
+    "n": 3
    }
   },
   {
-   "id": "power_surplus",
-   "name": "Power Surplus",
-   "desc": "Win with three or more reactors fitted",
+   "id": "fly_corvette",
+   "name": "Raptor",
+   "desc": "Win 3 battles flying the Raptor",
    "at": 9,
    "gate": 0,
    "cond": {
-    "t": "minReactors",
+    "t": "hullWins",
+    "ship": "Corvette",
     "n": 3
    }
   },
   {
-   "id": "light_touch",
-   "name": "Light Touch",
-   "desc": "Win flying a hull of 15 cells or fewer",
+   "id": "use_warpengine1x2",
+   "name": "Warp Drive",
+   "desc": "Win a battle with the Warp Drive fitted",
    "at": 10,
    "gate": 0,
    "cond": {
-    "t": "cells",
-    "max": 15
+    "t": "hasModule",
+    "m": "WarpEngine1x2"
    }
   },
   {
-   "id": "core_breach",
-   "name": "Core Breach",
-   "desc": "Win by destroying every enemy reactor",
+   "id": "fly_raven",
+   "name": "Raven",
+   "desc": "Win 3 battles flying the Raven",
    "at": 11,
    "gate": 0,
    "cond": {
-    "t": "reason",
-    "v": "reactors"
+    "t": "hullWins",
+    "ship": "Raven",
+    "n": 3
    }
   },
   {
-   "id": "sea_change",
-   "name": "Sea Change",
-   "desc": "Win flying a hull you have never won with",
+   "id": "use_laser1x2_2",
+   "name": "Laser Beam",
+   "desc": "Win a battle with the Laser Beam fitted",
    "at": 12,
    "gate": 0,
    "cond": {
-    "t": "newHull"
+    "t": "hasModule",
+    "m": "Laser1x2_2"
    }
   },
   {
-   "id": "shield_wall",
-   "name": "Shield Wall",
-   "desc": "Win with a shield generator fitted",
+   "id": "fly_viper",
+   "name": "Viper",
+   "desc": "Win 3 battles flying the Viper",
    "at": 13,
    "gate": 0,
    "cond": {
-    "t": "has",
-    "sub": "shield"
+    "t": "hullWins",
+    "ship": "Viper",
+    "n": 3
    }
   },
   {
-   "id": "sparring",
-   "name": "Sparring",
-   "desc": "Win five battles at your own tier",
+   "id": "fly_dart",
+   "name": "Dart",
+   "desc": "Win 3 battles flying the Dart",
    "at": 14,
    "gate": 0,
    "cond": {
-    "t": "winsAtOwnTier",
-    "n": 5
+    "t": "hullWins",
+    "ship": "Dart",
+    "n": 3
    }
   },
   {
-   "id": "packed_tight",
-   "name": "Packed Tight",
-   "desc": "Win with every cell on your hull filled",
+   "id": "use_ballisticturret2x2",
+   "name": "Vulcan Turret",
+   "desc": "Win a battle with the Vulcan Turret fitted",
    "at": 15,
    "gate": 0,
    "cond": {
-    "t": "fullWin"
+    "t": "hasModule",
+    "m": "BallisticTurret2x2"
    }
   },
   {
-   "id": "gate_t4",
-   "name": "Heavy Commission",
-   "desc": "Beat a Tier 4 opponent flying a Tier 3 hull",
-   "at": 15,
-   "gate": 4,
-   "cond": {
-    "t": "step",
-    "hull": 3,
-    "opp": 4
-   }
-  },
-  {
-   "id": "beam_work",
-   "name": "Beam Work",
-   "desc": "Win using laser weapons only",
+   "id": "fly_ironwing",
+   "name": "Ironwing",
+   "desc": "Win 3 battles flying the Ironwing",
    "at": 16,
    "gate": 0,
    "cond": {
-    "t": "only",
-    "dt": "laser"
+    "t": "hullWins",
+    "ship": "Ironwing",
+    "n": 3
    }
   },
   {
-   "id": "naked",
-   "name": "Naked Aggression",
-   "desc": "Win with no shields fitted",
+   "id": "use_laser1x2_3",
+   "name": "Laser Beam",
+   "desc": "Win a battle with the Laser Beam fitted",
    "at": 17,
    "gate": 0,
    "cond": {
-    "t": "without",
-    "sub": "shield"
+    "t": "hasModule",
+    "m": "Laser1x2_3"
    }
   },
   {
-   "id": "interceptor",
-   "name": "Interceptor",
-   "desc": "Win with a point-defence turret fitted",
+   "id": "fly_sparrow",
+   "name": "PSS Sparrow",
+   "desc": "Win 3 battles flying the PSS Sparrow",
    "at": 18,
    "gate": 0,
    "cond": {
-    "t": "has",
-    "sub": "pointdefense"
+    "t": "hullWins",
+    "ship": "Sparrow",
+    "n": 3
    }
   },
   {
-   "id": "four_row",
-   "name": "Four in a Row",
-   "desc": "Win four battles in a row",
+   "id": "use_rocketturret2x2",
+   "name": "Rocket Turret",
+   "desc": "Win a battle with the Rocket Turret fitted",
    "at": 19,
    "gate": 0,
    "cond": {
-    "t": "streak",
-    "n": 4
+    "t": "hasModule",
+    "m": "RocketTurret2x2"
    }
   },
   {
-   "id": "field_repair",
-   "name": "Field Repair",
-   "desc": "Win with a repair bay fitted",
+   "id": "use_ballisticturret2x2_2",
+   "name": "Vulcan Turret",
+   "desc": "Win a battle with the Vulcan Turret fitted",
    "at": 20,
    "gate": 0,
    "cond": {
-    "t": "has",
-    "sub": "repair"
+    "t": "hasModule",
+    "m": "BallisticTurret2x2_2"
    }
   },
   {
-   "id": "hammer_time",
-   "name": "Hammer Time",
-   "desc": "Win twice flying the Hammerhead",
+   "id": "fly_scythe",
+   "name": "Scythe",
+   "desc": "Win 3 battles flying the Scythe",
    "at": 21,
    "gate": 0,
    "cond": {
     "t": "hullWins",
-    "ship": "Hammerhead",
-    "n": 2
-   }
-  },
-  {
-   "id": "rearmed",
-   "name": "Rearmed",
-   "desc": "Win at the same tier with two different hulls",
-   "at": 22,
-   "gate": 0,
-   "cond": {
-    "t": "twoHulls"
-   }
-  },
-  {
-   "id": "salvo",
-   "name": "Salvo",
-   "desc": "Win using missile weapons only",
-   "at": 23,
-   "gate": 0,
-   "cond": {
-    "t": "only",
-    "dt": "missile"
-   }
-  },
-  {
-   "id": "three_ways",
-   "name": "Three Ways",
-   "desc": "Save all three layouts on the same ship",
-   "at": 24,
-   "gate": 0,
-   "cond": {
-    "t": "layouts",
+    "ship": "Scythe",
     "n": 3
    }
   },
   {
-   "id": "minelayer",
-   "name": "Minelayer",
-   "desc": "Win with a mine launcher fitted",
+   "id": "use_scraplauncher2x3",
+   "name": "Junk Launcher",
+   "desc": "Win a battle with the Junk Launcher fitted",
+   "at": 22,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "ScrapLauncher2x3"
+   }
+  },
+  {
+   "id": "use_engine2x2",
+   "name": "Large Ion Drive",
+   "desc": "Win a battle with the Large Ion Drive fitted",
+   "at": 23,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "Engine2x2"
+   }
+  },
+  {
+   "id": "use_rocketturret2x2_2",
+   "name": "Rocket Turret",
+   "desc": "Win a battle with the Rocket Turret fitted",
+   "at": 24,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "RocketTurret2x2_2"
+   }
+  },
+  {
+   "id": "fly_valkyrie",
+   "name": "Valkyrie",
+   "desc": "Win 3 battles flying the Valkyrie",
    "at": 25,
    "gate": 0,
    "cond": {
-    "t": "has",
-    "sub": "mine"
+    "t": "hullWins",
+    "ship": "Valkyrie",
+    "n": 3
    }
   },
   {
-   "id": "gate_t5",
-   "name": "Capital Commission",
-   "desc": "Beat a Tier 5 opponent flying a Tier 4 hull",
-   "at": 25,
-   "gate": 5,
-   "cond": {
-    "t": "step",
-    "hull": 4,
-    "opp": 5
-   }
-  },
-  {
-   "id": "ten_up",
-   "name": "Ten Up",
-   "desc": "Win ten battles in total",
+   "id": "use_laserturret2x2",
+   "name": "Laser Turret",
+   "desc": "Win a battle with the Laser Turret fitted",
    "at": 26,
    "gate": 0,
    "cond": {
-    "t": "wins",
-    "n": 10
+    "t": "hasModule",
+    "m": "LaserTurret2x2"
    }
   },
   {
-   "id": "disarmed",
-   "name": "Disarmed",
-   "desc": "Win by destroying every enemy weapon",
+   "id": "fly_arrow",
+   "name": "Arrow",
+   "desc": "Win 3 battles flying the Arrow",
    "at": 27,
    "gate": 0,
    "cond": {
-    "t": "reason",
-    "v": "disarmed"
+    "t": "hullWins",
+    "ship": "Arrow",
+    "n": 3
    }
   },
   {
-   "id": "heavy_hand",
-   "name": "Heavy Hand",
-   "desc": "Win flying a hull of 80 cells or more",
+   "id": "use_rocketlauncher1x3",
+   "name": "Missile Launcher",
+   "desc": "Win a battle with the Missile Launcher fitted",
    "at": 28,
    "gate": 0,
    "cond": {
-    "t": "cells",
-    "min": 80
+    "t": "hasModule",
+    "m": "RocketLauncher1x3"
    }
   },
   {
-   "id": "layered",
-   "name": "Layered",
-   "desc": "Win with armour, shields and point defence all fitted",
+   "id": "use_rocketturret2x2_3",
+   "name": "Rocket Turret",
+   "desc": "Win a battle with the Rocket Turret fitted",
    "at": 29,
    "gate": 0,
    "cond": {
-    "t": "hasAll",
-    "subs": [
-     "armor",
-     "shield",
-     "pointdefense"
-    ]
+    "t": "hasModule",
+    "m": "RocketTurret2x2_3"
    }
   },
   {
-   "id": "overkill",
-   "name": "Overkill",
-   "desc": "Win without losing a single module",
+   "id": "use_armoredreactor2x2",
+   "name": "Medium Armored Reactor",
+   "desc": "Win a battle with the Medium Armored Reactor fitted",
    "at": 30,
    "gate": 0,
    "cond": {
-    "t": "noLoss"
+    "t": "hasModule",
+    "m": "ArmoredReactor2x2"
    }
   },
   {
-   "id": "five_straight",
-   "name": "Five Straight",
-   "desc": "Win five battles in a row",
+   "id": "fly_rapier",
+   "name": "Rapier",
+   "desc": "Win 3 battles flying the Rapier",
    "at": 31,
    "gate": 0,
    "cond": {
-    "t": "streak",
+    "t": "hullWins",
+    "ship": "Rapier",
+    "n": 3
+   }
+  },
+  {
+   "id": "use_minelauncher3x2",
+   "name": "Mine Launcher",
+   "desc": "Win a battle with the Mine Launcher fitted",
+   "at": 32,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "MineLauncher3x2"
+   }
+  },
+  {
+   "id": "fly_hammerhead",
+   "name": "Hammerhead",
+   "desc": "Win 3 battles flying the Hammerhead",
+   "at": 33,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Hammerhead",
+    "n": 3
+   }
+  },
+  {
+   "id": "use_repairbay3x2",
+   "name": "Repair Bay",
+   "desc": "Win a battle with the Repair Bay fitted",
+   "at": 34,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "RepairBay3x2"
+   }
+  },
+  {
+   "id": "fly_miran",
+   "name": "PSS Miran",
+   "desc": "Win 3 battles flying the PSS Miran",
+   "at": 35,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Miran",
+    "n": 3
+   }
+  },
+  {
+   "id": "fly_kahje",
+   "name": "Kahje",
+   "desc": "Win 3 battles flying the Kahje",
+   "at": 36,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Kahje",
+    "n": 3
+   }
+  },
+  {
+   "id": "use_minelauncher3x2_2",
+   "name": "Mine Launcher",
+   "desc": "Win a battle with the Mine Launcher fitted",
+   "at": 37,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "MineLauncher3x2_2"
+   }
+  },
+  {
+   "id": "use_shotgun2x3",
+   "name": "Gaussian Shotgun",
+   "desc": "Win a battle with the Gaussian Shotgun fitted",
+   "at": 38,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "Shotgun2x3"
+   }
+  },
+  {
+   "id": "use_plasmaarmor1x2",
+   "name": "Plasma Armor",
+   "desc": "Win a battle with the Plasma Armor fitted",
+   "at": 39,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "PlasmaArmor1x2"
+   }
+  },
+  {
+   "id": "fly_orkaan",
+   "name": "Orkaan",
+   "desc": "Win 3 battles flying the Orkaan",
+   "at": 40,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Orkaan",
+    "n": 3
+   }
+  },
+  {
+   "id": "use_reactivearmor1x1",
+   "name": "Small Reactive Armor",
+   "desc": "Win a battle with the Small Reactive Armor fitted",
+   "at": 41,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "ReactiveArmor1x1"
+   }
+  },
+  {
+   "id": "fly_starbridge",
+   "name": "Starbridge",
+   "desc": "Win 5 battles flying the Starbridge",
+   "at": 42,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Starbridge",
     "n": 5
    }
   },
   {
-   "id": "junkyard",
-   "name": "Junkyard",
-   "desc": "Win with a scrap launcher fitted",
-   "at": 32,
-   "gate": 0,
-   "cond": {
-    "t": "has",
-    "sub": "junk"
-   }
-  },
-  {
-   "id": "fast_capital",
-   "name": "Fast Capital",
-   "desc": "Win in under 30 seconds flying a Tier 3 hull",
-   "at": 33,
-   "gate": 0,
-   "cond": {
-    "t": "time",
-    "max": 30,
-    "hullTier": 3
-   }
-  },
-  {
-   "id": "full_deck",
-   "name": "Full Deck",
-   "desc": "Fill every cell on a hull of 100 cells or more",
-   "at": 34,
-   "gate": 0,
-   "cond": {
-    "t": "fillCells",
-    "min": 100
-   }
-  },
-  {
-   "id": "sixth_sense",
-   "name": "Sixth Sense",
-   "desc": "Win six battles in a row",
-   "at": 35,
-   "gate": 0,
-   "cond": {
-    "t": "streak",
-    "n": 6
-   }
-  },
-  {
-   "id": "veteran",
-   "name": "Veteran",
-   "desc": "Win twenty battles in total",
-   "at": 36,
-   "gate": 0,
-   "cond": {
-    "t": "wins",
-    "n": 20
-   }
-  },
-  {
-   "id": "gate_t6",
-   "name": "Carrier Command",
-   "desc": "Beat a Tier 6 opponent flying a Tier 5 hull",
-   "at": 36,
-   "gate": 6,
-   "cond": {
-    "t": "step",
-    "hull": 5,
-    "opp": 6
-   }
-  },
-  {
-   "id": "warp_out",
-   "name": "Warp Out",
-   "desc": "Win with a warp drive fitted",
-   "at": 37,
-   "gate": 0,
-   "cond": {
-    "t": "has",
-    "sub": "warp"
-   }
-  },
-  {
-   "id": "gunline",
-   "name": "Gunline",
-   "desc": "Win with ten or more weapons fitted",
-   "at": 38,
-   "gate": 0,
-   "cond": {
-    "t": "minWeapons",
-    "n": 10
-   }
-  },
-  {
-   "id": "triple",
-   "name": "Triple Threat",
-   "desc": "Win with ballistic, laser and missile all fitted",
-   "at": 39,
-   "gate": 0,
-   "cond": {
-    "t": "allTypes"
-   }
-  },
-  {
-   "id": "perfectionist",
-   "name": "Perfectionist",
-   "desc": "Win eight battles in a row",
-   "at": 40,
-   "gate": 0,
-   "cond": {
-    "t": "streak",
-    "n": 8
-   }
-  },
-  {
-   "id": "untouchable",
-   "name": "Untouchable",
-   "desc": "Beat a Tier 7 opponent with 75% of your hull intact",
-   "at": 41,
-   "gate": 0,
-   "cond": {
-    "t": "health",
-    "min": 0.75,
-    "oppTier": 7
-   }
-  },
-  {
-   "id": "shipwright",
-   "name": "Shipwright",
-   "desc": "Own every hull in one tier",
-   "at": 42,
-   "gate": 0,
-   "cond": {
-    "t": "ownTier"
-   }
-  },
-  {
-   "id": "turret_master",
-   "name": "Turret Master",
-   "desc": "Win with three or more turrets fitted",
+   "id": "use_fusionray1x3",
+   "name": "Fusion Ray",
+   "desc": "Win a battle with the Fusion Ray fitted",
    "at": 43,
    "gate": 0,
    "cond": {
-    "t": "minTurrets",
-    "n": 3
+    "t": "hasModule",
+    "m": "FusionRay1x3"
    }
   },
   {
-   "id": "dreadnought",
-   "name": "Dreadnought",
-   "desc": "Fill every cell on a hull of 170 cells or more",
+   "id": "fly_morningstar",
+   "name": "Morningstar",
+   "desc": "Win 5 battles flying the Morningstar",
    "at": 44,
    "gate": 0,
    "cond": {
-    "t": "fillCells",
-    "min": 170
+    "t": "hullWins",
+    "ship": "Morningstar",
+    "n": 5
    }
   },
   {
-   "id": "fleet_admiral",
-   "name": "Fleet Admiral",
-   "desc": "Win fifty battles in total",
+   "id": "use_torpedolauncher1x4",
+   "name": "Torpedo Launcher",
+   "desc": "Win a battle with the Torpedo Launcher fitted",
    "at": 45,
    "gate": 0,
    "cond": {
-    "t": "wins",
-    "n": 50
+    "t": "hasModule",
+    "m": "TorpedoLauncher1x4"
    }
   },
   {
-   "id": "flawless",
-   "name": "Flawless",
-   "desc": "Win ten battles at Tier 7 without losing one",
+   "id": "use_armor3x3",
+   "name": "Large Steel Armor",
+   "desc": "Win a battle with the Large Steel Armor fitted",
    "at": 46,
-   "gate": 0,
-   "cond": {
-    "t": "streakAtTier",
-    "n": 10,
-    "oppTier": 7
-   }
-  },
-  {
-   "id": "gate_t7",
-   "name": "Fleet Command",
-   "desc": "Beat a Tier 7 opponent flying a Tier 6 hull",
-   "at": 46,
-   "gate": 7,
-   "cond": {
-    "t": "step",
-    "hull": 6,
-    "opp": 7
-   }
-  },
-  {
-   "id": "grand_design",
-   "name": "Grand Design",
-   "desc": "Win with a Grand Reactor fitted",
-   "at": 47,
    "gate": 0,
    "cond": {
     "t": "hasModule",
-    "m": "Reactor4x4"
+    "m": "Armor3x3"
    }
   },
   {
-   "id": "ten_straight",
-   "name": "Ten Straight",
-   "desc": "Win ten battles in a row",
+   "id": "fly_falcon",
+   "name": "Age Eagle",
+   "desc": "Win 5 battles flying the Age Eagle",
+   "at": 47,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Falcon",
+    "n": 5
+   }
+  },
+  {
+   "id": "fly_broadsword",
+   "name": "Broadsword",
+   "desc": "Win 5 battles flying the Broadsword",
    "at": 48,
    "gate": 0,
    "cond": {
-    "t": "streak",
-    "n": 10
+    "t": "hullWins",
+    "ship": "Broadsword",
+    "n": 5
    }
   },
   {
-   "id": "last_word",
-   "name": "Last Word",
-   "desc": "Beat a Tier 7 opponent without losing a single module",
+   "id": "use_solararmor3x3",
+   "name": "Large Solar Armor",
+   "desc": "Win a battle with the Large Solar Armor fitted",
    "at": 49,
    "gate": 0,
    "cond": {
-    "t": "noLoss",
-    "oppTier": 7
+    "t": "hasModule",
+    "m": "SolarArmor3x3"
+   }
+  },
+  {
+   "id": "fly_hawk",
+   "name": "Hawk",
+   "desc": "Win 5 battles flying the Hawk",
+   "at": 50,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Hawk",
+    "n": 5
+   }
+  },
+  {
+   "id": "use_missilebattery4x2",
+   "name": "Arsenal Wall",
+   "desc": "Win a battle with the Arsenal Wall fitted",
+   "at": 51,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "MissileBattery4x2"
+   }
+  },
+  {
+   "id": "use_armoredreactor3x3",
+   "name": "Large Armored Reactor",
+   "desc": "Win a battle with the Large Armored Reactor fitted",
+   "at": 52,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "ArmoredReactor3x3"
+   }
+  },
+  {
+   "id": "fly_javelin",
+   "name": "Javelin",
+   "desc": "Win 5 battles flying the Javelin",
+   "at": 53,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Javelin",
+    "n": 5
+   }
+  },
+  {
+   "id": "fly_wanderer",
+   "name": "Wanderer",
+   "desc": "Win 5 battles flying the Wanderer",
+   "at": 54,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Wanderer",
+    "n": 5
+   }
+  },
+  {
+   "id": "use_pulselaser2x3",
+   "name": "Pulse Laser",
+   "desc": "Win a battle with the Pulse Laser fitted",
+   "at": 55,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "PulseLaser2x3"
+   }
+  },
+  {
+   "id": "fly_elk",
+   "name": "PSS EL-K",
+   "desc": "Win 5 battles flying the PSS EL-K",
+   "at": 56,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Elk",
+    "n": 5
+   }
+  },
+  {
+   "id": "use_reactivearmor2x2",
+   "name": "Medium Reactive Armor",
+   "desc": "Win a battle with the Medium Reactive Armor fitted",
+   "at": 57,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "ReactiveArmor2x2"
+   }
+  },
+  {
+   "id": "use_engine2x3",
+   "name": "Grand Ion Drive",
+   "desc": "Win a battle with the Grand Ion Drive fitted",
+   "at": 58,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "Engine2x3"
+   }
+  },
+  {
+   "id": "fly_myrmidon",
+   "name": "Myrmidon",
+   "desc": "Win 5 battles flying the Myrmidon",
+   "at": 59,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Myrmidon",
+    "n": 5
+   }
+  },
+  {
+   "id": "fly_charger",
+   "name": "Charger",
+   "desc": "Win 5 battles flying the Charger",
+   "at": 60,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Charger",
+    "n": 5
+   }
+  },
+  {
+   "id": "use_rocketlauncher2x3",
+   "name": "Scorpion Launcher",
+   "desc": "Win a battle with the Scorpion Launcher fitted",
+   "at": 61,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "RocketLauncher2x3"
+   }
+  },
+  {
+   "id": "fly_wraith",
+   "name": "Wraith",
+   "desc": "Win 5 battles flying the Wraith",
+   "at": 62,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Wraith",
+    "n": 5
+   }
+  },
+  {
+   "id": "use_rocketlauncher1x4",
+   "name": "Impact Missile",
+   "desc": "Win a battle with the Impact Missile fitted",
+   "at": 63,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "RocketLauncher1x4"
+   }
+  },
+  {
+   "id": "use_laser2x4",
+   "name": "Arcfusion Array",
+   "desc": "Win a battle with the Arcfusion Array fitted",
+   "at": 64,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "Laser2x4"
+   }
+  },
+  {
+   "id": "fly_warrior",
+   "name": "Warrior",
+   "desc": "Win 5 battles flying the Warrior",
+   "at": 65,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Warrior",
+    "n": 5
+   }
+  },
+  {
+   "id": "fly_cerberos",
+   "name": "Cerberos",
+   "desc": "Win 5 battles flying the Cerberos",
+   "at": 66,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Cerberos",
+    "n": 5
+   }
+  },
+  {
+   "id": "use_rocketflakturret3x3",
+   "name": "Flak Rocket Turret",
+   "desc": "Win a battle with the Flak Rocket Turret fitted",
+   "at": 67,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "RocketFlakTurret3x3"
+   }
+  },
+  {
+   "id": "fly_therion",
+   "name": "Therion",
+   "desc": "Win 5 battles flying the Therion",
+   "at": 68,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Therion",
+    "n": 5
+   }
+  },
+  {
+   "id": "fly_stardestroyer",
+   "name": "Destroyer Vega",
+   "desc": "Win 5 battles flying the Destroyer Vega",
+   "at": 69,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "StarDestroyer",
+    "n": 5
+   }
+  },
+  {
+   "id": "fly_phantom",
+   "name": "Phantom",
+   "desc": "Win 5 battles flying the Phantom",
+   "at": 70,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Phantom",
+    "n": 5
+   }
+  },
+  {
+   "id": "fly_krigerskold",
+   "name": "Krigerskold",
+   "desc": "Win 5 battles flying the Krigerskold",
+   "at": 71,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Krigerskold",
+    "n": 5
+   }
+  },
+  {
+   "id": "use_rocketflakturret3x3_2",
+   "name": "Flak Rocket Turret",
+   "desc": "Win a battle with the Flak Rocket Turret fitted",
+   "at": 72,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "RocketFlakTurret3x3_2"
+   }
+  },
+  {
+   "id": "fly_baron",
+   "name": "Baron",
+   "desc": "Win 5 battles flying the Baron",
+   "at": 73,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Baron",
+    "n": 5
+   }
+  },
+  {
+   "id": "use_piercingballisticturret3x3",
+   "name": "Quantum Turret",
+   "desc": "Win a battle with the Quantum Turret fitted",
+   "at": 74,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "PiercingBallisticTurret3x3"
+   }
+  },
+  {
+   "id": "fly_eidolon",
+   "name": "Eidolon",
+   "desc": "Win 5 battles flying the Eidolon",
+   "at": 75,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Eidolon",
+    "n": 5
+   }
+  },
+  {
+   "id": "fly_sleipnir",
+   "name": "Sleipnir",
+   "desc": "Win 5 battles flying the Sleipnir",
+   "at": 76,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Sleipnir",
+    "n": 5
+   }
+  },
+  {
+   "id": "fly_duke",
+   "name": "Duke",
+   "desc": "Win 5 battles flying the Duke",
+   "at": 77,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Duke",
+    "n": 5
+   }
+  },
+  {
+   "id": "use_ballistic2x4",
+   "name": "Hyperion Chaingun",
+   "desc": "Win a battle with the Hyperion Chaingun fitted",
+   "at": 78,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "Ballistic2x4"
+   }
+  },
+  {
+   "id": "use_piercingballisticturret3x3_2",
+   "name": "Quantum Turret",
+   "desc": "Win a battle with the Quantum Turret fitted",
+   "at": 79,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "PiercingBallisticTurret3x3_2"
+   }
+  },
+  {
+   "id": "fly_captain",
+   "name": "Captain",
+   "desc": "Win 5 battles flying the Captain",
+   "at": 80,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Captain",
+    "n": 5
+   }
+  },
+  {
+   "id": "fly_crusader",
+   "name": "Crusader",
+   "desc": "Win 5 battles flying the Crusader",
+   "at": 81,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Crusader",
+    "n": 5
+   }
+  },
+  {
+   "id": "use_shotgun3x4",
+   "name": "Gaussian War Shotgun",
+   "desc": "Win a battle with the Gaussian War Shotgun fitted",
+   "at": 82,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "Shotgun3x4"
+   }
+  },
+  {
+   "id": "fly_mjollnir",
+   "name": "Mjollnir",
+   "desc": "Win 7 battles flying the Mjollnir",
+   "at": 83,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Mjollnir",
+    "n": 7
+   }
+  },
+  {
+   "id": "use_ballisticarmor3x2",
+   "name": "Ballistic Armor",
+   "desc": "Win a battle with the Ballistic Armor fitted",
+   "at": 84,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "BallisticArmor3x2"
+   }
+  },
+  {
+   "id": "fly_revenant",
+   "name": "Revenant",
+   "desc": "Win 7 battles flying the Revenant",
+   "at": 85,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Revenant",
+    "n": 7
+   }
+  },
+  {
+   "id": "fly_arbiter",
+   "name": "Arbiter",
+   "desc": "Win 7 battles flying the Arbiter",
+   "at": 86,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Arbiter",
+    "n": 7
+   }
+  },
+  {
+   "id": "fly_vindicator",
+   "name": "Vindicator",
+   "desc": "Win 7 battles flying the Vindicator",
+   "at": 87,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Vindicator",
+    "n": 7
+   }
+  },
+  {
+   "id": "fly_thane",
+   "name": "Thane",
+   "desc": "Win 7 battles flying the Thane",
+   "at": 88,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Thane",
+    "n": 7
+   }
+  },
+  {
+   "id": "fly_radiantx",
+   "name": "Radiant-X",
+   "desc": "Win 7 battles flying the Radiant-X",
+   "at": 89,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "RadiantX",
+    "n": 7
+   }
+  },
+  {
+   "id": "fly_ritari",
+   "name": "Ritari",
+   "desc": "Win 7 battles flying the Ritari",
+   "at": 90,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Ritari",
+    "n": 7
+   }
+  },
+  {
+   "id": "use_fusionturret4x4",
+   "name": "Melee Fusion Turret",
+   "desc": "Win a battle with the Melee Fusion Turret fitted",
+   "at": 91,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "FusionTurret4x4"
+   }
+  },
+  {
+   "id": "fly_oblivionark",
+   "name": "Oblivion Ark",
+   "desc": "Win 7 battles flying the Oblivion Ark",
+   "at": 92,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Oblivionark",
+    "n": 7
+   }
+  },
+  {
+   "id": "fly_khonarl",
+   "name": "Khonarl",
+   "desc": "Win 7 battles flying the Khonarl",
+   "at": 93,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Khonarl",
+    "n": 7
+   }
+  },
+  {
+   "id": "use_laser4x9",
+   "name": "Doomsday Laser",
+   "desc": "Win a battle with the Doomsday Laser fitted",
+   "at": 94,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "Laser4x9"
+   }
+  },
+  {
+   "id": "fly_prophet",
+   "name": "Prophet",
+   "desc": "Win 7 battles flying the Prophet",
+   "at": 95,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Prophet",
+    "n": 7
+   }
+  },
+  {
+   "id": "fly_achilles",
+   "name": "Achilles",
+   "desc": "Win 7 battles flying the Achilles",
+   "at": 96,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Achilles",
+    "n": 7
+   }
+  },
+  {
+   "id": "fly_centurion",
+   "name": "USS Centurion",
+   "desc": "Win 7 battles flying the USS Centurion",
+   "at": 97,
+   "gate": 0,
+   "cond": {
+    "t": "hullWins",
+    "ship": "Centurion",
+    "n": 7
+   }
+  },
+  {
+   "id": "use_emplauncher1x5",
+   "name": "EMP Launcher",
+   "desc": "Win a battle with the EMP Launcher fitted",
+   "at": 98,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "EMPLauncher1x5"
+   }
+  },
+  {
+   "id": "use_shinyarmor1x4",
+   "name": "Glossy shiny armor",
+   "desc": "Win a battle with the Glossy shiny armor fitted",
+   "at": 99,
+   "gate": 0,
+   "cond": {
+    "t": "hasModule",
+    "m": "ShinyArmor1x4"
    }
   }
  ]

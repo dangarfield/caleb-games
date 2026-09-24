@@ -62,7 +62,7 @@ var Sim = (function () {
     p.didHit = 0;
     p.x = p.y = p.px = p.py = p.vx = p.vy = p.rot = p.spin = 0;
     p.speed = p.maxSpeed = p.accel = p.decel = p.turn = 0;
-    p.dmg = p.rf = p.rp = p.ip = p.ddo = p.pen = 0;
+    p.damage = p.recoilForce = p.recoilPush = p.impactPush = p.antiDamageDropOff = p.pen = 0;
     p.dist = p.maxDist = p.life = p.maxLife = p.fuel = 0;
     p.expR = p.expF = p.health = p.maxHealth = p.radius = 0;
     p.tMod = null; p.tShip = null; p.tIdx = -1; p.tGen = -1; p.pdDone = false;
@@ -147,8 +147,10 @@ var Sim = (function () {
       side: side, fit: fit, ship: sd, key: sd.key,
       gw: grid.w, gh: grid.h,
       x: 0, y: 0, rot: 0, vx: 0, vy: 0, ax: 0, ay: 0,
-      mass: mods().num(sd.rm, 0),
-      maxSpeed: mods().num(sd.ms, 6), shipTurn: mods().num(sd.ts, 1),
+      /* Mass is the fit and only the fit — the hull brings none of its own.
+         See the note in `Geom.summarise`. */
+      mass: 0,
+      maxSpeed: mods().num(sd.baseMovementSpeed, 6), shipTurn: mods().num(sd.baseTurnSpeed, 1),
       thrustPower: 0, turnPower: 0, speedMul: 1, thrustMul: 1,
       modules: [], powerOrder: [],
       healthFrac: 1, maxHealthTotal: 0,
@@ -167,11 +169,11 @@ var Sim = (function () {
     for (var i = 0; i < list.length; i++) {
       var md = Data.module(list[i].moduleId);
       if (!md) continue;
-      var m = mods().init(md, list[i].col, list[i].row);
+      var m = mods().init(md, list[i].col, list[i].row, sd.bonusList);
       m.ship = ship;
       var l = Geom.gridToLocal(m.col, m.row, m.w, m.h, grid.w, grid.h);
       m.lx = l.x; m.ly = l.y;
-      ship.mass += mods().num(md.m, 0);
+      ship.mass += mods().num(m.s.mass, 0);
       ship.maxHealthTotal += m.maxHealth;
       ship.modules.push(m);
     }
@@ -207,8 +209,8 @@ var Sim = (function () {
       hp += m.health;
       if (!m.powered) continue;
       if (m.subtype === 'engine') {
-        thrust += mods().num(m.mod.ep, 0);
-        turn   += mods().num(m.mod.ts, 0);
+        thrust += mods().num(m.s.thrustPower, 0);
+        turn   += mods().num(m.s.turnSpeed, 0);
       } else if (m.subtype === 'warp') {
         warp += m.warpPower;
       } else if (m.subtype === 'afterburner' && m.abOn) {
@@ -296,14 +298,14 @@ var Sim = (function () {
       var m = ship.modules[i];
       if (!m.alive) continue;
       if (!wep && mods().isWeapon(m)) wep = true;
-      if (!rea && mods().isReactor(m)) rea = true;
+      if (!rea && mods().makesPower(m)) rea = true;
       if (wep && rea) return;
     }
     ship.destroyed = true;
     w.over = true;
     w.winner = ship.side === 0 ? 'enemy' : 'player';
     w.reason = !wep ? 'disarmed' : 'reactors';
-    event(w, 'shipdown', ship.x, ship.y, 0);
+    event(w, 'shipdown', ship.x, ship.y, ship.rad);
   }
 
   /* ------------------------------------------------------------------ */
@@ -475,9 +477,9 @@ var Sim = (function () {
     var di = debrisBlock(w, p, x0, y0, dx, dy);
     if (di >= 0) {
       var deb = w.projectiles[di];
-      hitDebris(w, deb, p.dmg);
+      hitDebris(w, deb, p.damage);
       /* a piercing round spends one layer punching through the trash */
-      if (p.rf > 0) { p.rf -= 4; if (p.rf < 0) p.rf = 0; }
+      if (p.recoilForce > 0) { p.recoilForce -= 4; if (p.recoilForce < 0) p.recoilForce = 0; }
       else { kill(w, p); return; }
     }
 
@@ -496,7 +498,7 @@ var Sim = (function () {
       if (t >= 0 && (shT < 0 || t < shT)) { shT = t; shM = m; }
     }
 
-    var maxPen = Math.ceil(p.rf / 4);
+    var maxPen = Math.ceil(p.recoilForce / 4);
     var from = -1e-6, guard = 0;
 
     while (guard++ < 12) {
@@ -513,16 +515,16 @@ var Sim = (function () {
 
       /* the bubble is outside the hull, so it only ever gets the first say */
       if (first && shM && shT >= 0 && (bT < 0 || shT <= bT)) {
-        shieldHit(w, foe, shM, p.dmg * w.damageMultiplier);
+        shieldHit(w, foe, shM, p.damage * w.damageMultiplier);
         event(w, 'shieldhit', x0 + dx * shT, y0 + dy * shT, 0);
         kill(w, p);
         return;
       }
       if (bT < 0) return;
 
-      var raw = p.dmg * w.damageMultiplier;
+      var raw = p.damage * w.damageMultiplier;
       if (p.pen > 0) {
-        var keep = p.ddo > mods().C.PEN_MIN_RETAIN ? p.ddo : mods().C.PEN_MIN_RETAIN;
+        var keep = p.antiDamageDropOff > mods().C.PEN_MIN_RETAIN ? p.antiDamageDropOff : mods().C.PEN_MIN_RETAIN;
         raw *= Math.pow(keep, p.pen);
       }
       damage(w, foe, bM, mods().afterArmor(raw, bM.armor), 'ballistic', p);
@@ -530,7 +532,7 @@ var Sim = (function () {
 
       p.pen++;
       if (p.pen >= maxPen) { kill(w, p); return; }
-      var chance = p.ip > 0 ? Math.min(1, p.rp / p.ip) : 1;
+      var chance = p.impactPush > 0 ? Math.min(1, p.recoilPush / p.impactPush) : 1;
       if (rnd(w) >= chance) { kill(w, p); return; }
       from = bT;
     }
@@ -581,7 +583,7 @@ var Sim = (function () {
 
     var di = debrisBlock(w, p, p.px, p.py, mdx, mdy);
     if (di >= 0) {
-      hitDebris(w, w.projectiles[di], p.dmg);
+      hitDebris(w, w.projectiles[di], p.damage);
       event(w, 'explosion', p.x, p.y, 0.5);
       kill(w, p);
       return;
@@ -633,7 +635,7 @@ var Sim = (function () {
     }
 
     if (shM && shT >= 0 && (bT < 0 || shT <= bT)) {
-      shieldHit(w, foe, shM, p.dmg * w.damageMultiplier);
+      shieldHit(w, foe, shM, p.damage * w.damageMultiplier);
       event(w, 'shieldhit', p.px + mdx * shT, p.py + mdy * shT, 0);
       kill(w, p);
       return;
@@ -645,7 +647,7 @@ var Sim = (function () {
     if (p.expR > 0) explode(w, foe, p, hx, hy);
     else {
       /* BUG 8, half of it: no debug `missileDamageFactor` in the damage path. */
-      damage(w, foe, bM, mods().afterArmor(p.dmg * w.damageMultiplier, bM.armor), 'missile', p);
+      damage(w, foe, bM, mods().afterArmor(p.damage * w.damageMultiplier, bM.armor), 'missile', p);
     }
     event(w, 'explosion', hx, hy, p.expR > 0 ? p.expR : 0.6);
     kill(w, p);
@@ -689,7 +691,7 @@ var Sim = (function () {
       var falloff = 1 - Math.sqrt(d2) / p.expR;
       if (falloff < 0) falloff = 0;
       var perCell = mods().afterArmor(
-        p.dmg * p.expF * falloff * w.damageMultiplier, m.armor);
+        p.damage * p.expF * falloff * w.damageMultiplier, m.armor);
       damage(w, foe, m, perCell * cells, 'missile', p);
     }
   }
@@ -737,7 +739,7 @@ var Sim = (function () {
       var dx = m.wx - p.x, dy = m.wy - p.y;
       if (dx * dx + dy * dy > r2) continue;
       /* mines are shield-softened, per the module description */
-      var raw = p.dmg * p.expF * w.damageMultiplier;
+      var raw = p.damage * p.expF * w.damageMultiplier;
       var sh = shieldOver(foe, m);
       if (sh) { shieldHit(w, foe, sh, raw); continue; }
       damage(w, foe, m, mods().afterArmor(raw, m.armor), 'mine', p);
@@ -773,7 +775,7 @@ var Sim = (function () {
       if (!d.active || d.kind !== kind || d.side === ship.side) continue;
       var dx = d.x - pd.wx, dy = d.y - pd.wy;
       if (dx * dx + dy * dy > pd.pdR * pd.pdR) continue;
-      hitDebris(w, d, mods().num(pd.mod.pdd, 0.1) * mods().C.PD_DEBRIS_DAMAGE_SCALE);
+      hitDebris(w, d, mods().num(pd.s.pdDamage, 0.1) * mods().C.PD_DEBRIS_DAMAGE_SCALE);
       event(w, 'pdshot', d.x, d.y, 0);
       return true;
     }
@@ -797,7 +799,7 @@ var Sim = (function () {
       if (t) {
         var dx = t.wx - src.wx, dy = t.wy - src.wy;
         var dd = Math.sqrt(dx * dx + dy * dy);
-        var half = (mods().num(src.mod.fc, 360) / 2) * (Math.PI / 180);
+        var half = (mods().num(src.s.fireCone, 360) / 2) * (Math.PI / 180);
         if (dd > b.range || Math.abs(SimAI.wrap(Math.atan2(dy, dx) - b.ship.rot)) > half) t = null;
       }
       if (!t) {

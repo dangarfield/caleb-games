@@ -35,9 +35,10 @@ reference. Its 548 MB `node_modules` and the Netlify CLI cache were deleted on
 
 ## What was kept
 
-- **The data.** 41 ships and 91 modules of reverse-engineered *Space Arena*
-  stats, plus five `DATA_*.md` tables. The scrapers that produced it are gone,
-  so it is irreplaceable. Baked losslessly into `data/data.json`.
+- **The data.** Reverse-engineered *Space Arena* stats, plus five `DATA_*.md`
+  tables. Since re-extracted from the APK: the roster is now 56 hulls
+  (`data/ships.json`) and 100 modules (`data/modules.json`), each copied from
+  `research/` rather than baked.
 - **The formulas.** Armour / reflect / penetration, reactor chain explosions,
   shield absorb and overflow, point-defence interception, repair-bay rules.
   `BATTLE.md` (in the archive) documents the intent; the code diverges from it
@@ -50,6 +51,13 @@ the Netlify deploy — went.
 
 ## Features
 
+### Goals
+One goal is live at a time — the ladder is linear, so the operation for your
+level is the only one open. It sits in the hangar's top bar as a **GOAL** chip
+with its own progress bar, and tapping it drops a panel holding the goal, the
+next unlocks with the level each arrives at, and a dashed row each for what is
+still sealed.
+
 ### The fleet — tiers, not hangars
 Home is your fleet by tier: five tiers down the left (decades of the data's own
 `lr` scale), the hulls of that tier as cards, and the ship you pick carries its
@@ -61,6 +69,15 @@ was two unrelated things, a slot was the thing you owned rather than a ship, and
 there was nowhere to express that a hull is something you earn.
 
 ### Fitting
+Tapping a module — in the bay or on the hull — opens the **MODULE STATS** card
+in the well's top-left corner: the six numbers that matter for that subtype,
+off `modstats.js`, which is also what writes the two-stats-plus-power line on
+every bay row. The card slides to the bottom-left while a drag or a hover is
+happening under it, and back when the corner is clear. The bay is ordered by
+footprint, then name, then version, which puts a module and its Black Market
+rework side by side — those carry a `v2`/`v3` tag in the accent colour on the
+row, on the card and on the art itself.
+
 All three browser levels are visible at once, stacked bottom-up: group row
 (Weapons / Defence / Utility) at the bottom, family row (Ballistic / Missile /
 Laser…) above it, module list filling the space above that. No drill-down, no
@@ -134,52 +151,67 @@ told to be worse.
 
 ### The battle
 Fixed-timestep simulation with pooled projectiles, completely separate from the
-renderer. Smoothed follow camera, damage shown per module, brownouts visible
-when a reactor dies, pause and 1x/2x/4x. Death returns to the hangar — never an
-instant restart.
+renderer. Brownouts visible when a reactor dies, pause and 1x/2x/4x. Death
+returns to the hangar — never an instant restart.
 
-### The opponent editor
-`editor.html`, a second static page in the game folder, **not linked from the
-arcade**. Pick a hull, fit it with the same validator the game uses, and either
-watch a test fight or run a few hundred headlessly for a win rate. Since
-difficulty is purely the fit, fitting the ship *is* the whole of designing an
-opponent — there is no behaviour panel because there is nothing to put in one.
-Export the JSON and paste it over `data/opponents.json`. Auto-generated
-opponents are a later phase; this is the format they will write to.
+Three views of a ship, switched in the HUD and remembered between matches:
+**HULL** is the art alone, **MODULES** shows what is fitted, and **DAMAGE** —
+the default — shows the cells as a continuous health ramp, green through
+yellow and orange to red, black for a cell with no structure, with the overlays
+(unpowered, being patched) and the white hit flash still on top.
+
+The camera frames the midpoint of the pair and zooms so **both ships are always
+whole on screen**, tightening as they close. It frames the hull, so a shield
+bubble may run off the edge; see ARCHITECTURE.md for why that is the only
+zoom left to take.
+
+### Where opponents come from
+Nowhere on disk. A contact is generated the moment you press ENTER ARENA or
+TEST, out of `data/ships.json` for the hull and `data/progression.json` for
+what is allowed on it, and `autofit.js` packs it. The pool is the hulls of your
+hull's own tier, up to and including the next unlock in that tier — tier 1
+takes no next rung. Difficulty is purely the fit, so the AUTOFIT menu's options
+are rolled per contact, including the placement mode the menu never shows.
 
 ## Files
 
 ```
 games/fleet-forge/
   index.html            the game
-  editor.html           the opponent editor (dev tool, not linked)
   ARCHITECTURE.md       the contract every file here obeys — read first
-  data/data.json        41 ships + 91 modules + text + key map, baked
-  data/opponents.json   the opponent roster (each stamped with its tier)
+  data/ships.json       56 hulls, copied from research/
+  data/modules.json     100 modules + the field legend, copied from research/
+  data/bonus-keys.json  the hull-bonus keys the source game defines
   data/progression.json the unlock tree — GENERATED, do not hand-edit
   data/effects.json     which sprite each weapon and blast uses
-  images/               module, ship and effect art
+  images/               module, ship and effect art (webp, named by key)
   js/
     arcade-store.js     verbatim copy of dragonseed's store
     theme.js            palette + canvas helpers
     progress.js         levels, operations, and the unlock gates
     effects.js          sprite sheets and the effect-art config
     core.js             1333x690 virtual stage, pointer, screen stack, widgets
-    data.js             loads data.json once
+    data.js             loads the three data files once
     geom.js             the grid, and the ONE placement validator
     shipview.js         drawing a hull with its fit
+    modstats.js         the one stat table — the bay row and the stats card
     save.js             the player's save, over arcade-store
-    opponents.js        the roster and ladder progress
+    opponents.js        the pool rule, and generating a contact
     screens/            fleet, fitting, ladder, battle
     sim/                modules, ai, sim, selftest (node)
-    editor/             store, fit, ai, testfight, app
   tools/
-    bake-data.py        legacy src/data/** -> data/data.json (provenance)
-    make-opponents.js   packs hulls to a recipe -> data/opponents.json
-    balance.js          fights the roster; --rr ranks it
+    copy-ships.js       research/ -> data/ships.json (+ --images)
+    copy-modules.js     research/ -> data/modules.json (+ --images)
+    load.js             one headless `Data` for every tool below
+    autofit-test.js     every hull x every recipe must come out flyable
+    balance.js          generates a pool and fights it; --rr ranks it
     operations.json     the 54 operations, hand-authored
-    make-progression.js operations + data -> progression.json + the design doc
+    make-progression.js the 100-level ladder -> progression.json + the doc
+    make-operations.js  one operation per level, read off that ladder
     progression-test.js drives the unlock tree headlessly
+    field-audit.js      catches any code still reading a retired field name
+    skill-curve.js      measures what the hidden skill dial is worth
+    boot-check.js       runs js/data.js the way the browser does
 ```
 
 ## Conventions this game leans on
@@ -187,13 +219,143 @@ games/fleet-forge/
 - Back button `href="../../index.html"`, exactly.
 - **Nothing in the top-left 160x54 box** — that is the arcade's own button.
 - Saves in IndexedDB via `arcade-store.js`, key `calebArcadeData:fleet-forge`,
-  carrying `sid`/`gen` so a stale tab cannot overwrite. The one exception is
-  `editor.html`, which keeps its working copy in `localStorage` under
-  `fleet-forge-editor:` — a dev tool's scratch, never a game save.
+  carrying `sid`/`gen` so a stale tab cannot overwrite.
 - The card in the root `index.html` needs the **trailing slash**
   (`games/fleet-forge/`) because the game loads `js/` files.
 
 ## Memory
+
+### 2026-09-24 — a rework trails the thing it reworks
+Nine Black Market v2s were in the starting kit: a level-1 pilot had a Railgun v2
+twenty levels before the Railgun and a Bunker Shield twenty-six before its base.
+Cause: the ladder uses the source's `requiredLevel` purely as a sort key, and
+those nine carry `requiredLevel: 0` — not "level zero" but "no shop level, this
+is black-market stock" — so they sorted to the very front. There WAS a check for
+a variant arriving before its base, but it keyed on `visible` (0/1/2) rather
+than `modification`, and it waved `visible: 2` through as "the data's choice".
+
+Variants are now pulled out of the spread entirely: the spread runs on
+everything else, which keeps the drip flat and every level occupied, and each
+rework is then placed at its base's level + 5 (BM.1) or + 10 (BM.2), capped at
+99 so the top level stays the prize hull alone. Keyed on `modification` and a
+shared `displayName`, so a v4 added to the data tomorrow slots in behind its
+base with no code change. The check is now fatal for every rework and asserts
+the exact gap, not merely "not before". Level 1 went from 14 modules to five —
+Chaingun, Vulcan Cannon, Small Steel Armor, Small Ion Drive, Small Reactor.
+
+Two things fell out of it. The generator deadlocks on any ladder move —
+operations are written against the ladder and the ladder is validated against
+the operations — so `--bootstrap` downgrades that one check to a warning for
+the first of the three passes; the last pass still has to come out clean. And
+the ladder walk in `progression-test.js` flew only the roomiest owned hull, so
+when the Grand Ion Drive landed on a level whose best hull has no 2x3 block of
+engine cells it reported a dead end that was not there — six owned hulls could
+seat it. It now flies the roomiest hull that can actually take the part, which
+is what a player does, and still fails when nothing owned can.
+
+### 2026-09-24 — mute is the music's switch, not everything's
+It silenced the generated-cue bus as well, so turning the theme off also killed
+every tap, launch and explosion — feedback for what the player just did, which
+nobody asks to lose when they turn music down in a waiting room. `setMuted` no
+longer touches the cue bus and `play()` no longer early-returns on the flag;
+`muted` now means the music only. Checked headlessly: with mute on the theme
+element sits at volume 0 and a cue still builds its oscillators.
+
+### 2026-09-24 — a ship does not die in one bang
+A death was one explosion sheet, one smoke, two spark bursts, all on the hull's
+centre — on a 44-cell capital that reads as a firework going off somewhere
+behind the ship. It is a chain now: twelve module-sized blasts walking across
+the wreck over about a second, each on a real module of the hull that just
+died, then the big one at the centre. Queued in a fixed array with a countdown
+each and ticked in the update loop — no `setTimeout` per blast, per the house
+rules — and the positions are frozen when the chain is scheduled, so the fire
+stays where the ship broke rather than following the drifting wreck.
+`END_DELAY` went 1.0 -> 1.9 so the chain finishes before the result screen.
+
+The blasts vary by spark count and whether smoke plays, NEVER by sheet scale:
+scaling an explosion sheet at event time is the old bug that had a module blast
+swamping the ship it happened on, and that rule holds here too.
+
+### 2026-09-24 — a button that says no now offers the fix
+NOT FLIGHT READY was the whole width of the hull card and did nothing: it named
+the problem and left the answer — a default autofit — two screens away in the
+fitting bay. It is split now, AUTOFIT narrow on the left in the accent and the
+verdict expanding into the rest. The button fits the slot the card is showing
+(`Save.activeLayoutIndex`) with ONE recipe — ballistic, mostly armour, weapons
+first — because it has no menu: it is not a shortcut to the bay's defaults, it
+is the plain sturdy fit a grounded hull wants. `Progress.moduleUnlocked` filters
+it, so it cannot reach past the unlock tree. Nothing is announced —
+the hangar never speaks — because the row under your finger becomes ENTER ARENA.
+
+### 2026-09-24 — the hangar's 324px column became a chip
+OPERATIONS and UNLOCKS had a permanent quarter of the hangar behind a two-tab
+toggle. The ladder is linear — one operation per level, so only ever ONE row is
+live — and the two tabs were two readings of the same ladder, which meant
+flipping between them to answer one question: what am I doing, and what does it
+get me. The handoff's answer is a GOAL chip in the top bar carrying the live
+objective and its bar, and one drop-down under it holding the goal, the
+unlocks, and a dashed row each for what is still sealed. The fleet gets the
+whole width. `OP`/`OPS` is `GOAL` everywhere it is shown, and the pilot pill
+dropped `34 OPS COMPLETE` — that count belongs with the goals and is at the
+head of the panel.
+
+Two things worth keeping: the panel paints last but hit-testing is paint order,
+so `panelHits()` runs BEFORE anything draws and claims the pointer for the
+scrim — otherwise a tap meant to dismiss the panel lands on the hull card
+behind it. And the scrim starts below the 58px bar, exactly as the design has
+it, so the chip can still shut what it opened.
+
+### 2026-09-24 — DAMAGE never persisted, because the setter was never widened
+`Save.setHullView` opened with `if (v !== 'hull' && v !== 'modules') return
+false`. It was written when there were two views and DAMAGE was added without
+touching it, so every `setHullView('battle','damage')` returned false and saved
+nothing — the arena reopened on whatever had been written before the view
+existed. The allowed values per place were already declared one screen above in
+`HULL_MODES`; the guard now asks that table. A default (`battle: 'damage'`) that
+is right in the data is no use if the writer refuses the value.
+
+### 2026-09-24 — a reactor is not the only thing that makes power
+Both the fitting validator and the sim's win condition counted reactors. Five
+modules in the data generate power without being one — the Solar Armor family
+and Small Laser v2, which is a gun that feeds the ship — so a legal solar hull
+was rejected in the bay, and in the arena it was declared out of the fight the
+moment its last reactor died, or from frame one if it never had one. Both now
+ask for a power source (`powerGeneration > 0`). `isReactor` was deliberately
+NOT widened: it also decides what detonates on death, and a solar plate does not
+take the hull with it. Two meanings had been sharing one predicate.
+
+### 2026-09-24 — the camera was framing the shield, not the ship
+`updateCamera` framed `ship.brad` — hull radius plus the widest shield bubble.
+On a Hammerhead that is 8.8 cells of ship inside a 22.4-cell framing circle, so
+a third of the zoom was being spent on empty air around a translucent ring.
+Framing `ship.rad` instead put the arena between 30% and 60% closer on every
+hull with nothing cropped. Going closer than that is not available: measured
+mid-fight the hulls are nearly touching, and dropping `SimAI.ENGAGE_FRAC` from
+0.75 to 0.30 barely moved separation. `CAM_FILL` exists as the dial that buys
+more by cropping, and is set to 1.
+
+### 2026-09-24 — `icon()` saved the canvas and never restored it
+`ctx.save()` with no matching restore, so everything drawn after the pause glyph
+was in that icon's 24-unit space — the speed labels, quit and mute went
+off-screen and the toggle landed on the rail. `soundIcon()` had grown a second
+`ctx.restore()` to compensate, which hid it. Found by instrumenting `fillRR` and
+comparing the logged coordinates against the rendered pixels; no amount of
+reading the HUD code found it, because the HUD code was correct.
+
+### 2026-09-24 — thresholds the game never reaches
+Module art in the arena was gated at `cs >= 10` pixels per cell. Measured, the
+camera ran 6.4-8.0 for whole matches, so MODULES mode had been drawing coloured
+plates and no pictures for its entire life. Two more of the same shape: `pad`
+and `rad` STEPPED at `cs > 14`, which is why the grid appeared to resize
+mid-fight, and cell value `5` was drawn as engine-only when it is both device
+and engine — 245 cells across 46 of the 56 hulls. Measure the range a constant
+actually sees before choosing it.
+
+### 2026-09-24 — `var` after `return` in an immediate-mode screen
+`STATS`, the stats card's geometry, was declared below the fitting screen's
+`return {}`. The `var` hoists but the assignment never runs, so it was
+`undefined` at the first draw — an error nowhere near the cause. Layout
+constants go above the return, with the rest of the layout.
 
 ### 2026-09-22 — rebuilt from the legacy Vite project
 Audited the old tree, found it had never worked outside `vite dev`, and rebuilt
@@ -350,17 +512,17 @@ expected: the roster is hand-made and pools are to be generated per tier later.
 
 ## Still to do
 
-- Three modules have no art and draw as a flat tile: **Fusion Ray**,
-  **Arcfusion Array**, **Arsenal Wall**. Fifteen orphan module images exist that
-  could be reassigned — a look-and-feel call, not a mechanical one.
-- 17 of 41 hulls have no ship art, and all 32 ship images are currently unused
-  (hulls draw as grids). Wiring art into ship select would lift that screen.
+- `BallisticPenetratingDamage` is wired to `impactPush` and should target
+  `recoilPush` — pierce is currently read off the wrong pair.
+- Autofit is bonus-blind: it packs a hull without reading that hull's bonuses,
+  and nothing in the UI shows them either.
+- Level 1 hands over 15 items, 9 of them Black Market. Generous enough that the
+  first hour has no shopping to do.
+- Audio: music only. The synthesised UI sounds are in `audio.js`; combat has
+  none yet — see the sample list in the session notes (gun/hit/pop need three
+  variants each, everything else one or two).
 - The nine parallax backdrops are uncompressed PNG, 240-380 KB each. One is
   loaded per battle, not all nine, but converting them to WebP would roughly
   halve that.
-- **Generated opponent pools per tier.** The tier gates need Tier 2, 3 and 4
-  opponents and the roster currently has none.
-- Audio: nothing yet. Arcade steering is a supplied theme plus subtle action
-  sounds, no mute button.
-- The **Drone** hull (1x2, two device cells, no engine cell) has no legal fit at
-  all. It is offered in ship select and shouldn't be.
+- On a long bay row the stat line elides badly (`DPS 18 · DMG …  PWR 100`) —
+  the left half is measured against what the right-aligned power draw leaves.

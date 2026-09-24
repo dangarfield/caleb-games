@@ -26,8 +26,16 @@ over two seconds** — both elements run, one up and one down, and whichever
 reaches zero is paused so a finished fade is not two decoders for nothing.
 
 **This is a deliberate departure from the house rule**, which says one tune and
-no fades. Dan asked for two and for them to cross rather than cut. Everything
-else holds: no mute button, no volume slider, `loop` on the elements, paused on
+no fades. Dan asked for two and for them to cross rather than cut, and for a
+mute button the rule does not mention.
+
+**The mute button is the music's alone.** It takes the themes to zero and
+leaves the cue bus at its own level, so a tap, a launch and an explosion still
+answer you with the music off — they are feedback for what you just did, and
+turning the music down is not a request for the buttons to go dead. The cue bus
+is not in `level()`'s path at all, which is what keeps the two separable.
+
+Everything else holds: no volume slider, `loop` on the elements, paused on
 `visibilitychange`, `preload="none"` so nothing is fetched before the first
 gesture, and the arming list is `pointerdown / pointerup / click / touchend /
 keydown` — `touchstart` never grants activation, which is the "music needs two

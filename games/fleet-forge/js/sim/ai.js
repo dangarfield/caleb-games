@@ -19,7 +19,7 @@
  *   - whether it can burn or warp <- whether those modules are fitted
  * Every one of those is read off the ship. None of them is configured.
  *
- * Turrets do not rotate. Every weapon fires along the ship's heading and `fc`
+ * Turrets do not rotate. Every weapon fires along the ship's heading and `fireCone`
  * is measured from it, so putting the target inside the cone is the whole of
  * the AI's job. That is deliberate — do not add turret rotation.
  */
@@ -55,8 +55,8 @@ var SimAI = (function () {
      weapon's range and cone. No priorities — a ship that kills reactors first
      does so because its guns reach them, not because it was told to. */
   function pickTarget(ship, m, enemy) {
-    var rng = SimModules.num(m.mod.rng, 50);
-    var half = (SimModules.num(m.mod.fc, 360) / 2) * DEG;
+    var rng = SimModules.num(m.s.range, 50);
+    var half = (SimModules.num(m.s.fireCone, 360) / 2) * DEG;
     var best = null, bestD2 = rng * rng;
 
     for (var i = 0; i < enemy.modules.length; i++) {

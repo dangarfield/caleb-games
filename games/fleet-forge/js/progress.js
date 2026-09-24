@@ -32,28 +32,52 @@ var Progress = (function () {
   }
 
   /* ---- tiers ---------------------------------------------------------- */
+  /* TIERS COME OFF THE SHIP DATA. Each hull carries its own `tier` (0-indexed
+     in the source, 1-indexed in the UI), so the roster decides which tiers
+     exist and what is in them — not a band table here that has to be kept in
+     step with it. `progression.json` still supplies each tier's NAME and the
+     level it opens at, where it has one; a tier the data has and progression
+     does not still appears, with its band derived from its own hulls. */
   function buildTiers() {
     if (tiers) return tiers;
-    tiers = P.tiers.map(function (t) {
-      var ships = Data.shipList.filter(function (s) {
-        return (s.lr || 0) >= t.lr[0] && (s.lr || 0) <= t.lr[1];
-      }).sort(function (a, b) {
-        return (P.shipLevel[a.key] || 99) - (P.shipLevel[b.key] || 99) ||
-               a.displayName.localeCompare(b.displayName);
-      });
-      return { n: t.n, label: t.name, blurb: '', lr: t.lr,
-               fromLevel: t.fromLevel, toLevel: t.toLevel, ships: ships };
+    var byTier = {};
+    Data.shipList.forEach(function (s) {
+      var n = (s.tier || 0) + 1;
+      (byTier[n] = byTier[n] || []).push(s);
     });
+    tiers = Object.keys(byTier).map(Number).sort(function (a, b) { return a - b; })
+      .map(function (n) {
+        var ships = byTier[n].sort(function (a, b) {
+          return levelOfShip(a.key) - levelOfShip(b.key) ||
+                 a.displayName.localeCompare(b.displayName);
+        });
+        var lv = ships.map(function (s) { return levelOfShip(s.key); })
+                      .sort(function (a, b) { return a - b; });
+        var t = P.tiers[n - 1] || {};
+        return {
+          n: n,
+          label: t.name || ('TIER ' + n),
+          blurb: '',
+          levelRange: t.levelRange || [lv[0], lv[lv.length - 1]],
+          fromLevel: t.fromLevel !== undefined ? t.fromLevel : lv[0],
+          toLevel: t.toLevel !== undefined ? t.toLevel : lv[lv.length - 1],
+          ships: ships
+        };
+      });
     /* The blurb is the level band, because that is the only thing about a tier
        the player can act on. The tier's NAME is Space Arena's own ship class. */
     tiers.forEach(function (t) { t.blurb = 'lv ' + t.fromLevel + '–' + t.toLevel; });
     return tiers;
   }
 
-  function tierOfLr(lr) {
-    for (var i = 0; i < P.tiers.length; i++)
-      if (lr >= P.tiers[i].lr[0] && lr <= P.tiers[i].lr[1]) return P.tiers[i].n;
-    return P.tiers.length;
+  /* A hull's unlock level, ON THE LADDER. A hull the tree has never heard of
+     means the tree is stale — `progression-test` asserts every hull is on it —
+     so it lands at the top rather than being given its SOURCE level, which is
+     a different scale (1..60 against the ladder's 1..100) and would drop it at
+     an arbitrary point in the middle while looking perfectly reasonable. */
+  function levelOfShip(key) {
+    if (P.shipLevel[key] !== undefined) return P.shipLevel[key];
+    return P.maxLevel || 99;
   }
 
   /* ---- the player's progression state, held in the save ---------------- */
@@ -248,6 +272,15 @@ var Progress = (function () {
      `levels` array can carry the same level twice (the hard-coded level 1 and
      the allocated one), so rows are deduplicated by what they unlock and not
      by the level they sit on. */
+  /* A REWORK SAYS SO IN THE LIST. A v2 carries its base's `displayName`, so
+     without the tag the unlocks read "Vectored Thruster" at 13 and again at 18
+     and look like a bug in the ladder rather than the second edition arriving
+     five levels behind the first. */
+  function modLabel(m) {
+    var v = (typeof modVariant === 'function') ? modVariant(m) : '';
+    return v ? m.displayName + ' ' + v : m.displayName;
+  }
+
   function upcoming(limit) {
     var lv = level(), out = [], seen = {};
     for (var i = 0; i < P.levels.length && out.length < (limit || 8); i++) {
@@ -263,13 +296,49 @@ var Progress = (function () {
       if (kind === 'ship') {
         var sh = Data.ship(key);
         if (!sh) return;
-        out.push({ level: level, kind: 'ship', label: sh.displayName + ' · T' + tierOfLr(sh.lr || 0),
-                   family: 'ship' });
+        /* The tier rides as a NUMBER, not baked into the label: the hangar
+           draws it as the same badge the hull cards carry, and a caller that
+           only wants a sentence can still say '· T' + tier itself. */
+        out.push({ level: level, kind: 'ship', label: sh.displayName,
+                   tier: (sh.tier || 0) + 1, family: 'ship' });
       } else {
         var m = Data.module(key);
         if (!m) return;
-        out.push({ level: level, kind: 'module', label: m.displayName,
+        out.push({ level: level, kind: 'module', label: modLabel(m),
                    family: T.familyOf(m) });
+      }
+    }
+    out.sort(function (a, b) { return a.level - b.level; });
+    return out;
+  }
+
+  /* The other direction: what you have JUST been given. The panel shows a few
+     of these above the ones still to come, so the list reads as a place on a
+     ladder rather than a wish list — and after a level-up the thing you earned
+     is on screen rather than gone. Walked backwards and re-sorted, so `limit`
+     takes the LATEST few and not the earliest. */
+  function recent(limit) {
+    var lv = level(), out = [], seen = {}, n = limit || 3;
+    for (var i = P.levels.length - 1; i >= 0 && out.length < n; i--) {
+      var L = P.levels[i];
+      if (L.level > lv) continue;
+      var j;
+      for (j = L.modules.length - 1; j >= 0; j--) push(L.level, L.modules[j], 'module');
+      for (j = L.ships.length - 1; j >= 0; j--) push(L.level, L.ships[j], 'ship');
+    }
+    function push(level, key, kind) {
+      if (seen[kind + key] || out.length >= n) return;
+      seen[kind + key] = 1;
+      if (kind === 'ship') {
+        var sh = Data.ship(key);
+        if (!sh) return;
+        out.push({ level: level, kind: 'ship', label: sh.displayName,
+                   tier: (sh.tier || 0) + 1, family: 'ship', had: true });
+      } else {
+        var m = Data.module(key);
+        if (!m) return;
+        out.push({ level: level, kind: 'module', label: modLabel(m),
+                   family: T.familyOf(m), had: true });
       }
     }
     out.sort(function (a, b) { return a.level - b.level; });
@@ -282,12 +351,12 @@ var Progress = (function () {
     get data() { return P; },
     get tiers() { return buildTiers(); },
     tier: function (n) { return buildTiers()[n - 1]; },
-    tierOf: function (ship) { return tierOfLr((ship && ship.lr) || 0); },
+    tierOf: function (ship) { return ((ship && ship.tier) || 0) + 1; },
     level: level,
     maxLevel: function () { return P.maxLevel; },
 
     /* ---- the gates ----------------------------------------------------- */
-    shipUnlocked:   function (s) { return !!s && (P.shipLevel[s.key]   || 99) <= level(); },
+    shipUnlocked:   function (s) { return !!s && levelOfShip(s.key) <= level(); },
     moduleUnlocked: function (m) { return !!m && (P.moduleLevel[m.key] || 99) <= level(); },
     tierUnlocked:   function (n) {
       var t = buildTiers()[n - 1];
@@ -298,12 +367,13 @@ var Progress = (function () {
     available: available,
     opProgress: opProgress,
     upcoming: upcoming,
+    recent: recent,
     gateAt: gateAt,
     currentGate: function () { return gateAt(level()); },
     done: function (id) { return !!st().ops[id]; },
     all: function () { return P.operations; },
     unlocksAt: unlocksAt,
-    levelOfShip:  function (k) { return P.shipLevel[k] || 99; },
+    levelOfShip:  levelOfShip,
     levelOfModule: function (k) { return P.moduleLevel[k] || 99; },
 
     /* ---- events -------------------------------------------------------- */

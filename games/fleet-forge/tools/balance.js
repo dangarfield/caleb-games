@@ -15,14 +15,56 @@
  */
 var fs = require('fs'), path = require('path'), vm = require('vm');
 var ROOT = path.join(__dirname, '..');
-var DATA = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/data.json'), 'utf8'));
-var OPP = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/opponents.json'), 'utf8')).opponents;
+var L = require('./load');
+var DATA = L.data();
+var PROG = L.read('data/progression.json');
+
+/* THE POOL IS GENERATED, the same way the game generates it. It used to be
+   read out of `data/opponents.json`, which was a second packer's idea of a
+   fit; that file is gone, so this builds its own out of `autofit.js` — five
+   archetypes a tier, each on a different hull of that tier, each fitted with
+   only what a pilot flying THAT hull would have unlocked. Fixed recipes and
+   fixed seeds, so two runs of this file are comparable. */
+var ARCHETYPES = [
+  { id: 'gunline', weapons: 'mix',       armour: 'mix',     priority: 'weapons' },
+  { id: 'swarm',   weapons: 'ballistic', armour: 'shields', priority: 'speed'   },
+  { id: 'lance',   weapons: 'missile',   armour: 'mix',     priority: 'weapons' },
+  { id: 'bulwark', weapons: 'mix',       armour: 'armour',  priority: 'defence' },
+  { id: 'warship', weapons: 'laser',     armour: 'mix',     priority: 'mix'     }
+];
+
+var OPP = (function () {
+  var fitSb = L.sandbox(['js/geom.js', 'js/autofit.js']);
+  var Autofit = fitSb.Autofit, Geom = fitSb.Geom;
+  var byTier = {};
+  DATA.shipList.forEach(function (s) {
+    var t = (s.tier || 0) + 1;
+    (byTier[t] = byTier[t] || []).push(s);
+  });
+  var out = [];
+  Object.keys(byTier).map(Number).sort(function (a, b) { return a - b; }).forEach(function (t) {
+    var hulls = byTier[t].sort(function (a, b) {
+      return (PROG.shipLevel[a.key] || 0) - (PROG.shipLevel[b.key] || 0);
+    });
+    ARCHETYPES.forEach(function (a, i) {
+      var hull = hulls[i % hulls.length];
+      var lvl = PROG.shipLevel[hull.key] || 1;
+      var modules = Autofit.build(hull, {
+        weapons: a.weapons, armour: a.armour, priority: a.priority,
+        skill: 100, seed: 1000 + i,
+        allow: function (m) { return (PROG.moduleLevel[m.key] || 99) <= lvl; }
+      }, DATA.modules);
+      if (!Geom.validate(hull, modules, DATA.modules).ok) return;
+      out.push({ id: a.id + '_t' + t, tier: t, name: a.id,
+                 ship: { shipId: hull.key, modules: modules } });
+    });
+  });
+  return out;
+})();
 
 var sb = { console: console, Math: Math, JSON: JSON, Date: Date };
 sb.global = sb; vm.createContext(sb);
-sb.Data = { module: function (k) { return DATA.modules[k]; },
-            ship: function (k) { return DATA.ships[k]; },
-            modules: DATA.modules, ships: DATA.ships };
+sb.Data = DATA;
 ['js/geom.js', 'js/sim/modules.js', 'js/sim/ai.js', 'js/sim/sim.js'].forEach(function (f) {
   vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), sb, { filename: f });
 });

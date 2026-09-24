@@ -8,13 +8,14 @@
   App.init();
   Data.load(function () {
     Progress.load(function () {
-    Opponents.load(function () {
     Save.ready(function () {
       boot.classList.add('hidden');
       /* Armed here rather than in App.init so nothing is fetched while the
          loading screen is still up. The first tap on a pilot card is the
          gesture that starts it. */
       Music.arm();
+      /* A house that was quiet last night stays quiet. */
+      Music.mute(Save.muted());
       App.start(HomeScreen);
       if (!Save.working()) {
         /* Tell the player rather than silently losing their fleet. */
@@ -38,7 +39,6 @@
         document.body.appendChild(n);
       }
     });
-    }, fail);
     }, fail);
   }, fail);
 })();

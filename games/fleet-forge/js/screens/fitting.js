@@ -13,8 +13,8 @@
  * NOTHING IN HERE DECIDES LEGALITY. `Geom.canPlace` is asked and whatever it
  * answers is what the screen draws, including its `why` string; `Geom.validate`
  * is the only thing that says a fit is flyable. The old build had three
- * validators that disagreed — one of them read `m.w || 1` off a placement that
- * never carries `w` — and that is the afterburner-won't-fit bug. There is no
+ * validators that disagreed — one of them read `m.width || 1` off a placement that
+ * never carries `width` — and that is the afterburner-won't-fit bug. There is no
  * second check in this file, not even a cheap early-out, because a cheap
  * early-out is a second validator. Moving a module asks that same one function
  * with `skipIndex` set to the module's own index, so it is tested against the
@@ -52,7 +52,8 @@ function FittingScreen(shipKey, layoutIndex) {
      itself — "the slot editor is intentionally unfinished". Ours is finished:
      it is the real hull, the real modules, drag and drop, pinch zoom. So the
      centre keeps its own behaviour inside the design's box. */
-  var BAR_H = 58, BAR_L = 140, BAR_R = 18;
+  var BAR_H = 58, BAR_L = 140;
+  var BAR_R = App.RIGHT_INSET;                 /* keep clear of the mute button */
   var BODY_Y = BAR_H, BODY_H = VH - BAR_H;
   var BAY_W = 244, BUD_W = 216;
   var BUD_X = VW - BUD_W, CENTRE_X = BAY_W, CENTRE_W = VW - BAY_W - BUD_W;
@@ -69,6 +70,24 @@ function FittingScreen(shipKey, layoutIndex) {
 
   /* the editor: the design's dashed well is `inset: 16px` of the centre cell */
   var WELL     = { x: CENTRE_X + 16, y: BODY_Y + 16, w: CENTRE_W - 32, h: BODY_H - 32 };
+
+  /* The MODULE STATS card, the handoff's "Editor corner" one: 216 wide, ten in
+     from the well's own corner. Declared up here with the rest of the layout
+     because everything below the screen's `return` is a function declaration —
+     a `var` down there hoists but never runs, which is a quiet undefined at
+     the first draw rather than an error anywhere near the cause. */
+  var STATS    = { w: 216, pad: 10, dx: 10, dy: 10 };
+
+  /* THE CARD GETS OUT OF THE WAY. It is pinned to the well's top-left corner,
+     which is also where the left column of a hull sits once the view is zoomed
+     — so on a big ship you end up dragging a module underneath it and dropping
+     blind. It slides to the bottom-left corner of the same well while anything
+     is happening under it, and comes back when the corner is clear again.
+     DODGE_IN is the margin that counts as "under it"; DODGE_OUT is wider, so
+     leaving does not immediately re-trigger entering; and the hold keeps it
+     away long enough that a drag skirting the edge does not make it bounce. */
+  var DODGE_IN = 12, DODGE_OUT = 44, DODGE_HOLD = 0.4, DODGE_RATE = 0.22;
+  var dodgeK = 0, dodgeWant = 0, dodgeHold = 0;
 
   /* The hull gets the WHOLE well and sits dead centre in it. An earlier version
      reserved a lane on the left for the strip target and pushed the ship off
@@ -151,7 +170,7 @@ function FittingScreen(shipKey, layoutIndex) {
     col: -1, row: -1, ok: false, why: '', over: false
   };
 
-  function say(s) { msg = s; msgT = 2.6; }
+  function say(s) { msg = s; msgT = 3.4; }
   /* Is this point under an open menu? The menus are drawn last and hit-tested
      first; everything else has to stay out of their way. */
   function overMenu(x, y) {
@@ -162,35 +181,20 @@ function FittingScreen(shipKey, layoutIndex) {
 
   /* ---- stat lines -------------------------------------------------------
    * Two or three numbers that actually matter for the subtype. Routed on
-   * `subtype`, never on an English name — that is what data.js bakes it for.
+   * `subtype`, never on an English name — that is what the copy step derives
+   * it for.
    */
   function num(v) {
     if (v === undefined || v === null) return '0';
     return (Math.abs(v % 1) > 0.001) ? v.toFixed(1) : String(Math.round(v));
   }
 
-  /* The row's second line, in the design's clipped mono: three numbers, dot
-     separated, whichever three actually matter for that kind of module. */
-  function statLine(m) {
-    var st = m.subtype, D = ' \u00b7 ';
-    if (st === 'weapon' || st === 'mine') {
-      var rate = (m.ats > 0) ? num(1 / m.ats) + '/S' : '\u2014';
-      return 'DMG ' + num(m.dmg) + D + 'RNG ' + num(m.rng) + D + rate;
-    }
-    if (st === 'armor')  return 'HP ' + num(m.hlt) + D + 'ARM ' + num(m.a) + D + 'RES ' + num(m.r);
-    if (st === 'shield') return 'STR ' + num(m.sa) + D + 'REG ' + num(m.srs) + D + 'RAD ' + num(m.sr);
-    if (st === 'reactor') return 'PWR +' + num(m.pg) + D + 'HP ' + num(m.hlt);
-    if (st === 'engine') {
-      if ((m.ep || 0) > 0) return 'THR ' + num(m.ep) + D + 'TRN ' + num(m.ts) + D + 'PWR -' + num(m.pu);
-      return 'TRN ' + num(m.ts) + D + 'PWR -' + num(m.pu);
-    }
-    if (st === 'afterburner') return 'BST ' + num(m.tb) + D + num(m.dur) + 'S' + D + 'PWR -' + num(m.pu);
-    if (st === 'warp')        return 'HP ' + num(m.hlt) + D + 'PWR -' + num(m.pu);
-    if (st === 'pointdefense') return 'PD ' + num(m.pdr) + D + 'HP ' + num(m.hlt) + D + 'PWR -' + num(m.pu);
-    if (st === 'junk')   return 'RNG ' + num(m.rng) + D + 'HP ' + num(m.hlt) + D + 'PWR -' + num(m.pu);
-    if (st === 'repair') return 'HP ' + num(m.hlt) + D + 'PWR -' + num(m.pu);
-    return 'HP ' + num(m.hlt) + D + 'MAS ' + num(m.m) + D + 'PWR -' + num(m.pu);
-  }
+  /* The row's second line: the two stats that matter most for that kind of
+     module, then the power draw — off `ModStats`, which is the same table the
+     MODULE STATS card shows. Two places reading one table, so the row can
+     never claim a number the card does not. */
+  function statLine(m) { return ModStats.brief(m); }
+
 
   /* Built once per group/family change, never in draw(). Each row carries
      everything a card needs, so the per-frame path is pure drawing. */
@@ -203,8 +207,9 @@ function FittingScreen(shipKey, layoutIndex) {
     for (var i = 0; i < list.length; i++) {
       var m = list[i];
       rows.push({
-        m: m, key: m.key, name: m.displayName, size: m.w + '\u00d7' + m.h,
-        code: initials(m.displayName), line: statLine(m), tint: T.tintForModule(m)
+        m: m, key: m.key, name: m.displayName, size: m.width + '\u00d7' + m.height,
+        code: initials(m.displayName), line: statLine(m),
+        parts: ModStats.briefParts(m), tint: T.tintForModule(m)
       });
     }
     rowsKey = key;
@@ -321,7 +326,7 @@ function FittingScreen(shipKey, layoutIndex) {
     var cur = Save.layout(shipKey, layoutIndex);
     var ok = Save.setLayout(shipKey, layoutIndex,
                             { name: (cur && cur.name) || '', modules: snapshot() });
-    if (ok) dirty = false; else say('Could not save');
+    if (ok) dirty = false; else say('That fit could not be saved — storage is not answering');
     return ok;
   }
 
@@ -391,7 +396,7 @@ function FittingScreen(shipKey, layoutIndex) {
         drag.mode = 'pendList'; drag.src = 'list';
         drag.from = -1; drag.moduleId = rows[ci].key;
         var m = rows[ci].m;
-        drag.offC = (m.w - 1) >> 1; drag.offR = (m.h - 1) >> 1;
+        drag.offC = (m.width - 1) >> 1; drag.offR = (m.height - 1) >> 1;
       }
     }
   }
@@ -424,8 +429,8 @@ function FittingScreen(shipKey, layoutIndex) {
     if (!c) return;
     var m = Data.module(drag.moduleId);
     if (!m) return;
-    var col = clamp(c.col - drag.offC, 0, grid.w - m.w);
-    var row = clamp(c.row - drag.offR, 0, grid.h - m.h);
+    var col = clamp(c.col - drag.offC, 0, grid.w - m.width);
+    var row = clamp(c.row - drag.offR, 0, grid.h - m.height);
     drag.col = col; drag.row = row;
     drag.ok = checkCell(drag.moduleId, col, row, drag.from);
     drag.why = chkWhy;
@@ -433,12 +438,13 @@ function FittingScreen(shipKey, layoutIndex) {
 
   function drop() {
     if (drag.over) {
-      if (drag.src === 'grid') { removeAt(drag.from); Sfx.play('strip'); say('Removed'); }
-      else { Sfx.play('deny'); say('Nothing to remove'); }
+      if (drag.src === 'grid') { removeAt(drag.from); Sfx.play('strip'); say('Module removed from the hull'); }
+      else { Sfx.play('deny'); say('There was nothing on that cell to remove'); }
       cancelDrag(); return;
     }
-    if (drag.col < 0) { Sfx.play('back'); say(drag.src === 'grid' ? 'Put back' : 'Dropped nowhere'); cancelDrag(); return; }
-    if (!drag.ok) { Sfx.play('deny'); say(drag.why || 'Put back'); cancelDrag(); return; }
+    if (drag.col < 0) { Sfx.play('back'); say(drag.src === 'grid' ? 'Dropped off the hull — put back where it was'
+                              : 'Dropped off the hull — nothing was fitted'); cancelDrag(); return; }
+    if (!drag.ok) { Sfx.play('deny'); say(drag.why || 'It will not go there — put back where it was'); cancelDrag(); return; }
     if (drag.src === 'grid') {
       var pl = placements[drag.from];
       if (pl) { pl.col = drag.col; pl.row = drag.row; edited(); }
@@ -459,13 +465,13 @@ function FittingScreen(shipKey, layoutIndex) {
     if (selKey) {
       var m = Data.module(selKey);
       if (!m) return;
-      place(clamp(c.col - ((m.w - 1) >> 1), 0, grid.w - m.w),
-            clamp(c.row - ((m.h - 1) >> 1), 0, grid.h - m.h), selKey);
+      place(clamp(c.col - ((m.width - 1) >> 1), 0, grid.w - m.width),
+            clamp(c.row - ((m.height - 1) >> 1), 0, grid.h - m.height), selKey);
       return;                                /* selection is kept, on purpose */
     }
     var ix = Geom.at(placements, Data.modules, c.col, c.row);
     selPlace = ix;
-    if (ix < 0) say('Nothing there');
+    if (ix < 0) say('Nothing is fitted on that cell');
   }
 
   /* ---- drawing ---------------------------------------------------------- */
@@ -603,8 +609,8 @@ function FittingScreen(shipKey, layoutIndex) {
   function testFit() {
     var v = Geom.validate(ship, placements, Data.modules);
     if (!v.ok) { say(v.errors[0]); return; }
-    var opp = Opponents.draw(Progress.tierOf(ship));
-    if (!opp) { say('No contacts to test against'); return; }
+    var opp = Opponents.draw(ship);
+    if (!opp) { say('No contacts at your tier to test against'); return; }
     App.push(BattleScreen({
       playerFit: { shipId: shipKey, modules: placements.slice() },
       enemyFit: Opponents.fitFor(opp),
@@ -622,7 +628,7 @@ function FittingScreen(shipKey, layoutIndex) {
   /* Art if there is any, the category tint if there is not. Aspect is the
      module's own w:h so a 1x5 railgun does not render as a square. */
   function drawArt(ctx, m, bx, by, bw, bh, tint, alpha) {
-    var ar = m.w / m.h, aw = bw, ah = bh;
+    var ar = m.width / m.height, aw = bw, ah = bh;
     if (ar > 1) ah = bh / ar; else aw = bw * ar;
     var ax = bx + (bw - aw) / 2, ay = by + (bh - ah) / 2;
     var rad = Math.min(6, aw / 4, ah / 4);
@@ -632,10 +638,11 @@ function FittingScreen(shipKey, layoutIndex) {
     if (im && im.complete && im.naturalWidth) {
       ctx.save();
       rr(ctx, ax, ay, aw, ah, rad); ctx.clip();
-      ctx.drawImage(im, ax, ay, aw, ah);
+      drawContain(ctx, im, ax, ay, aw, ah);
       ctx.restore();
     }
     strokeRR(ctx, ax, ay, aw, ah, rad, tint + 'aa', 1.2);
+    drawVariant(ctx, m, ax, ay, aw, ah);
     if (alpha !== undefined) ctx.globalAlpha = 1;
   }
 
@@ -660,13 +667,14 @@ function FittingScreen(shipKey, layoutIndex) {
       ctx.save();
       rr(ctx, tx + 1, ty + 1, 32, 32, 3); ctx.clip();
       ctx.globalAlpha = 0.9;
-      ctx.drawImage(im, tx + 1, ty + 1, 32, 32);
+      drawContain(ctx, im, tx + 1, ty + 1, 32, 32);
       ctx.restore();
     } else {
       text(ctx, row.code, tx + 17, ty + 17,
            { font: T.mono(12, 600), fill: on ? '#F0F7FA' : tint,
              align: 'center', baseline: 'middle' });
     }
+    drawVariant(ctx, row.m, tx, ty, 34, 34);
     strokeRR(ctx, tx, ty, 34, 34, 4, tint + '66', 1);
     ctx.fillStyle = tint;                      /* the family stripe */
     ctx.fillRect(tx, ty, 12, 3);
@@ -674,10 +682,33 @@ function FittingScreen(shipKey, layoutIndex) {
     ctx.font = T.mono(10);
     var fw = ctx.measureText(row.size).width;
     var nx = tx + 34 + 8, nw = x + w - 5 - fw - 8 - nx;
-    text(ctx, fitText(ctx, row.name, nw, T.body(13, on ? 600 : 500)), nx, y + h / 2 - 8,
-         { font: T.body(13, on ? 600 : 500), fill: on ? '#F0F7FA' : T.ink, baseline: 'middle' });
-    text(ctx, fitText(ctx, row.line, nw, T.mono(9.5)), nx, y + h / 2 + 8,
+    /* THE NAME, AND WHICH VERSION OF IT. Twenty-eight modules are Black Market
+       reworks that keep the base module's name, so the bay lists two Chainguns
+       and two Railguns at different numbers. The tag goes after the name in the
+       accent, and the name is measured against the room the tag leaves — not
+       the other way round, or a long name would push the tag off the card and
+       the two rows would look identical again. */
+    var vfont = T.mono(10, 600), vtag = modVariant(row.m), vw2 = 0;
+    if (vtag) { ctx.font = vfont; vw2 = ctx.measureText(vtag).width + 5; }
+    var nfont = T.body(13, on ? 600 : 500), ny = y + h / 2 - 8;
+    var shown = fitText(ctx, row.name, nw - vw2, nfont);
+    text(ctx, shown, nx, ny,
+         { font: nfont, fill: on ? '#F0F7FA' : T.ink, baseline: 'middle' });
+    if (vtag) {
+      ctx.font = nfont;
+      text(ctx, vtag, nx + ctx.measureText(shown).width + 5, ny,
+           { font: vfont, fill: T.accent, baseline: 'middle' });
+    }
+    /* two stats left, the power draw right — see `ModStats.briefParts` */
+    var sy = y + h / 2 + 8;
+    ctx.font = T.mono(9.5);
+    var pw = row.parts.pwr ? ctx.measureText(row.parts.pwr).width : 0;
+    text(ctx, fitText(ctx, row.parts.left, nw - pw - 8, T.mono(9.5)), nx, sy,
          { font: T.mono(9.5), fill: T.muted, baseline: 'middle' });
+    if (row.parts.pwr) {
+      text(ctx, row.parts.pwr, nx + nw, sy,
+           { font: T.mono(9.5), fill: T.muted, align: 'right', baseline: 'middle' });
+    }
     text(ctx, row.size, x + w - 5, y + h / 2,
          { font: T.mono(10), fill: '#A9BDC8', align: 'right', baseline: 'middle' });
   }
@@ -820,7 +851,7 @@ function FittingScreen(shipKey, layoutIndex) {
     var m = Data.module(drag.moduleId);
     if (!m) return;
     var cs = Math.min(baseCs * zoom, 30);
-    var w = m.w * cs, h = m.h * cs;
+    var w = m.width * cs, h = m.height * cs;
     var p = App.ptr;
     var gx = p.x - (drag.offC + 0.5) * cs, gy = p.y - (drag.offR + 0.5) * cs;
     ctx.globalAlpha = 0.85;
@@ -841,7 +872,7 @@ function FittingScreen(shipKey, layoutIndex) {
   }
 
   function drawPreview(ctx, m, col, row, ok, why) {
-    var pr = L.cellRect(col, row, m.w, m.h);
+    var pr = L.cellRect(col, row, m.width, m.height);
     var tone = ok ? '79,191,127' : '228,85,74';
     fillRR(ctx, pr.x, pr.y, pr.w, pr.h, 4, 'rgba(' + tone + ',0.30)');
     strokeRR(ctx, pr.x, pr.y, pr.w, pr.h, 4, 'rgba(' + tone + ',0.95)', 2.5);
@@ -857,6 +888,7 @@ function FittingScreen(shipKey, layoutIndex) {
       placements = [];
       msg = null; msgT = 0; copyOpen = false;
       selKey = null; selPlace = -1;
+      dodgeK = 0; dodgeWant = 0; dodgeHold = 0;
       groupIx = 0; familyIx = 0; rowsKey = ''; rows = [];
       scroll = {}; gHS.x = 0; fHS.x = 0;
       cancelDrag();
@@ -926,6 +958,24 @@ function FittingScreen(shipKey, layoutIndex) {
         var v = Geom.validate(ship, placements, Data.modules);
         stats = v.stats; errors = v.errors; statsDirty = false;
       }
+
+      /* ---- the stats card dodging ---- */
+      var selM = selectedModule();
+      if (!selM) { dodgeWant = 0; dodgeHold = 0; }
+      else {
+        /* Dodging into the finger is no better than standing in front of it,
+           so the corner it is running TO has to be clear as well. When both
+           corners are busy it holds whatever it was doing rather than flapping
+           between two bad positions. */
+        var busyHome = statsBusy(selM, 0), busyAway = statsBusy(selM, 1);
+        if (busyHome && !busyAway) { dodgeWant = 1; dodgeHold = DODGE_HOLD; }
+        else if (busyAway && !busyHome) { dodgeWant = 0; dodgeHold = 0; }
+        else if (!busyHome) {
+          if (dodgeHold > 0) dodgeHold -= dt; else dodgeWant = 0;
+        }
+      }
+      dodgeK += (dodgeWant - dodgeK) * (1 - Math.pow(1 - DODGE_RATE, dt * 60));
+      if (Math.abs(dodgeWant - dodgeK) < 0.002) dodgeK = dodgeWant;
     },
 
     draw: function (ctx) {
@@ -991,7 +1041,14 @@ function FittingScreen(shipKey, layoutIndex) {
          { font: T.mono(11, 600), fill: '#05080B', align: 'center', baseline: 'middle' });
     x += bw + 8;
 
-    drawFitToggle(ctx, x, mid);
+    x = drawFitToggle(ctx, x, mid);
+
+    /* Here the switch means the opposite way round: the fitting bay always
+       shows the fit, so HULL adds the hull's render behind it and MODULES
+       leaves the grid bare. */
+    var seg = UI.segment(ctx, x + 10, mid - 29 / 2, ['HULL', 'MODULES'],
+                         Save.hullView('fitting') === 'hull' ? 0 : 1);
+    if (seg.picked >= 0) Save.setHullView('fitting', seg.picked ? 'modules' : 'hull');
 
     /* the actions, right to left so the primary keeps the edge */
     var rx = VW - BAR_R;
@@ -1030,12 +1087,13 @@ function FittingScreen(shipKey, layoutIndex) {
 
     rx = barBtn(ctx, BAR_BTN[4], rx, mid, 'REVERT', '', function () {
       loadLayout(layoutIndex);
-      say(dirty ? 'Reverted to the saved fit' : 'Reloaded the saved fit');
+      say(dirty ? 'Your changes are gone — back to the saved fit'
+                : 'Reloaded the saved fit; nothing had changed');
     });
     barBtn(ctx, BAR_BTN[5], rx, mid, 'CLEAR', '', function () {
-      if (!placements.length) { Sfx.play('deny'); say('Already empty'); return; }
+      if (!placements.length) { Sfx.play('deny'); say('The hull is already empty'); return; }
       placements = []; selPlace = -1; edited();
-      Sfx.play('strip'); say('Grid cleared');
+      Sfx.play('strip'); say('Every module stripped off the hull');
     });
   }
 
@@ -1096,9 +1154,10 @@ function FittingScreen(shipKey, layoutIndex) {
         loadLayout(i);
         Save.setActiveLayoutIndex(shipKey, i);
         copyOpen = false; autoOpen = false;
-        say('Fit ' + (i + 1));
+        say('Now editing fit ' + (i + 1));
       }
     }
+    return r.x + r.w;
   }
 
   /* ---- the COPY menu --------------------------------------------------- */
@@ -1127,8 +1186,8 @@ function FittingScreen(shipKey, layoutIndex) {
     if (UI.zone(COPY_BTN[0], 'close')) { copyOpen = false; return; }
     if (UI.zone(COPY_BTN[1], 'confirm')) {
       commit();
-      if (Save.cloneLayout(shipKey, layoutIndex, copyTo)) say('Copied into fit ' + (copyTo + 1));
-      else say('Nothing to copy');
+      if (Save.cloneLayout(shipKey, layoutIndex, copyTo)) say('Fit ' + (copyTo + 1) + ' has been replaced by this one');
+      else say('There is nothing in this fit to copy');
       copyOpen = false;
       return;
     }
@@ -1308,6 +1367,111 @@ function FittingScreen(shipKey, layoutIndex) {
     ctx.beginPath(); ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
     ctx.fillStyle = T.accent; ctx.fill();
   }
+  /* ---- MODULE STATS -------------------------------------------------------
+     The handoff's "Editor corner" card: pinned inside the well's own dashed
+     box, 216 wide, ten in from its corner, so it sits over the empty space to
+     the left of the hull rather than taking a column away from the budget.
+
+     It appears when a module is selected — either picked out of the bay or
+     tapped on the hull — and it shows the six the type is worth showing, off
+     `ModStats`, two to a line. Its border, its badge and its first stat all
+     carry the module's own category colour, which is how you tell at a glance
+     that this card is about the thing you just tapped. */
+  /* Where the card is, for a given dodge position k (0 top, 1 bottom). One
+     function, so the thing that decides whether the card is in the way and the
+     thing that draws it can never disagree about where it is. */
+  function statsRect(m, k) {
+    if (!m) return null;
+    var P = STATS.pad, lines = Math.ceil(ModStats.table(m).length / 2);
+    var h = P + 13 + 7 + 46 + 7 + (lines * 16 - 4) + P;
+    var top = WELL.y + STATS.dy, bot = WELL.y + WELL.h - STATS.dy - h;
+    return { x: WELL.x + STATS.dx, y: top + (bot - top) * k, w: STATS.w, h: h };
+  }
+
+  /* Is something going on under the card's HOME corner? The pointer counts
+     when it is down or when a mouse is hovering; a finger that has been lifted
+     is nowhere, and the card should not hide from where it last was. During a
+     drag the module travels with the pointer, so the test grows by its own
+     half-size — the card dodges the module, not just the finger. */
+  function statsBusy(m, k) {
+    var r = statsRect(m, k);
+    if (!r) return false;
+    var p = App.ptr;
+    if (!p.down && !hasHover) return false;
+    var pad = dodgeWant ? DODGE_OUT : DODGE_IN;
+    if (drag.mode === 'drag') {
+      var dm = Data.module(drag.moduleId), cs = L ? L.cs : 0;
+      if (dm) pad += Math.max(dm.width, dm.height) * cs / 2;
+    }
+    return p.x > r.x - pad && p.x < r.x + r.w + pad &&
+           p.y > r.y - pad && p.y < r.y + r.h + pad;
+  }
+
+  function drawModuleStats(ctx, m) {
+    if (!m) return;
+    var rows = ModStats.table(m), tint = T.tintForModule(m);
+    var box = statsRect(m, dodgeK);
+    var P = STATS.pad, x = box.x, y = box.y, w = box.w;
+    var h = box.h;
+
+    fillRR(ctx, x, y, w, h, 8, 'rgba(6,11,15,0.94)');
+    strokeRR(ctx, x, y, w, h, 8, tint + '59', 1);
+
+    /* header: the label left, the module's family right */
+    var hy = y + P + 6;
+    text(ctx, 'MODULE STATS', x + P, hy,
+         { font: T.head(11), fill: '#8FA3B0', baseline: 'middle', track: 2 });
+    var badge = ModStats.label(m);
+    ctx.font = T.mono(10);
+    var bw = ctx.measureText(badge).width + 8;
+    strokeRR(ctx, x + w - P - bw, hy - 6.5, bw, 13, 2, tint + '80', 1);
+    text(ctx, badge, x + w - P - bw / 2, hy,
+         { font: T.mono(10), fill: tint, align: 'center', baseline: 'middle' });
+
+    /* identity: a 46px tile, the name, the footprint */
+    var ty = hy + 6.5 + 7;
+    fillRR(ctx, x + P, ty, 46, 46, 4, tint + '1a');
+    strokeRR(ctx, x + P, ty, 46, 46, 4, tint + '80', 1);
+    var im = Data.moduleImg(m);
+    if (im && im.complete && im.naturalWidth) {
+      ctx.save();
+      rr(ctx, x + P + 1, ty + 1, 44, 44, 3); ctx.clip();
+      drawContain(ctx, im, x + P + 1, ty + 1, 44, 44);
+      ctx.restore();
+    } else {
+      text(ctx, initials(m.displayName), x + P + 23, ty + 23,
+           { font: T.mono(13, 600), fill: '#F0F7FA', align: 'center', baseline: 'middle' });
+    }
+    drawVariant(ctx, m, x + P, ty, 46, 46);
+    ctx.fillStyle = tint;                      /* the same family stripe as the row */
+    ctx.fillRect(x + P, ty, 15, 3);
+    var nx = x + P + 46 + 8, nw = w - P * 2 - 46 - 8;
+    var cvt = modVariant(m), cvw = 0;
+    if (cvt) { ctx.font = T.mono(10, 600); cvw = ctx.measureText(cvt).width + 5; }
+    var cn = fitText(ctx, m.displayName, nw - cvw, T.body(13, 600));
+    text(ctx, cn, nx, ty + 17,
+         { font: T.body(13, 600), fill: '#F0F7FA', baseline: 'middle' });
+    if (cvt) {
+      ctx.font = T.body(13, 600);
+      text(ctx, cvt, nx + ctx.measureText(cn).width + 5, ty + 17,
+           { font: T.mono(10, 600), fill: T.accent, baseline: 'middle' });
+    }
+    text(ctx, m.width + '×' + m.height, nx, ty + 33,
+         { font: T.mono(11), fill: '#A9BDC8', baseline: 'middle' });
+
+    /* the numbers, two to a line, label left and value right in each half */
+    var gx = x + P, gw = (w - P * 2 - 12) / 2, gy = ty + 46 + 7 + 6;
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      var cx = gx + (i % 2) * (gw + 12), cy = gy + ((i / 2) | 0) * 16;
+      text(ctx, r.k, cx, cy,
+           { font: T.mono(12), fill: '#6F8795', baseline: 'middle' });
+      text(ctx, r.v, cx + gw, cy,
+           { font: T.mono(12), align: 'right', baseline: 'middle',
+             fill: r.tone === 'key' ? tint : r.tone === 'pwr' ? '#B0D155' : '#DBE8EF' });
+    }
+  }
+
   function notice(ctx, x, y, w, h, msg2, amber) {
     fillRR(ctx, x, y, w, h, 5, amber ? 'rgba(232,163,61,0.07)' : 'rgba(120,170,200,0.05)');
     strokeRR(ctx, x, y, w, h, 5, amber ? 'rgba(232,163,61,0.4)' : T.edge, 1);
@@ -1379,7 +1543,8 @@ function FittingScreen(shipKey, layoutIndex) {
     var skip = (drag.mode === 'drag' && drag.src === 'grid') ? drag.from : -1;
     ctx.save();
     ctx.beginPath(); ctx.rect(GRIDBOX.x, GRIDBOX.y, GRIDBOX.w, GRIDBOX.h); ctx.clip();
-    ShipView.drawHull(ctx, L, {});
+    ShipView.drawHull(ctx, L, { art: Save.hullView('fitting') === 'hull',
+                                placements: placements, skip: skip });
     ShipView.drawModules(ctx, L, placements, { selected: selPlace, skip: skip });
 
     if (drag.mode === 'drag' && drag.col >= 0) {
@@ -1395,21 +1560,37 @@ function FittingScreen(shipKey, layoutIndex) {
     }
     ctx.restore();
 
-    /* the design's one-line hint under the grid — and, when a module is
-       chosen, what the game's own data says about it, because the row above is
-       numbers and a seven-year-old wants the sentence. */
+    /* ---- ONE LINE, ONE PLACE ---------------------------------------------
+       The bay used to have two ways of telling you something: a hint centred
+       under the grid, and a toast that flew in over the bottom-left for a
+       couple of seconds and left again. They said the same KIND of thing, so
+       they are one line now, pinned to the bottom-right corner of the well.
+       It is always there, so nothing arrives or departs; it just changes what
+       it says. What it says, in order of what matters most:
+
+          what just happened  >  what you are dragging  >  what is selected
+                              >  what to do next
+
+       Right-aligned into the corner, so the hull sits clear of it and a long
+       sentence grows leftwards into empty space rather than pushing the grid
+       around. */
     var sel = selectedModule();
-    var hint = msg ? msg
-             : (drag.mode === 'drag') ? 'DROP ON FREE CELLS, OR ON ✕ TO REMOVE'
+    /* The card goes over the well, above the hull and under nothing — drawn
+       here rather than with the grid because it is about the SELECTION, which
+       is what this block is for. */
+    drawModuleStats(ctx, sel);
+
+    var line = msg ? msg
+             : copyOpen ? 'Copying replaces the whole of that fit'
+             : (drag.mode === 'drag') ? 'Drop on free cells, or on ✕ to remove'
              : sel ? (sel.desc || sel.displayName)
-             : (selPlace >= 0) ? 'DRAG IT ANYWHERE, OR ONTO ✕'
-             : 'TAP A MODULE, THEN TAP THE HULL · OR DRAG IT ACROSS';
-    var mono = !sel || msg || drag.mode === 'drag';
-    var hy = WELL.y + WELL.h - 30;
-    wrapLines(ctx, mono ? hint.toUpperCase() : hint, WELL.x + WELL.w / 2, hy,
-              WELL.w - 40, 16,
-              { font: mono ? T.mono(10.5) : T.body(12.5),
-                fill: msg ? '#8FB6C6' : T.muted, align: 'center', baseline: 'middle' }, 2);
+             : (selPlace >= 0) ? 'Drag it anywhere, or onto ✕'
+             : 'Tap a module, then tap the hull — or drag it across';
+    var say_ = !!msg || copyOpen;
+    wrapLines(ctx, line, WELL.x + WELL.w - 6, WELL.y + WELL.h - 30,
+              WELL.w * 0.62, 15,
+              { font: T.body(12), align: 'right', baseline: 'middle',
+                fill: say_ ? '#E8C53D' : T.muted }, 2);
   }
 
   function groupKey(i) { return Data.GROUPS[i].id; }

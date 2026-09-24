@@ -8,11 +8,16 @@ used root-absolute `/data/...` and `/images/...` in 89 places and all of them
 Stage is a fixed **1333x690** virtual space (`VW`/`VH` in `core.js`), scaled and
 letterboxed to the window. Lay out against those numbers directly.
 **Nothing goes in the top-left `SAFE_TL` box (160x54)** — the arcade's own
-"< Games" button lives there.
+"< Games" button lives there. Fleet Forge styles that button to the handoff's
+own back pill, which is narrower (about 99px), and the handoff lays out against
+THAT: the arena's hull/modules toggle sits at left 128. So 160 is the arcade's
+blanket guard for the default, wider button; where the handoff gives a number,
+the handoff wins.
 
 ## Load order (index.html)
-`arcade-store.js` → `theme.js` → `core.js` → `data.js` → `geom.js` →
-`shipview.js` → `effects.js` → `progress.js` → `save.js` → `opponents.js` →
+`arcade-store.js` → `audio.js` → `theme.js` → `core.js` → `data.js` →
+`geom.js` → `autofit.js` → `shipview.js` → `modstats.js` → `effects.js` →
+`progress.js` → `save.js` → `opponents.js` →
 `screens/home.js` → `screens/fleet.js` → `sim/*` → `screens/fitting.js` →
 `screens/battle.js` → `screens/result.js` → `boot.js`
 
@@ -92,10 +97,89 @@ list never also selects a row.
 `Data.GROUPS` (group → family tree for the drill-down),
 `Data.family(groupId, familyId)` → modules, smallest first.
 
-Every module carries baked-in `key`, `displayName`, `desc`, `subtype`,
-`damageType`, `turret`, `img` alongside its raw stat keys (`dmg`, `rng`, `ats`,
-`fc`, `hlt`, `a`, `r`, `m`, `pu`, `pg`, `ep`, `c`, `w`, `h`, …). `data/data.json`
-is the source of truth; `tools/bake-data.py` is provenance, not a build step.
+**Fields are named as the extractor named them** — `requiredLevel`, `powerUse`,
+`thrustPower`, `attackSpeed`, `width`, `height` — not the two-letter aliases the
+first build used. A module also carries `key`, `displayName`, `description` and
+the three derived fields below.
+
+The aliases are gone from the code, and `tools/field-audit.js` is what keeps
+them gone: it hangs a booby-trapped getter off every record for each retired
+name, runs the fitting bay and the sim over the whole roster, and reports the
+file and line of anything that reads one. A missed rename does not throw, it
+returns `undefined` and quietly poisons a number, so this is the check that
+matters. Run it after touching the data layer.
+
+### Modules — `data/modules.json`
+Copied from `research/extracted_module_data/modules_all.json` by
+`tools/copy-modules.js`. **A copy, not a bake**, and **nothing is filtered** —
+the source file IS the roster. Three things are not carried straight through,
+and none of them is a list of names:
+
+- **Nothing is renamed.** Fields keep the extractor's names. `module_keys.json`
+  travels with the data as the legend, and its `old` column records what each
+  field used to be called — that is history, not a mapping the game applies.
+- **`subtype`.** The sim dispatches on it and no extracted field carries it:
+  `category` cannot tell a Warp Drive from an Afterburner, because both are
+  category 64 with every engine stat at zero. What separates them is the Unity
+  behaviour script each module is attached to (`m_Script.m_PathID` in
+  `modules_raw/`), sixteen of which cover all 100 modules. An unrecognised
+  script is a hard error, so a re-extract that shifts the ids fails loudly
+  instead of quietly mistyping half the roster.
+- **`damageType` and `turret`**, read off `category` and `fireCone`.
+
+There is no `img` field. Art is named after the key —
+`images/modules/<key>.webp`, `images/ships/<key>.webp` — and the extension is
+recorded in each data file as `art`, because the source has arrived as both PNG
+and webp and the browser should not have to guess which. The copy step reads the
+extension off the source file rather than assuming it, refuses a set that is not
+all one format, and deletes anything left in the folder that is no longer a
+module's or hull's current art — which is what stops a format change leaving a
+hundred stale files behind.
+
+### Ships — `data/ships.json`
+Ships live in their own file, copied from `research/extracted_ship_data/` by
+`tools/copy-ships.js`. **That is a copy, not a bake**: the source is already the
+shape the game wants, so the tool renames a handful of fields (`width`→`w`,
+`requiredLevelSource`→`lr`, …) and stops. **Nothing is filtered** — every row in
+the source becomes a ship, and curating the roster is done in the data by hand,
+never by a name pattern or a level threshold in code.
+
+A ship is `key, displayName, tier, w, h, g, ms, ts, lr, bonus, img`. There is no
+hull mass: see **Mass** below. `tier` is 0-indexed in the source and 1-indexed in
+the UI, and it is what decides which tiers exist — `progression.json` supplies
+each tier's NAME where it has one, and a tier the data has but progression does
+not still appears, its band derived from its own hulls.
+
+### Hull bonuses
+A ship's `bonus` is `{ "<Category><Parameter>": pct }` — `ArmorArmor: 25.5` is
+"+25.5% armour on this hull's armour modules". The category half is the SAME bit
+field modules carry in `c`, which is what makes it cheap: a bonus applies when
+the masks overlap, and no stat needs a special case. `Self` (mask −1) is the
+whole ship.
+
+`Geom.resolveBonus` turns a ship's map into a flat list once at load, and
+`Geom.applyBonus(mod, list)` returns an EFFECTIVE COPY of a module — never a
+mutation, because `Data.modules` is shared by both combatants and every screen,
+and the same Chaingun record is the player's and the enemy's at once with their
+hulls buffing it differently. The table lives in `geom.js` rather than `data.js`
+because every headless tool already loads geom, and two copies would drift.
+
+`data/bonus-keys.json` is the key list the source game defines — data, not a
+constant, so a new key shows up in `Data.bonusGaps()` at boot instead of
+silently doing nothing. The sim reads `m.s.<stat>`, the effective record, never
+`m.mod.<stat>`.
+
+### Mass
+**Mass is the fit and only the fit.** The hull used to bring a base mass of its
+own (`rm`, 4,500–34,000), which drowned out everything bolted to it — a
+Broadsword was 87% hull, so what you fitted moved its handling by a few percent.
+The new ship data has no such field.
+
+Both `THRUST_SCALE` and `TURN_SCALE` divide by mass, so removing it multiplied
+acceleration and turn rate by 7.9×; they were divided by that, so a middling
+hull flies as it did. What changed on purpose is the spread: thrust-to-mass used
+to run 0.50–0.73 across the roster (a factor of 1.5), and now runs 2.15–9.96 (a
+factor of 4.6). The fit is most of it.
 
 **Never route on a display name.** `subtype` exists precisely because the old
 `ModuleFactory` matched English substrings (`'mine'`, `'junk'`, `'repair'`,
@@ -121,7 +205,12 @@ shapes it always had.
   `{ok, why}`. **The only placement validator. Do not write another one.**
 - `Geom.occupancy`, `Geom.footprint`, `Geom.at(placements,mods,col,row)`
 - `Geom.summarise(ship, placements, mods)` → cells/power/mass/thrust/counts
-- `Geom.validate(...)` → `{ok, errors[], stats}`
+- `Geom.validate(...)` → `{ok, errors[], stats}`. The rules are a weapon, a
+  POWER SOURCE, an engine, non-negative power and inside capacity. A power
+  source is anything with `powerGeneration > 0`, not a reactor: Solar Armor and
+  Small Laser v2 generate and draw nothing, so a hull can run without a reactor
+  fitted. `sim/modules.js` `makesPower()` is the same rule for the win
+  condition — kept separate from `isReactor()`, which decides what explodes.
 - `Geom.gridToLocal(col,row,mw,mh,gw,gh)` / `gridToWorld(...,pos,rot,cellSize)`
 
 A **placement** is `{moduleId, col, row}` and nothing else. Width and height are
@@ -144,18 +233,49 @@ the store if it turns up late. Then `Save.get()`, `Save.owned/unlockShip`,
 `Save.activeLayout/activeLayoutIndex/setActiveLayoutIndex`, `Save.progress()`,
 `Save.recordResult(id,won)`, `Save.SLOTS` (3), `Save.working()`,
 `Save.conflict()`.
+`Save.hullView(place)` / `setHullView(place, v)` remember how a ship is drawn in
+each of the three places it appears. The allowed values per place live in one
+table, `HULL_MODES` — `hangar` and `fitting` take `hull|modules`, `battle` also
+takes `damage`, and `battle` defaults to `damage`. A setter that repeats that
+list instead of asking the table is how DAMAGE went a fortnight without ever
+being saved.
 IndexedDB via `arcade-store.js`, key `calebArcadeData:fleet-forge`, carries
 `sid`/`gen` so a stale tab cannot overwrite. **Never use localStorage.**
 
 ### `progress.js`
-50 levels, 7 tiers, 56 operations, 6 tier gates. `data/progression.json` is
+100 levels, 8 tiers, 99 operations. `data/progression.json` is
 **generated** by `tools/make-progression.js` from `tools/operations.json` — do
 not hand-edit it. `Progress.level()`, `tiers`, `tier(n)`, `tierOf(ship)`,
 `shipUnlocked/moduleUnlocked/tierUnlocked`, `available()`, `opProgress(op)`,
 `upcoming(n)`, `recordBattle(ev)`, `recordFit(ev)`.
 **No operation may name an opponent** — fights come from a generated pool, so a
 condition may ask about an opponent's TIER and never its identity.
-`tools/progression-test.js` asserts that, and 20 other things.
+`tools/progression-test.js` asserts that, and 28 other things.
+
+### The hangar's goal panel — `screens/fleet.js`
+No side column: the body is one full-width fleet pane, and the goal lives in a
+**GOAL** chip in the 58px bar with a drop-down under it (340 wide, on
+`App.RIGHT_INSET`, as tall as its contents and never past `PANEL.maxH`).
+`panelHits()` runs before any painting, because hit-testing here is paint order
+and the panel paints last — it claims the pointer for the scrim so a dismissing
+tap cannot land on the hull card behind it, and leaves the bar live so the chip
+can shut what it opened.
+
+### The arena camera — `screens/battle.js`
+The frame is the midpoint of the two ships, zoomed so the pair fits the safe
+band (`HALF_W`/`HALF_H`, the screen less the HUD and the two ship cards), both
+position and zoom chasing their target with a per-1/60s lerp.
+**Both ships are always whole on screen.** `CAM_FILL` scales the framed box past
+the viewport and is 1 for that reason — anything above 1 buys pixels per cell by
+pushing their outer edges off the screen. What is framed is the HULL radius
+(`ship.rad`), not `brad`, which adds the widest shield: a shield is mostly empty
+air and framing it cost a third of the zoom for a translucent ring that reads
+perfectly well cropped.
+
+Mid-fight the hulls are nearly touching — a Kronos pair sits 58 units apart with
+22 units of ship either side of the gap — so there is no dead air left to
+reclaim and tuning `SimAI` `ENGAGE_FRAC` does not move it. Measured 0.75 → 0.30:
+separation moved 48 → 39 on the smallest hull and not at all on the rest.
 
 ### `autofit.js`
 `Autofit.build(ship, opts, mods)` packs a whole hull and returns placements.
@@ -212,17 +332,30 @@ returns is shaped exactly like a roster row, so nothing downstream can tell the
 difference; `id` is the hull (`gen:Hammerhead`), because `beaten` is keyed on it
 and a save that grew an entry per recipe would grow without bound.
 
-The baked roster below is still loaded, still generated, and still what
-`editor.html` tunes and `tools/balance.js` fights — the game just no longer
-draws from it, and it is the fallback if generation ever fails.
+THERE IS NO ROSTER. `data/opponents.json`, `tools/make-opponents.js` and
+`editor.html` are deleted. The roster was a second packer that never saw
+`autofit.js`, so its fits drifted from the game's own rules; it knew nothing
+about a save, so its rows ignored what the player had reached; and it was the
+last place a fight could come from that the pool rule below did not allow.
 
-`data/opponents.json` is **generated** by `tools/make-opponents.js`: five
-archetypes crossed with the seven tiers, each packed onto a hull from that tier
-and checked through `Geom.validate`. `Opponents.pool(tier)`, `draw(tier)`,
-`fitFor(o)`, `tierProgress(tier)`. An opponent row is a hull and its placed
-modules and nothing else, because nothing else differs between opponents —
-difficulty is the fit. `tools/balance.js` checks that tier strength ascends and
-that no archetype inside a tier is a walkover.
+`Opponents.poolFor(ship)` is the whole rule, and the hull the player brought is
+its only input — not their level, not the band their level sits in:
+
+1. every hull of that hull's tier;
+2. the ceiling is that hull's own unlock level, moved up to the **next unlock
+   in the same tier** where there is one — above tier 1 only;
+3. drop everything in the tier above the ceiling.
+
+The pool cannot come back empty: the player's own hull is always in it. Tier 1
+takes no next rung, so a Light Fighter meets Light Fighters until something
+bigger is earned.
+
+`Opponents.draw(ship)` generates against that pool, `fitFor(o)` hands the sim
+the fit. An opponent is a hull and its placed modules and nothing else, because
+nothing else differs between opponents — difficulty is the fit.
+`tools/balance.js` generates its own five archetypes a tier, with `autofit.js`,
+and checks that tier strength ascends and that no archetype inside a tier is a
+walkover.
 
 ### Transitions
 `core.js` owns one rule for the whole game: any change to the screen stack —
@@ -273,3 +406,43 @@ third screen to that sequence.
 - Allocate nothing per frame in a hot loop: no `.filter()`/`.sort()` per
   projectile per frame, no `new` inside the innermost loop. Pool projectiles.
 - The target is a low-power tablet. Budget the frame, then add features.
+
+### Progression — `data/progression.json`
+Generated; never hand-edited. `tools/make-progression.js` builds a **100-level
+ladder** and `tools/make-operations.js` writes one operation per level from it:
+
+```
+node tools/make-progression.js --json --bootstrap   # the ladder
+node tools/make-operations.js                       # the operations for it
+node tools/make-progression.js --json               # fold them back in, clean
+```
+
+`--bootstrap` downgrades the operation-dependency check to a warning, and only
+that check. The operations are written against the ladder and the ladder is
+validated against the operations, so any change that moves a level makes the
+first pass fail on operations the second pass is about to rewrite. The third
+pass runs without the flag and must pass.
+
+**A rework is not an item of its own on this ladder.** Anything with a
+`modification` is pulled out of the spread and placed against the module of the
+same `displayName` without one: `BM.1` five levels after its base, `BM.2` ten,
+capped at level 99 so the top level stays the prize hull alone. Nothing is
+name-matched and no level is written down. Do NOT read `visible` for this —
+it is a different field that merely correlates, and reading it is how nine
+Black Market pieces ended up in the starting kit.
+
+The source data's required level is NOT the ladder. It runs 1-60 with the roster
+bunched at the bottom, which gave a crowded early game and a tail of nothing but
+hulls. Here the source level decides only the ORDER; position in that order
+decides the level, so the reward rate is flat — a little over one thing per level
+the whole way. Level 1 is whatever the source gates at or below 1; the last hull
+in the order is the prize and lands on level 100 alone.
+
+Every level's operation is about what that level handed over — fly the new hull
+and win three, five or seven times depending on its tier, or win once with the
+new module fitted. An operation at level N is what carries the player from N to
+N+1, so it is always about something they already have.
+
+`tools/progression-test.js` walks the whole ladder to the top, flying what each
+operation names. An operation nobody can satisfy is a dead end no table
+inspection finds — only playing it does.

@@ -6,14 +6,24 @@
  * to Opus/WebM at 48k with 6dB taken off on the way through, so the file itself
  * is at background level and nothing has to be turned down in JS.
  *
+ * MUTE IS THE MUSIC ONLY. The button silences the themes and leaves the cues
+ * alone: a tap, a launch and an explosion still answer you, because they are
+ * feedback for what you just did, and a player turning the music off in a
+ * waiting room is not asking for the buttons to go dead too. Every music
+ * volume this file writes goes through `level()`, so nothing can fade a muted
+ * track back up behind the switch's back — which is the bug a `muted` flag
+ * checked in three places always becomes. The cue bus is not in that path at
+ * all now, which is what keeps the two separable.
+ *
  * WHERE THIS DEPARTS FROM THE HOUSE RULE
  * The rule says one tune, looping, no fades. Fleet Forge has two — a hangar
  * theme for everything you do between fights and a battle theme for the arena —
  * and Dan asked for them to cross-fade rather than cut. So `Music.play(name)`
  * runs both elements for four seconds, one up and one down, and there is a fade
- * where the rule says there should not be. Everything else holds: no mute
- * button, no volume slider, `loop` on the elements, paused on visibilitychange,
- * and nothing is fetched until the first gesture that could play it.
+ * where the rule says there should not be. It also has a mute button, which the
+ * rule does not mention. Everything else holds: no volume slider, `loop` on the
+ * elements, paused on visibilitychange, and nothing is fetched until the first
+ * gesture that could play it.
  *
  * THE CUES ARE PLACEHOLDERS AND ARE MEANT TO BE REPLACED
  * Every one is a couple of oscillators and a filtered noise burst. They are
@@ -26,6 +36,8 @@ var Audio2 = (function () {
 
   /* ---- the shared context ---------------------------------------------- */
   var ctxA = null, bus = null;
+  var CUE_LEVEL = 0.55;               /* how loud every generated cue is */
+  var muted = false;                  /* THE MUSIC's mute, not the cues'      */
 
   function ensure() {
     if (!ctxA) {
@@ -34,7 +46,7 @@ var Audio2 = (function () {
         bus = ctxA.createGain();
         /* One place to set how loud every generated cue is, so a cue is written
            at a sensible relative level and never at an absolute one. */
-        bus.gain.value = 0.55;
+        bus.gain.value = CUE_LEVEL;
         bus.connect(ctxA.destination);
       } catch (e) { ctxA = null; }
     }
@@ -145,6 +157,10 @@ var Audio2 = (function () {
   var LEVEL = 0.5;                       /* on top of the 6dB off the files */
   var FADE_MS = 4000;
 
+  /* The one place a theme's target volume comes from. Muting is a change to
+     this, so a fade already in flight lands on silence instead of fighting it. */
+  function level() { return muted ? 0 : LEVEL; }
+
   function el(name) {
     if (!TRACKS[name]) TRACKS[name] = document.getElementById('music-' + name);
     return TRACKS[name];
@@ -160,7 +176,7 @@ var Audio2 = (function () {
       var k = Math.min(1, (Date.now() - t0) / FADE_MS);
       for (var n in TRACKS) {
         var a = el(n); if (!a) continue;
-        var want = (n === name) ? LEVEL : 0;
+        var want = (n === name) ? level() : 0;
         var from = a.__from === undefined ? a.volume : a.__from;
         a.volume = Math.max(0, Math.min(1, from + (want - from) * k));
         if (k >= 1) {
@@ -223,7 +239,7 @@ var Audio2 = (function () {
     ensure();                            /* the same gesture unlocks the cues */
     var a = el(current || 'hangar');
     if (!a) return;
-    a.volume = LEVEL;
+    a.volume = level();
     var p;
     try { p = a.play(); } catch (e) { return; }
     function ok() {
@@ -231,6 +247,25 @@ var Audio2 = (function () {
       EVENTS.forEach(function (e2) { document.removeEventListener(e2, start, true); });
     }
     if (p && p.then) p.then(ok, function () {}); else ok();
+  }
+
+  /* Mute is immediate: every theme element drops, whether or not a fade is
+     running. Unmuting brings the current theme straight back rather than
+     fading, because the player just asked for sound and waiting four seconds
+     for it reads as broken. The cue bus is deliberately untouched — this
+     switch is the music's. */
+  function setMuted(on) {
+    muted = !!on;
+    for (var n in TRACKS) {
+      var a = el(n); if (!a) continue;
+      a.__from = undefined;
+      if (muted) a.volume = 0;
+      else if (n === current) {
+        a.volume = LEVEL;
+        if (playing && a.paused) a.play().catch(function () {});
+      }
+    }
+    return muted;
   }
 
   function arm() {
@@ -248,9 +283,12 @@ var Audio2 = (function () {
     });
   }
 
-  return { arm: arm, music: music, play: play, cues: CUES };
+  return { arm: arm, music: music, play: play, cues: CUES,
+           setMuted: setMuted, muted: function () { return muted; } };
 })();
 
 /* Short names, because these are called from everywhere. */
 var Sfx = { play: function (n, d) { Audio2.play(n, d); } };
-var Music = { to: function (n) { Audio2.music(n); }, arm: function () { Audio2.arm(); } };
+var Music = { to: function (n) { Audio2.music(n); }, arm: function () { Audio2.arm(); },
+              mute: function (on) { return Audio2.setMuted(on); },
+              muted: function () { return Audio2.muted(); } };

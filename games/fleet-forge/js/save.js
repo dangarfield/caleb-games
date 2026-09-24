@@ -25,6 +25,8 @@ var Save = (function () {
   var Store = ArcadeStore('fleet-forge');
   var SID = Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
   var gen = 0, state = null, cur = null, stalled = false, recovered = '';
+  /* Once on, nothing is ever written again this session. See `debugPilot`. */
+  var sandbox = false;
 
   var SLOTS = Progress.MAX_LAYOUTS;          /* 3 layouts per ship */
 
@@ -62,9 +64,30 @@ var Save = (function () {
   }
 
   function fresh() {
-    var d = { v: 4, pilots: {}, lastPilot: PILOTS[0].id };
+    var d = { v: 4, pilots: {}, lastPilot: PILOTS[0].id, muted: false,
+              hullView: freshHullView() };
     PILOTS.forEach(function (p) { d.pilots[p.id] = freshProfile(); });
     return d;
+  }
+
+  /* HULL / MODULES, remembered separately for each of the three places a ship
+     is drawn — the hangar, the fitting bay and the arena want different things
+     from the same switch, so they each keep their own answer.
+     THE DEFAULTS ALL MEAN THE SAME THING: show the hull's render with the fit
+     on top of it. It is only the fitting bay's labels that run the other way —
+     there MODULES means the bare grid — so its default is HULL while the other
+     two default to MODULES. */
+  /* What each view opens on, and — because the arena has a third mode the
+     other two do not — what it is even allowed to be set to. A stored value
+     outside its view's list is dropped on load rather than trusted. */
+  var HULL_VIEWS = { hangar: 'hull', fitting: 'hull', battle: 'damage' };
+  var HULL_MODES = { hangar: ['hull', 'modules'],
+                     fitting: ['hull', 'modules'],
+                     battle: ['hull', 'modules', 'damage'] };
+  function freshHullView() {
+    var o = {}, k;
+    for (k in HULL_VIEWS) o[k] = HULL_VIEWS[k];
+    return o;
   }
 
   function blankEntry() {
@@ -130,6 +153,14 @@ var Save = (function () {
         out.pilots[p.id] = fixProfile(d.pilots[p.id]);
       });
       out.lastPilot = out.pilots[d.lastPilot] ? d.lastPilot : PILOTS[0].id;
+      /* Mute belongs to the document, not to a pilot: it is a property of the
+         room the game is being played in, and switching brother should not
+         turn the sound back on in a quiet house. */
+      out.muted = !!d.muted;
+      var hv = d.hullView && typeof d.hullView === 'object' ? d.hullView : {};
+      for (var vk in HULL_VIEWS) {
+        if (HULL_MODES[vk].indexOf(hv[vk]) >= 0) out.hullView[vk] = hv[vk];
+      }
       return out;
     }
 
@@ -301,6 +332,33 @@ var Save = (function () {
        Per pilot, because one brother watches fights and the other skips them.
        Pause is deliberately NOT remembered: it is a thing you do during a
        match, not a way you like to watch them. */
+    /* ---- sound ---------------------------------------------------------- */
+    muted: function () { return !!state.muted; },
+    setMuted: function (on) {
+      on = !!on;
+      if (state.muted === on) return false;
+      state.muted = on;
+      return this.flush();
+    },
+
+    /* ---- hull / modules ------------------------------------------------- */
+    hullView: function (view) {
+      return (state.hullView && state.hullView[view]) || HULL_VIEWS[view] || 'modules';
+    },
+    setHullView: function (view, v) {
+      /* WHY DAMAGE NEVER STUCK. This guard was written when there were two
+         views and it was never widened, so `setHullView('battle', 'damage')`
+         returned false and saved nothing — every match opened on whatever was
+         last written before DAMAGE existed. The allowed set per place is
+         already declared in HULL_MODES; ask it rather than repeating it. */
+      var modes = HULL_MODES[view];
+      if (!modes || modes.indexOf(v) < 0) return false;
+      if (!state.hullView) state.hullView = freshHullView();
+      if (state.hullView[view] === v) return false;
+      state.hullView[view] = v;
+      return this.flush();
+    },
+
     matchSpeed: function () { return cur.speed || 0; },
     setMatchSpeed: function (i) {
       if (!(i >= 0 && i < 3) || cur.speed === i) return false;
@@ -361,6 +419,9 @@ var Save = (function () {
 
     /* ---- progression ---------------------------------------------------- */
     progress: function () { return cur.prog; },
+    /* Wins in a row, reset by a loss. Read by the opponent generator — see
+       `Opponents.skillNow`. */
+    streak: function () { return (cur.prog && cur.prog.streak) || 0; },
     saveProgress: function () { return this.flush(); },
 
     /* Fold a finished battle into the running counters. Progress owns the
@@ -416,7 +477,36 @@ var Save = (function () {
       return this.flush();
     },
 
+    /* ---- the debug pilot --------------------------------------------------
+       A fully-unlocked level-100 profile, in memory only: every hull claimed
+       with a flyable autofit in slot one, every operation ticked, and the
+       level at the top of the ladder. `sandbox` is latched on before anything
+       is touched and never comes off, so `flush` returns without writing for
+       the rest of the session — the real save on this machine is not altered,
+       and reloading the page brings it straight back.
+
+       It exists because the late game is a hundred levels away and nobody is
+       playing through that to check a colour on a Kronos. */
+    debugPilot: function () {
+      sandbox = true;
+      var prog = freshProgress();
+      prog.level = Progress.maxLevel ? Progress.maxLevel() : 100;
+      Progress.all().forEach(function (o) { prog.ops[o.id] = 1; });
+      cur.prog = prog;
+      cur.ships = {};
+      Data.shipList.forEach(function (sh) {
+        var e = blankEntry();
+        e.layouts[0] = { modules: Autofit.build(sh, { seed: 1 }, Data.modules) };
+        cur.ships[sh.key] = e;
+      });
+      cur.activeShip = Data.shipList[0].key;
+      if (typeof Progress !== 'undefined' && Progress.data) Progress.recheck();
+      return true;
+    },
+    debugging: function () { return sandbox; },
+
     flush: function () {
+      if (sandbox) return true;                  /* the debug pilot is never written */
       if (stalled) return false;                 /* memory-only, nothing to write to */
       if (Store.conflict()) return false;        /* an older tab: stop writing */
       gen += 1;

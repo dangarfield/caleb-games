@@ -20,10 +20,9 @@
  *   - it must fly:   one weapon, one reactor, one real drive, power >= 0
  *   - it must last:  plate on the skin, reactors buried
  *   - it must shoot: guns forward, where the shared doctrine points the ship
- * The last two are the `clever` placement mode. `random` exists as its twin so
- * a generated roster can be given deliberately clumsy fits — difficulty in this
- * game is the fit and nothing else, so a bad fit is the only way to make an
- * easy opponent.
+ * The last two are what SKILL turns down. Difficulty in this game is the fit
+ * and nothing else, so a clumsy fit is the only honest way to make an easy
+ * opponent — see the skill block below.
  *
  * WHICH WAY IS FORWARD
  * `Geom.shipGrid` rotates the source data once so that ROW 0 IS THE NOSE and
@@ -95,7 +94,7 @@ var Autofit = (function () {
       else if (s === 'shield') by.shield.push(m);
       else if (s === 'pointdefense') by.pd.push(m);
       else if (s === 'reactor') by.reactor.push(m);
-      else if (s === 'engine') { by.engine.push(m); if ((m.ep || 0) > 0) by.drive.push(m); }
+      else if (s === 'engine') { by.engine.push(m); if ((m.thrustPower || 0) > 0) by.drive.push(m); }
       else if (s === 'repair') by.repair.push(m);
       else if (s === 'afterburner') by.ab.push(m);
       else if (s === 'warp') by.warp.push(m);
@@ -108,8 +107,24 @@ var Autofit = (function () {
        one Grand Ion Drive (12000) and came out the slowest of the four. Speed
        now picks its engines explicitly in `build` instead. */
     for (var p in by) {
-      by[p].sort(function (a, b) { return (b.w * b.h) - (a.w * a.h); });
+      by[p].sort(function (a, b) { return (b.width * b.height) - (a.width * a.height); });
     }
+    /* PLATE is the armour that closes a hole for free. It used to be all of it
+       — "plate draws nothing" was true of the old roster — but the current data
+       has armour that draws (Reactive 5, Plasma 20) and armour that generates
+       (Solar), so the hole-closing passes, which run after the reactors are
+       sized and have no cells left to pay with, take only the armour whose net
+       draw is zero or better. Read off pu/pg, so a new plate sorts itself. */
+    by.plate = by.armor.filter(function (m) { return (m.powerUse || 0) <= (m.powerGeneration || 0); });
+    if (!by.plate.length) by.plate = by.armor;
+    /* Every gun, thirstiest LAST. A hull can be handed a weapon it could never
+       power — the give-away Rocket Launcher draws 100 and the only reactor the
+       player starts with makes 50, which no seven-cell fighter can cover — and
+       the rule "never shed the last weapon" then leaves the fit permanently in
+       the red. This is what it trades down to. */
+    by.cheapGun = by.ballistic.concat(by.missile, by.laser)
+      .sort(function (a, b) { return (a.powerUse || 0) - (b.powerUse || 0) ||
+                                     (b.width * b.height) - (a.width * a.height); });
     return by;
   }
 
@@ -175,12 +190,43 @@ var Autofit = (function () {
     support: function (v) { return 0.80 * v.deep + 0.25 * (1 - v.front); }
   };
 
+  /* The top of each score's own range — its weights added up. The skill blend
+     below mixes a score with noise, and noise has to be drawn on the SAME
+     scale or the mix is not a mix: a reactor score peaks at 1.40 and a shield
+     at 0.85, so one flat 0..1 roll would leave low-skill shields scattered
+     while low-skill reactors stayed nearly sensible. */
+  var SCORE_MAX = {
+    armor: 1.30, shield: 0.85, weapon: 1.10,
+    pd: 1.00, reactor: 1.40, support: 1.05
+  };
+
+  /* ---- SKILL --------------------------------------------------------------
+     50 to 100, and the hidden axis of a fit. It is `t` everywhere below, as a
+     fraction: 0 at skill 50, 1 at skill 100.
+
+        100  every choice is the best one available — the player's own AUTOFIT
+             button, and the default when nothing asks otherwise
+         50  cells are picked at random and the module pool is shuffled
+
+     It never makes a fit unflyable: the packer validates, plates its holes and
+     sheds what it cannot power at the end regardless of how badly the choices
+     were ranked, which is why skill 50 is "clumsy" and not "broken".
+
+     AT t = 1 NOTHING IS ROLLED AT ALL. Every branch below short-circuits, so
+     no random number is drawn and a skill-100 fit is bit-identical to what the
+     old `clever` mode produced from the same seed. */
+  function skillT(skill) {
+    var v = (skill === undefined ? 100 : skill);
+    v = (v - 50) / 50;
+    return v < 0 ? 0 : v > 1 ? 1 : v;
+  }
+
   /* ---- the pack -------------------------------------------------------- */
 
   /* Cells that may still take something, scored for one category and ordered
      best first. `random` mode scores by the dice instead, which is the whole of
      what makes a clumsy fit clumsy. */
-  function order(grid, s, cat, placements, mods, rng, clever) {
+  function order(grid, s, cat, placements, mods, rng, t) {
     var out = [], r, c;
     var occ = Geom.occupancy(placements, mods);
     for (r = 0; r < grid.h; r++) {
@@ -189,7 +235,12 @@ var Autofit = (function () {
            already had first refusal on it because their passes run first. */
         if (grid.cells[r][c] === 0 || !Geom.isDeviceCell(grid.cells[r][c])) continue;
         if (occ[r * 1000 + c] !== undefined) continue;
-        var sc = clever ? (SCORE[cat] || SCORE.support)(readings(grid, s, r, c)) : rng();
+        var fn = SCORE[cat] || SCORE.support;
+        var sc;
+        if (t >= 1) sc = fn(readings(grid, s, r, c));
+        else if (t <= 0) sc = rng() * (SCORE_MAX[cat] || 1);
+        else sc = t * fn(readings(grid, s, r, c)) +
+                  (1 - t) * rng() * (SCORE_MAX[cat] || 1);
         out.push({ r: r, c: c, s: sc });
       }
     }
@@ -197,11 +248,11 @@ var Autofit = (function () {
     return out;
   }
 
-  function tryPlace(grid, placements, list, mods, col, row, maxCells) {
+  function tryPlace(grid, placements, list, mods, col, row, maxCells, occ) {
     for (var i = 0; i < list.length; i++) {
       var m = list[i];
-      if (maxCells && m.w * m.h > maxCells) continue;
-      if (Geom.canPlace(grid, placements, mods, m.key, col, row, -1).ok) {
+      if (maxCells && m.width * m.height > maxCells) continue;
+      if (Geom.canPlace(grid, placements, mods, m.key, col, row, -1, occ).ok) {
         placements.push({ moduleId: m.key, col: col, row: row });
         return m;
       }
@@ -217,21 +268,38 @@ var Autofit = (function () {
      defence build spent its 22% on shields, the power tail quietly ate the rest
      of the hull, and the ship came out with two guns on it. `rpc` is the best
      power a cell of reactor can make; pass it and the shares are comparable. */
-  function fill(grid, s, cat, list, budget, placements, mods, rng, clever, room, rpc) {
+  function fill(grid, s, cat, list, budget, placements, mods, rng, t, room, rpc) {
     if (!list || !list.length || budget <= 0) return budget;
-    var cells = order(grid, s, cat, placements, mods, rng, clever);
+
+    /* SCORE THE CELLS ONCE, THEN WALK THEM.
+       This used to re-score and re-sort every free cell after every successful
+       placement, and `order` rebuilt the whole occupancy map each time — so a
+       430-cell hull taking ~100 modules did ~100 full scans and sorts, and one
+       autofit took 450ms. A cell's SCORE never changes: it is a function of
+       where the cell is, not of what has been placed. Only whether the cell is
+       still free changes, and that is one lookup. */
+    var cells = order(grid, s, cat, placements, mods, rng, t);
+    var occ = Geom.occupancy(placements, mods);
+
     for (var i = 0; i < cells.length && budget > 0; i++) {
+      var cell = cells[i];
+      if (occ[cell.r * 1000 + cell.c] !== undefined) continue;   /* taken since */
+
       /* `room` is how many cells are free BEYOND the ones the current power
          draw has already committed to reactors. Spending past it is how a fit
          ends up unable to power itself and has to be unpicked afterwards. */
       var cap2 = budget;
       if (room) { var left = room(); if (left <= 0) break; cap2 = Math.min(cap2, left); }
-      var got = tryPlace(grid, placements, list, mods, cells[i].c, cells[i].r, cap2);
+
+      var got = tryPlace(grid, placements, list, mods, cell.c, cell.r, cap2, occ);
       if (got) {
-        budget -= got.w * got.h + (rpc ? (got.pu || 0) / rpc : 0);
-        /* the board moved, so the free-cell list is stale — re-read it */
-        cells = order(grid, s, cat, placements, mods, rng, clever);
-        i = -1;
+        budget -= got.width * got.height + (rpc ? (got.powerUse || 0) / rpc : 0);
+        /* mark what it now covers, so later cells skip it */
+        var f = Geom.footprint(got, cell.c, cell.r);
+        for (var j = 0; j < f.length; j++) occ[f[j]] = 1;
+        /* and try this same cell again — a big module may not have fitted but
+           a smaller one from the same pool still might */
+        i--;
       }
     }
     return budget;
@@ -268,10 +336,10 @@ var Autofit = (function () {
        cap and the skin stops being a skin. Widest first so a flat nose is
        capped in one piece; on an armour build, thickest-per-cell first so the
        skin is the best plate the pilot owns rather than merely the widest. */
-    var caps = (armorList || []).filter(function (m) { return m.h === 1; });
+    var caps = (armorList || []).filter(function (m) { return m.height === 1; });
     caps.sort(heavy
-      ? function (a, b) { return ((b.hlt || 0) / b.w) - ((a.hlt || 0) / a.w) || b.w - a.w; }
-      : function (a, b) { return b.w - a.w; });
+      ? function (a, b) { return ((b.health || 0) / b.width) - ((a.health || 0) / a.width) || b.width - a.width; }
+      : function (a, b) { return b.width - a.width; });
     var spent = 0;
     if (!caps.length) return 0;
     for (var c = 0; c < grid.w; c++) {
@@ -281,7 +349,7 @@ var Autofit = (function () {
         if (Geom.isEngineCell(grid.cells[r][c])) break;
         if (occ[r * 1000 + c] !== undefined) break;   /* a wider plate got here first */
         var got = tryPlace(grid, placements, caps, mods, c, r);
-        if (got) { spent += got.w * got.h; placements[placements.length - 1].edge = 1; }
+        if (got) { spent += got.width * got.height; placements[placements.length - 1].edge = 1; }
         break;
       }
     }
@@ -303,7 +371,7 @@ var Autofit = (function () {
   function powerPerCell(list) {
     var best = 0;
     for (var i = 0; i < list.length; i++) {
-      var v = (list[i].pg || 0) / (list[i].w * list[i].h);
+      var v = (list[i].powerGeneration || 0) / (list[i].width * list[i].height);
       if (v > best) best = v;
     }
     return best || 1;
@@ -325,37 +393,115 @@ var Autofit = (function () {
     return n;
   }
 
+  /* What this fit is going to draw, worked out before any of it is on the hull.
+     Every category's share of the hull times what a cell of that category
+     draws on average — which is all the accuracy the reserve pass needs, since
+     the real bill is settled afterwards either way. */
+  /* Halfway between the average module and the hungriest one. The average
+     alone under-reserves badly: a fit does not spread itself evenly over the
+     catalogue, it reaches for the big pieces, and those draw far more a cell
+     than the little ones that drag the mean down. Under-reserving is the
+     expensive mistake — the shortfall is then paid at step 7, cell by cell,
+     in exactly the 1x1s this is here to avoid. Over-reserving is cheap:
+     `trim` hands the surplus back, smallest first. */
+  function drawPerCell(list) {
+    var d = 0, a = 0, top = 0;
+    for (var i = 0; i < (list || []).length; i++) {
+      var w = list[i].width * list[i].height, u = list[i].powerUse || 0;
+      d += u; a += w;
+      if (u / w > top) top = u / w;
+    }
+    return a ? (d / a + top) / 2 : 0;
+  }
+
+  function estimateDraw(cap, recipe, P, wSplit) {
+    var w = 0, t;
+    for (t in wSplit) {
+      if (!wSplit.hasOwnProperty(t) || !wSplit[t]) continue;
+      w += wSplit[t] * drawPerCell(P[t]);
+    }
+    return cap * (recipe.weapon * w +
+                  recipe.shield * drawPerCell(P.shield) +
+                  recipe.armor  * drawPerCell(P.armor) +
+                  recipe.support * drawPerCell(P.repair));
+  }
+
   /* Fit reactors until the bill is paid, and stop. Smallest reactor that covers
      what is still owed wins, so the last one does not overshoot by 1300; if
      none covers it, take the biggest that fits and go round again. They go in
      the cells the reactor score likes — buried, aft — because the reactor is
      the module you lose the match by losing. */
-  function feed(ship, grid, s, placements, mods, list, rng, clever) {
+  function feed(ship, grid, s, placements, mods, list, rng, t, want, maxCells) {
     if (!list || !list.length) return;
-    var small = list.slice().sort(function (a, b) { return (a.pg || 0) - (b.pg || 0); });
-    var guard = 0;
-    while (guard++ < 120) {
-      var st = Geom.summarise(ship, placements, mods);
-      var owed = st.powerUse - st.powerGen;
-      if (owed <= 0) return;
-      var cells = order(grid, s, 'reactor', placements, mods, rng, clever);
-      var placed = false;
-      for (var i = 0; i < cells.length && !placed; i++) {
-        var tight = null, k;
-        for (k = 0; k < small.length; k++) {
-          if ((small[k].pg || 0) < owed) continue;
-          if (Geom.canPlace(grid, placements, mods, small[k].key, cells[i].c, cells[i].r, -1).ok) {
-            tight = small[k]; break;
-          }
-        }
-        if (tight) {
-          placements.push({ moduleId: tight.key, col: cells[i].c, row: cells[i].r });
-          placed = true;
-        } else if (tryPlace(grid, placements, list, mods, cells[i].c, cells[i].r)) {
-          placed = true;   /* `list` is biggest-first: take the most we can here */
-        }
+    var small = list.slice().sort(function (a, b) { return (a.powerGeneration || 0) - (b.powerGeneration || 0); });
+    /* Score the cells ONCE and maintain the occupancy map, same as `fill`: a
+       cell's reactor score never changes, only whether it is still free. */
+    var cells = order(grid, s, 'reactor', placements, mods, rng, t);
+    var occ = Geom.occupancy(placements, mods);
+    var at = 0;
+    var st = Geom.summarise(ship, placements, mods);
+    /* `want` is a bill that has not been run up yet — see the reserve pass. */
+    var owed = want === undefined ? st.powerUse - st.powerGen : want - st.powerGen;
+
+    /* THE SEARCH IS MODULE-MAJOR, and that is the whole of this fix.
+       It used to be cell-major: walk the reactor-scored cells, and in the best
+       free one put whatever reactor happened to fit. On a big hull the best
+       cells are buried aft, where the free space is often a one-cell gap, so
+       the answer was a 1x1 — then another, then another, and a Cruiser ended
+       up carrying a dozen Small Reactors where two Large ones would have done
+       the same job in fewer cells and with less to shoot at.
+
+       Power per cell is not flat: a 1x1 makes 50 a cell and a 4x4 makes 81, so
+       a big reactor is worth roughly 1.6 small ones for the same footprint AND
+       presents one target instead of sixteen. So the most efficient reactor
+       that can be seated ANYWHERE wins, and a smaller one is only reached for
+       when nothing bigger will go in. The one exception is the last reactor:
+       once what is still owed fits inside a single unit, the SMALLEST that
+       covers it wins instead, so the fit does not spend nine cells to make a
+       hundred power it will never draw. */
+    var byEff = list.slice().sort(function (a, b) {
+      var ea = (a.powerGeneration || 0) / (a.width * a.height);
+      var eb = (b.powerGeneration || 0) / (b.width * b.height);
+      return eb - ea || (b.powerGeneration || 0) - (a.powerGeneration || 0);
+    });
+
+    /* First free cell, in reactor-score order, that this module will sit in. */
+    function seat(m) {
+      for (var i = at; i < cells.length; i++) {
+        var cell = cells[i];
+        if (occ[cell.r * 1000 + cell.c] !== undefined) { if (i === at) at++; continue; }
+        if (Geom.canPlace(grid, placements, mods, m.key, cell.c, cell.r, -1, occ).ok) return i;
+      }
+      return -1;
+    }
+
+    var guard = 0, spent = 0;
+    while (owed > 0 && guard++ < 400) {
+      /* The reserve pass is allowed only so much of the hull. Without this it
+         would keep seating reactors until its estimate was met, and on a seven
+         cell fighter that is the whole ship — no room left for the gun the
+         next pass guarantees. The real bill is settled at step 7 regardless. */
+      if (maxCells !== undefined && spent >= maxCells) return;
+      var placed = null, where = -1, k;
+
+      /* the last one: smallest that covers what is left */
+      for (k = 0; k < small.length; k++) {
+        if ((small[k].powerGeneration || 0) < owed) continue;
+        where = seat(small[k]);
+        if (where >= 0) { placed = small[k]; break; }
+      }
+      /* otherwise the most power per cell that will go in at all */
+      for (k = 0; k < byEff.length && !placed; k++) {
+        where = seat(byEff[k]);
+        if (where >= 0) placed = byEff[k];
       }
       if (!placed) return;
+
+      placements.push({ moduleId: placed.key, col: cells[where].c, row: cells[where].r });
+      spent += placed.width * placed.height;
+      var f = Geom.footprint(placed, cells[where].c, cells[where].r);
+      for (var j = 0; j < f.length; j++) occ[f[j]] = 1;
+      owed -= (placed.powerGeneration || 0);
     }
   }
 
@@ -367,17 +513,20 @@ var Autofit = (function () {
   function trim(ship, grid, placements, mods, armorList) {
     var i, guard = 0;
     while (guard++ < 40) {
+      /* One summary per pass, not one per candidate: removing a reactor costs
+         exactly its own `powerGeneration`, so whether the fit still balances is arithmetic,
+         not a re-count of the whole hull. */
+      var st = Geom.summarise(ship, placements, mods);
+      var spare = st.power, rc = st.reactors;
       var idx = -1, small = 1e9;
       for (i = 0; i < placements.length; i++) {
         var m = mods[placements[i].moduleId];
-        if (!(m.c & CAT.REACTOR)) continue;
-        var area = m.w * m.h;
+        if (!(m.category & CAT.REACTOR)) continue;
+        var area = m.width * m.height;
         if (area >= small) continue;
-        var keep = placements.splice(i, 1)[0];
-        var ok = Geom.summarise(ship, placements, mods);
-        placements.splice(i, 0, keep);
         /* a fit needs at least one reactor whatever the sums say */
-        if (ok.power < 0 || ok.reactors < 1) continue;
+        if (rc <= 1) continue;
+        if (spare - (m.powerGeneration || 0) < 0) continue;
         idx = i; small = area;
       }
       if (idx < 0) return;
@@ -386,7 +535,7 @@ var Autofit = (function () {
          plate to replace opens a hole in the hull, which is a worse trade than
          carrying a little spare power. */
       if (!tryPlace(grid, placements, armorList, mods, gone.col, gone.row,
-                    mods[gone.moduleId].w * mods[gone.moduleId].h)) {
+                    mods[gone.moduleId].width * mods[gone.moduleId].height)) {
         placements.splice(idx, 0, gone);
         return;
       }
@@ -396,7 +545,7 @@ var Autofit = (function () {
   function build(ship, opts, mods) {
     opts = opts || {};
     mods = mods || Data.modules;
-    var clever = opts.placement !== 'random';
+    var t = skillT(opts.skill);
     var rng = mulberry32(opts.seed === undefined ? (Math.random() * 1e9) | 0 : opts.seed);
     var grid = Geom.shipGrid(ship);
     var s = survey(grid);
@@ -417,7 +566,25 @@ var Autofit = (function () {
     var tot = 0;
     for (k in recipe) tot += recipe[k];
     for (k in recipe) recipe[k] = recipe[k] / tot * 0.92;
+    /* WHAT THE SHIP CARRIES, not only where it sits. `pools` hands back every
+       list biggest-first and `tryPlace` takes the first that fits, so a fit
+       always reaches for the best piece it can seat. A clumsy pilot should not:
+       at low skill the lists are shuffled, which is what produces a Cruiser
+       carrying three Vulcan Cannons where a Mass Driver would have gone — a
+       worse fit in a way a player can actually see, which a shuffled POSITION
+       is not. Done once per fit, because which module a pilot reaches for is a
+       property of the pilot, not of the cell they are standing over. */
     var P = pools(mods, opts.allow);
+    if (t < 1) {
+      var spread = (1 - t) * 64;          /* in cells: enough to outrank size */
+      for (var pk in P) {
+        if (!P.hasOwnProperty(pk) || !P[pk].length) continue;
+        P[pk] = P[pk].map(function (m) {
+          return { m: m, k: m.width * m.height + spread * rng() };
+        }).sort(function (a, b) { return b.k - a.k; })
+          .map(function (x) { return x.m; });
+      }
+    }
 
     /* A recipe may ask for something this pilot has not unlocked — "all laser"
        at level 1, when no laser exists yet. Asking for it and getting a hull
@@ -432,16 +599,29 @@ var Autofit = (function () {
        pass stops while this many cells are still free, so `feed` at the end
        always has somewhere to put the reactors the ship has committed to. */
     var RPC = powerPerCell(P.reactor);
+    /* Memoised on the placement count: `room` is asked on every step of every
+       fill loop, and it summarises the entire fit plus a full occupancy scan.
+       Nothing it reads can change without a placement being added or removed. */
+    var roomN = -1, roomV = 0;
     function room() {
-      var st = Geom.summarise(ship, placements, mods);
-      var owed = Math.max(0, st.powerUse - st.powerGen);
-      return freeCells(grid, placements, mods) - Math.ceil(owed / RPC);
+      if (placements.length !== roomN) {
+        roomN = placements.length;
+        var st = Geom.summarise(ship, placements, mods);
+        var owed = Math.max(0, st.powerUse - st.powerGen);
+        roomV = freeCells(grid, placements, mods) - Math.ceil(owed / RPC);
+      }
+      return roomV;
     }
 
     /* 1. THE SKIN. Armour caps the frontmost cell of every column before
           anything else is allowed to compete for it. On an armour build the
           plate is as heavy as the run allows; otherwise it is whatever fits. */
-    var edgeCells = clever
+    /* The one placement you can see from across the room, so it is the one
+       that most says "somebody who knew what they were doing built this".
+       At 100 it always runs; at 50 it never does; between, it is a coin
+       weighted by skill — the same fit either looks capped or it does not,
+       which reads louder than any amount of shuffling underneath. */
+    var edgeCells = (t >= 1 || (t > 0 && rng() < t))
       ? leadingEdge(grid, placements, mods, P.armor, opts.armour === 'armour')
       : 0;
 
@@ -451,11 +631,11 @@ var Autofit = (function () {
           engine mount: on a speed build that is the vectored thrusters, which
           are pure turn rate, and everywhere else it is more drive. */
     var byThrust = P.drive.slice().sort(function (a, b) {
-      return (b.ep / (b.w * b.h)) - (a.ep / (a.w * a.h)) ||
-             ((b.ts || 0) / (b.w * b.h)) - ((a.ts || 0) / (a.w * a.h));
+      return (b.thrustPower / (b.width * b.height)) - (a.thrustPower / (a.width * a.height)) ||
+             ((b.turnSpeed || 0) / (b.width * b.height)) - ((a.turnSpeed || 0) / (a.width * a.height));
     });
     var byTurn = P.engine.slice().sort(function (a, b) {
-      return ((b.ts || 0) / (b.w * b.h)) - ((a.ts || 0) / (a.w * a.h));
+      return ((b.turnSpeed || 0) / (b.width * b.height)) - ((a.turnSpeed || 0) / (a.width * a.height));
     });
     var r, c, pass;
 
@@ -499,11 +679,11 @@ var Autofit = (function () {
            big drive — and take it only if the ship keeps most of its thrust. */
         var m0 = list[0], was = Geom.summarise(ship, placements, mods).thrust;
         var bestAt = null, bestCost = 1e12;
-        for (var rr2 = 0; rr2 + m0.h <= grid.h; rr2++) {
-          for (var cc2 = 0; cc2 + m0.w <= grid.w; cc2++) {
+        for (var rr2 = 0; rr2 + m0.height <= grid.h; rr2++) {
+          for (var cc2 = 0; cc2 + m0.width <= grid.w; cc2++) {
             var occ2 = Geom.occupancy(placements, mods), hit = {}, fine = true, cost = 0;
-            for (var a = rr2; a < rr2 + m0.h && fine; a++) {
-              for (var b = cc2; b < cc2 + m0.w && fine; b++) {
+            for (var a = rr2; a < rr2 + m0.height && fine; a++) {
+              for (var b = cc2; b < cc2 + m0.width && fine; b++) {
                 if (!Geom.isEngineCell(grid.cells[a][b])) { fine = false; break; }
                 var idx2 = occ2[a * 1000 + b];
                 /* Never cost out a mount holding the other special. A warp
@@ -517,7 +697,7 @@ var Autofit = (function () {
               }
             }
             if (!fine) continue;
-            for (var kk in hit) cost += mods[placements[kk].moduleId].ep || 0;
+            for (var kk in hit) cost += mods[placements[kk].moduleId].thrustPower || 0;
             if (cost < bestCost) { bestCost = cost; bestAt = { c: cc2, r: rr2, hit: hit }; }
           }
         }
@@ -536,6 +716,32 @@ var Autofit = (function () {
       });
     }
 
+    /* 2b. RESERVE THE POWER PLANT, WHILE THERE IS STILL ROOM FOR ONE.
+           Reactors used to be fitted LAST, to a bill that was exact by then —
+           which sounds right and is why a Cruiser came out carrying fourteen
+           1x1 reactors. By the time the pass ran, the guns and the plate had
+           taken every run of adjacent cells and all that was left were single
+           holes, so a single hole is what each reactor had to be. A 4x4 makes
+           81 power a cell against a 1x1's 50, so that was costing about a
+           third of the hull's power budget in floor space, and giving the
+           enemy sixteen things to break instead of one.
+
+           So the bill is ESTIMATED first, from the recipe's own shares and
+           what a cell of each category draws on average, and that much power
+           is seated now, biggest-first, into the cells the reactor score likes.
+           The estimate does not have to be right: step 7 tops up whatever the
+           real fit turns out to owe, and `trim` hands back any reactor the
+           ship does not need — smallest-area first, so it is the leftover 1x1s
+           that go and the big blocks that stay. */
+    var reserve = estimateDraw(cap, recipe, P, wSplit);
+    /* Never more than a bit over a quarter of the hull, and not at all on a
+       small one: below about sixteen cells there is no room for a big reactor
+       anyway, so reserving is all cost and no benefit. */
+    var rCells = Math.floor(cap * 0.32);
+    if (cap >= 16 && reserve > 0 && rCells >= 4) {
+      feed(ship, grid, s, placements, mods, P.reactor, rng, t, reserve, rCells);
+    }
+
     /* 3. one gun, guaranteed, before anything competes for the room. A twelve
           cell fighter cannot afford to discover at the end that its whole
           budget went on plate. Smallest first: the guarantee is that SOMETHING
@@ -545,7 +751,7 @@ var Autofit = (function () {
       if ((wSplit[t] || 0) > best) { best = wSplit[t] || 0; primary = t; }
     });
     var smallestGun = (P[primary] || []).slice().reverse();
-    var gunCells = order(grid, s, 'weapon', placements, mods, rng, clever);
+    var gunCells = order(grid, s, 'weapon', placements, mods, rng, t);
     for (var gi = 0; gi < gunCells.length; gi++) {
       if (tryPlace(grid, placements, smallestGun, mods, gunCells[gi].c, gunCells[gi].r)) break;
     }
@@ -556,7 +762,7 @@ var Autofit = (function () {
       var list = P[name];
       if (!list || !list.length || room() <= 0) return;
       var cells = order(grid, s, name === 'pd' ? 'pd' : 'support',
-                        placements, mods, rng, clever);
+                        placements, mods, rng, t);
       for (var i = 0; i < cells.length; i++) {
         if (tryPlace(grid, placements, list, mods, cells[i].c, cells[i].r,
                      Math.max(1, room()))) break;
@@ -577,27 +783,27 @@ var Autofit = (function () {
     var aUse = share(aSplit, { shield: P.shield, armor: P.armor });
     fill(grid, s, 'armor', P.armor,
          Math.max(0, defCells * aUse.armor - edgeCells),
-         placements, mods, rng, clever, room, RPC);
+         placements, mods, rng, t, room, RPC);
     fill(grid, s, 'shield', P.shield, defCells * aUse.shield,
-         placements, mods, rng, clever, room, RPC);
+         placements, mods, rng, t, room, RPC);
 
     /* 6. weapons, to the recipe's share of the hull. */
     ['ballistic', 'missile', 'laser'].forEach(function (t) {
       var wShare = (wSplit[t] || 0) * recipe.weapon;
       if (wShare <= 0) return;
       fill(grid, s, 'weapon', P[t], cap * wShare, placements, mods,
-           rng, clever, room, RPC);
+           rng, t, room, RPC);
     });
 
     fill(grid, s, 'support', P.repair, cap * recipe.support,
-         placements, mods, rng, clever, room, RPC);
+         placements, mods, rng, t, room, RPC);
 
     /* 7. POWER, LAST AND TO THE BILL. */
-    feed(ship, grid, s, placements, mods, P.reactor, rng, clever);
+    feed(ship, grid, s, placements, mods, P.reactor, rng, t);
 
-    /* 8. an empty cell is a hole in the hull — plate whatever is left. Plate
-          draws nothing, so this cannot unbalance the books. */
-    fill(grid, s, 'armor', P.armor, cap, placements, mods, rng, clever);
+    /* 8. an empty cell is a hole in the hull — plate whatever is left. `P.plate`
+          is the armour with no net draw, so this cannot unbalance the books. */
+    fill(grid, s, 'armor', P.plate, cap, placements, mods, rng, t);
 
     /* 8b. a single-cell gap the pilot owns no 1x1 plate for is still a hole.
            Offer it to the things that come one cell at a time, cheapest draw
@@ -608,43 +814,90 @@ var Autofit = (function () {
        left to put a reactor in, the shed loop below takes it straight back out
        — along with whatever else was hungrier, which is how a speed build lost
        the warp drive and the afterburner it had been given in step 4. */
-    var gap = [P.armor, P.reactor];
+    var gap = [P.plate, P.reactor];
     for (var gj = 0; gj < gap.length; gj++) {
       if (!freeCells(grid, placements, mods)) break;
       fill(grid, s, gj ? 'reactor' : 'armor', gap[gj], cap, placements, mods,
-           rng, clever);
+           rng, t);
     }
-    feed(ship, grid, s, placements, mods, P.reactor, rng, clever);
-    trim(ship, grid, placements, mods, P.armor);
+    feed(ship, grid, s, placements, mods, P.reactor, rng, t);
+    trim(ship, grid, placements, mods, P.plate);
 
     /* 9. and if the sums still do not work — a narrow hull that simply cannot
           carry what was asked for — shed the hungriest module, never the last
-          weapon, reactor or drive, and plate over the hole. */
+          weapon, reactor or drive, and close the hole behind it.
+
+          A fit with NO reactor is the same failure: a seven-cell fighter whose
+          starting kit includes a power-hungry shield can fill every cell before
+          `feed` gets a look in, and then there is nowhere to put one. So the
+          loop runs while the books do not balance OR the ship has no reactor at
+          all, and the hole a shed module leaves goes to a reactor first when
+          the ship still needs one. Plate only closes a hole the ship can afford
+          to leave unpowered. */
     var tries = 0;
-    while (Geom.summarise(ship, placements, mods).power < 0 && tries++ < 20) {
-      var st = Geom.summarise(ship, placements, mods), worst = -1, worstPu = 0;
+    while (tries++ < 20) {
+      var st0 = Geom.summarise(ship, placements, mods);
+      if (st0.power >= 0 && st0.reactors > 0) break;
+      var st = st0, worst = -1, worstPu = 0;
       for (var z = 0; z < placements.length; z++) {
         var md = mods[placements[z].moduleId];
-        if (!(md.pu > worstPu)) continue;
-        if ((md.c & CAT.WEAPON) && st.weapons <= 1) continue;
+        if (!(md.powerUse > worstPu)) continue;
+        if ((md.category & CAT.WEAPON) && st.weapons <= 1) continue;
         /* Never an engine-mount module. Shedding one leaves an engine cell that
            only an engine can fill, so the plate that is supposed to close the
            hole cannot go there — and it was quietly eating the warp drive a
            speed build had just traded thrust for. */
-        if ((md.c & CAT.REACTOR) || (md.c & CAT.ENGINE)) continue;
-        worstPu = md.pu; worst = z;
+        if ((md.category & CAT.REACTOR) || (md.category & CAT.ENGINE)) continue;
+        worstPu = md.powerUse; worst = z;
+      }
+      /* The only thing left to give is the last weapon, and the ship cannot
+         power it. Trade it for the cheapest gun that fits the hole rather than
+         leaving a fit that fails validation — an unarmed ship and an unflyable
+         one are both losses, but a smaller gun is a fit. */
+      if (worst < 0 && st.power < 0 && st.weapons === 1) {
+        for (var q = 0; q < placements.length; q++) {
+          var mq = mods[placements[q].moduleId];
+          if (!(mq.category & CAT.WEAPON)) continue;
+          var spot = placements[q];
+          placements.splice(q, 1);
+          if (tryPlace(grid, placements, P.cheapGun, mods, spot.col, spot.row,
+                       mq.width * mq.height) &&
+              Geom.summarise(ship, placements, mods).weapons > 0) break;
+          placements.splice(q, 0, spot);   /* nothing cheaper fits — put it back */
+          break;
+        }
+        continue;
+      }
+
+      /* Nothing draws power and there is still no reactor — so the cell has to
+         come from the biggest thing that is not the last weapon or a drive. */
+      if (worst < 0 && !st.reactors) {
+        var big = 0;
+        for (var y = 0; y < placements.length; y++) {
+          var m2 = mods[placements[y].moduleId];
+          if ((m2.category & CAT.ENGINE) || (m2.category & CAT.REACTOR)) continue;
+          if ((m2.category & CAT.WEAPON) && st.weapons <= 1) continue;
+          var a2 = m2.width * m2.height;
+          if (a2 > big) { big = a2; worst = y; }
+        }
       }
       if (worst < 0) break;
       var dropped = placements[worst];
       placements.splice(worst, 1);
-      tryPlace(grid, placements, P.armor, mods, dropped.col, dropped.row,
-               mods[dropped.moduleId].w * mods[dropped.moduleId].h);
-      feed(ship, grid, s, placements, mods, P.reactor, rng, clever);
+      /* the hole goes to power first while the ship has none */
+      var patch = Geom.summarise(ship, placements, mods).reactors ? P.plate : P.reactor;
+      if (!tryPlace(grid, placements, patch, mods, dropped.col, dropped.row,
+                    mods[dropped.moduleId].width * mods[dropped.moduleId].height))
+        tryPlace(grid, placements, P.plate, mods, dropped.col, dropped.row,
+                 mods[dropped.moduleId].width * mods[dropped.moduleId].height);
+      feed(ship, grid, s, placements, mods, P.reactor, rng, t);
     }
 
     /* Shedding a 1x2 and patching it with a 1x1 leaves a cell open, so close
-       the books on the hull the same way step 8 did. */
-    fill(grid, s, 'armor', P.armor, cap, placements, mods, rng, clever);
+       the books on the hull the same way step 8 did. Plate only: there is no
+       cell left to put a reactor in, so anything that draws here is a fit that
+       fails validation on the last line of the last pass. */
+    fill(grid, s, 'armor', P.plate, cap, placements, mods, rng, t);
 
     return placements;
   }
@@ -654,6 +907,8 @@ var Autofit = (function () {
     WEAPON_MODES: ['mix', 'ballistic', 'missile', 'laser'],
     ARMOUR_MODES: ['mix', 'shields', 'armour'],
     PRIORITY_MODES: ['mix', 'speed', 'weapons', 'defence'],
-    PLACEMENT_MODES: ['clever', 'random']
+    /* Skill is not a menu — it is hidden, and only the opponent generator
+       passes one. These are the bounds, for the tools that sweep it. */
+    SKILL_MIN: 50, SKILL_MAX: 100
   };
 })();

@@ -1,7 +1,7 @@
 /* selftest.js — run with:  node js/sim/selftest.js
  *
  * Not a test framework, on purpose: a plain script that loads the same files
- * the browser loads, stands a `Data` shim in front of data/data.json, and
+ * the browser loads, stands a `Data` shim in front of the data files, and
  * asserts the things that were actually broken in the old build.
  */
 'use strict';
@@ -13,7 +13,10 @@ var path = require('path');
 var SIM_DIR = __dirname;
 var ROOT = path.resolve(SIM_DIR, '..', '..');
 
-var raw = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'data.json'), 'utf8'));
+/* Ships, modules and resolved hull bonuses, exactly as the browser assembles
+   them — see tools/load.js. A stub that differs from the real Data is a test
+   that passes against a game that does not exist. */
+var raw = require(path.join(ROOT, 'tools', 'load.js')).data();
 
 var sandbox = {
   Math: Math, JSON: JSON, Array: Array, Object: Object, Error: Error, Date: Date,
@@ -26,6 +29,7 @@ vm.createContext(sandbox);
 sandbox.Data = {
   ships: raw.ships,
   modules: raw.modules,
+  shipList: raw.shipList,
   ship: function (k) { return raw.ships[k]; },
   module: function (k) { return raw.modules[k]; }
 };

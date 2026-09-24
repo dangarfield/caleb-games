@@ -1,75 +1,117 @@
-# Fleet Forge — the unlock tree (proposal)
+# Fleet Forge — the unlock ladder
 
-**Operations** are challenges. Completing any one that is currently available
-gives you a level. **Unlocks** are what each level hands over. Two new operations
-appear per level and old ones stay available, so there is always a choice of three
-or four and you never see the whole list — the later ones are not even hinted at
-until you are close.
+**Operations** are challenges. Completing the one you are on gives you a level,
+and the level hands over a hull, a module, or both. 99 operations,
+so 100 levels: you start on 1 and finish on 100.
 
-Four operations are **tier gates** (marked ⇧). They are the only way into the next
-tier, and each one asks you to beat an opponent **from the tier above** while flying
-a hull **from the tier you are finishing** — a deliberate step up, and the reason you
-cannot grind a battleship through the early game.
+**No operation names an opponent.** Fights come from a generated pool for your
+tier, so an operation can ask about an opponent's *tier* but never its identity.
 
-**No operation names an opponent.** Fights come from a generated pool for your tier,
-so an operation can ask about an opponent's *tier* but never its identity. Hulls are
-different — those are fixed data the player earns, so an operation can name one.
+**56 hulls and 100 modules**, spread by position
+in the source order rather than by the source level itself — the source bunches
+its roster in the first third and thins to almost nothing above level 50, so using
+it directly gave a crowded early game and a tail of nothing but hulls.
 
-**50 levels, 56 operations, 41 hulls and 63 modules.**
-Mk.II/III variants and the nine Black Market modules are deliberately off this
-ladder — several Black Market guns are `rl 0` and strictly better than the base
-weapon they shadow, so they belong in a separate reward channel, not here.
-
-| Lv | Tier | Operations unlocked at this level | What the level gives you |
-|---:|:--|:--|:--|
-| 1 | 1 Fighter | — | **Small Fighter** · Chaingun · Small Ion Drive · Small Reactor · Small Steel Armor · Vulcan Cannon |
-| 2 | 1 Fighter | **First Blood** — Win your first battle<br>**Shakedown** — Fill every cell on a hull | **Heavy Fighter** · Rocket Launcher |
-| 3 | 1 Fighter | **Double Tap** — Win two battles in a row | **Lightning** · Combat Shield · Sentry Laser |
-| 4 | 2 Corvette | **Broadside** — Win with four or more weapons fitted<br>⇧ **Field Promotion** — Beat a Tier 2 opponent flying a Tier 1 hull | **Wing** · **Corvette** |
-| 5 | 2 Corvette | **Untouched** — Win with 90% of your hull intact | **Viper** · Laser Beam · Warp Drive |
-| 6 | 2 Corvette | **Solid Shot** — Win using ballistic weapons only | **Dart** |
-| 7 | 2 Corvette | **Quick Work** — Win a battle in under 20 seconds | **Raven** · Small Solar Armor · Vectored Thruster |
-| 8 | 2 Corvette | **Second Opinion** — Save two layouts on the same ship | **Ironwing** · Medium Reactor · Vulcan Turret |
-| 9 | 3 Frigate | **Hat Trick** — Win three battles in a row<br>⇧ **Line Commission** — Beat a Tier 3 opponent flying a Tier 2 hull | **Valkyrie** · Afterburner · Medium Steel Armor · Rocket Turret |
-| 10 | 3 Frigate | **Power Surplus** — Win with three or more reactors fitted | **Scythe** · Junk Launcher · Large Ion Drive |
-| 11 | 3 Frigate | **Light Touch** — Win flying a hull of 15 cells or fewer | Railgun · Point Defense Turret |
-| 12 | 3 Frigate | **Core Breach** — Win by destroying every enemy reactor | **Rapier** · Laser Turret |
-| 13 | 3 Frigate | **Sea Change** — Win flying a hull you have never won with | **Arrow** · Missile Launcher · Medium Armored Reactor · Medium Solar Armor |
-| 14 | 3 Frigate | **Shield Wall** — Win with a shield generator fitted | Bunker Shield · Mine Launcher |
-| 15 | 3 Frigate | **Sparring** — Win five battles at your own tier | **Hammerhead** · Repair Bay |
-| 16 | 4 Cruiser | **Packed Tight** — Win with every cell on your hull filled<br>⇧ **Heavy Commission** — Beat a Tier 4 opponent flying a Tier 3 hull | **Morningstar** · Battle Shield · Quantum Rifle |
-| 17 | 4 Cruiser | **Beam Work** — Win using laser weapons only | Gaussian Shotgun |
-| 18 | 4 Cruiser | **Naked Aggression** — Win with no shields fitted | **Starbridge** · **Falcon** · Small Reactive Armor · Large Reactor |
-| 19 | 4 Cruiser | **Interceptor** — Win with a point-defence turret fitted | Fusion Ray |
-| 20 | 4 Cruiser | **Four in a Row** — Win four battles in a row | **Broadsword** · Torpedo Launcher · Large Steel Armor |
-| 21 | 4 Cruiser | **Field Repair** — Win with a repair bay fitted | **Javelin** · Mass Driver |
-| 22 | 4 Cruiser | **Hammer Time** — Win twice flying the Hammerhead | **Wanderer** · Large Solar Armor |
-| 23 | 4 Cruiser | **Rearmed** — Win at the same tier with two different hulls | Arsenal Wall · Large Armored Reactor |
-| 24 | 4 Cruiser | **Salvo** — Win using missile weapons only | **Hawk** · War Shield |
-| 25 | 4 Cruiser | **Three Ways** — Save all three layouts on the same ship | Pulse Laser |
-| 26 | 5 Battleship | **Minelayer** — Win with a mine launcher fitted<br>⇧ **Capital Commission** — Beat a Tier 5 opponent flying a Tier 4 hull | **Warrior** · Medium Reactive Armor · Grand Ion Drive |
-| 27 | 5 Battleship | **Ten Up** — Win ten battles in total | **Charger** · Rail Turret |
-| 28 | 5 Battleship | **Disarmed** — Win by destroying every enemy weapon | **Therion** |
-| 29 | 5 Battleship | **Heavy Hand** — Win flying a hull of 80 cells or more | Scorpion Launcher |
-| 30 | 5 Battleship | **Layered** — Win with armour, shields and point defence all fitted | **StarDestroyer** · **Wraith** · Impact Missile |
-| 31 | 5 Battleship | **Overkill** — Win without losing a single module | Arcfusion Array |
-| 32 | 5 Battleship | **Five Straight** — Win five battles in a row | **Cerberos** |
-| 33 | 5 Battleship | **Junkyard** — Win with a scrap launcher fitted | **Myrmidon** · Gauss Rifle |
-| 34 | 5 Battleship | **Fast Capital** — Win in under 30 seconds flying a Tier 3 hull | Flak Rocket Turret |
-| 35 | 5 Battleship | **Full Deck** — Fill every cell on a hull of 100 cells or more | **Phantom** |
-| 36 | 5 Battleship | **Sixth Sense** — Win six battles in a row | Fusion Turret |
-| 37 | 6 Carrier | **Veteran** — Win twenty battles in total<br>⇧ **Carrier Command** — Beat a Tier 6 opponent flying a Tier 5 hull | **Baron** |
-| 38 | 6 Carrier | **Warp Out** — Win with a warp drive fitted | Large Reactive Armor |
-| 39 | 6 Carrier | **Gunline** — Win with ten or more weapons fitted | **Crusader** · Quantum Turret |
-| 40 | 6 Carrier | **Triple Threat** — Win with ballistic, laser and missile all fitted | **Captain** |
-| 41 | 6 Carrier | **Perfectionist** — Win eight battles in a row | Warhead Launcher |
-| 42 | 6 Carrier | **Untouchable** — Beat a Tier 7 opponent with 75% of your hull intact | **Duke** |
-| 43 | 6 Carrier | **Shipwright** — Own every hull in one tier | Hyperion Chaingun · Grand Reactor |
-| 44 | 6 Carrier | **Turret Master** — Win with three or more turrets fitted | **Sleipnir** |
-| 45 | 6 Carrier | **Dreadnought** — Fill every cell on a hull of 170 cells or more | **Eidolon** |
-| 46 | 6 Carrier | **Fleet Admiral** — Win fifty battles in total | Gaussian War Shotgun |
-| 47 | 7 Supercarrier | **Flawless** — Win ten battles at Tier 7 without losing one<br>⇧ **Fleet Command** — Beat a Tier 7 opponent flying a Tier 6 hull | **Thane** · Hydra Turret |
-| 48 | 7 Supercarrier | **Grand Design** — Win with a Grand Reactor fitted | **Arbiter** |
-| 49 | 7 Supercarrier | **Ten Straight** — Win ten battles in a row | **Mjollnir** |
-| 50 | 7 Supercarrier | **Last Word** — Beat a Tier 7 opponent without losing a single module | **Revenant** · **Vindicator** · Capital Cannon |
+| Lv | Tier | Operation | Ship | Module | Source |
+|---:|:--|:--|:--|:--|---:|
+| 1 | 1 Fighter | **Light Fighter** — Win 3 battles flying the Light Fighter | **Light Fighter** | Chaingun; Laser Beam; Railgun; Rocket Launcher; Small laser; Vulcan Cannon; Vulcan Turret; Bunker Shield; Combat Shield; Small Steel Armor; Small Steel Armor; Small Ion Drive; Small Ion Drive; Small Reactor | -1–1 |
+| 2 | 1 Fighter | **Heavy Fighter** — Win 3 battles flying the Heavy Fighter | **Heavy Fighter** | Rocket Launcher | 2 |
+| 3 | 1 Fighter | **Lightning** — Win 3 battles flying the Lightning | **Lightning** | — | 3 |
+| 4 | 1 Fighter | **Small laser** — Win a battle with the Small laser fitted | — | Small laser; Combat Shield | 3 |
+| 5 | 1 Fighter | **Wing** — Win 3 battles flying the Wing | **Wing** | — | 4 |
+| 6 | 1 Fighter | **Type K4-8U70** — Win 3 battles flying the Type K4-8U70 | **Type K4-8U70** | Vulcan Cannon | 3–21 |
+| 7 | 1 Fighter | **Interceptor** — Win 3 battles flying the Interceptor | **Interceptor** | — | 4 |
+| 8 | 1 Fighter | **Laser Beam** — Win a battle with the Laser Beam fitted | — | Laser Beam | 5 |
+| 9 | 2 Corvette | **Raptor** — Win 3 battles flying the Raptor | **Raptor** | Warp Drive | 4–5 |
+| 10 | 2 Corvette | **Raven** — Win 3 battles flying the Raven | **Raven** | — | 7 |
+| 11 | 2 Corvette | **Viper** — Win 3 battles flying the Viper | **Viper** | Small Solar Armor | 5–7 |
+| 12 | 2 Corvette | **Vectored Thruster** — Win a battle with the Vectored Thruster fitted | — | Vectored Thruster | 7 |
+| 13 | 2 Corvette | **Dart** — Win 3 battles flying the Dart | **Dart** | Vulcan Turret | 6–8 |
+| 14 | 2 Corvette | **Ironwing** — Win 3 battles flying the Ironwing | **Ironwing** | — | 8 |
+| 15 | 2 Corvette | **Medium Reactor** — Win a battle with the Medium Reactor fitted | — | Medium Reactor | 8 |
+| 16 | 2 Corvette | **PSS Sparrow** — Win 3 battles flying the PSS Sparrow | **PSS Sparrow** | Rocket Turret | 8–9 |
+| 17 | 2 Corvette | **Medium Steel Armor** — Win a battle with the Medium Steel Armor fitted | — | Medium Steel Armor | 9 |
+| 18 | 3 Frigate | **Scythe** — Win 3 battles flying the Scythe | **Scythe** | Afterburner | 9–10 |
+| 19 | 3 Frigate | **Junk Launcher** — Win a battle with the Junk Launcher fitted | — | Junk Launcher | 10 |
+| 20 | 3 Frigate | **Railgun** — Win a battle with the Railgun fitted | — | Railgun; Large Ion Drive | 10–11 |
+| 21 | 3 Frigate | **Point Defense Turret** — Win a battle with the Point Defense Turret fitted | — | Point Defense Turret | 11 |
+| 22 | 3 Frigate | **Valkyrie** — Win 3 battles flying the Valkyrie | **Valkyrie** | — | 9 |
+| 23 | 3 Frigate | **Laser Turret** — Win a battle with the Laser Turret fitted | — | Laser Turret; Vectored Thruster | 12 |
+| 24 | 3 Frigate | **Arrow** — Win 3 battles flying the Arrow | **Arrow** | — | 13 |
+| 25 | 3 Frigate | **Missile Launcher** — Win a battle with the Missile Launcher fitted | — | Missile Launcher; Medium Solar Armor | 13 |
+| 26 | 3 Frigate | **Medium Armored Reactor** — Win a battle with the Medium Armored Reactor fitted | — | Medium Armored Reactor | 13 |
+| 27 | 3 Frigate | **Rapier** — Win 3 battles flying the Rapier | **Rapier** | Bunker Shield | 12–14 |
+| 28 | 3 Frigate | **Mine Launcher** — Win a battle with the Mine Launcher fitted | — | Mine Launcher | 14 |
+| 29 | 3 Frigate | **Point Defense Turret** — Win a battle with the Point Defense Turret fitted | — | Point Defense Turret | 14 |
+| 30 | 3 Frigate | **Hammerhead** — Win 3 battles flying the Hammerhead | **Hammerhead** | Medium Solar Armor | 15 |
+| 31 | 3 Frigate | **Repair Bay** — Win a battle with the Repair Bay fitted | — | Repair Bay | 15 |
+| 32 | 3 Frigate | **PSS Miran** — Win 3 battles flying the PSS Miran | **PSS Miran** | Quantum Rifle | 14–16 |
+| 33 | 3 Frigate | **Kahje** — Win 3 battles flying the Kahje | **Kahje** | — | 16 |
+| 34 | 3 Frigate | **Vulcan Turret** — Win a battle with the Vulcan Turret fitted | — | Vulcan Turret | 16 |
+| 35 | 3 Frigate | **Gaussian Shotgun** — Win a battle with the Gaussian Shotgun fitted | — | Gaussian Shotgun; Battle Shield | 16–17 |
+| 36 | 3 Frigate | **Plasma Armor** — Win a battle with the Plasma Armor fitted | — | Plasma Armor | 17 |
+| 37 | 3 Frigate | **Orkaan** — Win 3 battles flying the Orkaan | **Orkaan** | Small Reactive Armor | 18–40 |
+| 38 | 4 Cruiser | **Starbridge** — Win 5 battles flying the Starbridge | **Starbridge** | — | 18 |
+| 39 | 4 Cruiser | **Large Reactor** — Win a battle with the Large Reactor fitted | — | Point Defense Turret; Large Reactor | 18 |
+| 40 | 4 Cruiser | **Fusion Ray** — Win a battle with the Fusion Ray fitted | — | Fusion Ray | 19 |
+| 41 | 4 Cruiser | **Morningstar** — Win 5 battles flying the Morningstar | **Morningstar** | — | 16 |
+| 42 | 4 Cruiser | **Torpedo Launcher** — Win a battle with the Torpedo Launcher fitted | — | Torpedo Launcher; Large Steel Armor | 20 |
+| 43 | 4 Cruiser | **Laser Beam** — Win a battle with the Laser Beam fitted | — | Laser Beam | 20 |
+| 44 | 4 Cruiser | **Age Eagle** — Win 5 battles flying the Age Eagle | **Age Eagle** | Mass Driver | 18–21 |
+| 45 | 4 Cruiser | **Broadsword** — Win 5 battles flying the Broadsword | **Broadsword** | — | 20 |
+| 46 | 4 Cruiser | **Hawk** — Win 5 battles flying the Hawk | **Hawk** | Rocket Turret | 22–24 |
+| 47 | 4 Cruiser | **Large Solar Armor** — Win a battle with the Large Solar Armor fitted | — | Large Solar Armor | 22 |
+| 48 | 4 Cruiser | **Arsenal Wall** — Win a battle with the Arsenal Wall fitted | — | Arsenal Wall | 23 |
+| 49 | 4 Cruiser | **Javelin** — Win 5 battles flying the Javelin | **Javelin** | Large Armored Reactor | 21–23 |
+| 50 | 4 Cruiser | **Chaingun** — Win a battle with the Chaingun fitted | — | Chaingun | 24 |
+| 51 | 4 Cruiser | **Wanderer** — Win 5 battles flying the Wanderer | **Wanderer** | War Shield | 22–24 |
+| 52 | 4 Cruiser | **Pulse Laser** — Win a battle with the Pulse Laser fitted | — | Pulse Laser | 25 |
+| 53 | 4 Cruiser | **PSS EL-K** — Win 5 battles flying the PSS EL-K | **PSS EL-K** | Mine Launcher | 25 |
+| 54 | 4 Cruiser | **Rocket Turret** — Win a battle with the Rocket Turret fitted | — | Rocket Turret | 26 |
+| 55 | 4 Cruiser | **Medium Reactive Armor** — Win a battle with the Medium Reactive Armor fitted | — | Medium Reactive Armor | 26 |
+| 56 | 5 Battleship | **Myrmidon** — Win 5 battles flying the Myrmidon | **Myrmidon** | Grand Ion Drive | 26–33 |
+| 57 | 5 Battleship | **Rail Turret** — Win a battle with the Rail Turret fitted | — | Rail Turret | 27 |
+| 58 | 5 Battleship | **Charger** — Win 5 battles flying the Charger | **Charger** | Mass Driver | 27–28 |
+| 59 | 5 Battleship | **Scorpion Launcher** — Win a battle with the Scorpion Launcher fitted | — | Scorpion Launcher | 29 |
+| 60 | 5 Battleship | **Wraith** — Win 5 battles flying the Wraith | **Wraith** | Impact Missile | 30 |
+| 61 | 5 Battleship | **Scorpion Launcher** — Win a battle with the Scorpion Launcher fitted | — | Scorpion Launcher | 30 |
+| 62 | 5 Battleship | **Arcfusion Array** — Win a battle with the Arcfusion Array fitted | — | Arcfusion Array | 31 |
+| 63 | 5 Battleship | **Warrior** — Win 5 battles flying the Warrior | **Warrior** | Pulse Laser | 26–32 |
+| 64 | 5 Battleship | **Cerberos** — Win 5 battles flying the Cerberos | **Cerberos** | — | 32 |
+| 65 | 5 Battleship | **Therion** — Win 5 battles flying the Therion | **Therion** | Gauss Rifle | 28–33 |
+| 66 | 5 Battleship | **Flak Rocket Turret** — Win a battle with the Flak Rocket Turret fitted | — | Flak Rocket Turret | 34 |
+| 67 | 5 Battleship | **Medium Armored Reactor** — Win a battle with the Medium Armored Reactor fitted | — | Medium Armored Reactor | 34 |
+| 68 | 5 Battleship | **Destroyer Vega** — Win 5 battles flying the Destroyer Vega | **Destroyer Vega** | Fusion Turret | 34–36 |
+| 69 | 5 Battleship | **Phantom** — Win 5 battles flying the Phantom | **Phantom** | — | 35 |
+| 70 | 5 Battleship | **Krigerskold** — Win 5 battles flying the Krigerskold | **Krigerskold** | Scorpion Launcher | 36–37 |
+| 71 | 5 Battleship | **Flak Rocket Turret** — Win a battle with the Flak Rocket Turret fitted | — | Flak Rocket Turret | 38 |
+| 72 | 6 Carrier | **Baron** — Win 5 battles flying the Baron | **Baron** | Large Reactive Armor | 37–38 |
+| 73 | 6 Carrier | **Quantum Turret** — Win a battle with the Quantum Turret fitted | — | Quantum Turret | 39 |
+| 74 | 6 Carrier | **Eidolon** — Win 5 battles flying the Eidolon | **Eidolon** | — | 45 |
+| 75 | 6 Carrier | **Sleipnir** — Win 5 battles flying the Sleipnir | **Sleipnir** | Pulse Laser | 40–44 |
+| 76 | 6 Carrier | **Warhead Launcher** — Win a battle with the Warhead Launcher fitted | — | Warhead Launcher | 41 |
+| 77 | 6 Carrier | **Duke** — Win 5 battles flying the Duke | **Duke** | Rail Turret | 41–42 |
+| 78 | 6 Carrier | **Grand Ion Drive** — Win a battle with the Grand Ion Drive fitted | — | Grand Ion Drive | 42 |
+| 79 | 6 Carrier | **Hyperion Chaingun** — Win a battle with the Hyperion Chaingun fitted | — | Hyperion Chaingun; Grand Reactor | 43 |
+| 80 | 6 Carrier | **Captain** — Win 5 battles flying the Captain | **Captain** | — | 40 |
+| 81 | 6 Carrier | **Quantum Turret** — Win a battle with the Quantum Turret fitted | — | Quantum Turret | 44 |
+| 82 | 6 Carrier | **Crusader** — Win 5 battles flying the Crusader | **Crusader** | Gaussian War Shotgun | 39–46 |
+| 83 | 6 Carrier | **Fusion Turret** — Win a battle with the Fusion Turret fitted | — | Fusion Turret | 46 |
+| 84 | 7 Supercarrier | **Mjollnir** — Win 7 battles flying the Mjollnir | **Mjollnir** | Hydra Turret | 47–49 |
+| 85 | 7 Supercarrier | **Ballistic Armor** — Win a battle with the Ballistic Armor fitted | — | Ballistic Armor | 47 |
+| 86 | 7 Supercarrier | **Revenant** — Win 7 battles flying the Revenant | **Revenant** | Hydra Turret | 48–50 |
+| 87 | 7 Supercarrier | **Arbiter** — Win 7 battles flying the Arbiter | **Arbiter** | — | 48 |
+| 88 | 7 Supercarrier | **Capital Cannon** — Win a battle with the Capital Cannon fitted | — | Capital Cannon | 50 |
+| 89 | 7 Supercarrier | **Vindicator** — Win 7 battles flying the Vindicator | **Vindicator** | Capital Cannon | 50–51 |
+| 90 | 7 Supercarrier | **Thane** — Win 7 battles flying the Thane | **Thane** | — | 47 |
+| 91 | 7 Supercarrier | **Radiant-X** — Win 7 battles flying the Radiant-X | **Radiant-X** | War Shield | 52 |
+| 92 | 8 Galactic Carrier | **Ritari** — Win 7 battles flying the Ritari | **Ritari** | — | 54 |
+| 93 | 8 Galactic Carrier | **Oblivion Ark** — Win 7 battles flying the Oblivion Ark | **Oblivion Ark** | Melee Fusion Turret | 55–58 |
+| 94 | 8 Galactic Carrier | **Khonarl** — Win 7 battles flying the Khonarl | **Khonarl** | — | 56 |
+| 95 | 8 Galactic Carrier | **Doomsday Laser** — Win a battle with the Doomsday Laser fitted | — | Doomsday Laser | 57 |
+| 96 | 8 Galactic Carrier | **Prophet** — Win 7 battles flying the Prophet | **Prophet** | Glossy shiny armor bar | 58 |
+| 97 | 8 Galactic Carrier | **Achilles** — Win 7 battles flying the Achilles | **Achilles** | — | 58 |
+| 98 | 8 Galactic Carrier | **USS Centurion** — Win 7 battles flying the USS Centurion | **USS Centurion** | EMP Launcher | 56–59 |
+| 99 | 8 Galactic Carrier | **Glossy shiny armor** — Win a battle with the Glossy shiny armor fitted | — | Glossy shiny armor | 60 |
+| 100 | 8 Galactic Carrier | — | **Kronos** | — | 60 |
 
