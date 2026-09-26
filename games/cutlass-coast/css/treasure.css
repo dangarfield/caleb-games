@@ -1,0 +1,29 @@
+/* treasure.css — beach dig HUD */
+.mode-treasure .tr-card { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); max-width: 640px; padding: 12px 24px; text-align: center; display: flex; flex-direction: column; gap: 4px; }
+.mode-treasure .tr-q { font-family: var(--f-title); font-weight: 800; font-size: 20px; color: var(--gold-l); }
+.mode-treasure .tr-clue { font-family: var(--f-body); font-style: italic; font-size: 18px; color: var(--cream); }
+.mode-treasure .tr-digs { position: absolute; right: 96px; top: 16px; height: var(--tap); padding: 0 18px; display: flex; align-items: center; gap: 12px; }
+.mode-treasure .tr-digs-k { font-family: var(--f-hud); font-size: 14px; color: var(--hud-muted); }
+.mode-treasure .tr-pips { display: flex; gap: 6px; }
+.mode-treasure .tr-pip { width: 14px; height: 14px; transform: rotate(45deg); border: 2px solid var(--gold); }
+.mode-treasure .tr-pip.on { background: var(--gold); }
+.mode-treasure .tr-dock { align-items: center; }
+.mode-treasure .tr-dig { min-height: 110px; padding: 0 40px; font-size: 24px; border-radius: 16px; }
+.mode-treasure .tr-leave { min-height: var(--tap-primary); }
+.mode-treasure .tr-shovel { display: inline-flex; }
+.mode-treasure .tr-result { width: 600px; }
+.mode-treasure .tr-r-h { font-family: var(--f-title); font-weight: 800; font-size: 34px; }
+.mode-treasure .tr-r-t { font-family: var(--f-body); font-size: 19px; line-height: 1.45; color: #4a3a26; }
+.mode-treasure .tr-r-gold { font-family: var(--f-title); font-weight: 800; font-size: 30px; color: #7a5418; }
+.mode-treasure .tr-result-in { padding: 24px 30px; display: flex; flex-direction: column; gap: 14px; }
+.mode-treasure .tr-result-back { align-items: flex-end; padding-bottom: 28px; background: rgba(8, 16, 26, .3); }
+.mode-treasure .tr-digs { right: calc(var(--tap) + 32px); }
+.mode-treasure .tr-digs { height: var(--hdr); right: calc(var(--hdr) + 30px); }
+/* the treasure map (the pieces you hold) — top-right like the sailing minimap; tap to enlarge */
+.mode-treasure .tr-map { position: absolute; right: 16px; top: 80px; width: 230px; padding: 6px 6px 24px; border-radius: 12px; background: var(--navy); border: 1px solid rgba(217, 179, 106, .55); display: block; }
+.mode-treasure .tr-map-canvas { display: block; width: 100%; height: auto; border-radius: 7px; }
+.mode-treasure .tr-map-tag { position: absolute; left: 0; right: 0; bottom: 4px; text-align: center; font-family: var(--f-title); font-weight: 700; font-size: 12px; color: var(--gold-l); }
+.mode-treasure .tr-map.big { right: 50%; top: 50%; transform: translate(50%, -50%); width: 620px; z-index: 20; box-shadow: 0 20px 60px rgba(0, 0, 0, .55); }
+
+/* the hoard's illustration on the result card */
+.mode-treasure .tr-r-pic { margin: -6px -6px 12px; height: 220px; border-radius: 6px; background: #10202f center 35% / cover no-repeat; box-shadow: inset 0 0 0 1px rgba(58, 44, 28, .35); }

@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Cutlass Coast · Asset Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=EB+Garamond:ital,wght@0,400;0,600;1,400&family=Alegreya+Sans:wght@400;500;700;800&display=swap" rel="stylesheet">
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+<style>
+  :root { --navy: #10202f; --navy2: #172c40; --gold: #d9b36a; --gold2: #f0d79a; --ink: #efe6d2; --dim: #9fb0bf; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #12161b; color: var(--ink); font-family: 'Alegreya Sans', sans-serif; touch-action: none; user-select: none; -webkit-user-select: none; }
+  #gl { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; touch-action: none; }
+  #backBtn { position: fixed; left: 12px; top: 12px; z-index: 20; height: 64px; min-width: 132px; padding: 0 20px; display: flex; align-items: center; justify-content: center; gap: 8px;
+    border-radius: 32px; background: rgba(16,32,47,.92); border: 1px solid rgba(217,179,106,.6); color: var(--gold2); font-weight: 800; font-size: 18px; text-decoration: none; }
+  #backBtn:active { transform: scale(.96); }
+  .frame { background: rgba(16,32,47,.9); border: 1px solid rgba(217,179,106,.5); box-shadow: inset 0 0 0 3px var(--navy), inset 0 0 0 4px rgba(217,179,106,.2), 0 10px 30px rgba(0,0,0,.4); border-radius: 12px; }
+  #rail { position: fixed; left: 12px; top: 88px; bottom: 12px; width: 220px; z-index: 10; overflow-y: auto; touch-action: pan-y; padding: 6px; -webkit-overflow-scrolling: touch; }
+  #rail h3 { margin: 10px 8px 4px; font-family: 'Cinzel', serif; font-size: 12px; letter-spacing: .22em; color: var(--gold); font-weight: 700; }
+  #rail button { display: flex; align-items: center; width: 100%; height: 64px; margin: 0 0 4px; padding: 0 14px; border-radius: 10px; border: 1px solid transparent; background: transparent; color: var(--ink); font: 700 17px 'Alegreya Sans', sans-serif; text-align: left; }
+  #rail button.on { background: linear-gradient(180deg,#e9c77f,#c3964a); color: #2a1c0a; box-shadow: inset 0 1px 0 #fbe6b4, 0 2px 0 #7d5a24; }
+  #rail button:active { transform: scale(.97); }
+  #panel { position: fixed; right: 12px; top: 12px; bottom: 12px; width: 286px; z-index: 10; overflow-y: auto; touch-action: pan-y; padding: 10px 12px; }
+  #panel h1 { margin: 2px 0 2px; font-family: 'Cinzel', serif; font-weight: 800; font-size: 22px; color: var(--gold2); }
+  #panel .sub { font-family: 'EB Garamond', serif; font-style: italic; color: var(--dim); font-size: 16px; margin-bottom: 6px; }
+  .grp { margin: 10px 0 0; }
+  .grp > label { display: block; font-family: 'Cinzel', serif; font-size: 11px; letter-spacing: .2em; color: var(--gold); margin-bottom: 5px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { min-width: 64px; height: 64px; flex: 1 1 auto; padding: 0 8px; border-radius: 10px; border: 1px solid rgba(217,179,106,.45); background: var(--navy2); color: var(--ink); font: 700 15px 'Alegreya Sans', sans-serif; }
+  .chip.on { background: linear-gradient(180deg,#e9c77f,#c3964a); color: #2a1c0a; border-color: #7d5a24; }
+  .chip:active { transform: scale(.96); }
+  .chip.sw { flex: 0 0 64px; font-size: 12px; }
+  input[type=range] { width: 100%; height: 64px; -webkit-appearance: none; appearance: none; background: transparent; touch-action: none; }
+  input[type=range]::-webkit-slider-runnable-track { height: 10px; border-radius: 5px; background: #2a3e52; border: 1px solid rgba(217,179,106,.4); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 44px; height: 44px; margin-top: -18px; border-radius: 50%; background: linear-gradient(180deg,#e9c77f,#c3964a); border: 2px solid #7d5a24; }
+  input[type=range]::-moz-range-thumb { width: 44px; height: 44px; border-radius: 50%; background: #d9b36a; border: 2px solid #7d5a24; }
+  #stats { position: fixed; left: 50%; transform: translateX(-50%); bottom: 12px; z-index: 10; padding: 10px 18px; font: 600 15px 'Alegreya Sans', sans-serif; color: var(--ink); white-space: nowrap; }
+  #stats b { color: var(--gold2); font-weight: 800; }
+  #stats .bad { color: #ff8a70; }
+  #title { position: fixed; left: 50%; transform: translateX(-50%); top: 12px; z-index: 10; padding: 8px 20px; text-align: center; pointer-events: none; }
+  #title .n { font-family: 'Cinzel', serif; font-weight: 800; font-size: 20px; color: var(--gold2); }
+  #title .d { font-family: 'EB Garamond', serif; font-style: italic; font-size: 15px; color: var(--dim); }
+  .hide { display: none !important; }
+  /* fit the ship controls (through Sink) in a 690px-tall screen; the rest scrolls */
+  #panel { width: 330px; padding: 8px 12px; }
+  #panel h1 { font-size: 20px; margin: 0; }
+  #panel .sub { font-size: 15px; margin-bottom: 0; }
+  .grp { margin: 6px 0 0; }
+  .grp > label { font-size: 12px; margin-bottom: 3px; }
+  #cNation { flex-wrap: nowrap; }
+  #cNation .chip { min-width: 0; flex: 1 1 0; padding: 0 2px; font-size: 13px; }
+  input[type=range] { height: 56px; }
+  #stats { left: 244px; transform: none; }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<a id="backBtn" href="../../index.html">← Games</a>
+<nav id="rail" class="frame"></nav>
+<div id="title" class="frame"><div class="n" id="tName">Asset Lab</div><div class="d" id="tDesc">Cutlass Coast · procedural assets</div></div>
+<aside id="panel" class="frame">
+  <h1>Asset Lab</h1>
+  <div class="sub">Drag to orbit · pinch to zoom</div>
+  <div class="grp"><label>Backdrop</label><div class="chips" id="cBackdrop"></div></div>
+  <div class="grp"><label>Light</label><div class="chips" id="cLight"></div></div>
+  <div class="grp" id="gNation"><label>Nation flag</label><div class="chips" id="cNation"></div></div>
+  <div class="grp" id="gSail"><label>Sails</label><div class="chips" id="cSail"></div></div>
+  <div class="grp" id="gDamage"><label>Damage <span id="dmgVal">0%</span></label><input id="dmg" type="range" min="0" max="100" value="0"></div>
+  <div class="grp" id="gSink"><label>Sink <span id="sinkVal">0%</span></label><input id="sink" type="range" min="0" max="100" value="0"></div>
+  <div class="grp" id="gAction"><label>Action</label><div class="chips" id="cAction"></div></div>
+  <div class="grp" id="gWeapon"><label>Weapon</label><div class="chips" id="cWeapon"></div></div>
+  <div class="grp" id="gAge"><label>Age <span id="ageVal">20</span></label><input id="age" type="range" min="18" max="60" value="20"></div>
+  <div class="grp" id="gFx"><label>Spawn FX</label><div class="chips" id="cFx"></div></div>
+  <div class="grp"><label>View</label><div class="chips" id="cView"></div></div>
+</aside>
+<div id="stats" class="frame">…</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { PLT } from './js/plt-assets.js';
+
+const canvas = document.getElementById('gl');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 2000);
+camera.position.set(22, 12, 22);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.dampingFactor = 0.12; controls.maxPolarAngle = Math.PI * 0.49; controls.minDistance = 1.5; controls.maxDistance = 300;
+controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+
+// environment
+const env = new THREE.Group(); scene.add(env);
+const sky = PLT.sky.create('day'); env.add(sky.root);
+const water = PLT.water.create({ size: 400, segments: 128 }); env.add(water.mesh);
+const neutral = new THREE.Mesh(new THREE.CircleGeometry(60, 48).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#8d9aa6', roughness: 0.95 }));
+neutral.name = 'neutral_ground'; env.add(neutral);
+const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.15, 1.6, 28), PLT.materials.get('sand')); pedestal.name = 'pedestal'; env.add(pedestal);
+const PED_Y = 0.8, PED_KINDS = ['prop', 'nprop', 'char', 'lineup'];
+let fx = PLT.fx.create(scene);
+
+const S = { backdrop: 'water', light: 'day', nation: 'england', sail: 'full', damage: 0, sink: 0, action: 'idle', weapon: null, age: 20, wire: false, cur: null, name: '' };
+const wind = { x: 2.5, z: 5 };
+
+// ---- asset registry
+const R = [];
+const add = (sec, name, label, make, kind) => R.push({ sec, name, label, make, kind });
+for (const t of PLT.ships.types) add('Ships', t, { pinnace: 'Pinnace', sloop: 'Sloop', barque: 'Barque', fluyt: 'Fluyt', merchantman: 'Merchantman', frigate: 'Frigate', galleon: 'Galleon', warGalleon: 'War Galleon' }[t],
+  () => PLT.ships.create(t, { nation: S.nation, sailState: S.sail, damage: S.damage }), 'ship');
+add('Sea & Sky', 'water', 'Water + Sky', () => new THREE.Group(), 'env');
+add('Sea & Sky', 'cannonball', 'Cannon fire', () => new THREE.Group(), 'cannon');
+add('Sea & Sky', 'fx', 'All FX', () => new THREE.Group(), 'fx');
+add('Terrain', 'island', 'Island (jungle)', () => PLT.terrain.island({ radius: 30, height: 9, seed: 3 }), 'terrain');
+add('Terrain', 'islandArid', 'Island (arid)', () => PLT.terrain.island({ radius: 26, height: 7, seed: 8, biome: 'arid' }), 'terrain');
+add('Terrain', 'coastTile', 'Coast tile', () => PLT.terrain.coastTile({}), 'terrain');
+const inst = (p, n, spread) => { const g = new THREE.Group(); const m = new THREE.InstancedMesh(p.geometry, p.material, n); const d = new THREE.Object3D();
+  for (let i = 0; i < n; i++) { d.position.set((i % 3 - 1) * spread, 0, (Math.floor(i / 3) - 1) * spread); d.rotation.y = i; d.updateMatrix(); m.setMatrixAt(i, d.matrix); } m.computeBoundingSphere(); g.add(m); g.dispose = () => p.dispose(); return g; };
+add('Props', 'palm', 'Palms ×9', () => inst(PLT.props.palm(1), 9, 5), 'prop');
+add('Props', 'jungleClump', 'Jungle ×9', () => inst(PLT.props.jungleClump(1), 9, 4.5), 'prop');
+add('Props', 'rock', 'Rocks ×9', () => inst(PLT.props.rock(1), 9, 3), 'prop');
+add('Props', 'townSmall', 'Town (small)', () => PLT.props.town({ nation: S.nation, size: 'small' }), 'nprop');
+add('Props', 'townMedium', 'Town (medium)', () => PLT.props.town({ nation: S.nation, size: 'medium' }), 'nprop');
+add('Props', 'townLarge', 'Town (large)', () => PLT.props.town({ nation: S.nation, size: 'large' }), 'nprop');
+add('Props', 'fort', 'Fort', () => PLT.props.fort({ nation: S.nation }), 'nprop');
+add('Props', 'dock', 'Dock', () => PLT.props.dock(), 'prop');
+add('Props', 'crate', 'Crate', () => PLT.props.crate(), 'prop');
+add('Props', 'barrel', 'Barrel', () => PLT.props.barrel(), 'prop');
+add('Props', 'chest', 'Chest (shut)', () => PLT.props.chest({ open: false }), 'prop');
+add('Props', 'chestOpen', 'Chest (open)', () => PLT.props.chest({ open: true }), 'prop');
+add('Props', 'digSite', 'Dig site', () => PLT.props.digSite(), 'prop');
+add('Characters', 'caleb', 'Captain Caleb', () => PLT.characters.captain({ who: 'caleb', age: S.age }), 'char');
+add('Characters', 'ezra', 'Captain Ezra', () => PLT.characters.captain({ who: 'ezra', age: S.age }), 'char');
+add('Characters', 'enemyCaptain', 'Enemy captain', () => PLT.characters.captain({ who: 'enemy', age: S.age }), 'char');
+add('Characters', 'sailor', 'Sailor', () => PLT.characters.sailor(2), 'char');
+add('Characters', 'soldier', 'Soldier', () => PLT.characters.soldier({ nation: S.nation }), 'char');
+add('Characters', 'lineup', 'Line-up', () => lineup(), 'lineup');
+add('Scenes', 'titleHarbour', 'Title harbour', () => PLT.scenes.titleHarbour(), 'scene');
+add('Scenes', 'townSquare', 'Town square', () => PLT.scenes.townSquare({ nation: S.nation }), 'scene');
+add('Scenes', 'duelDeck', 'Duel deck', () => PLT.scenes.duelDeck(), 'scene');
+
+function lineup() {
+  const g = new THREE.Group(); g.name = 'lineup'; const list = [];
+  const mk = [() => PLT.characters.captain({ who: 'caleb', age: 20 }), () => PLT.characters.captain({ who: 'caleb', age: 55 }), () => PLT.characters.captain({ who: 'ezra', age: 20 }), () => PLT.characters.captain({ who: 'ezra', age: 55 }), () => PLT.characters.captain({ who: 'enemy', age: 45 }), () => PLT.characters.sailor(5), () => PLT.characters.soldier({ nation: 'england' })];
+  mk.forEach((f, i) => { const c = f(); c.position.x = (i - 3) * 1.2; g.add(c); list.push(c); });
+  g.update = (dt) => list.forEach(c => c.update(dt)); g.setAction = (a) => list.forEach(c => c.setAction(a)); g.setWeapon = (w) => list.forEach(c => c.setWeapon(w));
+  g.dispose = () => list.forEach(c => c.dispose()); return g;
+}
+
+// ---- UI
+const $ = (id) => document.getElementById(id);
+const rail = $('rail'); let lastSec = '';
+for (const a of R) {
+  if (a.sec !== lastSec) { const h = document.createElement('h3'); h.textContent = a.sec.toUpperCase(); rail.appendChild(h); lastSec = a.sec; }
+  const b = document.createElement('button'); b.textContent = a.label; b.dataset.name = a.name; b.addEventListener('click', () => select(a.name)); rail.appendChild(b);
+}
+function chips(el, items, cur, on, cls = '') {
+  el.innerHTML = '';
+  for (const [v, l] of items) { const b = document.createElement('button'); b.className = 'chip ' + cls + (v === cur ? ' on' : ''); b.textContent = l; b.dataset.v = v;
+    b.addEventListener('click', () => { [...el.children].forEach(c => c.classList.toggle('on', c === b)); on(v); }); el.appendChild(b); }
+}
+chips($('cBackdrop'), [['water', 'Water'], ['neutral', 'Neutral']], 'water', (v) => { S.backdrop = v; applyBackdrop(); });
+chips($('cLight'), [['day', 'Day'], ['dusk', 'Dusk'], ['night', 'Night']], 'day', (v) => setLight(v));
+chips($('cNation'), PLT.nations.map(n => [n, n[0].toUpperCase() + n.slice(1)]), 'england', (v) => setNation(v), 'sw');
+chips($('cSail'), [['full', 'Full'], ['battle', 'Battle'], ['furl', 'Furl']], 'full', (v) => { S.sail = v; if (S.cur?.obj.setSailState) S.cur.obj.setSailState(v); });
+chips($('cAction'), PLT.characters.actions.map(a => [a, a.replace(/([A-Z])/g, ' $1').toLowerCase()]), 'idle', (v) => setAction(v));
+chips($('cWeapon'), [['rapier', 'Rapier'], ['cutlass', 'Cutlass'], ['longsword', 'Long'], ['none', 'None']], '', (v) => { S._wset = true; S.weapon = v === 'none' ? null : v; S.cur?.obj.setWeapon?.(S.weapon); });
+chips($('cFx'), ['cannonSmoke', 'muzzleFlash', 'splash', 'woodSplinters', 'wake', 'sinkBubbles', 'sparkle', 'fireworks'].map(k => [k, k.replace(/([A-Z])/g, ' $1').toLowerCase()]), '', (v) => spawnFx(v));
+chips($('cView'), [['wire', 'Wireframe'], ['reset', 'Reset cam']], '', (v) => { if (v === 'wire') setWire(!S.wire); else frame(); [...$('cView').children].forEach(c => c.classList.toggle('on', c.dataset.v === 'wire' && S.wire)); });
+$('dmg').addEventListener('input', (e) => { S.damage = e.target.value / 100; $('dmgVal').textContent = e.target.value + '%'; S.cur?.obj.setDamage?.(S.damage); });
+$('sink').addEventListener('input', (e) => { S.sink = e.target.value / 100; $('sinkVal').textContent = e.target.value + '%'; S.cur?.obj.sink?.(S.sink); });
+$('age').addEventListener('input', (e) => { S.age = +e.target.value; $('ageVal').textContent = S.age; S.cur?.obj.setAge?.(S.age); });
+
+function setLight(v) { S.light = v; sky.setPreset(v); if (S.cur?.kind === 'scene') S.cur.scene.setPreset(v); }
+function setNation(v) {
+  S.nation = v; const c = S.cur; if (!c) return;
+  if (c.obj.setNation) c.obj.setNation(v); else if (['nprop', 'char', 'scene'].includes(c.kind) && ['soldier', 'townSmall', 'townMedium', 'townLarge', 'fort', 'townSquare'].includes(c.name)) select(c.name, true);
+}
+function setAction(v) { S.action = v; S.cur?.obj.setAction?.(v, { restart: true }); }
+function setWire(on) { S.wire = on; const seen = new Set(); scene.traverse(o => { const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : []; for (const m of ms) if (!seen.has(m) && 'wireframe' in m) { seen.add(m); m.wireframe = on; } }); }
+function applyBackdrop() {
+  const sceneMode = S.cur?.kind === 'scene';
+  env.visible = !sceneMode;
+  water.mesh.visible = S.backdrop === 'water'; sky.dome.visible = S.backdrop === 'water'; sky.clouds.visible = S.backdrop === 'water'; sky.stars.visible = S.backdrop === 'water' && S.light === 'night';
+  neutral.visible = S.backdrop === 'neutral';
+  const ped = S.cur && PED_KINDS.includes(S.cur.kind) && S.backdrop === 'water';
+  pedestal.visible = !!ped;
+  if (S.cur && PED_KINDS.includes(S.cur.kind)) {
+    S.cur.obj.position.y = 0; const bb = new THREE.Box3().setFromObject(S.cur.obj); const r = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) * 0.55 + 1.2;
+    pedestal.scale.set(r, 1, r); pedestal.position.y = 0; S.cur.obj.position.y = ped ? PED_Y : 0;
+  }
+  scene.background = S.backdrop === 'neutral' ? new THREE.Color('#2b3947') : null;
+  if (S.cur && S.backdrop === 'neutral') { const bb = new THREE.Box3().setFromObject(S.cur.obj); neutral.position.y = isFinite(bb.min.y) ? Math.min(0, bb.min.y) - 0.01 : 0; }
+  else neutral.position.y = 0;
+  if (!sceneMode && S.backdrop === 'water' && S.cur?.kind === 'terrain' && S.cur.obj.userData.shallowAt) water.setShallowMap((x, z) => S.cur.obj.userData.shallowAt(x, z)); else water.setShallowMap(null);
+}
+function show(id, on) { $(id).classList.toggle('hide', !on); }
+function frame() {
+  const c = S.cur; if (!c) return;
+  if (c.kind === 'scene') return;
+  let bb = new THREE.Box3().setFromObject(c.obj);
+  if (bb.isEmpty() || c.kind === 'env' || c.kind === 'fx' || c.kind === 'cannon') bb = new THREE.Box3(new THREE.Vector3(-15, 0, -15), new THREE.Vector3(15, 6, 15));
+  const size = bb.getSize(new THREE.Vector3()), ctr = bb.getCenter(new THREE.Vector3()), r = Math.max(1.6, Math.max(size.x, size.y, size.z) * 0.5);
+  const d = r / Math.sin((camera.fov * Math.PI / 180) / 2) * (c.kind === 'char' ? 0.9 : 1.0);
+  controls.target.copy(ctr); camera.position.set(ctr.x + d * 0.62, ctr.y + d * 0.38, ctr.z + d * 0.68); controls.update();
+}
+let fxTimer = 0;
+function select(name, keepCam) {
+  const a = R.find(x => x.name === name); if (!a) return false;
+  if (S.cur) { if (S.cur.kind === 'scene') S.cur.scene.dispose(); else { S.cur.obj.dispose ? S.cur.obj.dispose() : null; scene.remove(S.cur.obj); } }
+  fx.clear();
+  let obj, sc = null;
+  if (a.kind === 'scene') { sc = a.make(); obj = sc.root; sc.setPreset(S.light === 'day' && name === 'titleHarbour' ? 'dusk' : S.light); if (name === 'titleHarbour' && S.light === 'day') { S.light = 'dusk'; [...$('cLight').children].forEach(c => c.classList.toggle('on', c.dataset.v === 'dusk')); sky.setPreset('dusk'); } }
+  else obj = a.make();
+  scene.add(obj);
+  S.cur = { name, kind: a.kind, obj, scene: sc };
+  if (a.kind === 'ship') { obj.setDamage(S.damage); obj.sink(S.sink); }
+  if (a.kind === 'char' || a.kind === 'lineup') { obj.setAction?.(S.action); if (obj.setWeapon && S._wset) obj.setWeapon(S.weapon); }
+  controls.enabled = a.kind !== 'scene';
+  [...rail.querySelectorAll('button')].forEach(b => b.classList.toggle('on', b.dataset.name === name));
+  $('tName').textContent = a.label; $('tDesc').textContent = a.sec + (a.kind === 'scene' ? ' · camera drifts on its own' : '');
+  show('gNation', ['ship', 'nprop', 'scene'].includes(a.kind) || name === 'soldier');
+  show('gSail', a.kind === 'ship'); show('gDamage', a.kind === 'ship'); show('gSink', a.kind === 'ship');
+  show('gAction', a.kind === 'char' || a.kind === 'lineup'); show('gWeapon', a.kind === 'char' || a.kind === 'lineup'); show('gAge', ['caleb', 'ezra', 'enemyCaptain'].includes(name));
+  show('gFx', !['scene'].includes(a.kind));
+  applyBackdrop(); if (S.wire) setWire(true);
+  if (!keepCam) frame();
+  assetTris = PLT.utils.countTris(obj);
+  if (a.kind === 'scene') { fx.dispose(); fx = PLT.fx.create(scene); }
+  return true;
+}
+function spawnFx(k) {
+  const c = S.cur; const p = new THREE.Vector3(0, 1, 0);
+  if (c?.kind === 'ship') { const m = c.obj.getObjectByName('muzzle_L0'); if (m && k !== 'wake' && k !== 'sinkBubbles') { m.getWorldPosition(p); } }
+  if (k === 'fireworks') p.y += 14;
+  if (k === 'cannonSmoke' && c?.kind === 'ship') { const m = c.obj.getObjectByName('muzzle_L0'); const dir = new THREE.Vector3(1, 0.1, 0).applyQuaternion(c.obj.quaternion).multiplyScalar(1); fx.cannonSmoke.spawn(p, { dir }); fx.muzzleFlash.spawn(p, { dir: dir.clone().multiplyScalar(1) }); fire(p, dir); return; }
+  fx[k].spawn(p);
+}
+function fire(from, dir) { fx.cannonball.fire(from, new THREE.Vector3(dir.x, 0.18, dir.z), 26, null, 'lab'); }
+
+let assetTris = 0, statT = 0, frames = 0, fps = 0, fpsT = 0;
+const clock = new THREE.Clock(); let T = 0;
+function resize() { const w = window.innerWidth, h = window.innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); fx.setPixelScale(h * renderer.getPixelRatio()); }
+window.addEventListener('resize', resize); resize();
+
+function tick() {
+  const dt = Math.min(0.05, clock.getDelta()); T += dt;
+  const c = S.cur;
+  if (c?.kind === 'scene') { c.scene.update(dt, T, camera); }
+  else {
+    controls.update(); sky.update(camera); water.update(T);
+    if (c?.kind === 'ship') c.obj.update(dt, wind, S.backdrop === 'water' ? water : null, T);
+    else if (c?.obj.update) c.obj.update(dt);
+    if (c?.kind === 'fx') { fxTimer -= dt; if (fxTimer <= 0) { fxTimer = 1.2; demoFx(); } }
+    if (c?.kind === 'cannon') { fxTimer -= dt; if (fxTimer <= 0) { fxTimer = 0.9; demoCannon(); } }
+  }
+  PLT.uniforms.uTime.value = T;
+  fx.cannonball.water = (c?.kind === 'scene') ? c.scene.water : water;
+  fx.update(dt);
+  renderer.render(scene, camera);
+  frames++; fpsT += dt; if (fpsT > 1) { fps = frames / fpsT; frames = 0; fpsT = 0; }
+  statT -= dt; if (statT <= 0) { statT = 0.5; updateStats(); }
+  requestAnimationFrame(tick);
+}
+let demoI = 0;
+function demoFx() {
+  const ks = ['cannonSmoke', 'muzzleFlash', 'splash', 'woodSplinters', 'wake', 'sinkBubbles', 'sparkle', 'fireworks'];
+  ks.forEach((k, i) => { const a = i / ks.length * Math.PI * 2; fx[k].spawn(new THREE.Vector3(Math.cos(a) * 9, k === 'fireworks' ? 12 : 0.6, Math.sin(a) * 9)); });
+  for (let i = 0; i < 6; i++) fx.wake.spawn(new THREE.Vector3(-12 + i, 0.2, 12));
+}
+function demoCannon() {
+  const from = new THREE.Vector3(-14, 2, (demoI++ % 5 - 2) * 3), to = new THREE.Vector3(14, 0, (Math.random() - 0.5) * 10);
+  const dir = fx.cannonball.solve(from, to, 22, new THREE.Vector3());
+  fx.muzzleFlash.spawn(from, { dir }); fx.cannonSmoke.spawn(from, { dir, count: 8 }); fx.cannonball.fire(from, dir, 22);
+}
+function countMaterials() { const s = new Set(); scene.traverse(o => { if (o.visible && o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => s.add(m.uuid)); }); return s.size; }
+function updateStats() {
+  const i = renderer.info;
+  const budget = { pinnace: 2500, sloop: 3000, barque: 4000, fluyt: 5000, merchantman: 5500, frigate: 7000, galleon: 8000, warGalleon: 10000, townSmall: 6000, townLarge: 15000 }[S.cur?.name];
+  const at = S.cur?.kind === 'scene' ? '' : ` · Asset tris <b class="${budget && assetTris > budget ? 'bad' : ''}">${assetTris.toLocaleString()}</b>${budget ? ' / ' + budget.toLocaleString() : ''}`;
+  $('stats').innerHTML = `Frame tris <b>${i.render.triangles.toLocaleString()}</b> · Draw calls <b>${i.render.calls}</b> · Materials <b>${countMaterials()}</b> · Programs <b>${i.programs.length}</b>${at} · <b>${fps.toFixed(0)}</b> fps`;
+}
+window.LAB = {
+  select, list: () => R.map(a => a.name), setLight, setNation, setAction,
+  setSail: (v) => { S.sail = v; S.cur?.obj.setSailState?.(v); }, setDamage: (d) => { S.damage = d; S.cur?.obj.setDamage?.(d); }, sink: (p) => S.cur?.obj.sink?.(p),
+  setBackdrop: (v) => { S.backdrop = v; applyBackdrop(); }, setWire, spawnFx, frame,
+  stats: () => ({ tris: renderer.info.render.triangles, calls: renderer.info.render.calls, materials: countMaterials(), assetTris, name: S.cur?.name }),
+  camera, controls, scene, PLT, get current() { return S.cur; },
+};
+select('sloop');
+tick();
+</script>
+</body>
+</html>

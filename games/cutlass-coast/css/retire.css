@@ -1,0 +1,49 @@
+/* retire.css — 1j Retirement & final score. The vignette cell is a window onto the 3D harbour behind. */
+.mode-retire .rt-top-shade { position: absolute; left: 0; right: 0; top: 0; height: 110px; background: linear-gradient(180deg, rgba(8, 16, 26, .7), rgba(8, 16, 26, 0)); }
+.mode-retire .rt-frame { position: absolute; left: 24px; right: 24px; top: 84px; bottom: 22px; display: grid; grid-template-columns: 300px minmax(0, 1fr);
+  border-radius: 12px; border: 1px solid rgba(217, 179, 106, .6); box-shadow: 0 20px 50px rgba(0, 0, 0, .5); pointer-events: auto; overflow: hidden; }
+.mode-retire .rt-window { position: relative; border: 10px solid var(--navy); border-right-width: 5px; border-radius: 12px 0 0 12px;
+  box-shadow: inset 0 0 0 1px rgba(217, 179, 106, .35), inset 0 0 40px rgba(0, 0, 0, .35); }
+.mode-retire .rt-window.no-3d { background: linear-gradient(180deg, #1b2a55 0%, #3a4b8a 45%, #ffb070 70%, #1f5b70 72%, #10202f 100%); }
+.mode-retire .rt-plate { position: absolute; left: 14px; right: 14px; bottom: 14px; padding: 10px 14px; border-radius: 8px; background: rgba(12, 24, 38, .84); border: 1px solid var(--gold-line);
+  display: flex; flex-direction: column; gap: 2px; text-align: center; }
+.mode-retire .rt-plate .label-caps { color: var(--gold); font-size: 12px; }
+.mode-retire .rt-plate b { font-family: var(--f-title); font-weight: 800; font-size: 22px; color: var(--gold-l); }
+.mode-retire .rt-parch { border: 10px solid var(--navy); border-left-width: 5px; border-radius: 0 12px 12px 0; padding: 24px 30px; display: grid; grid-template-columns: minmax(0, 1fr) 370px; gap: 30px; min-height: 0; }
+.mode-retire .rt-story { display: flex; flex-direction: column; gap: 14px; justify-content: center; min-height: 0; }
+.mode-retire .rt-forced { align-self: flex-start; font-weight: 700; }
+.mode-retire .rt-kicker { font-family: var(--f-title); font-weight: 700; font-size: 12px; letter-spacing: .3em; color: var(--ink-label); }
+.mode-retire .rt-headline { font-family: var(--f-title); font-weight: 800; font-size: 36px; line-height: 1.08; text-wrap: balance; }
+.mode-retire .rt-text { font-family: var(--f-body); font-size: 20px; line-height: 1.45; color: #4a3a26; text-wrap: pretty; }
+.mode-retire .rt-btns { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
+.mode-retire .rt-hof { padding: 0 26px; font-size: 17px; }
+.mode-retire .rt-new, .mode-retire .rt-arcade { min-height: var(--tap-primary); padding: 0 22px; font-size: 16px; text-decoration: none; }
+.mode-retire .rt-tally { display: flex; flex-direction: column; padding: 14px 20px; border-radius: 8px; background: rgba(255, 255, 255, .35); border: 1px solid rgba(58, 44, 28, .25); min-height: 0; }
+.mode-retire .rt-tally .label-caps { margin-bottom: 4px; }
+.mode-retire .rt-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 5px 0; border-bottom: 1px solid rgba(58, 44, 28, .15); }
+.mode-retire .rt-k { display: flex; flex-direction: column; min-width: 0; }
+.mode-retire .rt-k span { font-family: var(--f-body); font-weight: 600; font-size: 17px; line-height: 1.15; }
+.mode-retire .rt-k small { font-family: var(--f-hud); font-size: 13px; color: var(--ink-m); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mode-retire .rt-row b { font-family: var(--f-hud); font-weight: 800; font-size: 17px; }
+.mode-retire .rt-row b.pos { color: #4f7a47; } .mode-retire .rt-row b.neg { color: #9a3a2e; } .mode-retire .rt-row b.zero { color: var(--ink-m); }
+.mode-retire .rt-final { margin-top: auto; display: flex; justify-content: space-between; align-items: baseline; padding-top: 10px; }
+.mode-retire .rt-final span { font-family: var(--f-title); font-weight: 800; font-size: 18px; }
+.mode-retire .rt-final b { font-family: var(--f-title); font-weight: 800; font-size: 34px; color: #7a5418; }
+.mode-retire .rt-record { text-align: right; font-family: var(--f-hud); font-weight: 800; font-size: 14px; color: #4f7a47; }
+/* hall of fame */
+.mode-retire .rt-hall { width: 680px; }
+.mode-retire .rt-hall-in { padding: 24px 30px; display: flex; flex-direction: column; gap: 12px; }
+.mode-retire .rt-hall-h { font-family: var(--f-title); font-weight: 800; font-size: 28px; }
+.mode-retire .rt-hall-sub { font-family: var(--f-body); font-style: italic; font-size: 17px; color: var(--ink-m); margin-top: -8px; }
+.mode-retire .rt-hcards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.mode-retire .rt-hcard { padding: 16px 18px; border-radius: 8px; background: rgba(255, 255, 255, .4); border: 1px solid rgba(58, 44, 28, .3); display: flex; flex-direction: column; gap: 6px; }
+.mode-retire .rt-hcard.mine { border: 2px solid #a3782f; background: rgba(255, 244, 214, .7); }
+.mode-retire .rt-hname { font-family: var(--f-title); font-weight: 800; font-size: 26px; }
+.mode-retire .rt-hpts { font-family: var(--f-hud); font-size: 16px; color: var(--ink-m); }
+.mode-retire .rt-hpts b { font-family: var(--f-title); font-size: 34px; color: #7a5418; }
+.mode-retire .rt-hsub { font-family: var(--f-body); font-size: 18px; }
+.mode-retire .rt-hnow { font-family: var(--f-hud); font-size: 14px; color: var(--ink-m); }
+.mode-retire .rt-hall-btns { display: flex; justify-content: flex-end; gap: 12px; margin-top: 6px; }
+
+/* the ending's illustration fills the window (images/retire-<rank>.webp) */
+.mode-retire .rt-window.has-pic { background-color: #10202f; background-size: cover; background-position: center 20%; background-repeat: no-repeat; }

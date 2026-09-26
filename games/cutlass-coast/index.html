@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#10202f">
+<title>Cutlass Coast</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800&family=EB+Garamond:ital,wght@0,400;0,600;1,400&family=Alegreya+Sans:wght@400;500;700;800&display=swap" rel="stylesheet">
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}
+</script>
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/title.css">
+<link rel="stylesheet" href="css/sail.css">
+<link rel="stylesheet" href="css/port.css">
+<link rel="stylesheet" href="css/battle.css">
+<link rel="stylesheet" href="css/duel.css">
+<link rel="stylesheet" href="css/log.css">
+<link rel="stylesheet" href="css/retire.css">
+<link rel="stylesheet" href="css/pause.css">
+<link rel="stylesheet" href="css/treasure.css">
+</head>
+<body data-mode="boot">
+<canvas id="gl"></canvas>
+<div id="ui"><div id="stage"></div></div>
+<a id="backBtn" href="../../index.html">← Games</a>
+<!-- Dan's two themes, cross-faded by js/audio.js theme(). No controls; preload="none" so nothing is
+     fetched before the first tap, which is also the first moment either could play. -->
+<audio id="music-normal" src="audio/peg-leg-ted-normal.webm" loop preload="none" aria-hidden="true"></audio>
+<audio id="music-battle" src="audio/peg-leg-ted-battle.webm" loop preload="none" aria-hidden="true"></audio>
+<script src="js/arcade-store.js"></script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

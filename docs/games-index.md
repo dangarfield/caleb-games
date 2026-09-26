@@ -1,6 +1,6 @@
 # Games Index
 
-All 75 games in Garfield Boys' Arcade (76 directories — Archers has legacy 2D + current 3D).
+All 76 games in Garfield Boys' Arcade (77 directories — Archers has legacy 2D + current 3D).
 
 | Game | Directory | Description |
 |------|-----------|-------------|
@@ -22,6 +22,7 @@ All 75 games in Garfield Boys' Arcade (76 directories — Archers has legacy 2D 
 | Fling | games/fling/ | Physics flinging game |
 | Free Kick | games/freekick/ | 3D perspective penalty kicks |
 | Fleet Forge | games/fleet-forge/ | Ship-fitting auto-battler — build a hull, climb a 100-level ladder |
+| Cutlass Coast | games/cutlass-coast/ | Pirates! (1987) remake in Three.js — sail, trade, broadside battles, sword duels, family & treasure quests, ageing and retirement score; Caleb/Ezra careers, illustrated port characters |
 | Frogger | games/frogger/ | Classic road-crossing |
 | Fruit Ninja | games/fruitninja/ | Swipe-to-slice fruit |
 | Tower of Hanoi | games/hanoi/ | Disc-stacking puzzle with undo |

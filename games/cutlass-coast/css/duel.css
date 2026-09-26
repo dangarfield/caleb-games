@@ -1,0 +1,130 @@
+/* duel.css — 1e Sword duel (owned by the duel builder) */
+.mode-duel { font-family: var(--f-hud); }
+
+/* ---------- top: captains' cards + deck track (top-left 150×70 kept clear for the arcade back button) ---------- */
+.mode-duel .dl-top { position: absolute; left: 170px; right: 96px; top: 16px; display: grid; grid-template-columns: 300px minmax(0, 1fr) 300px; gap: 14px; align-items: start; }
+.mode-duel .dl-card { display: flex; align-items: center; gap: 12px; padding: 10px 16px 10px 10px; border-radius: 14px; background: rgba(12, 24, 38, .88); border: 1px solid rgba(217, 179, 106, .5); }
+.mode-duel .dl-card.theirs { padding: 10px 10px 10px 16px; }
+.mode-duel .dl-av { flex: none; width: 56px; height: 56px; border-radius: 50%; background: #1f3a52; border: 2px solid var(--gold); display: flex; align-items: center; justify-content: center; font-family: var(--f-title); font-weight: 800; font-size: 22px; color: var(--gold-l); }
+.mode-duel .theirs .dl-av { background: #3d2222; border-color: #c6705f; color: #f3b1a6; }
+.mode-duel .dl-card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.mode-duel .dl-card-row { display: flex; justify-content: space-between; gap: 8px; }
+.mode-duel .dl-name { font-family: var(--f-title); font-weight: 700; font-size: 15px; color: var(--gold-l); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mode-duel .theirs .dl-name { color: #f3b1a6; }
+.mode-duel .dl-weapon { font-size: 13px; color: var(--hud-muted); white-space: nowrap; }
+.mode-duel .dl-bar { height: 10px; border-radius: 5px; background: rgba(255, 255, 255, .12); overflow: hidden; display: flex; }
+.mode-duel .theirs .dl-bar { justify-content: flex-end; }
+.mode-duel .dl-bar-fill { height: 100%; background: var(--good); transition: width .3s ease; }
+.mode-duel .theirs .dl-bar-fill { background: var(--bad); }
+.mode-duel .dl-sub { font-size: 13px; color: var(--hud-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mode-duel .theirs .dl-sub { text-align: right; }
+
+.mode-duel .dl-track { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 14px; background: rgba(12, 24, 38, .88); border: 1px solid rgba(217, 179, 106, .5); }
+.mode-duel .dl-track-h { font-family: var(--f-title); font-weight: 700; font-size: 12px; letter-spacing: .2em; color: var(--hud-muted); white-space: nowrap; }
+.mode-duel .dl-cells { display: flex; align-items: center; gap: 5px; }
+.mode-duel .dl-rail { font-family: var(--f-title); font-weight: 700; font-size: 12px; color: var(--hud-muted); padding: 2px 4px; border-radius: 4px; transition: background .2s, color .2s; }
+.mode-duel .dl-rail.off { background: var(--gold-l); color: #2a1c0a; animation: dl-blink .5s ease-in-out 4; }
+.mode-duel .dl-cell { width: 30px; height: 16px; border-radius: 3px; background: rgba(255, 255, 255, .12); transition: background .25s, transform .25s; }
+.mode-duel .dl-cell.ours { background: rgba(127, 191, 122, .55); }
+.mode-duel .dl-cell.theirs { background: var(--bad); }
+.mode-duel .dl-cell.here { background: var(--gold-l); transform: scaleY(1.35); box-shadow: 0 0 10px rgba(240, 215, 154, .7); }
+
+/* ---------- controls: PARRY (dock-steer) and STRIKE (dock-act) ---------- */
+.mode-duel .dl-col { display: flex; flex-direction: column; gap: 10px; }
+.mode-duel .dl-strike { align-items: flex-end; }
+#ui.steer-right .mode-duel .dl-strike { align-items: flex-start; }
+#ui.steer-right .mode-duel .dl-parry { align-items: flex-end; }
+.mode-duel .dl-col-h { font-family: var(--f-title); font-weight: 700; font-size: 12px; letter-spacing: .2em; color: var(--btn-text); padding: 0 4px; text-shadow: 0 1px 3px rgba(0, 0, 0, .7); transition: color .15s; }
+.mode-duel .dl-btn { position: relative; height: 92px; border-radius: 14px; display: flex; align-items: center; justify-content: center; gap: 12px; font-family: var(--f-title); touch-action: none; }
+.mode-duel .dl-pbtn { width: 172px; background: rgba(12, 24, 38, .88); border: 2px solid rgba(217, 179, 106, .6); font-weight: 700; font-size: 19px; color: var(--gold-l); }
+.mode-duel .dl-pbtn.hint { box-shadow: 0 0 0 3px rgba(255, 176, 64, .75), 0 0 22px rgba(255, 150, 40, .6); animation: dl-pulse .55s ease-in-out infinite alternate; }
+.mode-duel .dl-pbtn.guard { background: var(--gold-l); color: #2a1c0a; }
+.mode-duel .dl-sbtn { width: 192px; background: var(--gold-grad); box-shadow: var(--gold-shadow); font-weight: 800; font-size: 20px; color: #2a1c0a; }
+.mode-duel .dl-sbtn.counter { background: linear-gradient(180deg, #fff1b8, #f2b640); box-shadow: inset 0 1px 0 #fff8dc, 0 3px 0 #7d5a24, 0 0 0 3px #fff3c4, 0 0 26px rgba(255, 214, 90, .95); animation: dl-pulse .3s ease-in-out infinite alternate; }
+.mode-duel .dl-btn.pressed { transform: scale(.94); }
+.mode-duel .dl-btn[disabled] { opacity: .5; filter: grayscale(.6); }
+.mode-duel .dl-hicon { display: inline-flex; flex-direction: column; gap: 3px; }
+.mode-duel .dl-hicon i { display: block; width: 18px; height: 5px; border-radius: 2px; background: currentColor; opacity: .25; }
+.mode-duel .dl-hicon i.on { opacity: 1; }
+
+/* ---------- centre tip ---------- */
+.mode-duel .dl-tip { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); max-width: 640px; padding: 12px 22px; border-radius: 14px; background: rgba(12, 24, 38, .9); border: 1px solid rgba(217, 179, 106, .5);
+  font-family: var(--f-body); font-style: italic; font-size: 19px; line-height: 1.25; color: var(--cream); text-align: center; white-space: normal; }
+.mode-duel .dl-tip.bump { animation: dl-bump .25s ease-out; }
+
+/* ---------- telegraph (glowing height marker on the enemy) ---------- */
+.mode-duel .dl-tele { position: absolute; left: 0; top: 0; width: 0; height: 0; opacity: 0; pointer-events: none; transition: opacity .12s; --p: 0; }
+.mode-duel .dl-tele.on { opacity: 1; }
+.mode-duel .dl-tele-orb { position: absolute; left: -26px; top: -26px; width: 52px; height: 52px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 240, 180, .95) 0 22%, rgba(255, 160, 50, .8) 40%, rgba(255, 120, 30, 0) 70%);
+  box-shadow: 0 0 calc(10px + var(--p) * 26px) rgba(255, 150, 40, .9); transform: scale(calc(.75 + var(--p) * .55)); animation: dl-pulse .28s ease-in-out infinite alternate; }
+.mode-duel .dl-tele-txt { position: absolute; left: 30px; top: -15px; padding: 3px 10px; border-radius: 8px; background: rgba(40, 16, 6, .85); border: 1px solid #ffb04a;
+  font-family: var(--f-title); font-weight: 800; font-size: 16px; letter-spacing: .08em; color: #ffd98a; white-space: nowrap; }
+.mode-duel .dl-tele.feint .dl-tele-txt { background: #7a1f12; color: #fff; }
+.mode-duel .dl-tele.swing .dl-tele-orb { background: radial-gradient(circle, #fff 0 30%, rgba(255, 90, 40, .9) 50%, rgba(255, 60, 20, 0) 72%); }
+
+/* ---------- counter window tag ---------- */
+.mode-duel .dl-open { position: absolute; left: 0; top: 0; width: 0; height: 0; opacity: 0; pointer-events: none; }
+.mode-duel .dl-open.on { opacity: 1; }
+.mode-duel .dl-open > span { position: absolute; left: -60px; top: -40px; width: 120px; text-align: center; font-family: var(--f-title); font-weight: 800; font-size: 24px; color: #fff3c4;
+  text-shadow: 0 0 12px rgba(255, 200, 60, .95), 0 2px 0 #7d5a24; animation: dl-pulse .3s ease-in-out infinite alternate; }
+.mode-duel .dl-open-bar { position: absolute; left: -50px; top: -6px; width: 100px; height: 8px; border-radius: 4px; background: rgba(0, 0, 0, .45); overflow: hidden; }
+.mode-duel .dl-open-bar > div { height: 100%; width: 100%; background: #ffd15a; box-shadow: 0 0 8px #ffd15a; }
+
+/* ---------- pop words & flashes ---------- */
+.mode-duel .dl-pops { position: absolute; inset: 0; pointer-events: none; }
+.mode-duel .dl-pop { position: absolute; transform: translate(-50%, -50%); font-family: var(--f-title); font-weight: 800; font-size: 28px; color: #fff; white-space: nowrap;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, .55), 0 0 14px rgba(0, 0, 0, .5); animation: dl-pop .95s ease-out forwards; }
+.mode-duel .dl-pop.good { color: #ffe08a; }
+.mode-duel .dl-pop.bad { color: #ffb2a4; }
+.mode-duel .dl-pop.warn { color: #cfe3ff; font-size: 22px; }
+.mode-duel .dl-flash { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
+.mode-duel .dl-flash.bad { background: radial-gradient(ellipse at center, rgba(208, 104, 90, 0) 45%, rgba(208, 70, 50, .5) 100%); animation: dl-flash .45s ease-out; }
+.mode-duel .dl-flash.good { background: radial-gradient(ellipse at center, rgba(255, 220, 120, 0) 50%, rgba(255, 210, 90, .35) 100%); animation: dl-flash .35s ease-out; }
+
+/* ---------- overlay: weapon choice, reveal, result ---------- */
+.mode-duel .dl-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(8, 16, 26, .55); pointer-events: auto; z-index: 5; }
+.mode-duel .dl-overlay.gone { display: none; }
+.mode-duel .dl-choose { width: 860px; }
+.mode-duel .dl-choose-in { padding: 22px 26px 24px; display: flex; flex-direction: column; gap: 8px; }
+.mode-duel .dl-ch-h { font-family: var(--f-title); font-weight: 800; font-size: 28px; }
+.mode-duel .dl-ch-sub { font-family: var(--f-body); font-style: italic; font-size: 18px; color: var(--ink-m); }
+.mode-duel .dl-tiles { margin-top: 10px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.mode-duel .dl-tile { min-height: 290px; padding: 12px 14px 14px; border-radius: 10px; background: rgba(255, 255, 255, .45); border: 2px solid rgba(58, 44, 28, .35); display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--ink); }
+.mode-duel .dl-tile.pressed { background: #3a2c1c; color: #f3e6c6; }
+.mode-duel .dl-tile-art { width: 110px; height: 118px; }
+.mode-duel .dl-tile-name { font-family: var(--f-title); font-weight: 800; font-size: 24px; }
+.mode-duel .dl-tile-note { font-family: var(--f-hud); font-weight: 700; font-size: 15px; color: var(--ink-label); }
+.mode-duel .dl-tile.pressed .dl-tile-note { color: #e2cfa6; }
+.mode-duel .dl-pips { display: flex; flex-direction: column; gap: 4px; margin: 6px 0 4px; }
+.mode-duel .dl-pip-row { display: grid; grid-template-columns: 56px auto; align-items: center; gap: 6px; font-family: var(--f-hud); font-size: 14px; }
+.mode-duel .dl-pip-dots { display: flex; gap: 5px; }
+.mode-duel .dl-pip-dots i { width: 22px; height: 9px; border-radius: 3px; background: rgba(58, 44, 28, .18); }
+.mode-duel .dl-pip-dots i.on { background: #b8863c; }
+.mode-duel .dl-tile-blurb { font-family: var(--f-body); font-size: 15px; line-height: 1.3; text-align: center; color: var(--ink-s); }
+.mode-duel .dl-tile.pressed .dl-tile-blurb { color: #e2cfa6; }
+
+.mode-duel .dl-reveal { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 26px 48px; border-radius: 16px; background: rgba(12, 24, 38, .9); border: 1px solid var(--gold); animation: dl-bump .3s ease-out; }
+.mode-duel .dl-rev-line { font-family: var(--f-body); font-size: 22px; color: var(--cream); }
+.mode-duel .dl-rev-line.enemy { color: #f3b1a6; opacity: 0; animation: dl-in .3s ease-out .5s forwards; }
+.mode-duel .dl-rev-big { font-family: var(--f-title); font-weight: 800; font-size: 54px; color: var(--gold-l); text-shadow: 0 3px 0 #6b4c1e; opacity: 0; animation: dl-in .35s ease-out 1.05s forwards; }
+
+.mode-duel .dl-result { width: 560px; }
+.mode-duel .dl-result-in { padding: 24px 30px; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+.mode-duel .dl-res-h { font-family: var(--f-title); font-weight: 800; font-size: 40px; }
+.mode-duel .dl-res-h.won { color: #7a5214; }
+.mode-duel .dl-res-h.lost { color: #6e2a20; }
+.mode-duel .dl-res-t { font-family: var(--f-body); font-size: 20px; line-height: 1.4; color: #4a3a26; }
+.mode-duel .dl-res-stats { display: flex; gap: 22px; font-family: var(--f-hud); font-size: 15px; color: var(--ink-m); }
+.mode-duel .dl-res-stats b { font-size: 18px; color: var(--ink); }
+.mode-duel .dl-res-go { margin-top: 6px; min-width: 240px; }
+
+@keyframes dl-pulse { from { filter: brightness(1); } to { filter: brightness(1.25); } }
+@keyframes dl-bump { from { transform: translateX(-50%) scale(.94); } to { transform: translateX(-50%) scale(1); } }
+.mode-duel .dl-reveal { animation-name: dl-rev; }
+@keyframes dl-rev { from { transform: scale(.9); } to { transform: none; } }
+@keyframes dl-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes dl-pop { 0% { opacity: 0; transform: translate(-50%, -30%) scale(.7); } 15% { opacity: 1; transform: translate(-50%, -60%) scale(1.15); } 100% { opacity: 0; transform: translate(-50%, -160%) scale(1); } }
+@keyframes dl-flash { from { opacity: 1; } to { opacity: 0; } }
+@keyframes dl-blink { 50% { background: transparent; color: var(--gold-l); } }
+.mode-duel .dl-top { right: calc(var(--tap) + 32px); }

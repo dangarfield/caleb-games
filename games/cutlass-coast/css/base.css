@@ -1,0 +1,216 @@
+/* base.css — tokens, stage, shared components. Mode styles live in css/<mode>.css. */
+:root {
+  --navy: #10202f;
+  --navy-2: #1f3a52;
+  --glass: rgba(12, 24, 38, .84);
+  --glass-strong: rgba(12, 24, 38, .9);
+  --gold: #d9b36a;
+  --gold-l: #f0d79a;
+  --gold-line: rgba(217, 179, 106, .45);
+  --parch-a: #f4ebd4;
+  --parch-b: #e2cfa6;
+  --ink: #3a2c1c;
+  --ink-m: #6b5638;
+  --ink-s: #5b4830;
+  --ink-label: #7a5f3a;
+  --good: #7fbf7a;
+  --bad: #d0685a;
+  --warn-ink: #6e2a20;
+  --cream: #efe6d2;
+  --hud-text: #c4ccd6;
+  --hud-muted: #a9b4c2;
+  --btn-text: #d8cdb4;
+  --f-title: 'Cinzel', 'Times New Roman', serif;
+  --f-body: 'EB Garamond', Georgia, serif;
+  --f-hud: 'Alegreya Sans', 'Trebuchet MS', sans-serif;
+  /* touch targets (Dan: bigger than spec) */
+  --tap: 64px;
+  --tap-primary: 76px;
+  --tap-steer: 100px;
+  --tap-fire: 120px;
+  --gold-grad: linear-gradient(180deg, #e9c77f, #c3964a);
+  --gold-shadow: inset 0 1px 0 #fbe6b4, 0 3px 0 #7d5a24;
+  --frame-shadow: inset 0 0 0 4px #10202f, inset 0 0 0 5px rgba(217, 179, 106, .25), 0 20px 50px rgba(0, 0, 0, .5);
+}
+#ui.btn-large { --tap: 76px; --tap-primary: 88px; --tap-steer: 116px; --tap-fire: 140px; }
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; height: 100%; overflow: hidden; background: #0d1a28; color: var(--cream);
+  font-family: var(--f-hud); -webkit-font-smoothing: antialiased;
+  touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent; overscroll-behavior: none;
+}
+#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; touch-action: none; }
+#ui { position: fixed; inset: 0; z-index: 10; pointer-events: none; overflow: hidden; }
+#stage { position: absolute; left: 0; top: 0; width: 1333px; height: 690px; transform-origin: 0 0; pointer-events: none; }
+.mode { position: absolute; inset: 0; pointer-events: none; }
+
+/* anything a finger can use opts back in to pointer events */
+button, a, input, select, [data-tap], .gold-btn, .navy-btn, .ink-btn,
+.panel, .parchment, .navy-frame, .toast, .dialog-back, .interactive, .blocker { pointer-events: auto; }
+
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; -webkit-appearance: none; appearance: none; }
+[data-tap] { cursor: pointer; transition: transform 100ms ease, filter 100ms ease; }
+[data-tap].pressed { transform: scale(.96); }
+[data-tap]:active { transform: scale(.96); }
+[disabled] { filter: grayscale(.8); opacity: .45; pointer-events: none; }
+
+/* ---------- buttons ---------- */
+.gold-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: var(--tap-primary); min-width: var(--tap-primary); padding: 0 30px; border-radius: 10px;
+  background: var(--gold-grad); box-shadow: var(--gold-shadow);
+  font-family: var(--f-title); font-weight: 800; font-size: 19px; letter-spacing: .04em; color: #2a1c0a; white-space: nowrap;
+}
+.gold-btn.sm, .navy-btn.sm, .ink-btn.sm { min-height: var(--tap); padding: 0 20px; font-size: 16px; }
+.navy-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: var(--tap); min-width: var(--tap); padding: 0 22px; border-radius: 12px;
+  background: rgba(12, 24, 38, .86); border: 1px solid var(--gold-line);
+  font-family: var(--f-title); font-weight: 700; font-size: 16px; color: var(--btn-text); white-space: nowrap;
+}
+.ink-btn { /* outline button on parchment */
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: var(--tap); min-width: var(--tap); padding: 0 24px; border-radius: 10px;
+  border: 1px solid rgba(58, 44, 28, .45); background: transparent;
+  font-family: var(--f-title); font-weight: 700; font-size: 16px; color: var(--ink); white-space: nowrap;
+}
+.menu-btn {
+  position: absolute; right: 16px; top: 16px; width: var(--tap); height: var(--tap); border-radius: 14px;
+  background: var(--glass); border: 1px solid var(--gold-line);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+}
+.menu-btn span { width: 24px; height: 3px; border-radius: 2px; background: var(--gold-l); }
+
+/* ---------- frames & panels ---------- */
+.navy-frame { padding: 10px; border-radius: 12px; background: var(--navy); border: 1px solid rgba(217, 179, 106, .6); box-shadow: var(--frame-shadow); }
+.navy-frame > .parchment { height: 100%; }
+.parchment {
+  border-radius: 6px; background: radial-gradient(ellipse at 50% 35%, var(--parch-a), var(--parch-b));
+  box-shadow: inset 0 0 44px rgba(120, 80, 30, .26); color: var(--ink); font-family: var(--f-body);
+}
+.glass { background: var(--glass); border: 1px solid var(--gold-line); border-radius: 12px; color: var(--cream); }
+.label-caps { font-family: var(--f-title); font-weight: 700; font-size: 12px; letter-spacing: .2em; color: var(--ink-label); }
+.warn-box { padding: 12px 16px; border-radius: 6px; background: rgba(154, 58, 46, .1); border: 1px solid rgba(154, 58, 46, .35); font-family: var(--f-hud); font-size: 15px; line-height: 1.35; color: var(--warn-ink); }
+.flag-sm { display: inline-block; width: 20px; height: 13px; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0, 0, 0, .2); flex: none; }
+
+/* ---------- chips & bars ---------- */
+.chip { height: 48px; display: inline-flex; align-items: center; gap: 8px; padding: 0 14px; border-radius: 24px; background: var(--glass); border: 1px solid var(--gold-line); }
+.chip[data-tap] { min-height: var(--tap); border-radius: 32px; }
+.chip-dot { width: 10px; height: 10px; transform: rotate(45deg); }
+.chip-v { font-weight: 800; font-size: 17px; color: var(--cream); }
+.chip-k { font-size: 13px; color: var(--hud-muted); }
+.bar-row { display: grid; grid-template-columns: 52px minmax(0, 1fr) 40px; align-items: center; gap: 8px; }
+.bar-k { font-size: 13px; color: var(--hud-muted); }
+.bar-v { font-weight: 800; font-size: 14px; color: var(--cream); text-align: right; }
+.bar { height: 10px; border-radius: 5px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 5px; transition: width .25s ease; }
+.bar-row.on-parchment .bar { background: rgba(58, 44, 28, .15); }
+.bar-row.on-parchment .bar-k { color: var(--ink-m); }
+.bar-row.on-parchment .bar-v { color: var(--ink); }
+
+/* ---------- segmented picker (settings, new-career) ---------- */
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); border-radius: 8px; border: 1px solid rgba(58, 44, 28, .45); overflow: hidden; }
+.seg-opt { min-height: var(--tap); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 4px 6px;
+  background: rgba(255, 255, 255, .35); color: var(--ink); border-right: 1px solid rgba(58, 44, 28, .2); }
+.seg-opt:last-child { border-right: 0; }
+.seg-opt.on { background: #3a2c1c; color: #f3e6c6; }
+.seg-name { font-family: var(--f-body); font-weight: 600; font-size: 17px; line-height: 1.1; }
+.seg-note { font-family: var(--f-hud); font-size: 12px; opacity: .8; }
+
+/* ---------- toasts, captions, dialogs ---------- */
+.toast-layer { position: absolute; left: 50%; bottom: 112px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 10px; z-index: 30; pointer-events: none; }
+.toast { display: flex; align-items: center; gap: 14px; padding: 10px 10px 10px 20px; min-height: 64px; border-radius: 14px; background: var(--glass-strong); border: 1px solid var(--gold);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .4); animation: toast-in .2s ease-out; transition: opacity .2s, transform .2s; max-width: 900px; }
+.toast:not(:has(button)) { padding: 12px 22px; }
+.toast.out { opacity: 0; transform: translateY(8px); }
+.toast-text { display: flex; flex-direction: column; }
+.toast-title { font-family: var(--f-title); font-weight: 700; font-size: 16px; color: var(--gold-l); }
+.toast-sub { font-size: 14px; color: var(--hud-text); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.caption-layer { position: absolute; left: 50%; top: 88px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; z-index: 31; pointer-events: none; }
+.caption { padding: 4px 14px; border-radius: 8px; background: rgba(0, 0, 0, .62); color: #fff; font-family: var(--f-hud); font-weight: 700; font-size: 15px; transition: opacity .25s; }
+.caption::before { content: '['; opacity: .6; } .caption::after { content: ']'; opacity: .6; }
+.caption.out { opacity: 0; }
+.dialog-back { position: absolute; inset: 0; z-index: 40; background: rgba(8, 16, 26, .72); display: flex; align-items: center; justify-content: center; }
+.dialog { width: 580px; }
+.dialog .parchment { padding: 24px 28px; display: flex; flex-direction: column; gap: 14px; }
+.dialog-title { font-family: var(--f-title); font-weight: 800; font-size: 24px; }
+.dialog-text { font-size: 18px; line-height: 1.4; color: #4a3a26; }
+.dialog-btns { display: flex; justify-content: flex-end; gap: 12px; margin-top: 6px; }
+
+/* ---------- HUD docking helpers (mirrored by Settings → which hand steers) ---------- */
+.dock-steer { position: absolute; left: 24px; bottom: 24px; display: flex; align-items: flex-end; gap: 14px; }
+.dock-act { position: absolute; right: 24px; bottom: 24px; display: flex; align-items: flex-end; gap: 12px; }
+#ui.steer-right .dock-steer { left: auto; right: 24px; flex-direction: row-reverse; }
+#ui.steer-right .dock-act { right: auto; left: 24px; flex-direction: row-reverse; }
+
+/* ---------- the arcade back button (top-left zone ~150×70 is reserved for it in every mode) ---------- */
+#backBtn {
+  position: fixed; left: 12px; top: 4px; z-index: 100; height: 64px; padding: 0 20px; border-radius: 32px;
+  display: flex; align-items: center; gap: 8px; text-decoration: none; pointer-events: auto;
+  background: rgba(12, 24, 38, .55); border: 1px solid rgba(217, 179, 106, .35);
+  font-family: var(--f-hud); font-weight: 700; font-size: 17px; color: var(--btn-text); touch-action: manipulation;
+  transition: transform 100ms ease;
+}
+#backBtn:active { transform: scale(.96); }
+
+/* ---------- placeholder card used by stub modes ---------- */
+
+/* visible (thin) scrollbars on parchment lists — WebKit */
+#stage ::-webkit-scrollbar { width: 8px; }
+#stage ::-webkit-scrollbar-track { background: rgba(58, 44, 28, .10); border-radius: 4px; }
+#stage ::-webkit-scrollbar-thumb { background: #a57a48; border-radius: 4px; }
+/* no long-press callouts / text selection on game controls (iPad + Chrome touch) */
+#stage, #stage * { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+/* ---- one header height: back button, resource chips, menu / log buttons all sit at top 16 and are var(--tap) tall ---- */
+#backBtn { top: 16px; height: 64px; }
+.chip { height: var(--tap); border-radius: calc(var(--tap) / 2); padding: 0 16px; }
+.menu-btn { top: 16px; height: var(--tap); }
+/* ---- header, slimmer (Dan: too tall): everything on the top row is 48px ---- */
+:root { --hdr: 48px; }
+#backBtn { top: 16px; height: var(--hdr); padding: 0 16px; border-radius: calc(var(--hdr) / 2); font-size: 16px; }
+.chip { height: var(--hdr); border-radius: calc(var(--hdr) / 2); padding: 0 14px; }
+.menu-btn { top: 16px; width: var(--hdr); height: var(--hdr); border-radius: 12px; gap: 4px; }
+.menu-btn span { width: 20px; }
+/* notifications: top centre, just under the header (was bottom centre over the controls) */
+.toast-layer { top: 84px; bottom: auto; }
+.toast.out { transform: translateY(-8px); }
+body[data-mode="battle"] .toast-layer { top: 190px; }   /* under the ship-vs-ship bars and the tip line */
+body[data-mode="duel"] .toast-layer { top: 200px; }
+body[data-mode="treasure"] .toast-layer { top: 104px; }
+/* sound captions move to the bottom centre so they never sit under a notification */
+.caption-layer { top: auto; bottom: 118px; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
+/* one close button everywhere: a ✕ in a square, same size in every panel */
+.x-btn { width: 56px; height: 56px; flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 12px; padding: 0;
+  font-size: 24px; line-height: 1; font-weight: 700; color: var(--ink, #3a2c1c); background: rgba(255, 255, 255, .35); border: 1px solid rgba(58, 44, 28, .45);
+  transition: transform 100ms; }
+.x-btn.pressed { transform: scale(.94); }
+.x-btn.lg-close { color: var(--gold-l); background: var(--glass); border-color: var(--gold-line); }
+
+/* ---------- illustrations ---------- */
+.pic { display: block; object-fit: cover; object-position: 50% 18%; user-select: none; -webkit-user-drag: none; pointer-events: none; }
+.toast.moment { flex-direction: column; align-items: stretch; gap: 0; padding: 0; width: 460px; overflow: hidden; pointer-events: auto; cursor: pointer; }
+.toast.moment .moment-pic { width: 100%; aspect-ratio: 16 / 10; background: #10202f center 25% / cover no-repeat; }
+.toast.moment .toast-text { padding: 12px 18px 14px; }
+.toast.moment .toast-title { font-size: 20px; }
+.toast.moment .toast-sub { font-size: 15px; line-height: 1.35; }
+
+/* ---------- opening story (js/story.js) ---------- */
+.st-back { position: absolute; inset: 0; z-index: 25; display: flex; align-items: center; justify-content: center; background: rgba(8, 16, 26, .82); }
+.st-frame { width: 1000px; }
+.st-in { display: flex; flex-direction: column; }
+.st-pic { height: 450px; border-radius: 8px 8px 0 0; background: #10202f center / cover no-repeat; }
+.st-pic.in { animation: st-in .6s ease-out; }
+@keyframes st-in { from { opacity: .2; transform: scale(1.03); } to { opacity: 1; transform: none; } }
+.st-cap { border-radius: 0 0 8px 8px; padding: 16px 24px; display: flex; flex-direction: column; gap: 10px; }
+.st-text { font-family: var(--f-body); font-size: 20px; line-height: 1.4; color: #3a2c1c; min-height: 56px; }
+.st-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.st-dots { display: flex; gap: 8px; }
+.st-dots span { width: 12px; height: 12px; border-radius: 50%; background: rgba(58, 44, 28, .25); }
+.st-dots span.on { background: #a3782f; }
+.st-btns { display: flex; gap: 12px; }
+.st-next { min-width: 170px; }
+.st-skip { min-width: 110px; }

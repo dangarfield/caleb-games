@@ -1,0 +1,63 @@
+/* title.css — 1a Choose captain / New career */
+.mode-title .title-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(10, 20, 32, .97) 0%, rgba(10, 20, 32, .8) 36%, rgba(10, 20, 32, .3) 100%); }
+.mode-title .title-shade.no-3d { background: linear-gradient(90deg, rgba(10, 20, 32, .97) 0%, rgba(10, 20, 32, .8) 36%, rgba(10, 20, 32, .3) 100%), linear-gradient(180deg, #2b3d5c 0%, #c0714a 55%, #1f4f63 56%, #0f2a3a 100%); }
+.mode-title .title-hero { position: absolute; left: 56px; top: 150px; width: 390px; display: flex; flex-direction: column; gap: 18px; }
+.mode-title .title-kicker { font-family: var(--f-title); font-weight: 700; font-size: 12px; letter-spacing: .3em; color: var(--gold); }
+.mode-title .title-name { margin: 0; font-family: var(--f-title); font-weight: 800; font-size: 68px; line-height: .95; color: var(--gold-l); text-shadow: 0 3px 0 #6b4c1e, 0 12px 30px rgba(0, 0, 0, .6); }
+.mode-title .title-rule { width: 80px; height: 2px; background: var(--gold); }
+.mode-title .title-blurb { margin: 0; font-family: var(--f-body); font-size: 19px; line-height: 1.45; color: #e6dcc6; }
+
+.mode-title .title-panel { position: absolute; right: 32px; top: 28px; width: 812px; height: 634px; padding: 12px; }
+.mode-title .title-parch { padding: 18px 24px; display: flex; flex-direction: column; gap: 14px; }
+.mode-title .title-head { display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1px solid rgba(58, 44, 28, .25); padding-bottom: 8px; }
+.mode-title .title-h2 { font-family: var(--f-title); font-weight: 800; font-size: 26px; }
+.mode-title .title-sub { font-family: var(--f-body); font-style: italic; font-size: 17px; color: var(--ink-m); }
+
+/* captain cards */
+.mode-title .captain-grid { flex: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; min-height: 0; }
+.mode-title .captain-card { display: flex; flex-direction: column; gap: 12px; padding: 14px; border-radius: 8px; background: rgba(255, 255, 255, .4); border: 1px solid rgba(58, 44, 28, .3); }
+.mode-title .cc-top { display: flex; gap: 14px; }
+.mode-title .cc-portrait { flex: none; width: 120px; height: 150px; border-radius: 6px; overflow: hidden; border: 1px solid rgba(58, 44, 28, .35); }
+.mode-title .cc-id { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.mode-title .cc-name { font-family: var(--f-title); font-weight: 800; font-size: 32px; line-height: 1; }
+.mode-title .cc-rank { font-family: var(--f-body); font-style: italic; font-size: 16px; color: var(--ink-s); }
+.mode-title .cc-age { margin-top: auto; display: flex; flex-direction: column; gap: 5px; }
+.mode-title .cc-age-row { display: flex; justify-content: space-between; font-family: var(--f-hud); font-size: 14px; color: var(--ink-m); }
+.mode-title .cc-age-bar { height: 10px; border-radius: 5px; background: rgba(58, 44, 28, .15); overflow: hidden; }
+.mode-title .cc-age-bar > div { height: 100%; border-radius: 5px; }
+.mode-title .cc-age-note { font-family: var(--f-hud); font-size: 12px; color: var(--ink-m); }
+.mode-title .cc-stats { display: flex; flex-direction: column; border-top: 1px solid rgba(58, 44, 28, .2); }
+.mode-title .cc-stat { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 7px 0; border-bottom: 1px solid rgba(58, 44, 28, .12); }
+.mode-title .cc-stat span { font-family: var(--f-hud); font-size: 15px; color: var(--ink-m); white-space: nowrap; }
+.mode-title .cc-stat b { font-family: var(--f-body); font-weight: 600; font-size: 17px; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mode-title .cc-btns { margin-top: auto; display: flex; gap: 10px; }
+.mode-title .cc-continue { flex: 1.4; font-size: 18px; padding: 0 12px; }
+.mode-title .cc-new { flex: 1; min-height: var(--tap-primary); font-size: 15px; padding: 0 12px; }
+
+/* new career */
+.mode-title .nc-head { display: flex; align-items: center; gap: 14px; border-bottom: 1px solid rgba(58, 44, 28, .25); padding-bottom: 10px; }
+.mode-title .nc-back { width: var(--tap); padding: 0; font-size: 24px; }
+.mode-title .nc-row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.mode-title .nc-group { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.mode-title .nc-seg .seg-opt { min-height: 72px; }
+.mode-title .nc-seg .seg-name { font-size: 15px; }
+.mode-title .nc-tiles { border: 0; border-radius: 0; gap: 8px; overflow: visible; }
+.mode-title .nc-tiles .seg-opt { min-height: var(--tap-primary); align-items: flex-start; padding: 0 12px; border-radius: 6px; border: 1px solid rgba(58, 44, 28, .3); }
+.mode-title .nc-foot { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-top: 1px solid rgba(58, 44, 28, .25); padding-top: 12px; }
+.mode-title .nc-tip { font-family: var(--f-body); font-style: italic; font-size: 17px; color: var(--ink-s); }
+.mode-title .nc-go { flex: none; padding: 0 40px; font-size: 21px; letter-spacing: .08em; }
+.mode-title .nc-summary { padding: 14px 18px; border-radius: 6px; background: rgba(58, 44, 28, .08); border: 1px dashed rgba(58, 44, 28, .35); display: flex; flex-direction: column; gap: 6px; }
+.mode-title .nc-summary p { margin: 0; font-family: var(--f-body); font-size: 18px; line-height: 1.4; color: #4a3a26; }
+.mode-title .nc-row2 { grid-template-columns: 1fr; } /* just "Sail for" now — one difficulty only */
+
+/* waving nation flags + skill icons on the new-career page */
+.mode-title .nc-nation .seg-opt { min-height: 104px; gap: 4px; }
+.mode-title .nc-flag { width: 98px; height: 68px; display: block; }
+.mode-title .nc-nation .seg-icon, .mode-title .nc-tiles .seg-icon { display: block; line-height: 0; }
+.mode-title .nc-tiles .seg-opt { display: grid; grid-template-columns: 34px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 10px; align-content: center; }
+.mode-title .nc-tiles .seg-icon { grid-row: 1 / span 2; align-self: center; }
+.mode-title .nc-skill-ic { width: 34px; height: 34px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: .85; }
+.mode-title .nc-tiles .seg-opt.on .nc-skill-ic { stroke: var(--gold-l); opacity: 1; }
+.mode-title .nc-tiles .seg-opt { padding: 0 10px; column-gap: 9px; }
+.mode-title .nc-tiles .seg-name, .mode-title .nc-tiles .seg-note { justify-self: start; text-align: left; white-space: nowrap; }
+.mode-title .nc-tiles .seg-name { font-size: 17px; }
