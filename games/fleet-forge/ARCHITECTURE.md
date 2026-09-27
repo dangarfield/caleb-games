@@ -91,6 +91,12 @@ A tap requires press and release in the same rect **and** no drag, so flicking a
 list never also selects a row.
 
 ### `data.js`
+**Art loads on demand, retries, and never poisons its own cache.** `img()`
+queues at most 4 requests at a time, retries a failure 3 times with backoff and
+a cache-busting suffix, watchdogs a stalled request after 15s, and when it does
+give up marks the path dead for only 30s (hard cap 9 attempts) so a transient
+failure heals itself. A caller gets an Image that may not be loaded yet, or
+`null`, and draws its own fallback either way — nothing here blocks.
 `Data.load(cb,fail)` once at boot. Then `Data.ships`, `Data.modules`,
 `Data.shipList`, `Data.ship(key)`, `Data.module(key)`,
 `Data.shipImg(ship)`, `Data.moduleImg(mod)` (may return null — draw the tint),

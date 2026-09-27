@@ -97,17 +97,93 @@ var Data = (function () {
   /* Ship and module art. The file is named after the key — there is no slug
      table any more — and the extension is whatever the copy tool recorded when
      it wrote that data file, so `--png` runs work without a code change.
-     Never blocks: a module with no image draws as its category tint. */
+     Never blocks: a module with no image draws as its category tint.
+
+     ONE FAILED REQUEST USED TO BLANK A HULL FOR THE WHOLE SESSION. `onerror`
+     wrote `null` into the cache and nothing ever cleared it, so a dropped
+     connection, a decode that lost a race with memory pressure, or a browser
+     that simply gave up on one of 56 images left that ship drawing as an empty
+     grid until the page was reloaded — and reloading fixed it, which is what
+     makes it look like bad art rather than a bad load.
+
+     So a failed load is retried, three times, backing off 0.4s / 1.2s / 3s,
+     with a cache-buster on the retry because a browser will happily serve its
+     own failed response back. After that it is marked dead and the caller
+     draws its fallback, but the mark expires: ask again half a minute later
+     and it tries afresh, up to a hard cap so a genuinely missing file cannot
+     turn into a request every time something is drawn.
+
+     Loading is on demand and stays that way — the hangar asks for the art of
+     the cards it is drawing and nothing else, which measured at four requests
+     in a 250ms burst while walking the whole tier rail. What the queue below
+     adds is a ceiling: at most LOAD_MAX in flight at once, so a tier switch on
+     a slow connection cannot put six 300KB hulls in the air together and have
+     the slowest of them time out. The rest wait their turn. */
   var ART = { ships: 'png', modules: 'webp' };
+
+  var LOAD_MAX = 4;                  /* images in flight at once             */
+  var RETRY_MS = [400, 1200, 3000];  /* backoff between attempts             */
+  var DEAD_FOR = 30000;              /* how long a give-up sticks            */
+  var HARD_CAP = 9;                  /* total attempts, ever, per file       */
+  var STALL_MS = 15000;              /* a request that answers neither way   */
+  var queue = [], inflight = 0, tries = {}, deadAt = {};
+
+  function pump() {
+    while (inflight < LOAD_MAX && queue.length) { inflight++; queue.shift()(); }
+  }
+
+  /* Set `src` and count the request. Both handlers free the slot exactly once,
+     because a slot that leaks is a loader that stops after four images. */
+  function fetchImg(path, im) {
+    var n = tries[path] || 0, freed = false;
+    function free() { if (freed) return; freed = true; inflight--; pump(); }
+
+    /* A REQUEST THAT NEVER ANSWERS IS WORSE THAN ONE THAT FAILS. A stalled
+       connection fires neither handler, so its slot would never come back and
+       four of them would stop every image in the game for good. The watchdog
+       frees the slot and lets the queue move; the Image is left alone, and if
+       it does arrive late it is already in the cache and simply starts
+       drawing. */
+    var watch = setTimeout(free, STALL_MS);
+    function stop() { clearTimeout(watch); }
+
+    im.onload = function () { stop(); free(); };
+    im.onerror = function () {
+      stop();
+      free();
+      tries[path] = n + 1;
+      if (n + 1 < RETRY_MS.length + 1 && n + 1 < HARD_CAP) {
+        /* not a per-frame timer — this fires once per failed image, on a path
+           that is already waiting on the network */
+        setTimeout(function () { queue.push(function () { fetchImg(path, im); }); pump(); },
+                   RETRY_MS[n] || RETRY_MS[RETRY_MS.length - 1]);
+      } else {
+        imgCache[path] = null;       /* the caller draws its own fallback */
+        deadAt[path] = Date.now();
+      }
+    };
+    /* the retry must not be answered from the browser's own failed response */
+    im.src = n ? path + '?r=' + n : path;
+  }
 
   function img(kind, name) {
     if (!name) return null;
     var path = 'images/' + kind + '/' + name + '.' + (ART[kind] || 'webp');
-    if (imgCache[path] !== undefined) return imgCache[path];
+    var had = imgCache[path];
+
+    if (had === null) {
+      /* given up on — but only for a while, and only so many times */
+      if ((tries[path] || 0) >= HARD_CAP) return null;
+      if (Date.now() - (deadAt[path] || 0) < DEAD_FOR) return null;
+      delete imgCache[path];
+      had = undefined;
+    }
+    if (had !== undefined) return had;
+
     var im = new Image();
-    im.onerror = function () { imgCache[path] = null; };
-    im.src = path;
     imgCache[path] = im;
+    queue.push(function () { fetchImg(path, im); });
+    pump();
     return im;
   }
 

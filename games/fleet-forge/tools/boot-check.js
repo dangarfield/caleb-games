@@ -17,7 +17,9 @@ var fs = require('fs'), path = require('path'), vm = require('vm');
 var ROOT = path.join(__dirname, '..');
 
 var sb = { console: console, Math: Math, JSON: JSON, Date: Date, Promise: Promise,
-           Object: Object, Array: Array, String: String, Number: Number };
+           Object: Object, Array: Array, String: String, Number: Number,
+           /* the loader retries and watchdogs failed art, so it needs timers */
+           setTimeout: setTimeout, clearTimeout: clearTimeout };
 sb.global = sb; vm.createContext(sb);
 
 var fetched = [];
@@ -31,11 +33,20 @@ sb.fetch = function (u) {
   });
 };
 
-/* Every `src` the page would set, so each one can be checked against disk. */
+/* Every `src` the page would set, so each one can be checked against disk.
+   THE STUB HAS TO ANSWER. `data.js` holds at most four requests in flight and
+   waits for `onload` before starting the next, so a stub that never calls back
+   would let exactly four images through and the check would pass on a fifth of
+   the art. It reports success on the next tick, like a browser would. */
 var asked = [];
 sb.Image = function () {
-  var o = {};
-  Object.defineProperty(o, 'src', { set: function (v) { asked.push(v); } });
+  var o = { complete: false, naturalWidth: 1 };
+  Object.defineProperty(o, 'src', {
+    set: function (v) {
+      asked.push(v);
+      setTimeout(function () { o.complete = true; if (o.onload) o.onload(); }, 0);
+    }
+  });
   return o;
 };
 
@@ -64,7 +75,14 @@ sb.Data.load(function (D) {
      recorded, so a format change that missed one file shows up here. */
   keys.forEach(function (k) { sb.Data.moduleImg(D.modules[k]); });
   Object.keys(D.ships).forEach(function (k) { sb.Data.shipImg(D.ships[k]); });
-  var missing = asked.filter(function (s) { return !fs.existsSync(path.join(ROOT, s)); });
+
+  /* The queue drains a few at a time, so give it the event loop before asking
+     what it asked for. */
+  setTimeout(function () { rest(D, keys); }, 50);
+});
+
+function rest(D, keys) {
+  var missing = asked.filter(function (s) { return !fs.existsSync(path.join(ROOT, s.split('?')[0])); });
   check('every picture the page asks for exists', missing.length === 0,
         asked.length + ' requested' + (missing.length ? ', missing ' + missing.slice(0, 4).join(', ') : ''));
 
@@ -88,7 +106,4 @@ sb.Data.load(function (D) {
 
   console.log('\n' + (fail ? fail + ' failed' : 'all good'));
   process.exit(fail ? 1 : 0);
-}, function (e) {
-  console.log('  FAIL boot: ' + (e && e.message ? e.message : e));
-  process.exit(1);
-});
+}

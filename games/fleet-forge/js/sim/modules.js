@@ -100,7 +100,16 @@ var SimModules = (function () {
        0.50-0.73 across the roster, a factor of 1.5 — the hull decided and the
        fit barely mattered. It now runs 2.15-9.96, a factor of 4.6, and what
        you bolt on is most of it. */
-    TURN_SCALE: 15, THRUST_SCALE: 1.5, DAMPING: 0.98, STRAFE_FRACTION: 0.3,
+    /* TURN_SCALE: a ship used to come about 180 degrees and be back inside its
+       firing cone in 0.3-0.5s, which is quick enough that nothing could ever
+       catch it pointing the wrong way — a warp put the other ship behind you
+       and it had snapped round before the flash cleared. Measured at a quarter
+       of the old rate (`tools/turn-test.js`), a victim is still 49 degrees off
+       half a second later and 29 degrees off after one, so a warp buys about a
+       second and a half of not being shot at. It costs almost nothing: time in
+       cone across a match falls 99% -> 95%, match length does not move, and no
+       fight times out. */
+    TURN_SCALE: 3.75, THRUST_SCALE: 1.5, DAMPING: 0.98, STRAFE_FRACTION: 0.3,
     FACING_CONE: Math.PI / 4
   };
 
