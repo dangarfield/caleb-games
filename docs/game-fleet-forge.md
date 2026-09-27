@@ -210,6 +210,7 @@ games/fleet-forge/
     make-operations.js  one operation per level, read off that ladder
     progression-test.js drives the unlock tree headlessly
     field-audit.js      catches any code still reading a retired field name
+    turn-test.js        sweeps TURN_SCALE: time to come about, and what it costs
     skill-curve.js      measures what the hidden skill dial is worth
     boot-check.js       runs js/data.js the way the browser does
 ```
@@ -260,6 +261,71 @@ nobody asks to lose when they turn music down in a waiting room. `setMuted` no
 longer touches the cue bus and `play()` no longer early-returns on the flag;
 `muted` now means the music only. Checked headlessly: with mute on the theme
 element sits at volume 0 and a cue still builds its oscillators.
+
+### 2026-09-27 — one failed request blanked a hull for the whole session
+Raven drew as an empty grid once and was fine on a reload, which is the
+signature of a load and not of bad art — all 56 hull files decode, none are
+blank, and Raven renders in hangar, bay and arena.
+
+The cause was `img()` in data.js: `onerror` wrote `null` into the cache and
+nothing ever cleared it, so a single dropped connection — one of 56 images,
+15.9MB of hull art — left that ship blank until the page was reloaded.
+
+Loading was already on demand and stays that way. Measured: entering the
+hangar asks for nothing, walking the whole tier rail asks for 32 of 56, and the
+biggest burst is four images in 250ms. So the fix is not batching, it is the
+error path:
+
+- **Retry**, three times, backing off 0.4s / 1.2s / 3s, with `?r=n` on the
+  retry because a browser will serve its own failed response back.
+- **Give up, but not for ever.** After that it marks the path dead and the
+  caller draws its fallback; the mark expires after 30s, so a later draw tries
+  again. A hard cap of 9 attempts stops a genuinely missing file becoming a
+  request every frame.
+- **A ceiling of four in flight**, so a tier switch on a slow connection cannot
+  put six 300KB hulls in the air at once.
+- **A 15s watchdog**, because a request that answers neither way would never
+  free its slot and four of those would stop every image in the game.
+
+Proved against a deliberately flaky server: with every ship image failing its
+first request, all recovered and none gave up; against one that always fails,
+exactly four requests and then silence — no storm; and when the server healed,
+the dead mark expired and the art came back on its own.
+
+`boot-check.js` needed its Image stub to answer. It never called `onload`, and
+with the loader holding four in flight and waiting, a silent stub would have
+let four images through and passed the art check on a fifth of the roster.
+
+### 2026-09-27 — the turn was four times too fast to be caught out
+A ship came about 180 degrees and was back inside its firing cone in 0.3-0.5s,
+so nothing could ever catch one pointing the wrong way: a warp dropped the
+other ship behind you and it had snapped round before the flash cleared.
+`TURN_SCALE` 15 -> 3.75. Measured, not guessed — `tools/turn-test.js` sweeps the
+dial and reports both halves of the trade:
+
+| slower | come about | in cone | still off target at +0.5s / +1s / +2s |
+|---|---|---|---|
+| x1 (15)    | 0.30-0.52s | 99% | 10° / 2° / 0° |
+| x4 (3.75)  | 1.25-2.12s | 95% | 49° / 29° / 11° |
+| x7.5 (2)   | 2.35-3.98s | 91% | 62° / 46° / 27° |
+
+The cone's half-angle is 22.5°, so at x4 a warp buys about a second and a half
+of not being shot at. It costs almost nothing: match length does not move and
+no fight times out at any setting tested.
+
+Three things the harness turned up on the way:
+- It forced a warp drive into the test fits by evicting whatever was in the
+  way, which on a Hammerhead was its engines — `turnPower: 0`, a ship that
+  cannot turn at all, and every reading came out identical. The dial looked
+  dead when it was the harness building a rudderless ship.
+- Warps are near-mythical in a real match. The cooldown is 5s + cells/6, which
+  is **81s on an Arbiter and 154s on a Kronos** — longer than the fight — and
+  the small hulls that could warp often have no spare device cells for the
+  drive. The harness scripts a warp every 12s rather than waiting for one.
+- A Kronos comes about FASTER than a Light Fighter (0.30s vs 0.43s), because
+  turn is `turnPower * shipTurn / mass` and a capital carries enough engines to
+  outweigh its mass. A capital pirouetting better than a fighter is backwards;
+  left alone, because it is a separate decision.
 
 ### 2026-09-24 — a ship does not die in one bang
 A death was one explosion sheet, one smoke, two spark bursts, all on the hull's
