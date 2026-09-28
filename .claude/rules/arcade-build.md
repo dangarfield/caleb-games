@@ -17,6 +17,7 @@ the *how-to-think* detail (boilerplate, audio recipes, UX patterns) lives in
 ## Touch & viewport
 - Touch-first: `touch-action: none`, pointer events, large tap targets.
 - Viewport meta with `user-scalable=no`.
+- **No long-press menus.** Holding a finger (or the mouse) on a button, card or the canvas must never pop the browser's context menu, the iOS callout, a text-selection handle or an image drag. Every game kills all four: `-webkit-touch-callout:none; user-select:none; -webkit-user-select:none; -webkit-user-drag:none` on `body` (put `user-select:text` back only on real text inputs), and `document.addEventListener('contextmenu', e => e.preventDefault())`. Snippet in `knowledge/ux-patterns.md`.
 
 ## The back button (most-repeated bug — get it right)
 - Every game MUST have a back button whose href is exactly `../../index.html`.

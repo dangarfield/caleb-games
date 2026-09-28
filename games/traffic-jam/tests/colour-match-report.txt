@@ -1,0 +1,180 @@
+COLOUR MATCH + TURNING — viability report
+samples/config=16  stateCap=120000  sims=60  time=4.4s
+
+[A] Slide + reverse + turns  |  4x4 · 3 cars · 2 colours
+  solvable 100% of 16 (solver gave up on 0) · optimal moves median 8 (10–90%: 7–11) · A* states median 49 · branching 4.7
+  puzzle depth (extra moves caused by other cars) avg 0.3 · levels with zero interference 69%
+  turns used in 100% of solutions (63% of moves) · unsolvable without turns 100% · colour adds +1.8 moves · trivial 0%
+  dead ends after random play 0% · random player wins 36% · greedy player wins 92%
+  score 5/7 — cars rarely get in each other’s way: mostly driving to the gate, not puzzling; random tapping solves it too often
+
+[A] Slide + reverse + turns  |  5x5 · 4 cars · 2 colours
+  solvable 100% of 16 (solver gave up on 0) · optimal moves median 13 (10–90%: 10–16) · A* states median 138 · branching 7.2
+  puzzle depth (extra moves caused by other cars) avg 0.6 · levels with zero interference 63%
+  turns used in 100% of solutions (57% of moves) · unsolvable without turns 100% · colour adds +3.0 moves · trivial 0%
+  dead ends after random play 0% · random player wins 6% · greedy player wins 54%
+  score 6/7 — cars rarely get in each other’s way: mostly driving to the gate, not puzzling
+
+[A] Slide + reverse + turns  |  5x5 · 5 cars · 3 colours
+  solvable 100% of 16 (solver gave up on 0) · optimal moves median 16 (10–90%: 14–20) · A* states median 831 · branching 8.6
+  puzzle depth (extra moves caused by other cars) avg 0.9 · levels with zero interference 25%
+  turns used in 100% of solutions (58% of moves) · unsolvable without turns 100% · colour adds +4.9 moves · trivial 0%
+  dead ends after random play 0% · random player wins 1% · greedy player wins 30%
+  score 6/7 — cars rarely get in each other’s way: mostly driving to the gate, not puzzling
+
+[A] Slide + reverse + turns  |  6x6 · 6 cars · 3 colours
+  solvable 100% of 16 (solver gave up on 0) · optimal moves median 20 (10–90%: 17–22) · A* states median 4678 · branching 11.2
+  puzzle depth (extra moves caused by other cars) avg 1.1 · levels with zero interference 31%
+  turns used in 100% of solutions (61% of moves) · unsolvable without turns 100% · colour adds +4.4 moves · trivial 0%
+  dead ends after random play 0% · random player wins 0% · greedy player wins 7%
+  score 6/7 — cars rarely get in each other’s way: mostly driving to the gate, not puzzling
+
+[A] Slide + reverse + turns  |  6x6 · 6 cars + 2 trucks · 3 col
+  solvable 0% of 16 (solver gave up on 0) · optimal moves median - (10–90%: -) · A* states median - · branching 0.0
+  puzzle depth (extra moves caused by other cars) avg 0.0 · levels with zero interference 0%
+  turns used in 0% of solutions (0% of moves) · unsolvable without turns 0% · colour adds +0.0 moves · trivial 0%
+  dead ends after random play n/a · random player wins 0% · greedy player wins 0%
+  score 2/7 — few random layouts are solvable (generator will need many retries); turning is often unnecessary; colour rule rarely changes the solution; cars rarely get in each other’s way: mostly driving to the gate, not puzzling; state space large for live hints
+
+[B] Slide forward only + turns  |  4x4 · 3 cars · 2 colours
+  solvable 100% of 16 (solver gave up on 0) · optimal moves median 10 (10–90%: 7–12) · A* states median 41 · branching 3.7
+  puzzle depth (extra moves caused by other cars) avg 0.1 · levels with zero interference 94%
+  turns used in 100% of solutions (65% of moves) · unsolvable without turns 100% · colour adds +1.8 moves · trivial 0%
+  dead ends after random play 0% · random player wins 65% · greedy player wins 99%
+  score 5/7 — cars rarely get in each other’s way: mostly driving to the gate, not puzzling; random tapping solves it too often
+
+[B] Slide forward only + turns  |  5x5 · 4 cars · 2 colours
+  solvable 100% of 16 (solver gave up on 0) · optimal moves median 15 (10–90%: 12–17) · A* states median 435 · branching 6.1
+  puzzle depth (extra moves caused by other cars) avg 0.9 · levels with zero interference 31%
+  turns used in 100% of solutions (67% of moves) · unsolvable without turns 100% · colour adds +3.9 moves · trivial 0%
+  dead ends after random play 0% · random player wins 14% · greedy player wins 72%
+  score 5/7 — cars rarely get in each other’s way: mostly driving to the gate, not puzzling; random tapping solves it too often
+
+[B] Slide forward only + turns  |  5x5 · 5 cars · 3 colours
+  solvable 100% of 16 (solver gave up on 0) · optimal moves median 18 (10–90%: 14–20) · A* states median 634 · branching 6.3
+  puzzle depth (extra moves caused by other cars) avg 1.0 · levels with zero interference 56%
+  turns used in 100% of solutions (65% of moves) · unsolvable without turns 100% · colour adds +4.8 moves · trivial 0%
+  dead ends after random play 0% · random player wins 6% · greedy player wins 63%
+  score 5/7 — cars rarely get in each other’s way: mostly driving to the gate, not puzzling; random tapping solves it too often
+
+[B] Slide forward only + turns  |  6x6 · 6 cars · 3 colours
+  solvable 94% of 16 (solver gave up on 1) · optimal moves median 22 (10–90%: 19–25) · A* states median 2994 · branching 8.3
+  puzzle depth (extra moves caused by other cars) avg 0.5 · levels with zero interference 47%
+  turns used in 100% of solutions (63% of moves) · unsolvable without turns 100% · colour adds +5.6 moves · trivial 0%
+  dead ends after random play 0% · random player wins 1% · greedy player wins 18%
+  score 6/7 — cars rarely get in each other’s way: mostly driving to the gate, not puzzling
+
+[B] Slide forward only + turns  |  6x6 · 6 cars + 2 trucks · 3 col
+  solvable 0% of 16 (solver gave up on 0) · optimal moves median - (10–90%: -) · A* states median - · branching 0.0
+  puzzle depth (extra moves caused by other cars) avg 0.0 · levels with zero interference 0%
+  turns used in 0% of solutions (0% of moves) · unsolvable without turns 0% · colour adds +0.0 moves · trivial 0%
+  dead ends after random play n/a · random player wins 0% · greedy player wins 0%
+  score 2/7 — few random layouts are solvable (generator will need many retries); turning is often unnecessary; colour rule rarely changes the solution; cars rarely get in each other’s way: mostly driving to the gate, not puzzling; state space large for live hints
+
+[C] One step at a time + reverse + turns  |  4x4 · 3 cars · 2 colours
+  solvable 100% of 16 (solver gave up on 0) · optimal moves median 13 (10–90%: 9–15) · A* states median 57 · branching 5.0
+  puzzle depth (extra moves caused by other cars) avg 0.1 · levels with zero interference 94%
+  turns used in 100% of solutions (47% of moves) · unsolvable without turns 100% · colour adds +3.0 moves · trivial 0%
+  dead ends after random play 0% · random player wins 9% · greedy player wins 54%
+  score 6/7 — cars rarely get in each other’s way: mostly driving to the gate, not puzzling
+
+[C] One step at a time + reverse + turns  |  5x5 · 4 cars · 2 colours
+  solvable 100% of 16 (solver gave up on 0) · optimal moves median 18 (10–90%: 16–26) · A* states median 121 · branching 6.9
+  puzzle depth (extra moves caused by other cars) avg 0.0 · levels with zero interference 100%
+  turns used in 100% of solutions (40% of moves) · unsolvable without turns 100% · colour adds +2.9 moves · trivial 0%
+  dead ends after random play 0% · random player wins 0% · greedy player wins 8%
+  score 6/7 — cars rarely get in each other’s way: mostly driving to the gate, not puzzling
+
+[C] One step at a time + reverse + turns  |  5x5 · 5 cars · 3 colours
+  solvable 100% of 16 (solver gave up on 0) · optimal moves median 24 (10–90%: 21–28) · A* states median 189 · branching 7.5
+  puzzle depth (extra moves caused by other cars) avg 0.3 · levels with zero interference 88%
+  turns used in 100% of solutions (39% of moves) · unsolvable without turns 100% · colour adds +8.4 moves · trivial 0%
+  dead ends after random play 0% · random player wins 0% · greedy player wins 2%
+  score 6/7 — cars rarely get in each other’s way: mostly driving to the gate, not puzzling
+
+[C] One step at a time + reverse + turns  |  6x6 · 6 cars · 3 colours
+  solvable 100% of 16 (solver gave up on 0) · optimal moves median 32 (10–90%: 25–38) · A* states median 333 · branching 10.2
+  puzzle depth (extra moves caused by other cars) avg 0.1 · levels with zero interference 94%
+  turns used in 100% of solutions (35% of moves) · unsolvable without turns 100% · colour adds +11.4 moves · trivial 0%
+  dead ends after random play 0% · random player wins 0% · greedy player wins 0%
+  score 6/7 — cars rarely get in each other’s way: mostly driving to the gate, not puzzling
+
+[C] One step at a time + reverse + turns  |  6x6 · 6 cars + 2 trucks · 3 col
+  solvable 0% of 16 (solver gave up on 0) · optimal moves median - (10–90%: -) · A* states median - · branching 0.0
+  puzzle depth (extra moves caused by other cars) avg 0.0 · levels with zero interference 0%
+  turns used in 0% of solutions (0% of moves) · unsolvable without turns 0% · colour adds +0.0 moves · trivial 0%
+  dead ends after random play n/a · random player wins 0% · greedy player wins 0%
+  score 2/7 — few random layouts are solvable (generator will need many retries); turning is often unnecessary; colour rule rarely changes the solution; cars rarely get in each other’s way: mostly driving to the gate, not puzzling; state space large for live hints
+
+
+=== DENSE / OBSTACLE CONFIGS ===
+
+[A] Slide + reverse + turns  |  6x6 · 6 cars + 2 trucks · 3 col
+  solvable 4% of 24 (solver gave up on 0) · optimal moves median 20 (10–90%: 20–20) · A* states median 6609 · branching 10.7
+  puzzle depth (extra moves caused by other cars) avg 1.0 · zero 0% · depth ≥3 in 0% of layouts (best found 1)
+  turns used in 100% of solutions (40% of moves) · unsolvable without turns 100% · colour adds +4.0 moves · trivial 0%
+  dead ends after random play 0% · random player wins 0% · greedy player wins 14%
+  score 5/7 — few random layouts are solvable (generator will need many retries); cars rarely get in each other’s way: mostly driving to the gate, not puzzling
+
+[B] Slide forward only + turns  |  6x6 · 6 cars + 2 trucks · 3 col
+  solvable 0% of 24 (solver gave up on 0) · optimal moves median - (10–90%: -) · A* states median - · branching 0.0
+  puzzle depth (extra moves caused by other cars) avg 0.0 · zero 0% · depth ≥3 in 0% of layouts (best found 0)
+  turns used in 0% of solutions (0% of moves) · unsolvable without turns 0% · colour adds +0.0 moves · trivial 0%
+  dead ends after random play n/a · random player wins 0% · greedy player wins 0%
+  score 2/7 — few random layouts are solvable (generator will need many retries); turning is often unnecessary; colour rule rarely changes the solution; cars rarely get in each other’s way: mostly driving to the gate, not puzzling; state space large for live hints
+
+[A] Slide + reverse + turns  |  5x5 · 7 cars · 2 colours (dense)
+  solvable 100% of 24 (solver gave up on 0) · optimal moves median 24 (10–90%: 20–25) · A* states median 863 · branching 8.9
+  puzzle depth (extra moves caused by other cars) avg 0.8 · zero 50% · depth ≥3 in 8% of layouts (best found 4)
+  turns used in 100% of solutions (58% of moves) · unsolvable without turns 100% · colour adds +4.4 moves · trivial 0%
+  dead ends after random play 0% · random player wins 0% · greedy player wins 7%
+  score 6/7 — cars rarely get in each other’s way: mostly driving to the gate, not puzzling
+
+[B] Slide forward only + turns  |  5x5 · 7 cars · 2 colours (dense)
+  solvable 96% of 24 (solver gave up on 1) · optimal moves median 25 (10–90%: 21–29) · A* states median 3206 · branching 7.4
+  puzzle depth (extra moves caused by other cars) avg 1.0 · zero 43% · depth ≥3 in 13% of layouts (best found 3)
+  turns used in 100% of solutions (59% of moves) · unsolvable without turns 100% · colour adds +5.7 moves · trivial 0%
+  dead ends after random play 0% · random player wins 1% · greedy player wins 23%
+  score 6/7 — cars rarely get in each other’s way: mostly driving to the gate, not puzzling
+
+[A] Slide + reverse + turns  |  6x6 · 9 cars · 3 colours (dense)
+  solvable 58% of 24 (solver gave up on 10) · optimal moves median 29 (10–90%: 26–33) · A* states median 30147 · branching 14.5
+  puzzle depth (extra moves caused by other cars) avg 1.1 · zero 21% · depth ≥3 in 14% of layouts (best found 4)
+  turns used in 100% of solutions (52% of moves) · unsolvable without turns 100% · colour adds +8.4 moves · trivial 0%
+  dead ends after random play 0% · random player wins 0% · greedy player wins 0%
+  score 5/7 — cars rarely get in each other’s way: mostly driving to the gate, not puzzling; state space large for live hints
+
+[B] Slide forward only + turns  |  6x6 · 9 cars · 3 colours (dense)
+  solvable 50% of 24 (solver gave up on 12) · optimal moves median 31 (10–90%: 27–36) · A* states median 13918 · branching 10.4
+  puzzle depth (extra moves caused by other cars) avg 0.8 · zero 42% · depth ≥3 in 8% of layouts (best found 3)
+  turns used in 100% of solutions (59% of moves) · unsolvable without turns 100% · colour adds +10.4 moves · trivial 0%
+  dead ends after random play 0% · random player wins 0% · greedy player wins 1%
+  score 6/7 — cars rarely get in each other’s way: mostly driving to the gate, not puzzling
+
+[A] Slide + reverse + turns  |  6x6 · 8 cars + 3 cones · 3 col
+  solvable 25% of 24 (solver gave up on 18) · optimal moves median 28 (10–90%: 24–31) · A* states median 20795 · branching 10.7
+  puzzle depth (extra moves caused by other cars) avg 1.0 · zero 33% · depth ≥3 in 0% of layouts (best found 2)
+  turns used in 100% of solutions (55% of moves) · unsolvable without turns 100% · colour adds +7.2 moves · trivial 0%
+  dead ends after random play 0% · random player wins 0% · greedy player wins 2%
+  score 6/7 — cars rarely get in each other’s way: mostly driving to the gate, not puzzling
+
+[B] Slide forward only + turns  |  6x6 · 8 cars + 3 cones · 3 col
+  solvable 25% of 24 (solver gave up on 18) · optimal moves median 29 (10–90%: 21–31) · A* states median 27406 · branching 8.4
+  puzzle depth (extra moves caused by other cars) avg 1.7 · zero 17% · depth ≥3 in 17% of layouts (best found 4)
+  turns used in 100% of solutions (57% of moves) · unsolvable without turns 100% · colour adds +5.4 moves · trivial 0%
+  dead ends after random play 0% · random player wins 0% · greedy player wins 6%
+  score 6/7 — cars rarely get in each other’s way: mostly driving to the gate, not puzzling
+
+[A] Slide + reverse + turns  |  6x6 · 7 cars + 2 trucks + 2 cones
+  solvable 0% of 24 (solver gave up on 0) · optimal moves median - (10–90%: -) · A* states median - · branching 0.0
+  puzzle depth (extra moves caused by other cars) avg 0.0 · zero 0% · depth ≥3 in 0% of layouts (best found 0)
+  turns used in 0% of solutions (0% of moves) · unsolvable without turns 0% · colour adds +0.0 moves · trivial 0%
+  dead ends after random play n/a · random player wins 0% · greedy player wins 0%
+  score 2/7 — few random layouts are solvable (generator will need many retries); turning is often unnecessary; colour rule rarely changes the solution; cars rarely get in each other’s way: mostly driving to the gate, not puzzling; state space large for live hints
+
+[B] Slide forward only + turns  |  6x6 · 7 cars + 2 trucks + 2 cones
+  solvable 0% of 24 (solver gave up on 0) · optimal moves median - (10–90%: -) · A* states median - · branching 0.0
+  puzzle depth (extra moves caused by other cars) avg 0.0 · zero 0% · depth ≥3 in 0% of layouts (best found 0)
+  turns used in 0% of solutions (0% of moves) · unsolvable without turns 0% · colour adds +0.0 moves · trivial 0%
+  dead ends after random play n/a · random player wins 0% · greedy player wins 0%
+  score 2/7 — few random layouts are solvable (generator will need many retries); turning is often unnecessary; colour rule rarely changes the solution; cars rarely get in each other’s way: mostly driving to the gate, not puzzling; state space large for live hints

@@ -31,3 +31,30 @@ After building the game, add a card to `index.html`:
 - CSS class `.card-<name>` with a themed gradient background.
 - Icon (emoji or inline SVG), title, and a brief description.
 - Add a matching row to `docs/games-index.md` and bump the count in its header.
+
+## No long-press menus (touch and mouse)
+
+A child holds a button down; the browser answers with "Copy / Look up / Save image", a
+selection handle, or a right-click menu, and the game is gone behind it. Every game ships
+this, whatever else it does:
+
+```css
+body {
+  -webkit-touch-callout: none;   /* iOS long-press callout */
+  -webkit-user-select: none;
+  user-select: none;             /* no selection handles on hold */
+  -webkit-user-drag: none;       /* no ghost-drag of images/links */
+}
+img, a, canvas { -webkit-user-drag: none; }
+input, textarea { -webkit-user-select: text; user-select: text; }  /* only real text fields */
+```
+
+```js
+// Long-press on touch and right-click / hold on a mouse both raise 'contextmenu'.
+document.addEventListener('contextmenu', e => e.preventDefault());
+```
+
+- It goes on `body`, not on individual buttons — HUD, cards, overlays and the canvas all need it, and a per-element rule always misses one.
+- Links count too: the `<- Games` back link must not offer "Open in new tab" on a hold.
+- Do not rely on `touch-action: none` for this — it stops panning and zoom, not the callout or the menu.
+- Check it: hold the mouse down on a button for 2s and right-click the canvas — nothing should appear.

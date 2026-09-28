@@ -1,528 +1,486 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<meta name="mobile-web-app-capable" content="yes">
-<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
 <title>Traffic Jam - Garfield Boys' Arcade</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-html,body { width:100%; height:100%; }
-body { background:linear-gradient(180deg,#0a0a2e 0%,#141452 55%,#1a1a6e 100%);
-  overflow:hidden; touch-action:none; font-family:'Segoe UI',system-ui,sans-serif; }
-canvas { display:block; width:100%; height:100%; }
-.hidden { display:none !important; }
-
-#backBtn { position:fixed; top:12px; left:12px; z-index:9999;
-  background:rgba(0,0,0,0.55); color:#fff; text-decoration:none;
-  padding:6px 18px; border-radius:20px;
-  font:bold 15px/1.4 'Segoe UI',system-ui,sans-serif;
-  border:1px solid rgba(255,255,255,0.18);
-  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
-  transition:background 0.2s; }
-#backBtn:hover { background:rgba(0,0,0,0.75); }
-
-.overlay { position:fixed; inset:0; z-index:20; display:flex; flex-direction:column;
-  align-items:center; justify-content:center;
-  background:rgba(4,4,24,0.82); color:#fff; text-align:center; padding:1rem; }
-.overlay h1 { font-size:clamp(2rem,8vw,3.6rem); margin-bottom:0.4rem;
-  text-shadow:0 0 24px rgba(108,92,231,0.7); }
-.overlay .sub { font-size:clamp(1rem,3vw,1.4rem); color:#a0c4ff; margin-bottom:1.2rem; }
-.overlay .info { font-size:clamp(0.85rem,2.5vw,1.05rem); color:rgba(255,255,255,0.72);
-  margin-bottom:1.6rem; max-width:480px; line-height:1.5; }
-.btn { padding:14px 40px; font-size:1.25rem; border:none; border-radius:12px;
-  background:linear-gradient(135deg,#6c5ce7,#a29bfe); color:#fff; cursor:pointer;
-  font-weight:700; box-shadow:0 4px 20px rgba(108,92,231,0.4); transition:transform 0.15s; margin:6px; }
-.btn:hover { transform:scale(1.05); } .btn:active { transform:scale(0.95); }
-.btn.secondary { background:linear-gradient(135deg,#2d2a72,#4a3fa0); box-shadow:none; font-size:1.05rem; padding:11px 26px; }
-
-.players { display:flex; gap:16px; margin-bottom:1.4rem; }
-.pcard { padding:18px 30px; border-radius:16px; cursor:pointer; font-size:1.3rem; font-weight:700;
-  border:2px solid rgba(255,255,255,0.18); background:rgba(255,255,255,0.06); transition:transform .15s,border-color .15s; }
-.pcard:hover { transform:scale(1.05); border-color:#a29bfe; }
-.pcard .em { font-size:2.4rem; display:block; margin-bottom:6px; }
-
-#levelSelect { position:fixed; inset:0; z-index:25; background:rgba(4,4,24,0.94); color:#fff;
-  display:flex; flex-direction:column; align-items:center; padding:64px 16px 24px; overflow-y:auto; }
-#levelSelect h2 { font-size:clamp(1.4rem,5vw,2rem); margin-bottom:1.2rem; }
-.lvgrid { display:grid; grid-template-columns:repeat(4,minmax(64px,1fr)); gap:14px; width:100%; max-width:420px; }
-.lvtile { aspect-ratio:1; border-radius:14px; display:flex; flex-direction:column; align-items:center; justify-content:center;
-  font-size:1.5rem; font-weight:800; cursor:pointer; border:2px solid rgba(255,255,255,0.15);
-  background:linear-gradient(145deg,#2d2a72,#4a3fa0); transition:transform .12s; }
-.lvtile:hover { transform:scale(1.06); }
-.lvtile.solved { background:linear-gradient(145deg,#1b8f5a,#2ecc71); border-color:#2ecc71; }
-.lvtile .star { font-size:0.85rem; margin-top:2px; color:#ffd32a; }
-.lvtile.locked { opacity:0.4; pointer-events:none; }
+html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#2a2740;overscroll-behavior:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none;}
+img,a,canvas{-webkit-user-drag:none;}
+body{touch-action:none;}
+*{box-sizing:border-box;}
+a{color:#2a2740;text-decoration:none;}
+a:hover{color:#4a4570;}
+button{font-family:inherit;}
+@keyframes tjPop{0%{transform:scale(.4) rotate(-12deg);opacity:0}70%{transform:scale(1.18) rotate(4deg);opacity:1}100%{transform:scale(1) rotate(0)}}
+@keyframes tjRise{0%{transform:translateY(24px);opacity:0}100%{transform:translateY(0);opacity:1}}
+@keyframes tjSlide{0%{transform:translateX(30px);opacity:0}100%{transform:translateX(0);opacity:1}}
+/* Port helpers (the design's sc-if wrappers, style-active and style-before) */
+.c{display:contents;}
+.a1:active{box-shadow:0 1px 0 #2a2740 !important;}
+.a2:active{box-shadow:0 2px 0 #2a2740 !important;}
+.lk::before{content:'';position:absolute;left:3px;top:-8px;width:10px;height:10px;border:2.5px solid #b9b2cc;border-bottom:none;border-radius:6px 6px 0 0;box-sizing:border-box;}
 </style>
 </head>
 <body>
-<a id="backBtn" href="../../index.html">&larr; Games</a>
-<canvas id="c"></canvas>
-
-<div id="overlay" class="overlay">
-  <h1>Traffic Jam</h1>
-  <div class="sub">Get the red car out!</div>
-  <div class="info">Slide the cars and trucks out of the way, then slide the <b>red car</b> off the road through the gap on the right. Cars only move in the direction they point. Drag a car to move it.</div>
-  <div class="players" id="playerCards"></div>
-  <div class="sub" style="font-size:1rem;margin:0;">Choose a player to start</div>
+<!-- Theme music. No controls, on purpose (arcade rule: no mute button).
+     preload="none" so nothing is fetched until the first gesture. -->
+<audio id="theme" src="audio/traffic-jam-theme.webm" loop preload="none" aria-hidden="true"></audio>
+<div id="app" style="position:fixed;inset:0;font-family:'Fredoka',system-ui,sans-serif;color:#2a2740;user-select:none;-webkit-user-select:none;">
+  <div id="host" style="position:absolute;inset:0;"></div>
+  <div id="ui" class="c"></div>
 </div>
-
-<div id="levelSelect" class="hidden">
-  <h2 id="lsTitle">Pick a Level</h2>
-  <div class="lvgrid" id="lvgrid"></div>
-  <button class="btn secondary" id="lsSwitch" style="margin-top:22px;">Switch Player</button>
-</div>
-
 <script>
-// ---------- Canvas ----------
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
-let W, H, DPR;
-function resize() {
-  DPR = Math.min(window.devicePixelRatio || 1, 2);
-  W = window.innerWidth; H = window.innerHeight;
-  canvas.width = W * DPR; canvas.height = H * DPR;
-  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
-  ctx.setTransform(DPR,0,0,DPR,0,0);
-  computeLayout();
-}
-window.addEventListener('resize', resize);
-
-// ---------- Audio ----------
-let audioCtx = null;
-function ensureAudio(){ if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
-  if(audioCtx.state==='suspended') audioCtx.resume(); return audioCtx; }
-function playTone(freq,duration,type,vol,endFreq){ const c=ensureAudio();
-  const o=c.createOscillator(),g=c.createGain(); o.type=type||'sine';
-  o.frequency.setValueAtTime(freq,c.currentTime);
-  if(endFreq) o.frequency.exponentialRampToValueAtTime(Math.max(endFreq,20),c.currentTime+duration);
-  g.gain.setValueAtTime(vol||0.1,c.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+duration);
-  o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime+duration); }
-function sfxSlide(){ playTone(220,0.09,'sine',0.06,320); }
-function sfxBump(){ playTone(150,0.10,'square',0.05,90); }
-function sfxWin(){ [523,659,784,1046].forEach((f,i)=>setTimeout(()=>playTone(f,0.22,'triangle',0.10),i*130)); }
-function sfxSelect(){ playTone(660,0.08,'sine',0.06,880); }
-
-// ---------- Persistence ----------
-function loadArcadeData(){ try { return JSON.parse(localStorage.getItem('calebArcadeData'))||{}; } catch(e){ return {}; } }
-function saveArcadeData(d){ localStorage.setItem('calebArcadeData', JSON.stringify(d)); }
-function getGameData(){ const d=loadArcadeData(); d.trafficJam=d.trafficJam||{}; return d; }
-function playerRec(){ const d=getGameData(); d.trafficJam[player]=d.trafficJam[player]||{best:{}}; return d; }
-function saveBest(levelIdx,moves){ const d=playerRec(); const b=d.trafficJam[player].best;
-  if(b[levelIdx]==null || moves<b[levelIdx]) b[levelIdx]=moves; saveArcadeData(d); }
-function getBest(levelIdx){ const d=playerRec(); return d.trafficJam[player].best[levelIdx]; }
-
-// ---------- Level data (embedded, all verified solvable) ----------
-// vehicle = [id, orient 'h'/'v', len, row, col]  (row,col = top-left cell)
-const N = 6, EXIT_ROW = 2;
-const LEVELS = [{"v": [["X", "h", 2, 2, 0], ["A", "h", 2, 4, 0], ["B", "h", 2, 0, 3], ["C", "h", 3, 5, 0], ["D", "h", 2, 3, 1], ["E", "v", 2, 4, 5], ["F", "v", 2, 1, 5]], "min": 2}, {"v": [["X", "h", 2, 2, 0], ["A", "v", 3, 3, 2], ["B", "v", 2, 4, 0], ["C", "v", 2, 3, 3], ["D", "h", 3, 0, 2], ["E", "v", 3, 2, 4]], "min": 2}, {"v": [["X", "h", 2, 2, 1], ["A", "v", 2, 0, 3], ["B", "v", 2, 1, 0], ["C", "h", 3, 3, 1], ["D", "v", 2, 4, 2], ["E", "v", 2, 1, 4], ["F", "v", 3, 0, 5], ["G", "v", 2, 4, 4]], "min": 3}, {"v": [["X", "h", 2, 2, 0], ["A", "h", 2, 1, 0], ["B", "v", 2, 2, 2], ["C", "h", 2, 5, 2], ["D", "v", 2, 0, 5], ["E", "v", 2, 3, 1], ["F", "v", 3, 1, 4], ["G", "v", 2, 0, 3]], "min": 3}, {"v": [["X", "h", 2, 2, 2], ["A", "v", 2, 2, 5], ["B", "h", 2, 5, 4], ["C", "v", 3, 1, 4], ["D", "h", 3, 4, 1], ["E", "h", 2, 0, 1], ["F", "v", 2, 0, 3]], "min": 4}, {"v": [["X", "h", 2, 2, 1], ["A", "h", 2, 5, 1], ["B", "v", 3, 2, 4], ["C", "h", 3, 1, 3], ["D", "h", 2, 4, 2], ["E", "h", 2, 5, 4], ["F", "h", 2, 1, 1]], "min": 4}, {"v": [["X", "h", 2, 2, 2], ["A", "h", 2, 4, 3], ["B", "v", 3, 0, 4], ["C", "v", 2, 1, 5], ["D", "h", 2, 4, 0], ["E", "h", 2, 3, 4]], "min": 5}, {"v": [["X", "h", 2, 2, 0], ["A", "h", 3, 5, 2], ["B", "v", 3, 0, 3], ["C", "h", 2, 3, 3], ["D", "h", 2, 1, 1], ["E", "h", 2, 0, 0], ["F", "v", 2, 1, 4]], "min": 5}, {"v": [["X", "h", 2, 2, 2], ["A", "h", 2, 3, 3], ["B", "h", 2, 4, 1], ["C", "h", 2, 2, 0], ["D", "h", 2, 1, 0], ["E", "h", 2, 4, 3], ["F", "v", 3, 0, 4], ["G", "v", 2, 2, 5]], "min": 6}, {"v": [["X", "h", 2, 2, 0], ["A", "h", 2, 4, 3], ["B", "v", 3, 0, 3], ["C", "v", 3, 0, 4], ["D", "v", 2, 3, 2], ["E", "h", 2, 5, 3], ["F", "h", 2, 0, 1], ["G", "h", 3, 1, 0]], "min": 7}, {"v": [["X", "h", 2, 2, 1], ["A", "h", 2, 0, 2], ["B", "h", 2, 5, 2], ["C", "v", 3, 2, 0], ["D", "v", 2, 2, 3], ["E", "v", 3, 0, 4], ["F", "h", 3, 4, 2], ["G", "v", 2, 4, 1], ["H", "v", 2, 0, 1]], "min": 8}, {"v": [["X", "h", 2, 2, 2], ["A", "v", 2, 2, 5], ["B", "h", 2, 0, 0], ["C", "h", 2, 2, 0], ["D", "v", 2, 4, 2], ["E", "v", 3, 1, 4], ["F", "h", 3, 3, 1], ["G", "h", 2, 5, 3], ["H", "v", 2, 4, 5]], "min": 9}];
-
-// ---------- Colours for vehicles ----------
-const CAR_COLORS = ['#ffd32a','#26de81','#4b7bec','#fd9644','#a55eea','#2bcbba','#fc5c65','#778ca3','#eb3b5a','#20bf6b','#0fb9b1'];
-function colorFor(id){ if(id==='X') return null; const idx=id.charCodeAt(0)-65; return CAR_COLORS[idx%CAR_COLORS.length]; }
-
-// ---------- Game state ----------
-let player=null;
-let levelIdx=0;
-let vehicles=[];    // live copies {id,orient,len,r,c}
-let moveCount=0;
-let undoStack=[];
-let gameState='menu'; // menu | select | play | won
-let winAnim=0, confetti=[];
-
-// layout
-let cell, boardX, boardY, boardPx;
-function computeLayout(){
-  const pad = 24;
-  const topReserve = 96;   // HUD
-  const botReserve = 84;   // buttons
-  const availW = W - pad*2;
-  const availH = H - topReserve - botReserve;
-  boardPx = Math.min(availW, availH);
-  boardPx = Math.max(180, boardPx);
-  cell = boardPx / N;
-  boardX = (W - boardPx)/2;
-  boardY = topReserve + (availH - boardPx)/2;
-}
-
-// ---------- Model helpers ----------
-function cellsOf(v){ const out=[]; for(let i=0;i<v.len;i++){ if(v.orient==='h') out.push([v.r,v.c+i]); else out.push([v.r+i,v.c]); } return out; }
-function buildOcc(list,ignoreId){ const occ={}; for(const v of list){ if(v.id===ignoreId) continue; for(const [r,c] of cellsOf(v)) occ[r+','+c]=v.id; } return occ; }
-function cloneVehicles(list){ return list.map(v=>({id:v.id,orient:v.orient,len:v.len,r:v.r,c:v.c})); }
-function isWin(list){ const x=list.find(v=>v.id==='X'); return x.c + x.len - 1 === N-1; }
-
-function loadLevel(idx){
-  levelIdx=idx;
-  vehicles = LEVELS[idx].v.map(a=>({id:a[0],orient:a[1],len:a[2],r:a[3],c:a[4]}));
-  moveCount=0; undoStack=[]; gameState='play'; winAnim=0; confetti=[];
-  selected=null; hintCells=null;
-  document.getElementById('overlay').classList.add('hidden');
-  document.getElementById('levelSelect').classList.add('hidden');
-}
-
-// ---------- Solver (BFS) for hints ----------
-function stateKey(list){ return list.map(v=>v.id+v.r+','+v.c).sort().join('|'); }
-function neighborsOf(list){
-  const occ = buildOcc(list);
-  const res=[];
-  for(let idx=0; idx<list.length; idx++){
-    const v=list[idx];
-    if(v.orient==='h'){
-      for(let c=v.c-1;c>=0 && !occ[v.r+','+c]; c--){ const nv={...v,c}; res.push([idx,nv]); }
-      for(let c=v.c+v.len;c<N && !occ[v.r+','+c]; c++){ const nv={...v,c:c-v.len+1}; res.push([idx,nv]); }
-    } else {
-      for(let r=v.r-1;r>=0 && !occ[r+','+v.c]; r--){ const nv={...v,r}; res.push([idx,nv]); }
-      for(let r=v.r+v.len;r<N && !occ[r+','+v.c]; r++){ const nv={...v,r:r-v.len+1}; res.push([idx,nv]); }
-    }
+// Directory URL guard: the engine resolves assets/ and js/ against document.baseURI,
+// so /games/traffic-jam (no slash) would look in /games/. Normalise before anything loads.
+(function () { var p = location.pathname; if (!/\/$/.test(p) && !/\.html?$/.test(p)) location.replace(p + '/' + location.search + location.hash); })();
+</script>
+<script>
+// ---------------------------------------------------------------------------
+// Theme music — knowledge/audio-patterns.md pattern, verbatim. Engine SFX
+// (Web Audio) are separate; engine.setMuted never touches this element.
+// ---------------------------------------------------------------------------
+function music() {
+  const el = document.getElementById('theme');
+  if (!el) return;
+  const LEVEL = 0.5;                      // on top of the 6dB off the file
+  // pointerdown and touchstart do NOT grant user activation on a touch screen —
+  // only pointerup, touchend, click and keydown do.
+  const EVENTS = ['pointerdown', 'pointerup', 'click', 'touchend', 'keydown'];
+  let playing = false;
+  const arm    = () => EVENTS.forEach(e => document.addEventListener(e, start, true));
+  const disarm = () => EVENTS.forEach(e => document.removeEventListener(e, start, true));
+  function start() {
+    if (playing) return;                  // stay armed until it is really playing
+    el.volume = LEVEL;
+    let p;
+    try { p = el.play(); } catch (e) { return; }   // no el.load(): it aborts the play
+    if (p && p.then) p.then(() => { playing = true; disarm(); }, () => {});
+    else { playing = true; disarm(); }
   }
-  return res;
-}
-function solveFrom(list){
-  const start=stateKey(list);
-  const seen={}; seen[start]=null;
-  const q=[cloneVehicles(list)];
-  let head=0;
-  while(head<q.length){
-    const cur=q[head++];
-    if(isWin(cur)){
-      // reconstruct first move
-      let k=stateKey(cur); const path=[];
-      while(seen[k]){ path.push(seen[k].mv); k=seen[k].prev; }
-      path.reverse(); return path;
-    }
-    const ck=stateKey(cur);
-    for(const [idx,nv] of neighborsOf(cur)){
-      const ncur=cloneVehicles(cur); ncur[idx]=nv;
-      const k=stateKey(ncur);
-      if(!(k in seen)){ seen[k]={prev:ck, mv:{id:nv.id,r:nv.r,c:nv.c}}; q.push(ncur); }
-    }
-    if(q.length>60000) break;
-  }
-  return null;
-}
-let hintCells=null;
-function doHint(){
-  if(gameState!=='play') return;
-  const sol = solveFrom(vehicles);
-  if(!sol || sol.length===0) return;
-  const mv=sol[0];
-  const v=vehicles.find(x=>x.id===mv.id);
-  // highlight the target cells the vehicle should move to
-  const target={...v,r:mv.r,c:mv.c};
-  hintCells = cellsOf(target);
-  hintId = mv.id;
-  hintExpire = performance.now()+1600;
-  sfxSelect();
-}
-let hintId=null, hintExpire=0;
-
-// ---------- Interaction ----------
-let selected=null;      // vehicle being dragged
-let dragStart=null;     // {x,y, r0,c0}
-let pointerId=null;
-
-function cellAt(px,py){
-  const c=Math.floor((px-boardX)/cell), r=Math.floor((py-boardY)/cell);
-  return [r,c];
-}
-function vehicleAt(px,py){
-  const [r,c]=cellAt(px,py);
-  for(const v of vehicles){ for(const [vr,vc] of cellsOf(v)){ if(vr===r && vc===c) return v; } }
-  return null;
-}
-function maxSlide(v,dir){
-  // dir: for h, -1 left / +1 right ; for v, -1 up / +1 down. returns max cells can move
-  const occ=buildOcc(vehicles,v.id);
-  let steps=0;
-  if(v.orient==='h'){
-    if(dir<0){ let c=v.c-1; while(c>=0 && !occ[v.r+','+c]){ steps++; c--; } }
-    else { let c=v.c+v.len; while(c<N && !occ[v.r+','+c]){ steps++; c++; } }
-  } else {
-    if(dir<0){ let r=v.r-1; while(r>=0 && !occ[r+','+v.c]){ steps++; r--; } }
-    else { let r=v.r+v.len; while(r<N && !occ[r+','+v.c]){ steps++; r++; } }
-  }
-  return steps;
-}
-
-function onDown(px,py,pid){
-  if(gameState==='won'){ return; }
-  if(gameState!=='play') return;
-  const v=vehicleAt(px,py);
-  if(v){ selected=v; pointerId=pid; dragStart={x:px,y:py,r0:v.r,c0:v.c}; hintCells=null; }
-}
-function onMove(px,py){
-  if(!selected || gameState!=='play') return;
-  const v=selected;
-  if(v.orient==='h'){
-    const deltaCells=Math.round((px-dragStart.x)/cell);
-    const lo=-maxSlide(v,-1), hi=maxSlide(v,1);
-    let nc=dragStart.c0+Math.max(lo,Math.min(hi,deltaCells));
-    if(nc!==v.c){ v.c=nc; }
-  } else {
-    const deltaCells=Math.round((py-dragStart.y)/cell);
-    const lo=-maxSlide(v,-1), hi=maxSlide(v,1);
-    let nr=dragStart.r0+Math.max(lo,Math.min(hi,deltaCells));
-    if(nr!==v.r){ v.r=nr; }
-  }
-}
-function onUp(){
-  if(!selected) return;
-  const v=selected;
-  const moved = (v.r!==dragStart.r0 || v.c!==dragStart.c0);
-  if(moved){
-    undoStack.push({id:v.id, r:dragStart.r0, c:dragStart.c0});
-    moveCount++;
-    sfxSlide();
-    if(isWin(vehicles)) triggerWin();
-  }
-  selected=null; pointerId=null; dragStart=null;
-}
-function undo(){
-  if(gameState!=='play' || undoStack.length===0) return;
-  const last=undoStack.pop();
-  const v=vehicles.find(x=>x.id===last.id);
-  v.r=last.r; v.c=last.c; moveCount++; sfxBump();
-  hintCells=null;
-}
-function resetLevel(){ if(gameState==='play'||gameState==='won'){ loadLevel(levelIdx); } }
-
-function triggerWin(){
-  gameState='won'; winAnim=0; sfxWin();
-  saveBest(levelIdx, moveCount);
-  confetti=[];
-  for(let i=0;i<120;i++){ confetti.push({x:Math.random()*W,y:-20-Math.random()*H*0.5,
-    vx:(Math.random()-0.5)*3, vy:2+Math.random()*4, s:4+Math.random()*6,
-    col:CAR_COLORS[(Math.random()*CAR_COLORS.length)|0], rot:Math.random()*6.28, vr:(Math.random()-0.5)*0.3}); }
-}
-
-// ---------- Pointer events ----------
-canvas.addEventListener('pointerdown', e=>{ e.preventDefault(); ensureAudio();
-  if(gameState==='won'){ handleWonTap(e.clientX,e.clientY); return; }
-  onDown(e.clientX,e.clientY,e.pointerId); onButtons(e.clientX,e.clientY); }, {passive:false});
-canvas.addEventListener('pointermove', e=>{ e.preventDefault(); onMove(e.clientX,e.clientY); }, {passive:false});
-canvas.addEventListener('pointerup', e=>{ e.preventDefault(); onUp(); }, {passive:false});
-canvas.addEventListener('pointercancel', e=>{ onUp(); });
-
-// keyboard fallback
-let kbSel=0;
-window.addEventListener('keydown', e=>{
-  if(gameState!=='play') return;
-  const movable=vehicles;
-  if(e.key==='Tab'){ e.preventDefault(); kbSel=(kbSel+1)%movable.length; selected=movable[kbSel]; hintCells=null; }
-  const v=movable[kbSel]; if(!v) return;
-  let did=false;
-  if(v.orient==='h'){
-    if(e.key==='ArrowLeft' && maxSlide(v,-1)>0){ const o={r:v.r,c:v.c}; v.c--; undoStack.push({id:v.id,...o}); did=true; }
-    if(e.key==='ArrowRight'&& maxSlide(v,1)>0){ const o={r:v.r,c:v.c}; v.c++; undoStack.push({id:v.id,...o}); did=true; }
-  } else {
-    if(e.key==='ArrowUp'  && maxSlide(v,-1)>0){ const o={r:v.r,c:v.c}; v.r--; undoStack.push({id:v.id,...o}); did=true; }
-    if(e.key==='ArrowDown'&& maxSlide(v,1)>0){ const o={r:v.r,c:v.c}; v.r++; undoStack.push({id:v.id,...o}); did=true; }
-  }
-  if(did){ moveCount++; sfxSlide(); if(isWin(vehicles)) triggerWin(); }
-});
-
-// ---------- On-screen buttons (canvas-drawn, hit-tested) ----------
-let buttons=[]; // {x,y,w,h,label,fn}
-function layoutButtons(){
-  const by=boardY+boardPx+18; const bw=Math.min(120,(W-72)/3); const bh=48; const gap=12;
-  const totalW=bw*3+gap*2; let bx=(W-totalW)/2;
-  buttons=[
-    {x:bx,y:by,w:bw,h:bh,label:'↶ Undo',fn:undo},
-    {x:bx+bw+gap,y:by,w:bw,h:bh,label:'⟳ Reset',fn:resetLevel},
-    {x:bx+2*(bw+gap),y:by,w:bw,h:bh,label:'💡 Hint',fn:doHint},
-  ];
-}
-function onButtons(px,py){
-  for(const b of buttons){ if(px>=b.x&&px<=b.x+b.w&&py>=b.y&&py<=b.y+b.h){ b.fn(); return true; } }
-  // level pill tap -> level select
-  if(py<64 && px>W/2-90 && px<W/2+90){ openLevelSelect(); return true; }
-  return false;
-}
-
-// ---------- Won screen taps ----------
-let wonButtons=[];
-function handleWonTap(px,py){
-  for(const b of wonButtons){ if(px>=b.x&&px<=b.x+b.w&&py>=b.y&&py<=b.y+b.h){ b.fn(); return; } }
-}
-
-// ---------- Drawing ----------
-function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y);
-  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
-  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
-
-function drawBoard(){
-  // board frame
-  ctx.save();
-  const pad=8;
-  ctx.fillStyle='rgba(0,0,0,0.35)';
-  roundRect(boardX-pad,boardY-pad,boardPx+pad*2,boardPx+pad*2,18); ctx.fill();
-  // grid background
-  ctx.fillStyle='#12123a'; roundRect(boardX,boardY,boardPx,boardPx,10); ctx.fill();
-  // grid lines
-  ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=1;
-  for(let i=1;i<N;i++){ ctx.beginPath(); ctx.moveTo(boardX+i*cell,boardY); ctx.lineTo(boardX+i*cell,boardY+boardPx); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(boardX,boardY+i*cell); ctx.lineTo(boardX+boardPx,boardY+i*cell); ctx.stroke(); }
-  // exit gate on right wall at EXIT_ROW
-  const gy=boardY+EXIT_ROW*cell;
-  ctx.fillStyle='rgba(38,222,129,0.28)';
-  ctx.fillRect(boardX+boardPx-2, gy, 12, cell);
-  ctx.fillStyle='#26de81'; ctx.font='bold '+(cell*0.5)+'px Segoe UI';
-  ctx.textAlign='left'; ctx.textBaseline='middle';
-  ctx.fillText('→', boardX+boardPx+8, gy+cell/2);
-
-  // hint highlight
-  if(hintCells && performance.now()<hintExpire){
-    const puls=0.35+0.25*Math.sin(performance.now()/150);
-    ctx.fillStyle='rgba(255,211,42,'+puls+')';
-    for(const [r,c] of hintCells){ roundRect(boardX+c*cell+4,boardY+r*cell+4,cell-8,cell-8,8); ctx.fill(); }
-  } else if(hintCells){ hintCells=null; }
-
-  // vehicles
-  for(const v of vehicles){ drawVehicle(v); }
-  ctx.restore();
-}
-function drawVehicle(v){
-  const x=boardX+v.c*cell, y=boardY+v.r*cell;
-  const w=(v.orient==='h'?v.len:1)*cell, h=(v.orient==='v'?v.len:1)*cell;
-  const m=cell*0.10;
-  const isRed=(v.id==='X');
-  const col=isRed?'#fc5c65':colorFor(v.id);
-  // shadow
-  ctx.fillStyle='rgba(0,0,0,0.3)'; roundRect(x+m+2,y+m+3,w-2*m,h-2*m,cell*0.22); ctx.fill();
-  // body
-  const grad=isRed?ctx.createLinearGradient(x,y,x+w,y+h):null;
-  if(isRed){ grad.addColorStop(0,'#ff6b6b'); grad.addColorStop(1,'#e0202f'); ctx.fillStyle=grad; }
-  else ctx.fillStyle=col;
-  roundRect(x+m,y+m,w-2*m,h-2*m,cell*0.22); ctx.fill();
-  // highlight stripe
-  ctx.fillStyle='rgba(255,255,255,0.22)';
-  if(v.orient==='h') roundRect(x+m+cell*0.12,y+m+cell*0.12,w-2*m-cell*0.24,(h-2*m)*0.28,cell*0.1);
-  else roundRect(x+m+cell*0.12,y+m+cell*0.12,(w-2*m)*0.28,h-2*m-cell*0.24,cell*0.1);
-  ctx.fill();
-  // windows (little cabin marks)
-  ctx.fillStyle='rgba(20,20,50,0.55)';
-  if(v.orient==='h'){ for(let i=0;i<v.len;i++){ const cx=x+i*cell+cell*0.5; roundRect(cx-cell*0.16,y+h*0.42,cell*0.32,h*0.34,4); ctx.fill(); } }
-  else { for(let i=0;i<v.len;i++){ const cy=y+i*cell+cell*0.5; roundRect(x+w*0.42,cy-cell*0.16,w*0.34,cell*0.32,4); ctx.fill(); } }
-  if(isRed){ ctx.fillStyle='#fff'; ctx.font='bold '+(cell*0.42)+'px Segoe UI'; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText('★', x+cell*0.5, y+h*0.5); }
-  // selected outline
-  if(selected && selected.id===v.id){ ctx.strokeStyle='#fff'; ctx.lineWidth=3; roundRect(x+m,y+m,w-2*m,h-2*m,cell*0.22); ctx.stroke(); }
-}
-
-function drawHUD(){
-  const pw=Math.min(300,W-40), ph=52, px=(W-pw)/2, py=12;
-  ctx.fillStyle='rgba(0,0,0,0.4)'; roundRect(px,py,pw,ph,14); ctx.fill();
-  ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.lineWidth=1; roundRect(px,py,pw,ph,14); ctx.stroke();
-  ctx.textBaseline='middle';
-  ctx.textAlign='left'; ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='bold 14px Segoe UI';
-  ctx.fillText('LEVEL', px+16, py+ph/2-9);
-  ctx.fillStyle='#fff'; ctx.font='bold 24px Segoe UI';
-  ctx.fillText((levelIdx+1)+'', px+16, py+ph/2+9);
-  ctx.textAlign='center'; ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='bold 14px Segoe UI';
-  ctx.fillText('MOVES', px+pw/2, py+ph/2-9);
-  ctx.fillStyle='#ffd32a'; ctx.font='bold 24px Segoe UI';
-  ctx.fillText(moveCount+'', px+pw/2, py+ph/2+9);
-  ctx.textAlign='right'; ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='bold 14px Segoe UI';
-  ctx.fillText('BEST', px+pw-16, py+ph/2-9);
-  const best=getBest(levelIdx);
-  ctx.fillStyle='#a29bfe'; ctx.font='bold 24px Segoe UI';
-  ctx.fillText(best!=null?best+'':'–', px+pw-16, py+ph/2+9);
-}
-function drawButtons(){
-  for(const b of buttons){
-    ctx.fillStyle='rgba(108,92,231,0.35)'; roundRect(b.x,b.y,b.w,b.h,12); ctx.fill();
-    ctx.strokeStyle='rgba(162,155,254,0.5)'; ctx.lineWidth=1.5; roundRect(b.x,b.y,b.w,b.h,12); ctx.stroke();
-    ctx.fillStyle='#fff'; ctx.font='bold 16px Segoe UI'; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(b.label, b.x+b.w/2, b.y+b.h/2);
-  }
-}
-function drawWin(){
-  winAnim=Math.min(1,winAnim+0.04);
-  // confetti
-  for(const p of confetti){ p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr;
-    ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot); ctx.fillStyle=p.col;
-    ctx.fillRect(-p.s/2,-p.s/2,p.s,p.s); ctx.restore(); }
-  ctx.fillStyle='rgba(4,4,24,'+(0.7*winAnim)+')'; ctx.fillRect(0,0,W,H);
-  if(winAnim<0.4) return;
-  ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.save(); ctx.shadowColor='#ffd32a'; ctx.shadowBlur=30;
-  ctx.fillStyle='#ffd32a'; ctx.font='bold '+Math.min(64,W*0.12)+'px Segoe UI';
-  ctx.fillText('Escaped!', W/2, H*0.32); ctx.restore();
-  ctx.fillStyle='#fff'; ctx.font='bold 24px Segoe UI';
-  ctx.fillText('Level '+(levelIdx+1)+' cleared in '+moveCount+' moves', W/2, H*0.32+56);
-  const best=getBest(levelIdx), min=LEVELS[levelIdx].min;
-  ctx.fillStyle='#a29bfe'; ctx.font='18px Segoe UI';
-  ctx.fillText('Best: '+best+'   ·   Fewest possible: '+min, W/2, H*0.32+90);
-  // buttons
-  wonButtons=[];
-  const bw=Math.min(220,W-80), bh=56, cx=W/2;
-  const hasNext=levelIdx<LEVELS.length-1;
-  let by=H*0.55;
-  if(hasNext){
-    drawBigBtn(cx-bw/2,by,bw,bh,'Next Level ▶', ()=>loadLevel(levelIdx+1)); by+=bh+14;
-  }
-  drawBigBtn(cx-bw/2,by,bw,bh,'Play Again', ()=>loadLevel(levelIdx)); by+=bh+14;
-  drawBigBtn(cx-bw/2,by,bw,bh-8,'Level Select', ()=>openLevelSelect(),true);
-}
-function drawBigBtn(x,y,w,h,label,fn,secondary){
-  wonButtons.push({x,y,w,h,fn});
-  if(secondary){ ctx.fillStyle='rgba(45,42,114,0.9)'; }
-  else { const g=ctx.createLinearGradient(x,y,x+w,y+h); g.addColorStop(0,'#6c5ce7'); g.addColorStop(1,'#a29bfe'); ctx.fillStyle=g; }
-  roundRect(x,y,w,h,12); ctx.fill();
-  ctx.fillStyle='#fff'; ctx.font='bold 20px Segoe UI'; ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText(label, x+w/2, y+h/2);
-}
-
-function loop(){
-  ctx.clearRect(0,0,W,H);
-  if(gameState==='play' || gameState==='won'){
-    layoutButtons();
-    drawBoard();
-    drawHUD();
-    if(gameState==='play') drawButtons();
-    if(gameState==='won') drawWin();
-  }
-  requestAnimationFrame(loop);
-}
-
-// ---------- Menus ----------
-function buildPlayerCards(){
-  const wrap=document.getElementById('playerCards'); wrap.innerHTML='';
-  [['Caleb','🧒'],['Ezra','👦']].forEach(([name,em])=>{
-    const d=document.createElement('div'); d.className='pcard';
-    d.innerHTML='<span class="em">'+em+'</span>'+name;
-    d.onclick=()=>{ ensureAudio(); sfxSelect(); player=name; openLevelSelect(); };
-    wrap.appendChild(d);
+  document.addEventListener('visibilitychange', () => {
+    if (!playing) return;                 // never started; leave it alone
+    if (document.hidden) el.pause();
+    else el.play().catch(() => {});
   });
+  arm();
 }
-function openLevelSelect(){
-  gameState='select';
-  document.getElementById('overlay').classList.add('hidden');
-  const ls=document.getElementById('levelSelect'); ls.classList.remove('hidden');
-  document.getElementById('lsTitle').textContent=player+' — Pick a Level';
-  const grid=document.getElementById('lvgrid'); grid.innerHTML='';
-  const rec=playerRec().trafficJam[player].best;
-  LEVELS.forEach((lv,i)=>{
-    const t=document.createElement('div'); t.className='lvtile';
-    const solved=rec[i]!=null;
-    if(solved) t.classList.add('solved');
-    t.innerHTML=(i+1)+(solved?'<span class="star">★ '+rec[i]+'</span>':'');
-    t.onclick=()=>{ sfxSelect(); loadLevel(i); };
-    grid.appendChild(t);
-  });
-}
-document.getElementById('lsSwitch').onclick=()=>{
-  gameState='menu';
-  document.getElementById('levelSelect').classList.add('hidden');
-  document.getElementById('overlay').classList.remove('hidden');
-};
+music();
 
-// ---------- Init ----------
-buildPlayerCards();
-resize();
-loop();
+// ---------------------------------------------------------------------------
+// Tiny renderer. The whole UI layer is rebuilt as an HTML string, then MORPHED
+// into the live DOM (attributes + text patched in place, nodes only added or
+// removed where the structure changed). Every <sc-if> from the design becomes a
+// keyed display:contents wrapper that is always emitted, so sibling indexes stay
+// stable and a screen's DOM is created once when it appears — entrance
+// animations (tjPop / tjRise / tjSlide) play once, not on every move.
+// ---------------------------------------------------------------------------
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const iff = (k, cond, html) => `<div class="c" data-k="${k}">${cond ? html : ''}</div>`;
+function morphChildren(a, b) {
+  const o = Array.from(a.childNodes), n = Array.from(b.childNodes);
+  for (let i = 0; i < n.length; i++) { if (i >= o.length) a.appendChild(n[i]); else patchNode(o[i], n[i]); }
+  for (let i = n.length; i < o.length; i++) a.removeChild(o[i]);
+}
+function patchNode(a, b) {
+  if (a.nodeType !== b.nodeType || a.nodeName !== b.nodeName || (a.nodeType === 1 && a.getAttribute('data-k') !== b.getAttribute('data-k'))) { a.replaceWith(b); return; }
+  if (a.nodeType !== 1) { if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; return; }
+  for (const at of Array.from(b.attributes)) if (a.getAttribute(at.name) !== at.value) a.setAttribute(at.name, at.value);
+  for (const at of Array.from(a.attributes)) if (!b.hasAttribute(at.name)) a.removeAttribute(at.name);
+  morphChildren(a, b);
+}
+
+// ---------------------------------------------------------------------------
+// Component — ported from the Claude Design <script type="text/x-dc"> (DCLogic).
+// Logic is kept line-for-line; only React plumbing (hostRef, setState, render)
+// is replaced.
+// ---------------------------------------------------------------------------
+class Component {
+  state = { screen: 'loading', progress: 0, player: null, district: 0, levelIdx: 0, moves: 0, bumps: 0, left: 0, canUndo: false, muted: false, win: null, toast: null, wipe: false, wide: true };
+  hostRef = { current: document.getElementById('host') };
+  PLAYERS = [['Caleb', '#ff4d6d'], ['Ezra', '#3ec1d3']];
+
+  constructor() {
+    this.ui = document.getElementById('ui'); this._html = null; this.vals = null;
+    // Delegated taps: buttons carry data-click="<path into renderVals()>".
+    document.getElementById('app').addEventListener('click', e => {
+      const b = e.target.closest('[data-click]'); if (!b || !this.vals) return;
+      const fn = b.getAttribute('data-click').split('.').reduce((o, k) => o == null ? o : o[k], this.vals);
+      if (typeof fn === 'function') fn();
+    });
+    document.addEventListener('touchstart', () => {}, { passive: true }); // lets :active fire on iOS
+    this.render();
+    this.componentDidMount().catch(err => console.error('Traffic Jam failed to start', err));
+  }
+  setState(patch, cb) {
+    Object.assign(this.state, typeof patch === 'function' ? patch(this.state) : patch);
+    this.render(); this.componentDidUpdate(); cb && cb();
+  }
+  render() {
+    const v = this.vals = this.renderVals(), html = view(v);
+    if (html === this._html) return;
+    this._html = html;
+    const t = document.createElement('template'); t.innerHTML = html;
+    morphChildren(this.ui, t.content);
+  }
+
+  async componentDidMount() {
+    const u = f => new URL(f, document.baseURI).href;
+    this.onResize = () => { const wide = innerWidth >= 760 && innerWidth / innerHeight >= 1.15; if (wide !== this.state.wide) this.setState({ wide }); };
+    this.onResize(); addEventListener('resize', this.onResize);
+    this.onKey = e => this.key(e); addEventListener('keydown', this.onKey);
+    const [lv, en] = await Promise.all([import(u('js/traffic-levels.js')), import(u('js/traffic-engine.js'))]);
+    Object.assign(this, { LEVELS: lv.LEVELS, TIERS: lv.TIERS, VARIANTS: lv.VARIANTS, TYPES: lv.TYPES, starTargets: lv.starTargets });
+    let muted = false; try { muted = localStorage.getItem('trafficJamMuted') === '1'; } catch (e) {}
+    this.engine = await en.createEngine(this.hostRef.current, {
+      onProgress: p => this.setState({ progress: p }),
+      onMoves: m => this.setState({ moves: m.moves, bumps: m.bumps, left: m.left, canUndo: m.canUndo }),
+      onWin: r => this.onWin(r),
+      onMenuPick: k => this.pickPlayer(k),
+      onHint: on => this.setState({ hintOn: on }),
+    });
+    window.__tj = this.engine;
+    this.engine.setMuted(muted); this.engine.menuGarage(this.locks(null));
+    this.setState({ screen: 'title', muted });
+  }
+  componentDidUpdate() { const k = this.state.screen + '|' + this.state.wide; if (this.engine && k !== this._layoutKey) { this._layoutKey = k; this.applyInsets(); } }
+  applyInsets() {
+    const s = this.state.screen, w = this.state.wide;
+    const map = { title: {}, driving: {}, district: { bottom: 190, top: 60 }, levels: { bottom: w ? 250 : 470, top: 60 }, play: w ? { right: 170, top: 0, bottom: 0 } : { top: 120, bottom: 96 }, win: w ? { right: 170 } : { top: 120, bottom: 96 } };
+    this.engine.setInsets(map[s] || {});
+  }
+  key(e) {
+    if (!this.engine) return;
+    const s = this.state.screen;
+    if (s === 'district' || s === 'levels') { if (e.key === 'ArrowLeft') this.goDistrict(-1); if (e.key === 'ArrowRight') this.goDistrict(1); if (e.key === 'Enter' && s === 'district') this.driveIn(); }
+    if (s === 'play') { if (e.key === 'z' || e.key === 'u') this.engine.undo(); if (e.key === 'h') this.engine.hint(); if (e.key === 'r') this.engine.reset(); }
+  }
+
+  // Saves: legacy shared calebArcadeData object, under trafficJam[player].v2 — exactly as designed.
+  data() { try { return JSON.parse(localStorage.getItem('calebArcadeData')) || {}; } catch (e) { return {}; } }
+  save(d) { try { localStorage.setItem('calebArcadeData', JSON.stringify(d)); } catch (e) { console.warn('Traffic Jam: save failed', e); } }
+  rec(d, p) { d.trafficJam = d.trafficJam || {}; d.trafficJam[p] = d.trafficJam[p] || { best: {} }; const r = d.trafficJam[p]; r.v2 = r.v2 || { stars: {}, best: {} }; return r.v2; }
+  prog(p) { return p ? this.rec(this.data(), p) : { stars: {}, best: {} }; }
+  solvedIn(rec, k) { let n = 0; for (let i = k * 10; i < k * 10 + 10; i++) if (rec.stars[i] != null) n++; return n; }
+  districtOpen(rec, k) { return k === 0 || this.solvedIn(rec, k - 1) >= 7; }
+  levelOpen(rec, i) { const k = Math.floor(i / 10); return this.districtOpen(rec, k) && (i % 10 === 0 || rec.stars[i - 1] != null || rec.stars[i] != null); }
+  locks(p) { const rec = this.prog(p); return (this.TIERS || [0, 0, 0, 0, 0]).map((_, k) => !this.districtOpen(rec, k)); }
+
+  wipe(fn) { this.setState({ wipe: true }); setTimeout(() => { fn(); setTimeout(() => this.setState({ wipe: false }), 60); }, 240); }
+  pickPlayer(k) {
+    if (this.state.screen !== 'title') return;
+    const name = this.PLAYERS[k][0], rec = this.prog(name);
+    let d = 0; for (let q = this.TIERS.length - 1; q >= 0; q--) if (this.districtOpen(rec, q)) { d = q; break; }
+    if (rec.lastDistrict != null && this.districtOpen(rec, rec.lastDistrict)) d = rec.lastDistrict;
+    this.engine.sfx('click');
+    this.setState({ player: name, screen: 'driving', district: d });
+    this.engine.menuPick(k, d, this.locks(name), () => this.setState({ screen: 'district' }));
+  }
+  goDistrict(dir) { const k = Math.max(0, Math.min(this.TIERS.length - 1, this.state.district + dir)); if (k === this.state.district) return; this.engine.sfx('click');
+    if (this.state.screen === 'levels') { const open = this.districtOpen(this.prog(this.state.player), k); this.engine.menuDistrict(k, this.locks(this.state.player), open); this.setState({ district: k, screen: open ? 'levels' : 'district' }); return; }
+    this.engine.menuDistrict(k, this.locks(this.state.player)); this.setState({ district: k }); }
+  driveIn() {
+    const rec = this.prog(this.state.player); if (!this.districtOpen(rec, this.state.district)) return;
+    const d = this.data(); this.rec(d, this.state.player).lastDistrict = this.state.district; this.save(d);
+    this.engine.sfx('click'); this.engine.menuDistrict(this.state.district, this.locks(this.state.player), true); this.setState({ screen: 'levels' });
+  }
+  onWin(r) {
+    const d = this.data(), rec = this.rec(d, this.state.player), i = this.state.levelIdx;
+    rec.stars[i] = Math.max(rec.stars[i] || 0, r.stars);
+    if (rec.best[i] == null || r.moves < rec.best[i]) rec.best[i] = r.moves;
+    this.save(d);
+    this.setState({ screen: 'win', win: r });
+    [0, 1, 2].forEach(k => { if (k < r.stars) setTimeout(() => this.engine.sfx('star', k), 500 + k * 220); });
+  }
+  play(i) {
+    const L = this.LEVELS[i], V = this.VARIANTS[L.variant];
+    this.wipe(() => {
+      this.setState({ hintOn: false, screen: 'play', levelIdx: i, district: Math.floor(i / 10), win: null }, () => { this._layoutKey = 'play|' + this.state.wide; this.applyInsets(); this.engine.loadLevel(L, i); });
+    });
+    const first = !this.LEVELS.slice(0, i).some(x => x.variant === L.variant);
+    const tips = {
+      carpark: 'Drag cars along their lanes. When the gate lifts, drag the red car out through it!',
+      night: 'Night shift! Same rules, but look for the headlights.',
+      box: 'Drag or flick a car off the edge to clear it. Flick into another car and it bumps!',
+      oneway: 'One-way street: every car can only drive the way its arrow points.',
+      roadworks: 'Barriers never move. Plan your way around them.',
+      onegate: 'New! Swipe a car to drive one square, back up, or turn left or right. Everyone leaves through the gate.',
+      colour: 'Colour Match! Each car can only leave through the gate that matches its roof colour.',
+    };
+    const st3 = this.starTargets(L); const toast = first ? tips[L.variant] : (L.type === 'colour' ? `Match every car to its gate in ${st3.three} moves or fewer for 3 stars.` : L.type === 'rush' ? `Free the red car in ${st3.three} moves or fewer for 3 stars.` : 'Clear every car with 1 bump or fewer for 3 stars.');
+    clearTimeout(this.toastT); this.setState({ toast }); this.toastT = setTimeout(() => this.setState({ toast: null }), first ? 7000 : 3500);
+  }
+  backToLevels() {
+    const k = Math.floor(this.state.levelIdx / 10), sel = this.PLAYERS.findIndex(p => p[0] === this.state.player);
+    this.wipe(() => { this.engine.menuReturn(k, this.locks(this.state.player), sel); this.setState({ screen: 'levels', district: k, toast: null }); });
+  }
+
+  renderVals() {
+    const s = this.state, L = this.LEVELS, V = this.VARIANTS, lv = L ? L[s.levelIdx] : null;
+    const click = fn => () => { this.engine && this.engine.sfx('click'); fn(); };
+    const rec = this.prog(s.player);
+    const totalStars = Object.values(rec.stars).reduce((a, b) => a + b, 0);
+    const players = this.PLAYERS.map(([name, color], k) => ({ name, color, initial: name[0], left: k === 0 ? '31%' : '69%', stars: this.engine ? Object.values(this.prog(name).stars).reduce((a, b) => a + b, 0) : 0, pick: () => this.pickPlayer(k) }));
+    const T = this.TIERS ? this.TIERS[s.district] : { name: '', sub: '' };
+    let dStars = 0; for (let i = s.district * 10; i < s.district * 10 + 10; i++) dStars += rec.stars[i] || 0;
+    const dOpen = this.TIERS ? this.districtOpen(rec, s.district) : true;
+    const on = '#f5a300', off = '#cfc8dd';
+    const tiles = L ? L.slice(s.district * 10, s.district * 10 + 10).map((l, k) => {
+      const i = s.district * 10 + k, st = rec.stars[i] || 0, open = this.levelOpen(rec, i), v = V[l.variant];
+      return { n: i + 1, open, locked: !open, mode: v.mode, short: { rush: 'Escape', grid: 'Clear', colour: 'Match' }[l.type], variant: v.name, bg: v.bg, ink: v.ink, s1: st >= 1 ? on : off, s2: st >= 2 ? on : off, s3: st >= 3 ? on : off, go: click(() => this.play(i)) };
+    }) : [];
+    const rush = lv && lv.type === 'rush', match = lv && lv.type === 'colour', counted = rush || match, v = lv ? V[lv.variant] : { name: '', ink: '#2a2740', bg: '#fff', rule: '' };
+    const w = s.win || { stars: 0 };
+    const titles = ['', 'You did it!', 'Great driving!', 'Perfect!'];
+    const playing = s.screen === 'play' || s.screen === 'win';
+    const nextOpen = L && s.levelIdx < L.length - 1 && this.levelOpen(rec, s.levelIdx + 1);
+    return {
+      isLoading: s.screen === 'loading', isTitle: s.screen === 'title',
+      showMapTop: s.screen === 'district' || s.screen === 'levels',
+      isDistrict: s.screen === 'district', isLevels: s.screen === 'levels',
+      playWide: playing && s.wide, playNarrow: playing && !s.wide, isWin: s.screen === 'win',
+      winRight: s.wide ? '174px' : '0px',
+      progressPct: Math.round(s.progress * 100) + '%',
+      players, totalStars, player: s.player, playerColor: (this.PLAYERS.find(p => p[0] === s.player) || [0, '#ccc'])[1],
+      toTitle: click(() => { this.engine.menuGarage(this.locks(null)); this.setState({ screen: 'title', player: null }); }),
+      districtNum: s.district + 1, districtName: T.name, districtSub: T.sub, districtStars: dStars, districtPct: Math.round(dStars / 30 * 100) + '%', districtMax: 30,
+      districtCount: this.TIERS ? this.TIERS.length : 5, maxStars: L ? L.length * 3 : 150,
+      districtDots: (this.TIERS || []).map((_, k) => ({ w: k === s.district ? '28px' : '10px', bg: k === s.district ? '#2a2740' : (this.TIERS && this.districtOpen(rec, k) ? '#ffd23f' : '#e7e2ef') })),
+      districtOpen: dOpen, districtLocked: !dOpen,
+      lockMsg: s.district > 0 && this.TIERS ? `Clear 7 levels in ${this.TIERS[s.district - 1].name} (${this.solvedIn(rec, s.district - 1)}/7)` : '',
+      canPrev: s.district > 0, canNext: s.district < (this.TIERS ? this.TIERS.length - 1 : 4),
+      prevDistrict: () => this.goDistrict(-1), nextDistrict: () => this.goDistrict(1),
+      driveIn: () => this.driveIn(),
+      backToMap: click(() => { this.engine.menuDistrict(s.district, this.locks(s.player), false); this.setState({ screen: 'district' }); }),
+      tiles, tileCols: s.wide ? 'repeat(10,minmax(0,1fr))' : 'repeat(5,minmax(0,1fr))',
+      legend: (this.TYPES ? ['rush', 'grid', 'colour'] : []).map(k => ({ name: this.TYPES[k].name, goal: this.TYPES[k].goal, bg: this.TYPES[k].bg, ink: this.TYPES[k].ink })),
+      levelArrowTop: s.wide ? 'calc((100% - 250px) / 2 + 30px)' : 'calc((100% - 470px) / 2 + 30px)',
+      toLevels: click(() => this.backToLevels()),
+      levelNum: s.levelIdx + 1,
+      modeLabel: v.mode, variantName: v.name, vInk: v.ink, vBg: v.bg, rule: v.rule,
+      goal: match ? (lv.variant === 'onegate' ? 'Drive every car out of the gate' : 'Send each car to its colour gate') : rush ? 'Get the red car out of the gate' : 'Drive every car off the lot',
+      statBig: counted ? String(s.moves) : String(s.left), statBigLabel: counted ? 'moves' : 'cars left',
+      statSmall: counted ? String(lv && this.starTargets ? this.starTargets(lv).three : '') : String(s.bumps), statSmallLabel: counted ? 'for ★★★' : (s.bumps === 1 ? 'bump' : 'bumps'),
+      showToast: !!s.toast && s.screen === 'play', toast: s.toast,
+      undo: () => this.engine.undo(), reset: () => this.engine.reset(), hint: () => this.engine.hint(), hintLabel: s.hintOn ? 'Do it' : 'Hint', hintIcon: s.hintOn ? '▶' : '?', hintBg: s.hintOn ? '#7bd389' : '#ffd23f',
+      undoOpacity: s.canUndo ? 1 : .45,
+      winTitle: titles[w.stars] || '',
+      winStars: [0, 1, 2].map(k => ({ color: k < w.stars ? '#ffd23f' : '#e2dcec', size: k === 1 ? '72px' : '56px', delay: (0.35 + k * 0.22) + 's' })),
+      winStats: counted ? `${w.moves} moves · 3 stars in ${lv && this.starTargets ? this.starTargets(lv).three : ''} or fewer` : (w.bumps ? `${w.bumps} bump${w.bumps === 1 ? '' : 's'} · 1 bump or fewer for 3 stars` : 'No bumps at all!'),
+      hasNext: !!nextOpen,
+      replay: click(() => this.play(s.levelIdx)),
+      next: click(() => this.play(s.levelIdx + 1)),
+      wipeOpacity: s.wipe ? 1 : 0,
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// View — the design's <x-dc> template, markup and inline styles kept as-is.
+// style-active="box-shadow:0 1px/2px 0 #2a2740" -> class a1 / a2 (:active rule).
+// ---------------------------------------------------------------------------
+const BTN_SIDE = 'height:50px;background:#fffaf0;border:3px solid #2a2740;box-shadow:0 4px 0 #2a2740;border-radius:14px;font-size:14px;font-weight:600;cursor:pointer;color:#2a2740;display:flex;align-items:center;justify-content:center;gap:6px;line-height:1;';
+const BTN_NARROW = 'pointer-events:auto;height:60px;min-width:72px;background:#fffaf0;border:3px solid #2a2740;box-shadow:0 5px 0 #2a2740;border-radius:18px;font-size:15px;font-weight:600;cursor:pointer;color:#2a2740;';
+function view(v) {
+  const e = esc;
+  const loading = `
+    <div style="position:absolute;inset:0;background:#2a2740;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:24px;">
+      <div style="background:#ffd23f;border:4px solid #15132a;box-shadow:0 8px 0 #15132a;border-radius:22px;padding:14px 30px;transform:rotate(-3deg);text-align:center;line-height:.9;">
+        <div style="font-size:54px;font-weight:700;letter-spacing:.02em;">TRAFFIC</div>
+        <div style="font-size:54px;font-weight:700;letter-spacing:.18em;color:#ff4d6d;">JAM</div>
+      </div>
+      <div style="width:min(280px,70vw);height:16px;border-radius:99px;background:#403c5e;border:3px solid #15132a;overflow:hidden;">
+        <div style="height:100%;background:#ffd23f;border-radius:99px;width:${v.progressPct};transition:width .2s;"></div>
+      </div>
+      <div style="color:#cfc9ea;font-size:16px;font-weight:500;">Polishing the cars…</div>
+    </div>`;
+
+  const title = () => `
+    <div style="position:absolute;inset:0;pointer-events:none;">
+      <div style="position:absolute;top:18px;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:12px;">
+        <div style="animation:tjPop .7s cubic-bezier(.2,.9,.3,1.2) both;background:#ffd23f;border:5px solid #2a2740;box-shadow:0 8px 0 #2a2740;border-radius:22px;padding:8px 30px 6px;transform:rotate(-2deg);display:flex;align-items:baseline;gap:16px;line-height:1;">
+          <div style="font-size:clamp(40px,6vw,64px);font-weight:700;letter-spacing:.02em;">TRAFFIC</div>
+          <div style="font-size:clamp(40px,6vw,64px);font-weight:700;letter-spacing:.14em;color:#ff4d6d;">JAM</div>
+        </div>
+        <div style="background:#2a2740;color:#fffaf0;border-radius:99px;padding:6px 18px;font-size:18px;font-weight:500;">Who's driving today? Tap a car.</div>
+      </div>
+      ${v.players.map((p, k) => `
+        <button data-click="players.${k}.pick" class="a2" style="pointer-events:auto;position:absolute;bottom:26px;left:${p.left};transform:translateX(-50%);width:210px;padding:12px 14px;background:#fffaf0;border:4px solid #2a2740;box-shadow:0 6px 0 #2a2740;border-radius:22px;cursor:pointer;display:flex;align-items:center;gap:12px;color:#2a2740;text-align:left;">
+          <div style="width:52px;height:52px;flex-shrink:0;border-radius:50%;border:4px solid #2a2740;background:${p.color};display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;color:#fffaf0;">${e(p.initial)}</div>
+          <div style="display:flex;flex-direction:column;gap:2px;">
+            <div style="font-size:24px;font-weight:600;line-height:1;">${e(p.name)}</div>
+            <div style="font-size:15px;font-weight:500;color:#6a6488;">★ ${p.stars} / ${v.maxStars}</div>
+          </div>
+        </button>`).join('')}
+    </div>`;
+
+  const mapTop = () => `
+    <div style="position:absolute;top:14px;left:136px;right:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;pointer-events:none;">
+      <button data-click="toTitle" class="a1" style="pointer-events:auto;background:#fffaf0;border:3px solid #2a2740;box-shadow:0 4px 0 #2a2740;border-radius:14px;padding:8px 14px;font-weight:600;font-size:16px;cursor:pointer;color:#2a2740;display:flex;align-items:center;gap:8px;">
+        <span style="width:22px;height:22px;border-radius:50%;background:${v.playerColor};border:2px solid #2a2740;display:inline-block;"></span>${e(v.player)} · switch
+      </button>
+      <div style="margin-left:auto;background:#ffd23f;border:3px solid #2a2740;box-shadow:0 4px 0 #2a2740;border-radius:14px;padding:8px 14px;font-weight:600;font-size:16px;">★ ${v.totalStars} / ${v.maxStars}</div>
+    </div>`;
+
+  const district = () => `
+    <div style="position:absolute;inset:0;pointer-events:none;">
+      ${iff('dprev', v.canPrev, `
+        <button data-click="prevDistrict" class="a1" style="pointer-events:auto;position:absolute;left:18px;top:50%;transform:translateY(-50%);width:68px;height:68px;border-radius:50%;background:#fffaf0;border:4px solid #2a2740;box-shadow:0 5px 0 #2a2740;font-size:34px;font-weight:700;cursor:pointer;color:#2a2740;line-height:1;">‹</button>`)}
+      ${iff('dnext', v.canNext, `
+        <button data-click="nextDistrict" class="a1" style="pointer-events:auto;position:absolute;right:18px;top:50%;transform:translateY(-50%);width:68px;height:68px;border-radius:50%;background:#fffaf0;border:4px solid #2a2740;box-shadow:0 5px 0 #2a2740;font-size:34px;font-weight:700;cursor:pointer;color:#2a2740;line-height:1;">›</button>`)}
+      <div style="position:absolute;left:16px;right:16px;bottom:22px;display:flex;justify-content:center;">
+        <div style="width:100%;max-width:580px;pointer-events:auto;animation:tjRise .35s both;background:#fffaf0;border:4px solid #2a2740;box-shadow:0 8px 0 #2a2740;border-radius:26px;padding:16px 20px;display:flex;align-items:center;gap:18px;">
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              ${v.districtDots.map(d => `<div style="width:${d.w};height:10px;border-radius:99px;background:${d.bg};border:2px solid #2a2740;transition:width .25s;"></div>`).join('')}
+              <div style="font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#6a6488;margin-left:4px;">District ${v.districtNum} of ${v.districtCount}</div>
+            </div>
+            <div style="font-size:32px;font-weight:700;line-height:1.05;">${e(v.districtName)}</div>
+            <div style="font-size:16px;font-weight:500;color:#6a6488;">${e(v.districtSub)}</div>
+            <div style="display:flex;align-items:center;gap:10px;margin-top:4px;">
+              <div style="flex:1;height:12px;border-radius:99px;background:#e7e2ef;border:2px solid #2a2740;overflow:hidden;"><div style="height:100%;background:#ffd23f;width:${v.districtPct};"></div></div>
+              <div style="font-size:15px;font-weight:600;white-space:nowrap;">★ ${v.districtStars} / ${v.districtMax}</div>
+            </div>
+          </div>
+          ${iff('dopen', v.districtOpen, `
+            <button data-click="driveIn" class="a2" style="flex-shrink:0;height:72px;padding:0 24px;background:#7bd389;border:4px solid #2a2740;box-shadow:0 6px 0 #2a2740;border-radius:20px;font-size:22px;font-weight:700;cursor:pointer;color:#2a2740;white-space:nowrap;">Drive in ›</button>`)}
+          ${iff('dlocked', v.districtLocked, `
+            <div style="flex-shrink:0;width:170px;background:#ffe4cc;border:3px dashed #b44f00;border-radius:18px;padding:10px 12px;text-align:center;font-size:15px;font-weight:600;color:#8a3c00;line-height:1.25;">Road closed<br><span style="font-weight:500;">${e(v.lockMsg)}</span></div>`)}
+        </div>
+      </div>
+    </div>`;
+
+  const levels = () => `
+    ${iff('lprev', v.canPrev, `
+      <button data-click="prevDistrict" class="a1" style="position:absolute;left:18px;top:${v.levelArrowTop};transform:translateY(-50%);width:60px;height:60px;border-radius:50%;background:#fffaf0;border:4px solid #2a2740;box-shadow:0 5px 0 #2a2740;font-size:30px;font-weight:700;cursor:pointer;color:#2a2740;line-height:1;">‹</button>`)}
+    ${iff('lnext', v.canNext, `
+      <button data-click="nextDistrict" class="a1" style="position:absolute;right:18px;top:${v.levelArrowTop};transform:translateY(-50%);width:60px;height:60px;border-radius:50%;background:#fffaf0;border:4px solid #2a2740;box-shadow:0 5px 0 #2a2740;font-size:30px;font-weight:700;cursor:pointer;color:#2a2740;line-height:1;">›</button>`)}
+    <div style="position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:center;padding:0 14px;pointer-events:none;">
+      <div style="pointer-events:auto;width:100%;max-width:1300px;background:#fffaf0;border:4px solid #2a2740;border-bottom:none;border-radius:28px 28px 0 0;padding:16px 20px 22px;display:flex;flex-direction:column;gap:14px;animation:tjRise .35s both;box-shadow:0 -6px 0 rgba(42,39,64,.25);">
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+          <button data-click="backToMap" class="a1" style="height:46px;padding:0 16px;background:#fffaf0;border:3px solid #2a2740;box-shadow:0 4px 0 #2a2740;border-radius:14px;font-size:16px;font-weight:600;cursor:pointer;color:#2a2740;">‹ Map</button>
+          <div style="display:flex;flex-direction:column;">
+            <div style="font-size:26px;font-weight:700;line-height:1;">${e(v.districtName)}</div>
+            <div style="font-size:14px;font-weight:500;color:#6a6488;">Three kinds of puzzle. Each has a few twists.</div>
+          </div>
+          <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;">
+            ${v.legend.map(g => `
+              <div style="display:flex;align-items:center;gap:8px;background:${g.bg};border:2px solid #2a2740;border-radius:14px;padding:4px 12px 4px 6px;">
+                <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#fffaf0;background:${g.ink};border-radius:99px;padding:3px 9px;">${e(g.name)}</div>
+                <div style="font-size:12px;font-weight:600;color:${g.ink};">${e(g.goal)}</div>
+              </div>`).join('')}
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:${v.tileCols};gap:12px;">
+          ${v.tiles.map((t, k) => `
+            <div style="display:flex;">
+              ${iff('topen', t.open, `
+                <button data-click="tiles.${k}.go" class="a1" style="width:100%;height:132px;background:${t.bg};border:3px solid #2a2740;box-shadow:0 5px 0 #2a2740;border-radius:18px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:10px 6px 9px;color:#2a2740;">
+                  <div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#fffaf0;background:${t.ink};border-radius:99px;padding:2px 7px;white-space:nowrap;">${e(t.short)}</div>
+                  <div style="font-size:36px;font-weight:700;line-height:1;">${t.n}</div>
+                  <div style="font-size:13px;font-weight:600;color:${t.ink};line-height:1.1;text-align:center;">${e(t.variant)}</div>
+                  <div style="font-size:17px;letter-spacing:1px;line-height:1;"><span style="color:${t.s1};">★</span><span style="color:${t.s2};">★</span><span style="color:${t.s3};">★</span></div>
+                </button>`)}
+              ${iff('tlocked', t.locked, `
+                <div style="width:100%;height:132px;background:#ece8f2;border:3px dashed #b9b2cc;border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#a39cb8;gap:8px;">
+                  <div style="font-size:32px;font-weight:700;line-height:1;">${t.n}</div>
+                  <div class="lk" style="width:16px;height:12px;border-radius:3px;background:#b9b2cc;position:relative;margin-top:6px;"></div>
+                </div>`)}
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>`;
+
+  const toastWide = `
+      <div style="position:absolute;left:16px;right:178px;bottom:16px;display:flex;justify-content:center;pointer-events:none;">
+        <div style="max-width:520px;background:#2a2740;color:#fffaf0;border-radius:18px;padding:12px 16px;font-size:16px;font-weight:500;line-height:1.3;animation:tjRise .4s both;display:flex;gap:10px;align-items:center;">
+          <div style="flex-shrink:0;width:26px;height:26px;border-radius:50%;background:#ffd23f;color:#2a2740;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;">!</div>
+          <div>${e(v.toast)}</div>
+        </div>
+      </div>`;
+
+  const playWide = () => `
+    <div style="position:absolute;top:12px;right:12px;bottom:12px;width:150px;display:flex;flex-direction:column;gap:10px;animation:tjSlide .35s both;">
+      <button data-click="toLevels" class="a1" style="height:44px;background:#fffaf0;border:3px solid #2a2740;box-shadow:0 4px 0 #2a2740;border-radius:14px;font-size:15px;font-weight:600;cursor:pointer;color:#2a2740;">‹ Levels</button>
+      <div style="background:#fffaf0;border:3px solid #2a2740;box-shadow:0 4px 0 #2a2740;border-radius:16px;padding:10px 10px 9px;display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center;">
+        <div style="font-size:11px;font-weight:600;color:#6a6488;letter-spacing:.04em;">${e(v.districtName)}</div>
+        <div style="font-size:22px;font-weight:700;line-height:1;">Level ${v.levelNum}</div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#fffaf0;background:${v.vInk};border-radius:99px;padding:3px 9px;">${e(v.modeLabel)}</div><div style="font-size:12px;font-weight:600;color:${v.vInk};">${e(v.variantName)}</div></div>
+        <div style="font-size:12px;font-weight:500;color:#5b5577;line-height:1.25;text-wrap:pretty;">${e(v.goal)}</div>
+      </div>
+      <div style="background:#2a2740;color:#fffaf0;border-radius:16px;padding:10px 8px;display:grid;grid-template-columns:1fr 1fr;gap:2px;text-align:center;">
+        <div style="display:flex;flex-direction:column;"><div style="font-size:26px;font-weight:700;line-height:1;">${e(v.statBig)}</div><div style="font-size:10px;color:#cfc9ea;font-weight:500;">${e(v.statBigLabel)}</div></div>
+        <div style="display:flex;flex-direction:column;"><div style="font-size:26px;font-weight:700;line-height:1;color:#ffd23f;">${e(v.statSmall)}</div><div style="font-size:10px;color:#cfc9ea;font-weight:500;">${e(v.statSmallLabel)}</div></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:auto;">
+        <button data-click="hint" class="a1" style="${BTN_SIDE.replace('background:#fffaf0', 'background:' + v.hintBg)}"><span style="font-size:19px;font-weight:700;">${v.hintIcon}</span>${v.hintLabel}</button>
+        <button data-click="undo" class="a1" style="${BTN_SIDE}opacity:${v.undoOpacity};"><span style="font-size:19px;font-weight:700;">↶</span>Undo</button>
+        <button data-click="reset" class="a1" style="${BTN_SIDE}"><span style="font-size:19px;font-weight:700;">↻</span>Reset</button>
+      </div>
+    </div>
+    ${iff('toastw', v.showToast, toastWide)}`;
+
+  const playNarrow = () => `
+    <div style="position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:12px;">
+      <div style="display:flex;align-items:flex-start;gap:10px;padding-left:124px;">
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:6px;">
+          <div style="display:flex;align-items:center;gap:8px;background:#fffaf0;border:3px solid #2a2740;box-shadow:0 4px 0 #2a2740;border-radius:16px;padding:6px 12px;">
+            <div style="font-size:19px;font-weight:700;white-space:nowrap;">Level ${v.levelNum}</div>
+            <div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#fffaf0;background:${v.vInk};border-radius:99px;padding:3px 8px;white-space:nowrap;">${e(v.variantName)}</div>
+          </div>
+          <div style="font-size:14px;font-weight:600;background:rgba(255,250,240,.9);border-radius:99px;padding:3px 12px;text-align:center;">${e(v.goal)}</div>
+        </div>
+        <div style="flex-shrink:0;min-width:78px;height:56px;background:#2a2740;color:#fffaf0;border-radius:16px;padding:4px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05;">
+          <div style="font-size:24px;font-weight:700;">${e(v.statBig)}</div>
+          <div style="font-size:11px;font-weight:500;color:#cfc9ea;white-space:nowrap;">${e(v.statBigLabel)}</div>
+        </div>
+        <button data-click="toLevels" class="a1" style="pointer-events:auto;height:56px;padding:0 14px;background:#fffaf0;border:3px solid #2a2740;box-shadow:0 4px 0 #2a2740;border-radius:16px;font-size:17px;font-weight:600;cursor:pointer;color:#2a2740;flex-shrink:0;">‹ Levels</button>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:10px;">
+        ${iff('toastn', v.showToast, `
+          <div style="max-width:380px;background:#2a2740;color:#fffaf0;border-radius:18px;padding:10px 16px;text-align:center;font-size:15px;font-weight:500;line-height:1.3;animation:tjRise .4s both;">${e(v.toast)}</div>`)}
+        <div style="display:flex;justify-content:center;gap:10px;">
+          <button data-click="undo" class="a1" style="${BTN_NARROW}opacity:${v.undoOpacity};">↶ Undo</button>
+          <button data-click="reset" class="a1" style="${BTN_NARROW}">↻ Reset</button>
+          <button data-click="hint" class="a1" style="${BTN_NARROW.replace('background:#fffaf0', 'background:' + v.hintBg)}">${v.hintIcon} ${v.hintLabel}</button>
+        </div>
+      </div>
+    </div>`;
+
+  const win = () => `
+    <div style="position:absolute;top:0;left:0;bottom:0;right:${v.winRight};background:rgba(42,39,64,.4);display:flex;align-items:center;justify-content:center;padding:20px;">
+      <div style="animation:tjRise .45s both;width:100%;max-width:400px;background:#fffaf0;border:4px solid #2a2740;box-shadow:0 10px 0 #2a2740;border-radius:28px;padding:24px 22px 22px;display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;">
+        <div style="font-size:14px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#6a6488;">Level ${v.levelNum} · ${e(v.variantName)}</div>
+        <div style="font-size:36px;font-weight:700;line-height:1;">${e(v.winTitle)}</div>
+        <div style="display:flex;gap:6px;align-items:flex-end;">
+          ${v.winStars.map(s => `<div style="font-size:${s.size};line-height:1;color:${s.color};-webkit-text-stroke:3px #2a2740;animation:tjPop .5s both;animation-delay:${s.delay};">★</div>`).join('')}
+        </div>
+        <div style="font-size:17px;font-weight:500;color:#4a4570;">${e(v.winStats)}</div>
+        <div style="display:flex;gap:10px;width:100%;margin-top:6px;">
+          <button data-click="toLevels" class="a1" style="flex:1;height:58px;background:#fffaf0;border:3px solid #2a2740;box-shadow:0 5px 0 #2a2740;border-radius:18px;font-size:17px;font-weight:600;cursor:pointer;color:#2a2740;">Levels</button>
+          <button data-click="replay" class="a1" style="flex:1;height:58px;background:#fffaf0;border:3px solid #2a2740;box-shadow:0 5px 0 #2a2740;border-radius:18px;font-size:17px;font-weight:600;cursor:pointer;color:#2a2740;">Replay</button>
+          ${iff('wnext', v.hasNext, `
+            <button data-click="next" class="a1" style="flex:1.3;height:58px;background:#7bd389;border:3px solid #2a2740;box-shadow:0 5px 0 #2a2740;border-radius:18px;font-size:19px;font-weight:700;cursor:pointer;color:#2a2740;">Next ›</button>`)}
+        </div>
+      </div>
+    </div>`;
+
+  return iff('loading', v.isLoading, loading)
+    + iff('title', v.isTitle, v.isTitle ? title() : '')
+    + iff('maptop', v.showMapTop, v.showMapTop ? mapTop() : '')
+    + iff('district', v.isDistrict, v.isDistrict ? district() : '')
+    + iff('levels', v.isLevels, v.isLevels ? levels() : '')
+    + iff('playwide', v.playWide, v.playWide ? playWide() : '')
+    + iff('playnarrow', v.playNarrow, v.playNarrow ? playNarrow() : '')
+    + iff('win', v.isWin, v.isWin ? win() : '')
+    + `<div style="position:absolute;inset:0;background:#2a2740;pointer-events:none;transition:opacity .22s;opacity:${v.wipeOpacity};"></div>`
+    + `<a href="../../index.html" style="position:absolute;top:14px;left:14px;z-index:20;display:flex;align-items:center;background:#fffaf0;border:3px solid #2a2740;box-shadow:0 4px 0 #2a2740;border-radius:14px;padding:8px 16px;font-weight:600;font-size:17px;">← Games</a>`;
+}
+
+document.addEventListener('contextmenu', e => e.preventDefault());
+new Component();
 </script>
 </body>
 </html>

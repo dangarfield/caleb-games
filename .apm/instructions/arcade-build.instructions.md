@@ -18,6 +18,7 @@ the *how-to-think* detail (boilerplate, audio recipes, UX patterns) lives in
 ## Touch & viewport
 - Touch-first: `touch-action: none`, pointer events, large tap targets.
 - Viewport meta with `user-scalable=no`.
+- **No long-press menus.** Holding a finger (or the mouse) on a button, card or the canvas must never pop the browser's context menu, the iOS callout, a text-selection handle or an image drag. Every game kills all four: `-webkit-touch-callout:none; user-select:none; -webkit-user-select:none; -webkit-user-drag:none` on `body` (put `user-select:text` back only on real text inputs), and `document.addEventListener('contextmenu', e => e.preventDefault())`. Snippet in `knowledge/ux-patterns.md`.
 - **Target device: a low-performance tablet at 1333×690.** This is the primary way these games are played — design and budget for it, not a desktop. Keep the frame cheap enough to hold up on weak hardware, and make tap targets comfortable at that size.
 - **When you test or verify in a browser, use 1333×690 by default.** Landscape is the norm, but some games are portrait — flip to 690×1333 for those. Match the emulated viewport to how the game is actually meant to be held before trusting what you see.
 
