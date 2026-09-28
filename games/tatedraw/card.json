@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "tatedraw",
+  "name": "Tate Draw",
+  "blurb": "Create art inspired by the Tate gallery!",
+  "added": "2026-04-13",
+  "updated": "2026-09-28",
+  "icon": {
+    "emoji": "🎨"
+  },
+  "title": {
+    "font": "Caveat Brush",
+    "weight": 400,
+    "size": 40,
+    "color": "#1f1a14",
+    "shadow": "none"
+  },
+  "blurbStyle": {
+    "color": "#4a3f33",
+    "shadow": "none"
+  },
+  "background": {
+    "gradient": [
+      "#ff6f61",
+      "#d4a373",
+      "#ffb347"
+    ],
+    "css": "radial-gradient(circle at 18% 28%, #ff6f61 0 16%, transparent 17%), radial-gradient(circle at 78% 72%, #ffb347 0 20%, transparent 21%), radial-gradient(circle at 62% 18%, #3aa6d0 0 9%, transparent 10%), #fbf6ec"
+  },
+  "source": {
+    "files": [
+      "games/tatedraw/index.html"
+    ],
+    "refreshed": "2026-09-28",
+    "notes": "No fonts or palette found in the page; left as is."
+  }
+}

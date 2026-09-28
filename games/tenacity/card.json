@@ -1,0 +1,35 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "tenacity",
+  "name": "Tenacity",
+  "blurb": "Navigate a 3D tunnel — dodge walls and survive!",
+  "added": "2026-04-21",
+  "updated": "2026-09-28",
+  "icon": {
+    "emoji": "🌌"
+  },
+  "title": {
+    "font": "Michroma",
+    "weight": 400,
+    "size": 22,
+    "color": "#00e5ff",
+    "letterSpacing": ".1em",
+    "transform": "uppercase",
+    "shadow": "0 0 12px rgba(0,229,255,.7)"
+  },
+  "background": {
+    "gradient": [
+      "#0d1b2a",
+      "#1b2838",
+      "#00e5ff"
+    ],
+    "css": "repeating-radial-gradient(circle at 50% 50%, transparent 0 18px, rgba(0,229,255,.18) 18px 20px), #060b14"
+  },
+  "source": {
+    "files": [
+      "games/tenacity/index.html"
+    ],
+    "refreshed": "2026-09-28",
+    "notes": "Engine port with no readable fonts or palette in the page; left as is."
+  }
+}

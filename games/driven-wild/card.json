@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "driven-wild",
+  "name": "Speed Racer",
+  "blurb": "Race through wild tracks — choose your driver!",
+  "added": "2026-04-23",
+  "updated": "2026-09-28",
+  "icon": {
+    "emoji": "🏎"
+  },
+  "title": {
+    "font": "Faster One",
+    "weight": 400,
+    "size": 30,
+    "color": "#ffd700"
+  },
+  "background": {
+    "gradient": [
+      "#ff8800",
+      "#cc4400",
+      "#ffdd00"
+    ],
+    "css": "repeating-linear-gradient(90deg,#ffdd00 0 20px,#111 20px 40px) top/100% 14px no-repeat, linear-gradient(160deg,#ff8800,#cc3300)"
+  },
+  "source": {
+    "files": [
+      "games/driven-wild/index.html"
+    ],
+    "refreshed": "2026-09-28",
+    "notes": "Title screen is \"SPEED RACER\" in italic 900 Arial, gold #ffd700 with red; no web font, so kept Faster One for speed and took the gold from the game."
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "dino-park",
+  "name": "Dino Park",
+  "blurb": "Build a park for baby dinos, or they'll sneak off for ice cream!",
+  "added": "2026-09-27",
+  "updated": "2026-09-28",
+  "icon": {
+    "emoji": "🦖"
+  },
+  "title": {
+    "font": "Fredoka",
+    "weight": 700,
+    "size": 40,
+    "color": "#2F7D3B",
+    "letterSpacing": ".04em",
+    "shadow": "3px 0 0 #fff,-3px 0 0 #fff,0 3px 0 #fff,0 -3px 0 #fff,2px 2px 0 #fff,-2px -2px 0 #fff,2px -2px 0 #fff,-2px 2px 0 #fff,0 6px 0 rgba(31,58,32,.35)"
+  },
+  "blurbStyle": {
+    "color": "#1f3a20",
+    "shadow": "none"
+  },
+  "background": {
+    "gradient": [
+      "#2F7D3B",
+      "#58B84F",
+      "#FFC93C"
+    ],
+    "css": "radial-gradient(circle at 82% 20%, #FFC93C 0 14%, transparent 15%), linear-gradient(#58B84F,#58B84F) bottom/100% 32% no-repeat, linear-gradient(#8fd6f0, #cdeefa)"
+  },
+  "source": {
+    "files": [
+      "games/dino-park/index.html",
+      "games/dino-park/css/style.css",
+      "games/dino-park/js/templates.js"
+    ],
+    "refreshed": "2026-09-28",
+    "notes": "Title screen logo is Fredoka 700 in grass green with a thick white outline; card uses the darker #2F7D3B fill so it clears 3:1 on the sky. Blurb from Rexy's title-screen story. Palette unchanged: already the game's greens and sun yellow."
+  }
+}

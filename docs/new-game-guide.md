@@ -71,7 +71,7 @@ canvas { display:block; width:100%; height:100%; }
 #backBtn:hover { background:rgba(0,0,0,0.75); }
 ```
 
-href must be `../../index.html` (two levels up from `games/name/`).
+href must be `../../index.html` (two levels up from `games/name/`), and the page must include the `<script data-arcade-back>` snippet from `knowledge/arcade-back.md` so the button acts as browser back.
 
 ## Start Overlay
 
@@ -283,9 +283,5 @@ Victory variant: `#ffd32a` glow title + confetti particles.
 
 ## Landing Page Card
 
-After creating the game, add a card to `index.html`:
-- CSS class `.card-<name>` with a themed gradient background
-- Link to `games/<name>/index.html`
-- Icon (emoji or inline SVG), title, and brief description
-
-[[plan]]
+Don't edit `index.html`: it's generated. Write `games/<name>/card.json` per
+`.apm/specs/game-card.spec.md` (`"added"` = ship date) and the `cards-index` hook rebuilds the page.

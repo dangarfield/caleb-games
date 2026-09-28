@@ -8,7 +8,7 @@ agent_name: Ari
 Top-down arena shooter / roguelite inspired by Archero, rendered in **Three.js** with an orthographic camera. Player auto-fires arrows when stationary, moves via virtual joystick to dodge. Clear 25 stages per chapter across 10 chapters + 1 tutorial. Built with vanilla JS, ES modules, Three.js (via CDN), no build tools.
 
 ## Origin
-Originally a 2D Canvas version at `games/archers/`. Rewritten as a 3D version at `games/archers-3d/` using Three.js for all gameplay rendering. The 2D canvas is retained as a transparent overlay for HUD, menus, and screen overlays. Game logic (enemies, bullets, skills, equipment) is shared; rendering is split between Three.js (arena, player, enemies, projectiles, effects) and Canvas 2D (HUD, screens, menus).
+Originally a 2D Canvas game (removed 2026-09-28). Rewritten in 3D at `games/archers-3d/` using Three.js for all gameplay rendering. The 2D canvas is retained as a transparent overlay for HUD, menus, and screen overlays. Game logic (enemies, bullets, skills, equipment) is shared; rendering is split between Three.js (arena, player, enemies, projectiles, effects) and Canvas 2D (HUD, screens, menus).
 
 ## Architecture
 - **Location:** `games/archers-3d/`
@@ -239,9 +239,9 @@ Bolt chain range was 80px (nearly invisible); raised to 200px — still less tha
 - `particles.js` — `updateBoltArcs(dt)` and `drawBoltArcs(ctx)` (core line + wider glow pass)
 - `main.js` — reset on `nextStage`, update + draw in main loop
 
-## Level Editor (`games/archers/edit.html`)
+## Level Editor (`games/archers-3d/edit.html`)
 
-Standalone level editor for designing stage layouts. Targets the **legacy 2D Archers source** (the editor predates the 3D rewrite); the export schema is consumed by both versions via `archers-map.json`. ES modules import `chapters.js`, `enemyTypes.js`, `constants.js` from the game source. All editor state persists in localStorage.
+Standalone level editor for designing stage layouts. Lives in the game folder; the export schema is consumed by both versions via `archers-map.json`. ES modules import `chapters.js`, `enemyTypes.js`, `constants.js` from the game source. All editor state persists in localStorage.
 
 ### Groups & stage structure
 
@@ -315,11 +315,11 @@ To **read** a stage: parse JSON v2, find `registry[groupId]` to get `id` + `type
 To **write** a stage: ensure the `id` exists in `registry[groupId]` with the right `type`. Build `t`, `el`, and `e` strings. Always keep `w` odd.
 
 ## Bug Fixes
-1. **Arrow OOB margin too loose** — player arrows and enemy bullets used a 20px out-of-bounds margin on all sides of the arena, making them visibly fly past the arena edge before disappearing. Tightened to `BULLET_R` / `ENEMY_BULLET_R` on left/right/bottom. Top stays at 20px because the door wall extends above the arena and absorbs arrows there before they hit OOB. (`games/archers/js/bullets.js`)
+1. **Arrow OOB margin too loose** — player arrows and enemy bullets used a 20px out-of-bounds margin on all sides of the arena, making them visibly fly past the arena edge before disappearing. Tightened to `BULLET_R` / `ENEMY_BULLET_R` on left/right/bottom. Top stays at 20px because the door wall extends above the arena and absorbs arrows there before they hit OOB. (`games/archers-3d/js/bullets.js`)
 
-## Files (legacy 2D source — `games/archers/`)
+## Files (shared game logic)
 The 2D archers source is preserved primarily for the level editor. Notable files:
-- `games/archers/edit.html` — level editor
-- `games/archers/js/chapters.js` — chapter definitions (enemy pools, boss pools)
-- `games/archers/js/enemyTypes.js` — enemy type definitions (typeKeys, stats, colors)
-- `games/archers/js/constants.js` — `TOTAL_CHAPTERS=10`, `STAGES_PER_CHAPTER=25`, etc.
+- `games/archers-3d/edit.html` — level editor
+- `games/archers-3d/js/chapters.js` — chapter definitions (enemy pools, boss pools)
+- `games/archers-3d/js/enemyTypes.js` — enemy type definitions (typeKeys, stats, colors)
+- `games/archers-3d/js/constants.js` — `TOTAL_CHAPTERS=10`, `STAGES_PER_CHAPTER=25`, etc.

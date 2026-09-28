@@ -1,0 +1,27 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "tron",
+  "name": "Tron",
+  "blurb": "Race your lightcycle and outmaneuver the AI!",
+  "added": "2026-03-31",
+  "icon": {
+    "emoji": "🏍"
+  },
+  "title": {
+    "font": "Orbitron",
+    "weight": 900,
+    "size": 30,
+    "color": "#7ff6ff",
+    "letterSpacing": ".12em",
+    "transform": "uppercase",
+    "shadow": "0 0 14px #00e5ff"
+  },
+  "background": {
+    "gradient": [
+      "#00d4ff",
+      "#0abde3",
+      "#1dd1a1"
+    ],
+    "css": "linear-gradient(rgba(0,229,255,.22) 1px, transparent 1px) 0 0/24px 24px, linear-gradient(90deg, rgba(0,229,255,.22) 1px, transparent 1px) 0 0/24px 24px, #05070f"
+  }
+}

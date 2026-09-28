@@ -1,0 +1,33 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "pizza-planet",
+  "name": "Pizza Planet",
+  "blurb": "Cook silly pizzas for hungry aliens all across the galaxy!",
+  "added": "2026-09-24",
+  "updated": "2026-09-28",
+  "icon": {
+    "emoji": "🍕"
+  },
+  "title": {
+    "font": "Fredoka",
+    "weight": 700,
+    "size": 36,
+    "color": "#ffc94a"
+  },
+  "background": {
+    "gradient": [
+      "#2B2D72",
+      "#E24A2E",
+      "#FFC94A"
+    ],
+    "css": "radial-gradient(circle, #e24a2e 0 5px, transparent 6px) 0 0/34px 34px, linear-gradient(160deg,#2B2D72,#15163a)"
+  },
+  "source": {
+    "files": [
+      "games/pizza-planet/index.html",
+      "games/pizza-planet/js"
+    ],
+    "refreshed": "2026-09-28",
+    "notes": "Game UI is Fredoka + Nunito; title switched from Lobster to Fredoka 700. Palette unchanged (sauce red, cheese yellow, space navy)."
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "battleship",
+  "name": "Battleship",
+  "blurb": "Fire salvos and sink the enemy fleet!",
+  "added": "2026-04-11",
+  "icon": {
+    "emoji": "🚢"
+  },
+  "title": {
+    "font": "Stardos Stencil",
+    "weight": 700,
+    "size": 32,
+    "color": "#e6edf2",
+    "letterSpacing": ".04em",
+    "transform": "uppercase"
+  },
+  "background": {
+    "gradient": [
+      "#2c3e50",
+      "#34495e",
+      "#1a252f"
+    ],
+    "css": "linear-gradient(rgba(255,255,255,.08) 1px, transparent 1px) 0 0/26px 26px, linear-gradient(90deg, rgba(255,255,255,.08) 1px, transparent 1px) 0 0/26px 26px, linear-gradient(160deg,#2c4a63,#13212e)"
+  }
+}

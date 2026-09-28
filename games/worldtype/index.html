@@ -39,6 +39,30 @@ canvas { display:block; width:100%; height:100%; }
 #playerSelect .pbtn.sel { border-color:#a29bfe; background:linear-gradient(135deg,#6c5ce7,#a29bfe); box-shadow:0 4px 18px rgba(108,92,231,0.5); }
 #playerSelect .psprog { margin-top:0.8rem; min-height:1.2em; font-size:0.95rem; color:rgba(255,255,255,0.7); }
 </style>
+<script data-arcade-back>
+/* arcade-back v1 (knowledge/arcade-back.md). "← Games" = the browser's back button.
+   Any link whose href is exactly ../../index.html goes BACK in history when this page was opened
+   from the arcade home, so home comes back as it was left (scroll position, no reload).
+   Opened any other way (bookmark, direct URL, dev tool), the link just navigates as normal. */
+(function () {
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!a || a.getAttribute('href') !== '../../index.html') return;
+    var home = new URL(a.href), ref;
+    try { ref = new URL(document.referrer); } catch (err) { return; }
+    var dir = home.pathname.replace(/index\.html$/, '');
+    if (ref.origin !== home.origin || (ref.pathname !== home.pathname && ref.pathname !== dir) || history.length < 2) return;
+    e.preventDefault();
+    var go = function () { location.href = home.href; };
+    // Still on this page after going back (an in-game history entry) or nothing happened: go home directly.
+    addEventListener('popstate', go, { once: true });
+    var t = setTimeout(go, 2500);
+    addEventListener('pagehide', function () { clearTimeout(t); }, { once: true });
+    history.back();
+  });
+})();
+</script>
 </head>
 <body>
 <a id="backBtn" href="../../index.html">&larr; Games</a>

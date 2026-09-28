@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "clashofspace",
+  "name": "Space Clash",
+  "blurb": "Twin-stick shooter — blast aliens in deep space!",
+  "added": "2026-04-22",
+  "updated": "2026-09-28",
+  "icon": {
+    "emoji": "🚀"
+  },
+  "title": {
+    "font": "Russo One",
+    "weight": 400,
+    "size": 30,
+    "color": "#fff"
+  },
+  "background": {
+    "gradient": [
+      "#0a0a2e",
+      "#1a1a4e",
+      "#ff3366"
+    ],
+    "css": "radial-gradient(circle at 20% 30%, #fff 0 1px, transparent 2px) 0 0/60px 60px, radial-gradient(circle at 70% 60%, #fff 0 1px, transparent 2px) 0 0/90px 90px, radial-gradient(circle at 85% 15%, rgba(255,51,102,.8), transparent 50%), #07071c"
+  },
+  "source": {
+    "files": [
+      "games/clashofspace/index.html"
+    ],
+    "refreshed": "2026-09-28",
+    "notes": "Engine port with no readable fonts or palette in the page; left as is."
+  }
+}

@@ -11,6 +11,30 @@
 <link rel="stylesheet" href="css/style.css">
 <script src="js/arcade-store.js"></script>
 <script src="js/world.js"></script>
+<script data-arcade-back>
+/* arcade-back v1 (knowledge/arcade-back.md). "← Games" = the browser's back button.
+   Any link whose href is exactly ../../index.html goes BACK in history when this page was opened
+   from the arcade home, so home comes back as it was left (scroll position, no reload).
+   Opened any other way (bookmark, direct URL, dev tool), the link just navigates as normal. */
+(function () {
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!a || a.getAttribute('href') !== '../../index.html') return;
+    var home = new URL(a.href), ref;
+    try { ref = new URL(document.referrer); } catch (err) { return; }
+    var dir = home.pathname.replace(/index\.html$/, '');
+    if (ref.origin !== home.origin || (ref.pathname !== home.pathname && ref.pathname !== dir) || history.length < 2) return;
+    e.preventDefault();
+    var go = function () { location.href = home.href; };
+    // Still on this page after going back (an in-game history entry) or nothing happened: go home directly.
+    addEventListener('popstate', go, { once: true });
+    var t = setTimeout(go, 2500);
+    addEventListener('pagehide', function () { clearTimeout(t); }, { once: true });
+    history.back();
+  });
+})();
+</script>
 </head>
 <body>
 <a id="backBtn" href="../../index.html"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12 H5 M11 5 L4 12 L11 19" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Games</a>

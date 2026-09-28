@@ -1,0 +1,33 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "deja-vroom",
+  "name": "Déjà Vroom",
+  "blurb": "Drive every car in town, then race the ghosts of your own runs!",
+  "added": "2026-09-22",
+  "updated": "2026-09-28",
+  "icon": {
+    "emoji": "🚗"
+  },
+  "title": {
+    "font": "Chicle",
+    "weight": 400,
+    "size": 40,
+    "color": "#fff",
+    "shadow": "0 0 12px rgba(255,46,136,.7)"
+  },
+  "background": {
+    "gradient": [
+      "#1a0b2e",
+      "#7b3ff2",
+      "#ff2e88"
+    ],
+    "css": "linear-gradient(#ff2e88,#ff2e88) 0 62%/100% 2px no-repeat, repeating-linear-gradient(90deg, transparent 0 30px, rgba(255,46,136,.35) 30px 31px) bottom/100% 38% no-repeat, linear-gradient(#1a0b2e, #7b3ff2)"
+  },
+  "source": {
+    "files": [
+      "games/deja-vroom/index.html"
+    ],
+    "refreshed": "2026-09-28",
+    "notes": "Title screen h1 is \"Déjà Vroom\" in Chicle (--disp); palette matches the game CSS vars (--night, --grape, --hot)."
+  }
+}

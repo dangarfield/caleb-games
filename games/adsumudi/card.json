@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "adsumudi",
+  "name": "ADSUMUDI",
+  "blurb": "Combine 5 numbers with + − × ÷ to hit the target!",
+  "added": "2026-05-11",
+  "updated": "2026-09-28",
+  "icon": {
+    "emoji": "⬡"
+  },
+  "wordmark": "card-wordmark.svg",
+  "background": {
+    "gradient": [
+      "#0d0d1a",
+      "#0a4a7a",
+      "#0ba9b2"
+    ],
+    "css": "radial-gradient(circle at 50% 42%, #0d0d1a 0 17%, transparent 17.5%), conic-gradient(from 270deg at 50% 42%, #0a4a7a 0 36deg, #0ba9b2 0 72deg, #f16b9d 0 108deg, #f2ca37 0 144deg, #f0504e 0 180deg, #0d0d1a 0)"
+  },
+  "glow": "#0ba9b2",
+  "source": {
+    "files": [
+      "games/adsumudi/index.html"
+    ],
+    "refreshed": "2026-09-28",
+    "notes": "Wordmark copies the game's own hex-card logo: italic 900 capitals, AD teal, SU pink, MU yellow, DI red. Face echoes the hex: five slice colours fanning over the dark #0d0d1a card body."
+  }
+}

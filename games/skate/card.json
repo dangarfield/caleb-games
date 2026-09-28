@@ -1,0 +1,33 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "skate",
+  "name": "SKATE",
+  "blurb": "Drop in, grind the rails, stack a combo and stomp the landing!",
+  "added": "2026-09-16",
+  "updated": "2026-09-28",
+  "icon": {
+    "emoji": "🛹"
+  },
+  "title": {
+    "font": "Anton",
+    "weight": 400,
+    "size": 40,
+    "color": "#fff",
+    "letterSpacing": ".04em"
+  },
+  "background": {
+    "gradient": [
+      "#14161a",
+      "#f7860d",
+      "#d00005"
+    ],
+    "css": "radial-gradient(circle at 82% 80%, #f7860d 0 24%, transparent 25%), linear-gradient(160deg,#2b2d33,#14161a)"
+  },
+  "source": {
+    "files": [
+      "games/skate/index.html"
+    ],
+    "refreshed": "2026-09-28",
+    "notes": "Title screen is \"SKATE\" in Anton (--display); colours from CSS vars: ink #14161a, orange #f7860d, rail red #d00005."
+  }
+}

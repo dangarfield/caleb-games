@@ -24,13 +24,11 @@ Score: `bold 24px` white. Labels: `bold 14px` muted white. Progress bar:
 
 Victory variant: `#ffd32a` glow title + confetti particles.
 
-## Landing-page card (root index.html)
+## Landing-page card (games/<name>/card.json)
 
-After building the game, add a card to `index.html`:
-- Anchor `href="games/<name>"` (no trailing `/index.html` — matches existing cards), unless you reference js or css files, then a trailing slash is required
-- CSS class `.card-<name>` with a themed gradient background.
-- Icon (emoji or inline SVG), title, and a brief description.
-- Add a matching row to `docs/games-index.md` and bump the count in its header.
+The home page is generated. Write `games/<name>/card.json` per `.apm/specs/game-card.spec.md`
+(`"added"` = ship date) and let the `cards-index` hook rebuild `index.html`. Never edit
+`index.html` by hand. Still add a row to `docs/games-index.md` and bump its count.
 
 ## No long-press menus (touch and mouse)
 

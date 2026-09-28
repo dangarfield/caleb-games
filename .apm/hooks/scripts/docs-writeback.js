@@ -31,7 +31,7 @@ for (const f of files) {
 }
 
 // Known directory→doc name mismatches (historical; do not rename).
-const alias = { towerdefense: 'tower-defense', resincritters: 'resin-animals' };
+const alias = { towerdefense: 'tower-defense', resincritters: 'resin-animals', 'archers-3d': 'archers' };
 
 const missing = [];
 for (const game of gamesTouched) {

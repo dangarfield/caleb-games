@@ -6,6 +6,21 @@ Review periodically — memory drifts. Newest at the top.
 
 ---
 
+## 2026-09-28 — Home page generated from `card.json`; "← Games" is browser back
+`index.html` is no longer hand-edited. Each game owns `games/<name>/card.json` (schema in
+`schema/game-card.schema.json`, rules in `.apm/specs/game-card.spec.md`), and
+`scripts/build-index.mjs` builds the page from `index.template.html`, newest `added` first,
+with a NEW badge for 14 days worked out in the browser. The `cards-index` hook rebuilds on every
+card save; `build-index.mjs --check` gates session end and commits (`.githooks/pre-commit`,
+enabled with `git config core.hooksPath .githooks`). WIPs use `"hidden": true`, not HTML comments.
+Librarian is a WIP with `"hidden": true`: kept in the repo, not shown or counted.
+
+Same day: every game's `← Games` link keeps `href="../../index.html"` but now runs the shared
+`data-arcade-back` snippet (`knowledge/arcade-back.md`), so coming from home it does
+`history.back()` and home returns as it was left. `back-button-check` requires the snippet.
+
+---
+
 ## 2026-08-25 — New games get their own save item, keyed `calebArcadeData:<gameName>`
 The one shared `calebArcadeData` object hit a wall in practice, so the convention changes for
 **new** games: each owns a single localStorage item whose key *starts with* `calebArcadeData` —
@@ -116,20 +131,12 @@ geometry and travel between machines because the physics step is fixed; the
 wall-clock numbers beside them do not.
 
 ## 2026-08-20 — `games-index.md` had drifted badly; reconciled to disk
-The index listed 4 games that never existed (`monster-smash`, `forest-friends`,
-`grid-quest`, `shapez` — traced to specific commits that added the rows but no
-directories) and omitted 2 that did. It is now 62 rows / 62 real game directories /
-63 directories on disk (Archers has both 2D and 3D). **The index is not
-self-verifying — check rows against `ls games/` when you touch it.** Still open:
-`games/garfimon/` has no `docs/game-garfimon.md` node, which the one-node-per-game
-rule requires; nobody has read that game closely enough to write one.
+The index had rows for games with no folder and was missing real ones. **The index is
+not self-verifying — check rows against `ls games/` when you touch it.**
 
-## 2026-08-20 — Evo Gears was built, reviewed, then LOST before any commit
-`games/evogears/` is an empty directory. Nothing under it was ever committed and no
-`docs/game-evogears.md` was ever written, so the design survives only in the agent's
-own memory node. **Lesson: an uncommitted game is not a shipped game.** The "human
-ships" gate at the end of `new-game` is the point where work becomes durable — if it
-is never taken, a whole build can evaporate.
+## 2026-08-20 — An uncommitted game is not a shipped game
+A whole game was once built and reviewed, then lost because it was never committed. The
+"human ships" gate at the end of `new-game` is the point where work becomes durable.
 
 ## 2026-08-20 — WebGL + a physics WASM engine are allowed, with sign-off and measurements
 `arcade-build.instructions.md` says Canvas 2D, no external runtime deps. Precedent now
@@ -168,12 +175,13 @@ The old `--- color / isContextNode ---` YAML frontmatter and `[[wikilinks]]` in
 `docs/` were for a Voicetree visualizer no longer used. Leave them on old files
 (don't churn); do not add them to new files.
 
-## (historical) Doc name ↔ directory mismatches (tolerated; do not rename)
+## (historical) Doc name ↔ directory mismatches and extra docs (allowed; do not rename)
 - `game-tower-defense.md` ↔ `games/towerdefense/`
 - `game-resin-animals.md` ↔ `games/resincritters/`
+- `game-archers.md` ↔ `games/archers-3d/`
+- Extra per-game sub-docs are fine: `game-fleet-forge-audio.md`, `game-fleet-forge-progression.md`, `game-waypoints-build.md`.
 Renaming breaks inbound references. Don't create NEW mismatches.
 
-## (historical) archers vs archers-3d
-`games/archers-3d/` is the current 3D rewrite (Three.js) — what people play.
-`games/archers/` is the legacy 2D Canvas source the level editor
-(`games/archers/edit.html`) still targets for stage data.
+## (historical) Archers lives in `games/archers-3d/`
+The folder is `archers-3d` but the game is "Archers" on the home page; its level editor is
+`games/archers-3d/edit.html`. The old 2D `games/archers/` was removed on 2026-09-28. Keep the path.

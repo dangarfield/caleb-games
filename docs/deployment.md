@@ -20,7 +20,7 @@ The site is a static site — push to `main` and enable GitHub Pages from the re
 
 ### Known Gotcha
 
-Back button hrefs must be `../../index.html` (not `../../` or `/`). Directory-only paths break on GitHub Pages which doesn't serve directory indexes. This was audited and fixed across all 25+ games.
+Back button hrefs must be `../../index.html` (not `../../` or `/`). Directory-only paths break on GitHub Pages which doesn't serve directory indexes. This was audited and fixed across all 25+ games. Each game also carries the `data-arcade-back` snippet (`knowledge/arcade-back.md`), which turns that link into a browser back when the game was opened from home.
 
 ### Multi-file games need the trailing slash
 

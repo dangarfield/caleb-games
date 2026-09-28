@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "monster-jump",
+  "name": "Monster Jump",
+  "blurb": "Drive your monster truck over crazy obstacles!",
+  "added": "2026-05-06",
+  "updated": "2026-09-28",
+  "icon": {
+    "emoji": "🚗"
+  },
+  "title": {
+    "font": "Baloo 2",
+    "weight": 800,
+    "size": 34,
+    "color": "#fff"
+  },
+  "background": {
+    "gradient": [
+      "#141414",
+      "#00A2FF",
+      "#70E1FD"
+    ]
+  },
+  "source": {
+    "files": [
+      "games/monster-jump/index.html",
+      "games/monster-jump/webapp"
+    ],
+    "refreshed": "2026-09-28",
+    "notes": "Port of \"Drive Mad\": its UI font is Baloo 2 (local @font-face; same family on Google Fonts) and its palette is sky blue on near-black. Kept the arcade name Monster Jump."
+  }
+}

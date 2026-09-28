@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "caesars-challenge",
+  "name": "Caesar's Challenge",
+  "blurb": "Read and carve Roman numerals — 100 levels from Latium to Rome!",
+  "added": "2026-08-27",
+  "updated": "2026-09-28",
+  "icon": {
+    "emoji": "🏛️"
+  },
+  "title": {
+    "font": "Gelasio",
+    "weight": 700,
+    "size": 20,
+    "color": "#3d2a0a",
+    "shadow": "none",
+    "letterSpacing": ".5px"
+  },
+  "blurbStyle": {
+    "color": "#5c4a2a",
+    "shadow": "none"
+  },
+  "background": {
+    "gradient": [
+      "#141452",
+      "#6c5ce7",
+      "#ffd32a"
+    ],
+    "css": "repeating-linear-gradient(90deg, #efe6d2 0 18px, #e2d6bd 18px 20px)"
+  },
+  "source": {
+    "files": [
+      "games/caesars-challenge/index.html"
+    ],
+    "refreshed": "2026-09-28",
+    "notes": "Title screen h1 is Georgia, letter-spaced; Gelasio is the Google Fonts match for Georgia. Kept the parchment card face."
+  }
+}

@@ -1,6 +1,6 @@
 {
   "name": "back-button-check",
-  "description": "Deterministic guard: every games/*/index.html back button must href to ../../index.html (GitHub Pages 404s the trailing-slash form). Runs before commit.",
+  "description": "Deterministic guard: every games/*/index.html back button must href to ../../index.html (GitHub Pages 404s the trailing-slash form). Also requires the <script data-arcade-back> snippet so ← Games acts as browser back (knowledge/arcade-back.md). Runs before commit via .githooks/pre-commit.",
   "event": "pre-commit",
   "run": "node .apm/hooks/scripts/back-button-check.js",
   "failOnError": true

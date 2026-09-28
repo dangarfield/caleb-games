@@ -1,0 +1,24 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "drift",
+  "name": "Drift Racer",
+  "blurb": "No brakes! Drift through neon tracks!",
+  "added": "2026-04-12",
+  "icon": {
+    "emoji": "🏎"
+  },
+  "title": {
+    "font": "Racing Sans One",
+    "weight": 400,
+    "size": 34,
+    "color": "#fff"
+  },
+  "background": {
+    "gradient": [
+      "#ff0055",
+      "#cc0044",
+      "#0066ff"
+    ],
+    "css": "repeating-linear-gradient(115deg, transparent 0 30px, rgba(255,255,255,.08) 30px 60px), linear-gradient(135deg,#ff0055,#6a00ff 60%,#0066ff)"
+  }
+}

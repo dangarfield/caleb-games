@@ -1,0 +1,33 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "buttons",
+  "name": "Buttons!",
+  "blurb": "Find the one real button. Escape!",
+  "added": "2026-09-25",
+  "updated": "2026-09-28",
+  "icon": {
+    "image": "card-icon.svg"
+  },
+  "title": {
+    "font": "Fredoka",
+    "weight": 700,
+    "size": 30,
+    "color": "#fff"
+  },
+  "background": {
+    "gradient": [
+      "#6A3FBE",
+      "#F2424F",
+      "#FFC93C"
+    ],
+    "css": "radial-gradient(circle at 50% 55%, #F2424F 0 26%, #B8233A 26% 29%, transparent 30%), #6A3FBE"
+  },
+  "source": {
+    "files": [
+      "games/buttons/index.html",
+      "games/buttons/js"
+    ],
+    "refreshed": "2026-09-28",
+    "notes": "Title screen and HUD are Fredoka 700 (canvas ctx.font); palette is the game's purple, button red and gold."
+  }
+}

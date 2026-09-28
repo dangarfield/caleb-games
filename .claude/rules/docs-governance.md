@@ -41,7 +41,7 @@ concern (rare) or a new game (then it's `game-<name>.md`).
 - **Cross-cutting (shared):** `docs/decisions.memory.md` — dated, arcade-wide decisions and gotchas. Reviewed periodically.
 
 ## Naming & format
-- Game docs: `game-<directory-name>.md` where possible. Tolerate existing mismatches (`game-tower-defense.md` ↔ `games/towerdefense/`); don't create new ones; don't rename old ones (breaks inbound links).
+- Game docs: `game-<directory-name>.md` where possible. These existing mismatches are allowed: `game-tower-defense.md` ↔ `towerdefense/`, `game-resin-animals.md` ↔ `resincritters/`, `game-archers.md` ↔ `archers-3d/`. Extra sub-docs for one game are allowed too (`game-fleet-forge-audio.md`, `game-fleet-forge-progression.md`, `game-waypoints-build.md`). Don't create new mismatches; don't rename old ones (breaks inbound links).
 - No YAML frontmatter and no `[[wikilinks]]` on new docs (legacy Voicetree artifacts — leave on old files, don't add to new).
 - Lowercase-with-hyphens filenames. No `task_` prefix, no date stamps, no `_v2`.
 - Terse, factual voice: present tense for current state, past tense for bug fixes.

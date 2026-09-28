@@ -1,0 +1,8 @@
+{
+  "name": "cards-index",
+  "description": "Deterministic guard: index.html is generated from games/*/card.json by scripts/build-index.mjs and never hand-edited. Rebuilds after any card.json / index.template.html / generator edit (exit 2 feeds card errors back), and blocks session end and commits if index.html is stale.",
+  "event": ["post-tool-use:Write|Edit|MultiEdit", "stop", "pre-commit"],
+  "run": "bash .apm/hooks/scripts/cards-index.sh",
+  "check": "node scripts/build-index.mjs --check",
+  "failOnError": true
+}

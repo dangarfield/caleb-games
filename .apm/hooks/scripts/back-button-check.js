@@ -10,6 +10,9 @@
  * and id="back-btn"): any <a> whose href resolves to the home page is treated
  * as the back button.
  *
+ * It also requires the arcade-back snippet (<script data-arcade-back>, knowledge/arcade-back.md)
+ * so "← Games" behaves like the browser back button.
+ *
  * Exit 0 = all good. Exit 1 = violations found (blocks commit).
  * Zero dependencies; run with `node .apm/hooks/scripts/back-button-check.js`.
  */
@@ -48,6 +51,10 @@ for (const file of gameIndexFiles(GAMES)) {
     const href = (a.match(/href=["']([^"']*)["']/i) || [])[1] || '';
     return href === GOOD || BAD_HOME.has(href);
   });
+  // The back link must behave like the browser's back button (knowledge/arcade-back.md).
+  if (!/<script\b[^>]*\bdata-arcade-back\b/i.test(src)) {
+    violations.push(`${rel}: missing the arcade-back snippet (<script data-arcade-back>, see knowledge/arcade-back.md) so "← Games" won't act as browser back`);
+  }
   if (backLinks.length === 0) {
     violations.push(`${rel}: no back link to the arcade home found (must link to ${GOOD})`);
     continue;

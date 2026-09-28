@@ -70,6 +70,9 @@ built without this file open.
 `href` must be `../../index.html` (two levels up from `games/<name>/`). The
 `back-button-check` hook enforces this; `../../` and `/` 404 on GitHub Pages.
 
+The link must also act as the browser back button: paste the `<script data-arcade-back>`
+snippet from `knowledge/arcade-back.md` unchanged just before `</head>`. The hook checks for it.
+
 ## Start overlay
 
 ```css

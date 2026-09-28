@@ -1,0 +1,33 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "crazy-golf",
+  "name": "Crazy Golf!",
+  "blurb": "Putt through 8 crazy worlds.",
+  "added": "2026-09-26",
+  "updated": "2026-09-28",
+  "icon": {
+    "emoji": "⛳"
+  },
+  "title": {
+    "font": "Fredoka",
+    "weight": 700,
+    "size": 32,
+    "color": "#fff"
+  },
+  "background": {
+    "gradient": [
+      "#0F5A63",
+      "#45B35A",
+      "#FFC93C"
+    ],
+    "css": "radial-gradient(circle at 80% 70%, #111 0 5%, transparent 6%), repeating-linear-gradient(90deg,#45B35A 0 30px,#3da350 30px 60px)"
+  },
+  "source": {
+    "files": [
+      "games/crazy-golf/index.html",
+      "games/crazy-golf/js"
+    ],
+    "refreshed": "2026-09-28",
+    "notes": "Title is Fredoka 700 (84-106px on the title screen); the game calls itself \"Crazy Golf!\". Palette unchanged, already the course greens and flag yellow."
+  }
+}

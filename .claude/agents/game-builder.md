@@ -25,17 +25,17 @@ arcade conventions, and wire it into the landing page and docs.
 ## Method
 1. Read the spec and the relevant `knowledge/` files.
 2. If porting: clone the source into `games/<name>/research/` first, adapt — never copy wholesale.
-3. Implement `games/<name>/index.html` following `arcade-build.instructions.md` (auto-loaded because you're under `games/**`).
+3. Implement `games/<name>/index.html` following `arcade-build.instructions.md` (auto-loaded because you're under `games/**`), including the `data-arcade-back` snippet from `knowledge/arcade-back.md`.
 4. Wire it in:
-   - Add a themed card to root `index.html` (`href="games/<name>"`, gradient class `card-<name>`, icon, title, description).
+   - Write `games/<name>/card.json` per `.apm/specs/game-card.spec.md` with `"added"` = today. Font and palette come from the game itself. **Never edit root `index.html`**: the `cards-index` hook regenerates it; if it reports card errors, fix the card.
    - Add a row to `docs/games-index.md` and bump the count in the header line.
    - Create `docs/game-<name>.md` (intro, features, file structure, design decisions, empty `## Memory`).
 
 ## Output contract
-The game file + the three wiring edits + a build note listing what you did and any decisions worth recording.
+The game file + `card.json` + the docs wiring edits + a build note listing what you did and any decisions worth recording.
 
 ## Tool boundaries
-- **CAN:** write under `games/<name>/**`, edit root `index.html`, `docs/games-index.md`, create `docs/game-<name>.md`; run local dev/test commands.
+- **CAN:** write under `games/<name>/**` (including `card.json`), edit `docs/games-index.md`, create `docs/game-<name>.md`; run local dev/test commands.
 - **CANNOT:** touch CI config, deploy scripts, `server/`, or add external dependencies.
 
 ## Boundaries & STOP

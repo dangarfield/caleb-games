@@ -1,0 +1,34 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "waypoints",
+  "name": "Waypoints",
+  "blurb": "Hike a national park in four days: draw your route, then walk it!",
+  "added": "2026-09-22",
+  "updated": "2026-09-28",
+  "icon": {
+    "emoji": "🧭"
+  },
+  "title": {
+    "font": "Big Shoulders Display",
+    "weight": 900,
+    "size": 38,
+    "color": "#f2c230",
+    "transform": "uppercase"
+  },
+  "background": {
+    "gradient": [
+      "#2f4a2c",
+      "#5b7f43",
+      "#f2c230"
+    ],
+    "css": "repeating-radial-gradient(circle at 30% 60%, #2f4a2c 0 14px, #3a5a35 14px 16px)"
+  },
+  "source": {
+    "files": [
+      "games/waypoints/index.html",
+      "games/waypoints/js"
+    ],
+    "refreshed": "2026-09-28",
+    "notes": "Game uses system-ui only, so no type identity to copy; kept Big Shoulders Display and the trail palette."
+  }
+}

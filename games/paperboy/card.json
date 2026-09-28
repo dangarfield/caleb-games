@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "paperboy",
+  "name": "Paperboy",
+  "blurb": "Deliver newspapers while dodging obstacles!",
+  "added": "2026-09-08",
+  "updated": "2026-09-28",
+  "icon": {
+    "emoji": "📰"
+  },
+  "title": {
+    "font": "Anta",
+    "weight": 400,
+    "size": 34,
+    "color": "#14161a",
+    "shadow": "none"
+  },
+  "blurbStyle": {
+    "color": "#333",
+    "shadow": "none"
+  },
+  "background": {
+    "gradient": [
+      "#14161a",
+      "#6c9ee6",
+      "#ffed00"
+    ],
+    "css": "repeating-linear-gradient(0deg, transparent 0 11px, rgba(0,0,0,.07) 11px 12px), #f1ece0"
+  },
+  "source": {
+    "files": [
+      "games/paperboy/index.html",
+      "games/paperboy/js"
+    ],
+    "refreshed": "2026-09-28",
+    "notes": "The rebuild's font is Anta (Google Fonts); palette from its CSS vars: ink #14161a, blue #6c9ee6, yellow #ffed00. Kept the newsprint card face."
+  }
+}

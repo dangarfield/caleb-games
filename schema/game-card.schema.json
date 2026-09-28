@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "game-card.schema.json",
+  "title": "Garfield Boys' Arcade: home-page poster card",
+  "description": "One per game at games/<slug>/card.json. scripts/build-index.mjs turns these into index.html. See .apm/specs/game-card.spec.md.",
+  "type": "object",
+  "required": ["slug", "name", "blurb", "added", "icon", "background"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "slug": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$", "description": "Must equal the folder name under games/." },
+    "name": { "type": "string", "minLength": 1, "maxLength": 28, "description": "Display name as the game calls itself." },
+    "blurb": { "type": "string", "minLength": 1, "maxLength": 110, "description": "What you do. Must fit 2 card lines with no ellipsis (~65 chars); build-index.mjs measures it and rejects longer ones." },
+    "added": { "type": "string", "format": "date", "description": "YYYY-MM-DD the game first shipped. Drives sort order and the NEW badge. Never change after shipping." },
+    "updated": { "type": "string", "format": "date", "description": "YYYY-MM-DD this card was last changed." },
+    "entry": { "type": "string", "description": "Link target if not games/<slug>/ (e.g. games/<slug>/build/)." },
+    "hidden": { "type": "boolean", "default": false, "description": "true = WIP, not shown on the home page." },
+    "icon": {
+      "type": "object",
+      "description": "Shown big and tilted in the top-right corner of the poster.",
+      "oneOf": [{ "required": ["emoji"] }, { "required": ["image"] }],
+      "properties": {
+        "emoji": { "type": "string", "maxLength": 16 },
+        "image": { "type": "string", "description": "Path relative to the game folder. Square transparent PNG/SVG, ≥ 256px." }
+      },
+      "additionalProperties": false
+    },
+    "wordmark": { "type": "string", "description": "Optional logo image (relative to game folder) that replaces the text title. Transparent, ≤ 64px tall when rendered." },
+    "title": {
+      "type": "object",
+      "description": "Omit entirely for the default arcade style (Bricolage Grotesque 800, white).",
+      "required": ["font"],
+      "additionalProperties": false,
+      "properties": {
+        "font": { "type": "string", "description": "Google Fonts family name, exactly as listed on fonts.google.com." },
+        "weight": { "type": "integer", "minimum": 100, "maximum": 900, "default": 400 },
+        "size": { "type": "integer", "minimum": 16, "maximum": 52, "default": 30, "description": "px. Tune so the longest word fits on a 260px card." },
+        "color": { "type": "string" },
+        "letterSpacing": { "type": "string", "default": "normal" },
+        "transform": { "enum": ["none", "uppercase", "lowercase", "capitalize"], "default": "none" },
+        "shadow": { "type": "string", "description": "CSS text-shadow, or \"none\" on light backgrounds." }
+      }
+    },
+    "blurbStyle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "color": { "type": "string" },
+        "shadow": { "type": "string" }
+      }
+    },
+    "background": {
+      "type": "object",
+      "required": ["gradient"],
+      "additionalProperties": false,
+      "properties": {
+        "gradient": { "type": "array", "minItems": 2, "maxItems": 3, "items": { "type": "string", "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" }, "description": "2–3 colours from the game's palette. Used at 145deg when css is absent, and always for the glow." },
+        "css": { "type": "string", "description": "Optional CSS background shorthand (gradients/patterns only, no url()). Overrides the gradient as the card face." }
+      }
+    },
+    "glow": { "type": "string", "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$", "description": "Shadow glow colour. Defaults to the brightest gradient stop." },
+    "locked": { "type": "array", "items": { "type": "string" }, "description": "Dotted field paths /refresh-card must not change, e.g. [\"blurb\", \"title.font\"]." },
+    "source": {
+      "type": "object",
+      "description": "Provenance written by /refresh-card.",
+      "properties": {
+        "files": { "type": "array", "items": { "type": "string" } },
+        "refreshed": { "type": "string", "format": "date" },
+        "notes": { "type": "string" }
+      }
+    }
+  }
+}

@@ -422,6 +422,10 @@ body {
 }
 .pill:hover { background: rgba(255,255,255,0.1); }
 .pill.active { background: #fff; color: #0d0d1a; }
+.pill.icon-pill { display: flex; align-items: center; justify-content: center; padding: 0.3rem 0.55rem; background: rgba(255,255,255,0.22); }
+.pill.icon-pill.active { background: #fff; color: #0d0d1a; }
+.pill.icon-pill svg { display: block; transition: transform 0.25s; }
+.pill.icon-pill.active svg { transform: rotate(-60deg); }
 
 
 /* ===== Modal (How to play) ===== */
@@ -594,6 +598,30 @@ body {
   .set-label { font-size: 0.55rem; }
 }
 </style>
+<script data-arcade-back>
+/* arcade-back v1 (knowledge/arcade-back.md). "← Games" = the browser's back button.
+   Any link whose href is exactly ../../index.html goes BACK in history when this page was opened
+   from the arcade home, so home comes back as it was left (scroll position, no reload).
+   Opened any other way (bookmark, direct URL, dev tool), the link just navigates as normal. */
+(function () {
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!a || a.getAttribute('href') !== '../../index.html') return;
+    var home = new URL(a.href), ref;
+    try { ref = new URL(document.referrer); } catch (err) { return; }
+    var dir = home.pathname.replace(/index\.html$/, '');
+    if (ref.origin !== home.origin || (ref.pathname !== home.pathname && ref.pathname !== dir) || history.length < 2) return;
+    e.preventDefault();
+    var go = function () { location.href = home.href; };
+    // Still on this page after going back (an in-game history entry) or nothing happened: go home directly.
+    addEventListener('popstate', go, { once: true });
+    var t = setTimeout(go, 2500);
+    addEventListener('pagehide', function () { clearTimeout(t); }, { once: true });
+    history.back();
+  });
+})();
+</script>
 </head>
 <body>
 
@@ -602,6 +630,7 @@ body {
   <header class="top-bar">
     <div class="top-right">
       <div class="pill-group">
+        <button class="pill icon-pill" id="rotateBtn" aria-label="Rotate numbers" aria-pressed="false"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 3.5v4.5h-4.5"/></svg></button>
         <button class="pill active" id="newCardBtn">NEW</button>
         <button class="pill active" id="hintBtn">HINT</button>
         <button class="pill active" id="helpBtn">HELP</button>
@@ -905,12 +934,13 @@ function renderNumbers() {
     const ss = state.sliceState[i];
     if (ss === 'consumed') continue;
 
-    const { x, y, rot } = SECTION_CENTERS[i];
+    const { x, y } = SECTION_CENTERS[i];
+    const rot = state.rotated ? SECTION_CENTERS[i].rot : 0;
     const displayValue = state.sliceValue[i];
     const isModified = (ss === 'modified');
 
     const wrap = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    wrap.setAttribute('transform', `rotate(${rot}, ${x}, ${y})`);
+    if (rot) wrap.setAttribute('transform', `rotate(${rot}, ${x}, ${y})`);
 
     const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     t.setAttribute('class', 'num-text' + (i === state.activeIdx ? ' is-active' : ''));
@@ -920,9 +950,9 @@ function renderNumbers() {
     t.textContent = displayValue;
     wrap.appendChild(t);
 
-    // Underline if modified or contains 6/9 (disambiguation)
+    // Underline if modified, or (when rotated) contains 6/9 (disambiguation)
     const valStr = String(displayValue);
-    const ambiguous = /[69]/.test(valStr);
+    const ambiguous = state.rotated && /[69]/.test(valStr);  // upright 6 and 9 can't be mixed up
     if (isModified || ambiguous) {
       const charW = 16;
       const halfW = valStr.length * charW / 2;
@@ -970,12 +1000,14 @@ let state = {
   streak: 0,
   best: 0,
   hintLevel: 0,
+  rotated: false,                   // true = each number's bottom faces the centre; false = upright
 };
 
 function loadSettings() {
   const { ad } = getAd();
   if (ad.playLevel) state.playLevel = ad.playLevel === 'monstrous' ? 'expert' : ad.playLevel;
   if (ad.cardType) state.cardType = ad.cardType;
+  state.rotated = ad.rotated === true;
   state.best = ad.bestStreak || 0;
   state.solved = ad.totalSolved || 0;
 }
@@ -983,6 +1015,7 @@ function saveSettings() {
   const { ad } = getAd();
   ad.playLevel = state.playLevel;
   ad.cardType = state.cardType;
+  ad.rotated = state.rotated;
   ad.bestStreak = state.best;
   ad.totalSolved = state.solved;
   saveAd(ad);
@@ -1410,6 +1443,16 @@ document.getElementById('helpBtn').addEventListener('click', () => { ensureAudio
 document.getElementById('helpBackdrop').addEventListener('click', closeHelp);
 document.getElementById('helpClose').addEventListener('click', closeHelp);
 document.getElementById('hintBtn').addEventListener('click', showHint);
+function syncRotateBtn() {
+  const b = document.getElementById('rotateBtn');
+  b.classList.toggle('active', state.rotated);
+  b.setAttribute('aria-pressed', String(state.rotated));
+}
+document.getElementById('rotateBtn').addEventListener('click', () => {
+  ensureAudio(); sfxTap();
+  state.rotated = !state.rotated;
+  syncRotateBtn(); saveSettings(); renderNumbers();
+});
 document.getElementById('newCardBtn').addEventListener('click', () => { ensureAudio(); breakStreak(); dealNewCard(); });
 
 /* ====================== Settings wiring ====================== */
@@ -1521,6 +1564,7 @@ window.addEventListener('orientationchange', () => setTimeout(fitHex, 100));
 
 /* ====================== Boot ====================== */
 loadSettings();
+syncRotateBtn();
 buildCardSvg();
 updateSettingsUi();
 updateStats();

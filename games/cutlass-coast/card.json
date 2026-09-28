@@ -1,0 +1,33 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "cutlass-coast",
+  "name": "Cutlass Coast",
+  "blurb": "Sail the Caribbean in 1660 — trade, duel and plunder!",
+  "added": "2026-09-25",
+  "updated": "2026-09-28",
+  "icon": {
+    "emoji": "🏴‍☠️"
+  },
+  "title": {
+    "font": "Cinzel",
+    "weight": 800,
+    "size": 27,
+    "color": "#f0d79a"
+  },
+  "background": {
+    "gradient": [
+      "#10202f",
+      "#1f3a52",
+      "#d9b36a"
+    ],
+    "css": "radial-gradient(ellipse at 50% 0%, #1f3a52, #10202f 70%)"
+  },
+  "source": {
+    "files": [
+      "games/cutlass-coast/index.html",
+      "games/cutlass-coast/css"
+    ],
+    "refreshed": "2026-09-28",
+    "notes": "Title font is Cinzel (--f-title); colours from the game CSS vars: navy #10202f, navy-2 #1f3a52, gold #d9b36a, gold-l #f0d79a. Replaced a teal that isn't in the game."
+  }
+}

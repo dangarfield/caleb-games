@@ -1,0 +1,33 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "stone-skip",
+  "name": "Stone Skip",
+  "blurb": "Pick a flat stone, time your throw and skip it across the lake!",
+  "added": "2026-08-17",
+  "updated": "2026-09-28",
+  "icon": {
+    "emoji": "🪨"
+  },
+  "title": {
+    "font": "DM Serif Display",
+    "weight": 400,
+    "size": 34,
+    "color": "#fff"
+  },
+  "background": {
+    "gradient": [
+      "#1a6f8c",
+      "#3ec8c1",
+      "#d9c39a"
+    ],
+    "css": "repeating-radial-gradient(ellipse at 30% 80%, transparent 0 16px, rgba(255,255,255,.18) 16px 18px), linear-gradient(#3ec8c1,#1a6f8c)"
+  },
+  "source": {
+    "files": [
+      "games/stone-skip/index.html",
+      "games/stone-skip/js"
+    ],
+    "refreshed": "2026-09-28",
+    "notes": "Game uses system-ui only (FONT constant); kept DM Serif Display and the lake palette."
+  }
+}

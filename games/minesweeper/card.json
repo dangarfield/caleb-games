@@ -1,0 +1,29 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "minesweeper",
+  "name": "Minesweeper",
+  "blurb": "Reveal cells and dodge the hidden mines!",
+  "added": "2026-04-18",
+  "icon": {
+    "emoji": "🚩"
+  },
+  "title": {
+    "font": "Silkscreen",
+    "weight": 700,
+    "size": 24,
+    "color": "#1a1a1a",
+    "shadow": "none"
+  },
+  "blurbStyle": {
+    "color": "#333",
+    "shadow": "none"
+  },
+  "background": {
+    "gradient": [
+      "#6c5ce7",
+      "#1a1a6e",
+      "#a29bfe"
+    ],
+    "css": "conic-gradient(#bdbdbd 25%, #cfcfcf 0 50%, #bdbdbd 0 75%, #cfcfcf 0) 0 0/40px 40px"
+  }
+}

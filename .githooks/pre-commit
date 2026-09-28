@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Arcade pre-commit gate. Enabled with: git config core.hooksPath .githooks
+# 1. every game's back link is exactly ../../index.html and uses the arcade back snippet
+# 2. index.html matches the games/*/card.json files (never hand-edit index.html)
+set -u
+cd "$(git rev-parse --show-toplevel)" || exit 1
+fail=0
+node .apm/hooks/scripts/back-button-check.js || fail=1
+node scripts/build-index.mjs --check || { echo "Run: node scripts/build-index.mjs && git add index.html"; fail=1; }
+exit $fail

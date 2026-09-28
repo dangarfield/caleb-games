@@ -1,6 +1,6 @@
 # Games Index
 
-All 79 games in Garfield Boys' Arcade (80 directories — Archers has legacy 2D + current 3D).
+All 79 games in Garfield Boys' Arcade, plus Librarian (WIP, hidden) — 80 folders under `games/`. The home page is built from each game's `card.json`; a card with `"hidden": true` isn't shown or counted.
 
 | Game | Directory | Description |
 |------|-----------|-------------|
@@ -30,6 +30,7 @@ All 79 games in Garfield Boys' Arcade (80 directories — Archers has legacy 2D 
 | Minesweeper | games/minesweeper/ | Classic mine sweeper |
 | Pac-Man | games/pacman/ | Maze chase with ghosts |
 | Deepfold | games/deepfold/ | Cut-paper underwater shooter (Three.js) - 7 folds, 7 bosses |
+| Dragonseed | games/dragonseed/ | Plant-shop mystery for the valley where everyone keeps a dragon — people describe a plant or a problem and you work out which pot they mean, while you look after the too-big egg you found in the cellar over sixteen days |
 | Paperboy | games/paperboy/ | Newspaper delivery |
 | Petri | games/petri/ | Cell growth game |
 | Racer 13 | games/racer13/ | Psychedelic lane racer |
@@ -51,7 +52,7 @@ All 79 games in Garfield Boys' Arcade (80 directories — Archers has legacy 2D 
 | Treehouse Quiz | games/treehouse/ | Treehouse book series trivia quiz |
 | Connection | games/connection/ | Shape-tracing puzzle with progressive difficulty |
 | Tilt Maze | games/maze/ | 100-level physics-based 3D tilt maze |
-| Archers | games/archers-3d/ | Archero-style wave shooter, Three.js 3D (legacy 2D source at games/archers/ powers the level editor) |
+| Archers | games/archers-3d/ | Archero-style wave shooter, Three.js 3D, with its own level editor at `games/archers-3d/edit.html` |
 | Happy Glass | games/happyglass/ | Liquid-pouring puzzle with SVG metaball effect |
 | Resin Animals | games/resincritters/ | Match-2 collapse puzzle (directory name is `resincritters`, doc is game-resin-animals.md) |
 | Mmm! Leaves | games/mmm-leaves/ | Roll-and-write moth game adapted from Scribbly Gum |
@@ -59,7 +60,7 @@ All 79 games in Garfield Boys' Arcade (80 directories — Archers has legacy 2D 
 | Monster Jump | games/monster-jump/ | Drive Mad / Fancade WASM physics platformer |
 | Race Maker | games/race-maker/ | Build a Scalextric-style track piece-by-piece, then race it with corner braking and AI drivers (Three.js + Kenney Racing Kit) |
 | Adsumudi | games/adsumudi/ | Hexagonal mental-math card game — combine 5 numbers with + − × ÷ to reach the target |
-| Librarian | games/librarian/ | 3D first-person book-sorting game — sort scattered books back onto enchanted library shelves (Three.js) |
+| Librarian *(WIP, hidden: not on the home page or in the count)* | games/librarian/ | 3D first-person book-sorting game — sort scattered books back onto enchanted library shelves (Three.js) |
 | Spin Smash | games/spin-smash/ | Beyblade-style arena battler — knock tops off the edge, roguelike perk progression, 3 arenas with hazards |
 | Pokemon FireRed | games/pokemon-firered/ | GBA emulator (EmulatorJS) — classic Pokemon adventure with save states |
 | Bomb Squad | games/bomb-squad/ | 3D bomb defusal puzzle — rotate, find components, defuse in order (Three.js, seeded generation) |
@@ -87,7 +88,7 @@ All 79 games in Garfield Boys' Arcade (80 directories — Archers has legacy 2D 
 ## Naming quirks worth knowing
 
 - **Speed Racer / DR1V3N WILD** — folder is still `driven-wild/`, but the user-facing title was renamed to "Speed Racer". Don't rename the folder; do reflect the new name in any user-facing text.
-- **Archers** — `games/archers-3d/` is the current playable 3D rewrite (Three.js). `games/archers/` is the legacy 2D Canvas source kept around because the level editor (`games/archers/edit.html`) targets it.
+- **Archers** — the folder is `games/archers-3d/` but the game is just "Archers" on the home page. Keep the path. The old 2D version was removed on 2026-09-28.
 - **Resin Animals ↔ resincritters** — historical name mismatch: doc is `game-resin-animals.md`, folder is `games/resincritters/`. Both names appear in the codebase; the home page card title is "Resin Animals".
 - **Tower Defense ↔ towerdefense** — doc is `game-tower-defense.md`, folder is `games/towerdefense/`. Same kind of mismatch, kept for historical reasons.
 - **Where in the World / worldtype** — folder and doc are `worldtype`, but the user-facing title was renamed from "World Type" to "Where in the World". Don't rename the folder; reflect the new title in user-facing text.

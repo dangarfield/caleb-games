@@ -19,13 +19,21 @@ The single loop that makes it fun, in 2–3 sentences.
 ## Conventions (from arcade-build.instructions.md + knowledge/)
 - [ ] Single self-contained games/<name>/index.html
 - [ ] Canvas 2D, dark-theme palette, touch-action:none
-- [ ] Back button href = ../../index.html
+- [ ] Back button href = ../../index.html, plus the data-arcade-back snippet (knowledge/arcade-back.md)
 - [ ] Canvas HUD pill, canvas game-over, own localStorage item keyed calebArcadeData:<gameName>
+
+## Home-page card
+- Name on title screen:
+- Blurb (fits 2 card lines, ~65 chars, what you do):
+- Icon (emoji or image path):
+- Title font (Google Font) + why:
+- Palette (2–3 hex) + pattern idea:
+- added: <ship date, YYYY-MM-DD>
 
 ## Acceptance Criteria
 - [ ] Plays with no JS console errors
 - [ ] Age-appropriate difficulty; clear start overlay
-- [ ] Card added to root index.html; row + count in docs/games-index.md
+- [ ] games/<name>/card.json written (added = ship date); build-index.mjs --check green; row + count in docs/games-index.md
 - [ ] docs/game-<name>.md created (intro, features, files, design decisions, empty ## Memory)
 
 ## Handoff Checklist (STOP gates)

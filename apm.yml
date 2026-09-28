@@ -22,3 +22,5 @@ dependencies:
 scripts:
   back-button-check: node .apm/hooks/scripts/back-button-check.js
   docs-writeback: node .apm/hooks/scripts/docs-writeback.js
+  cards-index: node scripts/build-index.mjs --check
+  build-index: node scripts/build-index.mjs

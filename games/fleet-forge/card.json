@@ -1,0 +1,33 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "fleet-forge",
+  "name": "Fleet Forge",
+  "blurb": "Bolt a warship together, then watch it fight up the ladder!",
+  "added": "2026-09-24",
+  "updated": "2026-09-28",
+  "icon": {
+    "emoji": "🛸"
+  },
+  "title": {
+    "font": "Saira Condensed",
+    "weight": 700,
+    "size": 34,
+    "color": "#EAF5FA",
+    "transform": "uppercase",
+    "letterSpacing": ".04em"
+  },
+  "background": {
+    "gradient": [
+      "#05080B",
+      "#5D7280",
+      "#E4554A"
+    ]
+  },
+  "source": {
+    "files": [
+      "games/fleet-forge/index.html"
+    ],
+    "refreshed": "2026-09-28",
+    "notes": "Game type is Saira Condensed (titles/labels) + Barlow; palette from the game: near-black #05080B, steel #5D7280, alert red #E4554A. Replaced an indigo/cyan that isn't in the game."
+  }
+}

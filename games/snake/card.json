@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "snake",
+  "name": "Snake",
+  "blurb": "Eat food, grow longer, don't hit yourself!",
+  "added": "2026-04-09",
+  "icon": {
+    "emoji": "🐍"
+  },
+  "title": {
+    "font": "VT323",
+    "weight": 400,
+    "size": 44,
+    "color": "#b8f5a0",
+    "shadow": "0 0 10px rgba(184,245,160,.6)"
+  },
+  "blurbStyle": {
+    "color": "#b8f5a0"
+  },
+  "background": {
+    "gradient": [
+      "#2ecc71",
+      "#1abc9c",
+      "#27ae60"
+    ],
+    "css": "repeating-linear-gradient(0deg, rgba(0,0,0,.25) 0 2px, transparent 2px 4px), radial-gradient(circle at 50% 40%, #1f4a1a, #0a1a08)"
+  }
+}
