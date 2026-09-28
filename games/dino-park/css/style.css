@@ -1,0 +1,37 @@
+/* Dino Park — page shell + the prototype's keyframes (research/design/Dino Park.dc.html).
+   Cream #FFF6E3 · leaf #58B84F / lip #2F7D3B · sun #FFC93C · coral #FF6B5B · sky #4BB4E6 · ink #3B2F2A */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #1f2b24; touch-action: none;
+  font-family: 'Nunito', system-ui, sans-serif; color: #3B2F2A; -webkit-font-smoothing: antialiased;
+  user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+button { font-family: inherit; }
+
+#backBtn { position: fixed; top: 12px; left: 12px; z-index: 9999; height: 46px; display: flex; align-items: center; gap: 6px;
+  padding: 0 18px 0 14px; border-radius: 23px; background: rgba(31,43,36,.62); color: #fff; text-decoration: none;
+  font: 600 20px 'Fredoka', system-ui, sans-serif; border: 1px solid rgba(255,255,255,.18);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+
+#stage { position: absolute; left: 0; top: 0; width: 1333px; height: 690px; transform-origin: 0 0; overflow: hidden;
+  background: #bfe6d6; font-family: 'Fredoka', system-ui, sans-serif; color: #3B2F2A; }
+#world { position: absolute; left: 0; top: 0; width: 1333px; height: 690px; }
+#ui { position: absolute; left: 0; top: 0; width: 1333px; height: 690px; pointer-events: none; }
+#ui > div { pointer-events: auto; }                 /* full screens block the park; the HUD layers set their own */
+#ui i[hidden] { display: none; }
+dp-icon { display: block; }
+[data-on] { cursor: pointer; }
+.pr:active { translate: 0 4px; filter: brightness(.96); }
+
+@keyframes dpSiren{0%{opacity:.25}100%{opacity:1}}
+@keyframes dpBanner{0%{transform:translateX(-50%) scale(.2) rotate(-6deg);opacity:0}60%{transform:translateX(-50%) scale(1.08) rotate(2deg);opacity:1}100%{transform:translateX(-50%) scale(1) rotate(-1.5deg);opacity:1}}
+@keyframes dpPop{0%{transform:scale(0)}65%{transform:scale(1.15)}100%{transform:scale(1)}}
+@keyframes dpStarIn{0%{transform:translate(-260px,-220px) scale(3) rotate(-200deg);opacity:0}70%{transform:translate(0,0) scale(.85) rotate(10deg);opacity:1}100%{transform:translate(0,0) scale(1) rotate(0);opacity:1}}
+@keyframes dpPulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(88,184,79,.55)}50%{transform:scale(1.06);box-shadow:0 0 0 14px rgba(88,184,79,0)}}
+@keyframes dpBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes dpTap{0%{transform:scale(.4);opacity:.9}100%{transform:scale(1.6);opacity:0}}
+@keyframes dpShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(5px)}}
+@keyframes dpRoar{0%{transform:scale(.2) rotate(-14deg);opacity:0}30%{transform:scale(1.25) rotate(4deg);opacity:1}45%{transform:scale(1) rotate(-3deg)}60%{transform:scale(1.12) rotate(3deg)}100%{transform:scale(1) rotate(-4deg);opacity:1}}
+@keyframes dpWiggle{0%,100%{transform:rotate(0)}25%{transform:rotate(-7deg)}75%{transform:rotate(7deg)}}
+@keyframes dpBannerUp{0%{transform:translateY(40px) scale(.6);opacity:0}70%{transform:translateY(-4px) scale(1.05);opacity:1}100%{transform:translateY(0) scale(1);opacity:1}}
+@keyframes dpIn{0%{transform:translateY(24px);opacity:0}100%{transform:translateY(0);opacity:1}}
+@keyframes dpFinish{0%,100%{transform:scale(1);box-shadow:0 6px 0 #D9982A,0 0 0 0 rgba(255,201,60,.7)}50%{transform:scale(1.08);box-shadow:0 6px 0 #D9982A,0 0 0 16px rgba(255,201,60,0)}}
+@keyframes dpNudge{0%,100%{transform:translateX(0)}50%{transform:translateX(-8px)}}
