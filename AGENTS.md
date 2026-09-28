@@ -31,7 +31,8 @@ the *how-to-think* detail (boilerplate, audio recipes, UX patterns) lives in
 ## Visual identity
 - Dark theme, base background `#0a0a2e` (gradient `#0a0a2e → #141452 → #1a1a6e`).
 - Palette: accent `#6c5ce7`, glow `#a29bfe`, subtitle `#a0c4ff`, score/gold `#ffd32a`, danger `#e74c3c`.
-- HUD as a canvas-drawn pill, top-centre. Game-over screen canvas-drawn (not HTML).
+- **Three.js / WebGL games: all UI is HTML/CSS.** Every HUD, menu, overlay, dialog, tooltip, button and game-over screen is DOM layered over the WebGL canvas, never drawn in WebGL or on a 2D canvas. The 3D scene is for the world only. (See `knowledge/ux-patterns.md`.)
+- **Canvas 2D games:** HUD as a canvas-drawn pill, top-centre. Game-over screen canvas-drawn (not HTML).
 
 ## Persistence
 - **A new game stores its saves in IndexedDB, through `arcade-store.js` — not in `localStorage`.** Copy `games/dragonseed/js/store.js` into `games/<name>/js/arcade-store.js`, change nothing, and use it: `var Store = ArcadeStore("<gameName>")`, then `Store.ready(cb)` before the first read. It is localStorage's manners over IndexedDB — the game's items are read once at boot and every `get` after that is synchronous. Full usage in `knowledge/arcade-store.md`.

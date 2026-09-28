@@ -3,7 +3,25 @@
 The shared in-game UI conventions. Read when building the HUD, game-over, or the
 landing-page card.
 
-## HUD pill (canvas-drawn, top center)
+## Three.js / WebGL games: the UI is HTML/CSS
+
+If the game renders with Three.js (or any WebGL), **every piece of UI is DOM**: HUD,
+menus, title screen, pause, settings, dialogs, tooltips, on-screen controls and the
+game-over / victory screen. Nothing UI-related is drawn in WebGL (no text sprites,
+no textured planes for buttons) or on an extra 2D canvas.
+
+- Stack a full-screen `#ui` layer over the renderer canvas (`position:fixed; inset:0;
+  pointer-events:none`) and give each interactive panel `pointer-events:auto`, so
+  touches on empty space still reach the 3D scene.
+- Crisp text at any DPR, real tap targets, CSS transitions and accessibility come free,
+  and the scene can drop its resolution on a slow tablet without blurring the UI.
+- In-world labels that must track a 3D object (name tags, damage numbers) are DOM
+  elements positioned from `vector.project(camera)` each frame. They are not sprites.
+- The HUD pill and game-over specs below still describe the look. Build them in CSS.
+
+The canvas-drawn HUD pill and game-over below apply to **Canvas 2D games only**.
+
+## HUD pill (canvas-drawn, top center, Canvas 2D games)
 
 ```
 Position: centered horizontally, y = 14
@@ -15,7 +33,7 @@ Height: 52–54px, width: dynamic
 Score: `bold 24px` white. Labels: `bold 14px` muted white. Progress bar:
 `#a29bfe` fill, 3–4px height.
 
-## Game over screen (canvas-drawn, NOT HTML)
+## Game over screen (Canvas 2D games: canvas-drawn, NOT HTML)
 
 1. Fade-in black overlay (globalAlpha 0 → 0.6).
 2. Title "Game Over" — large, white, accent shadow glow blur 30.

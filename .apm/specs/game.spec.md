@@ -20,7 +20,8 @@ The single loop that makes it fun, in 2–3 sentences.
 - [ ] Single self-contained games/<name>/index.html
 - [ ] Canvas 2D, dark-theme palette, touch-action:none
 - [ ] Back button href = ../../index.html, plus the data-arcade-back snippet (knowledge/arcade-back.md)
-- [ ] Canvas HUD pill, canvas game-over, own localStorage item keyed calebArcadeData:<gameName>
+- [ ] UI layer: Three.js/WebGL game → all HUD, menus, overlays and game-over in HTML/CSS over the canvas; Canvas 2D game → canvas HUD pill + canvas game-over
+- [ ] Own save item keyed calebArcadeData:<gameName>
 
 ## Home-page card
 - Name on title screen:

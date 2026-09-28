@@ -19,7 +19,7 @@ defect list.
 - The conventions rubric (below) and the concept's intended mechanics.
 
 ## Rubric
-- **Conventions:** single-file (or justified multi-file), Canvas 2D, dark-theme palette, `touch-action:none`, back-button href is exactly `../../index.html` and the `data-arcade-back` snippet is present unchanged, canvas HUD pill, canvas game-over, a localStorage key that STARTS with `calebArcadeData` (a new game owns its own item, `calebArcadeData:<gameName>`; an existing game still inside the legacy shared `calebArcadeData` object is fine and must NOT be migrated).
+- **Conventions:** single-file (or justified multi-file), Canvas 2D, dark-theme palette, `touch-action:none`, back-button href is exactly `../../index.html` and the `data-arcade-back` snippet is present unchanged, UI layer matches the renderer (Three.js/WebGL game: every HUD, menu, overlay and game-over is HTML/CSS over the canvas, none drawn in WebGL or on a 2D canvas; Canvas 2D game: canvas HUD pill and canvas game-over), a localStorage key that STARTS with `calebArcadeData` (a new game owns its own item, `calebArcadeData:<gameName>`; an existing game still inside the legacy shared `calebArcadeData` object is fine and must NOT be migrated).
 - **Runtime:** plays with no JS console errors; start overlay present; controls work by touch.
 - **Fit:** age-appropriate difficulty for ~7+; clear and forgiving.
 - **Card:** the reviewer checklist in `.apm/specs/game-card.spec.md` passes, and `node scripts/build-index.mjs --check` is green (root `index.html` regenerated, never hand-edited).

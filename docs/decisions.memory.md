@@ -6,6 +6,16 @@ Review periodically — memory drifts. Newest at the top.
 
 ---
 
+## 2026-09-28 — Three.js games build all their UI in HTML/CSS
+The canvas-drawn HUD pill and game-over rule was written for Canvas 2D games and never had a
+Three.js exception, so the steering told a 3D game to draw its UI in the canvas. Rule now: a
+Three.js/WebGL game builds every HUD, menu, overlay and game-over screen as HTML/CSS layered
+over the renderer canvas, and nothing UI-related is drawn in WebGL. Canvas 2D games keep the
+canvas HUD pill and canvas game-over. Dino Park, Crazy Golf, Buttons! and Traffic Jam already
+work this way.
+
+---
+
 ## 2026-09-28 — Home page generated from `card.json`; "← Games" is browser back
 `index.html` is no longer hand-edited. Each game owns `games/<name>/card.json` (schema in
 `schema/game-card.schema.json`, rules in `.apm/specs/game-card.spec.md`), and
