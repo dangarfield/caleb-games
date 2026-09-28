@@ -1,0 +1,141 @@
+/* Buttons! — styles. Tokens and keyframes from the Claude Design handoff (Buttons 3D.dc.html, Btn/Bip/Muddler.dc.html).
+   Ink #3B2A4A · cream #FFF6E6 · red #F2424F · sun #FFC93C · teal #1E7F86 · muddler green #8BD45A · purple #6A3FBE */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #2B2140; touch-action: none; font-family: 'Nunito', system-ui, sans-serif; color: #3B2A4A;
+  -webkit-font-smoothing: antialiased; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+.hidden { display: none !important; }
+#backBtn { position: fixed; top: 12px; left: 12px; z-index: 9999; background: rgba(0,0,0,0.45); color: #fff; text-decoration: none;
+  padding: 7px 16px; border-radius: 20px; font: 800 16px/1.4 'Nunito', system-ui, sans-serif;
+  border: 1px solid rgba(255,255,255,0.18); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+#stage { position: absolute; left: 0; top: 0; width: 1333px; height: 690px; transform-origin: 0 0; overflow: hidden; background: #FFF6E6; }
+#stage > div { position: absolute; left: 0; top: 0; width: 1333px; height: 690px; }
+#bd { z-index: 0; } #gl { z-index: 1; } #ride { z-index: 1; } #screen { z-index: 2; } #hud { z-index: 3; } #ov { z-index: 4; } #fx { z-index: 5; pointer-events: none; }
+#hud, #ov, #screen { pointer-events: none; }
+#hud > *, #ov > *, #screen > * { pointer-events: auto; }
+#hud .pe0, #ov .pe0 { pointer-events: none; }
+.fd { font-family: 'Fredoka', system-ui, sans-serif; }
+.tap { cursor: pointer; }
+.same, .same * { animation: none !important; }
+.noanim { animation: none !important; }
+
+/* chunky buttons (press = sink) */
+.cb { display: flex; align-items: center; justify-content: center; gap: 12px; border: 5px solid #3B2A4A; box-shadow: 0 7px 0 #3B2A4A; cursor: pointer;
+  font-family: 'Fredoka', sans-serif; font-weight: 700; white-space: nowrap; transition: transform .08s, box-shadow .08s; box-sizing: border-box; }
+.cb:active { transform: translateY(5px); box-shadow: 0 2px 0 #3B2A4A !important; }
+.red { background: linear-gradient(#FF6B78, #F2424F 55%, #D6303F); color: #fff; }
+.sq { width: 74px; height: 74px; border-radius: 24px; background: #FFF6E6; border-width: 4px; box-shadow: 0 5px 0 #3B2A4A; flex-direction: column; gap: 0; font-weight: 600; font-size: 13px; }
+.card { background: #FFF6E6; border: 5px solid #3B2A4A; box-shadow: 0 10px 0 #3B2A4A; }
+.pill { background: #FFF6E6; border: 4px solid #3B2A4A; box-shadow: 0 5px 0 #3B2A4A; }
+.label { padding: 14px 22px; border-radius: 24px; background: #3B2A4A; color: #FFF6E6; font-family: Fredoka, sans-serif; font-weight: 600; font-size: 28px; white-space: nowrap; display: flex; align-items: center; gap: 10px; }
+.sfxword { font-family: Fredoka, sans-serif; font-weight: 700; color: #FFD23A; -webkit-text-stroke: 5px #3B2A4A; paint-order: stroke; text-shadow: 0 7px 0 #3B2A4A; white-space: nowrap; }
+.pips { display: flex; gap: 5px; align-items: center; }
+.pip { box-sizing: border-box; border-radius: 50%; border: 3px solid #3B2A4A; display: grid; place-items: center; transition: transform .3s, background .3s; }
+.cards { flex: 1; overflow-y: auto; padding: 10px 10px 12px; display: flex; flex-direction: column; gap: 8px; touch-action: pan-y; }
+.clue { position: relative; flex: none; display: flex; gap: 10px; align-items: center; padding: 6px 10px 6px 6px; border-radius: 16px; border: 3px solid #3B2A4A; animation: cardIn .5s cubic-bezier(.3,1.2,.5,1) both; }
+.clue.normal { background: linear-gradient(#1F5063, #133443); box-shadow: inset 0 0 0 3px rgba(124,244,227,.22), 0 4px 0 #3B2A4A; }
+.clue.lie { background: linear-gradient(#6B3A86, #45205C); box-shadow: inset 0 0 0 3px rgba(197,240,142,.3), 0 4px 0 #3B2A4A; }
+.clue .t { font-weight: 800; font-size: 16px; line-height: 1.15; color: #E6FFFA; }
+.clue .t b { color: #FFD84D; font-weight: 900; }
+.clue.lie .t { color: #F4EAFF; } .clue.lie .t b { color: #C4F08E; }
+.clue.struck .t { text-decoration: line-through; }
+.fibstamp { position: absolute; right: 10px; top: 50%; margin-top: -20px; padding: 2px 12px; border-radius: 10px; border: 4px solid #F2424F; color: #F2424F; background: #FFF6E6; font-family: Fredoka, sans-serif; font-weight: 700; font-size: 24px; rotate: -10deg; animation: pop .4s cubic-bezier(.3,1.6,.5,1) both; }
+.bookTile { border-radius: 20px; border: 4px solid #3B2A4A; box-shadow: 0 4px 0 #3B2A4A; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer; padding: 4px; min-width: 0; }
+.bookTile .n { font-family: Fredoka, sans-serif; font-weight: 600; font-size: 14px; line-height: 1.05; text-align: center; }
+
+/* the 3D layer: a gag can shake or flip the room itself */
+#gl.fx-flip { animation: fxFlip 1.4s ease-in-out both; }
+#gl.fx-sneeze { animation: fxSneeze .9s .35s ease-out both; }
+#gl.fx-jelly { animation: fxJelly .35s ease-in-out 6 alternate both; }
+@keyframes fxFlip { 0% { transform: rotate(0) } 35%, 65% { transform: rotate(180deg) } 100% { transform: rotate(360deg) } }
+@keyframes fxSneeze { 0% { transform: scale(1) } 20% { transform: scale(1.06) translateX(-20px) } 40% { transform: scale(.97) translateX(24px) } 60% { transform: scale(1.03) translateX(-12px) } 100% { transform: none } }
+@keyframes fxJelly { 0% { transform: skewX(-3deg) scaleY(1.02) } 100% { transform: skewX(3deg) scaleY(.98) } }
+
+/* ---------- prototype keyframes ---------- */
+@keyframes sparkle{0%,100%{transform:scale(.3) rotate(0);opacity:0}50%{transform:scale(1) rotate(45deg);opacity:1}}
+@keyframes glowPulse{0%,100%{transform:scale(.9);opacity:.55}50%{transform:scale(1.15);opacity:.95}}
+@keyframes slam{0%{transform:translateY(-420px) rotate(-6deg)}60%{transform:translateY(18px) rotate(2deg)}80%{transform:translateY(-6px)}100%{transform:translateY(0) rotate(0)}}
+@keyframes shake{0%,100%{transform:translate(0,0)}20%{transform:translate(-8px,4px)}40%{transform:translate(7px,-5px)}60%{transform:translate(-5px,3px)}80%{transform:translate(4px,-2px)}}
+@keyframes pop{0%{transform:scale(0) rotate(-12deg);opacity:0}60%{transform:scale(1.15) rotate(4deg);opacity:1}100%{transform:scale(1) rotate(-4deg);opacity:1}}
+@keyframes cardIn{0%{transform:translateX(120%);opacity:0}70%{transform:translateX(-6%);opacity:1}100%{transform:translateX(0)}}
+@keyframes rollIn{0%{transform:translateX(360px) rotate(40deg)}75%{transform:translateX(-10px) rotate(-3deg)}100%{transform:translateX(0) rotate(0)}}
+@keyframes runOff{0%{transform:translateX(0)}100%{transform:translateX(1100px)}}
+@keyframes popUp{0%{transform:translateY(260px)}60%{transform:translateY(-16px)}100%{transform:translateY(0)}}
+@keyframes labelInOut{0%{transform:scale(.6);opacity:0}14%{transform:scale(1.06);opacity:1}22%{transform:scale(1)}82%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.9)}}
+@keyframes finger{0%,100%{transform:translateX(-120px)}50%{transform:translateX(120px)}}
+@keyframes ripple{0%{transform:scale(.4);opacity:1}100%{transform:scale(2.4);opacity:0}}
+@keyframes platMove{0%{transform:translateX(0)}100%{transform:translateX(150px)}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+@keyframes parkPan{0%{transform:translateX(0)}100%{transform:translateX(-120px)}}
+@keyframes raysSpin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+@keyframes starPop{0%{transform:scale(0) rotate(-90deg)}70%{transform:scale(1.3) rotate(10deg)}100%{transform:scale(1) rotate(0)}}
+@keyframes flash{0%,100%{opacity:0}50%{opacity:.55}}
+@keyframes duckDrop{0%{transform:translateY(-700px) rotate(-20deg)}55%{transform:translateY(0) rotate(0) scale(1.1,.85)}70%{transform:translateY(-90px) rotate(8deg)}85%{transform:translateY(0) scale(1.05,.92)}100%{transform:translateY(0) rotate(-4deg)}}
+@keyframes gloveSpring{0%{transform:translateX(-900px)}45%{transform:translateX(60px)}62%{transform:translateX(-40px)}78%{transform:translateX(18px)}100%{transform:translateX(0)}}
+@keyframes confFall{0%{transform:translateY(-120px) rotate(0)}100%{transform:translateY(820px) rotate(720deg)}}
+@keyframes discoSweep{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+@keyframes wob{0%,100%{transform:rotate(-6deg) scale(1)}50%{transform:rotate(6deg) scale(1.12)}}
+@keyframes starFall{0%{transform:translate(0,0) rotate(0);opacity:1}100%{transform:translate(60px,420px) rotate(260deg);opacity:0}}
+@keyframes toastIn{0%{transform:translate(-50%,-30px);opacity:0}100%{transform:translate(-50%,0);opacity:1}}
+@keyframes speed{0%{background-position:0 0}100%{background-position:-800px 0}}
+@keyframes windows{0%{transform:translateX(300px)}100%{transform:translateX(-500px)}}
+@keyframes splash{0%{transform:translateY(80px) scale(.4);opacity:0}40%{opacity:1}100%{transform:translateY(-260px) scale(1.1);opacity:0}}
+@keyframes clack{0%,100%{transform:translateY(0)}50%{transform:translateY(3px)}}
+@keyframes nextPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,201,60,.9)}50%{box-shadow:0 0 0 14px rgba(255,201,60,0)}}
+@keyframes mixSwirl{0%{transform:translate(0,0) rotate(0) scale(1)}50%{transform:translate(var(--dx,120px),var(--dy,-80px)) rotate(200deg) scale(.7)}100%{transform:translate(0,0) rotate(360deg) scale(1)}}
+@keyframes mixSpin{0%{transform:translateY(420px) rotate(-30deg)}60%{transform:translateY(-20px) rotate(380deg)}100%{transform:translateY(0) rotate(360deg)}}
+@keyframes fadeWhite{0%{opacity:0}100%{opacity:1}}
+
+/* ---------- 2D parts (Btn, Bip, Muddler) ---------- */
+@keyframes btnPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.14);opacity:.55}}
+@keyframes btnSway{0%,100%{transform:rotateY(-28deg) translateY(0)}50%{transform:rotateY(28deg) translateY(-8px)}}
+@keyframes btnWob{0%,100%{transform:scale(1,1)}50%{transform:scale(1.04,.96)}}
+@keyframes bipBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes bipSpin{0%{transform:rotate(0) translateY(0)}40%{transform:rotate(200deg) translateY(-18px)}100%{transform:rotate(360deg) translateY(0)}}
+@keyframes bipGlow{0%,100%{opacity:1}50%{opacity:.7}}
+@keyframes mudShake{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(4deg) translateY(-4px)}}
+@keyframes mudBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes mudWave{0%,100%{rotate:-30deg}50%{rotate:10deg}}
+@keyframes mudRun{0%,100%{transform:rotate(12deg) translateY(0)}50%{transform:rotate(12deg) translateY(-10px)}}
+@keyframes squish{0%{transform:scale(1)}40%{transform:scale(1.12,.82)}100%{transform:scale(1)}}
+
+/* ---------- the 25 new gags ---------- */
+@keyframes g-drop{0%{transform:translateY(-220px)}100%{transform:translateY(0)}}
+@keyframes g-pie{0%{transform:translateY(300px) scale(.3) rotate(-20deg)}100%{transform:translateY(-60px) scale(2.4) rotate(8deg);opacity:0}}
+@keyframes g-splat{0%{transform:scale(.2);opacity:0}100%{transform:scale(1);opacity:1}}
+@keyframes g-drip{0%{height:0}100%{height:150px}}
+@keyframes g-deflate{0%{transform:scale(1.15,1.1)}30%{transform:scale(1.2,1.05)}100%{transform:scale(.9,.35)}}
+@keyframes g-puff{0%{transform:translateX(-30px) scaleX(.2);opacity:0}40%{opacity:1}100%{transform:translateX(120px) scaleX(1);opacity:0}}
+@keyframes g-jack{0%{transform:scaleY(0)}100%{transform:scaleY(1)}}
+@keyframes g-bubble{0%{transform:translateY(0) scale(.5)}85%{opacity:1}100%{transform:translateY(-760px) translateX(40px) scale(1.2);opacity:0}}
+@keyframes g-dangle{0%{height:0;transform:rotate(0) translateY(-460px)}30%{transform:rotate(0) translateY(0)}50%{transform:rotate(14deg)}70%{transform:rotate(-10deg)}85%{transform:rotate(6deg)}100%{transform:rotate(0)}}
+@keyframes g-fadein{0%{opacity:0}100%{opacity:1}}
+@keyframes g-snow{0%{transform:translate(0,0)}25%{transform:translate(20px,180px)}50%{transform:translate(-18px,360px)}75%{transform:translate(16px,540px)}100%{transform:translate(0,740px)}}
+@keyframes g-float{0%{transform:translateY(0)}100%{transform:translateY(-760px) rotate(-6deg)}}
+@keyframes g-spin{0%{transform:rotate(0)}100%{transform:rotate(-360deg)}}
+@keyframes g-tickle{0%{transform:rotate(-14deg)}100%{transform:rotate(14deg) translateY(-6px)}}
+@keyframes g-gootop{0%{transform:translateY(-100px)}100%{transform:translateY(0)}}
+@keyframes g-goo{0%{transform:scaleY(.1)}70%{transform:scaleY(4)}100%{transform:scaleY(5.5)}}
+@keyframes g-slip{0%{transform:translateX(0) rotate(0)}40%{transform:translateX(560px) rotate(0)}70%{transform:translateX(640px) translateY(-80px) rotate(-400deg)}100%{transform:translateX(700px) translateY(0) rotate(-720deg)}}
+@keyframes g-wind{0%{transform:translateX(-200px) scaleX(.2);opacity:0}30%{opacity:1}100%{transform:translateX(700px) scaleX(1.2);opacity:0}}
+@keyframes g-spray{0%{transform:translate(0,0) scale(.3);opacity:0}20%{opacity:1}100%{transform:translate(620px,-60px) scale(1.2);opacity:0}}
+@keyframes g-tash{0%{transform:scale(0) rotate(-30deg)}100%{transform:scale(1) rotate(0)}}
+@keyframes g-jet{0%{transform:scaleY(0)}100%{transform:scaleY(1)}}
+@keyframes g-droplet{0%{transform:scale(0);opacity:0}15%{transform:scale(1);opacity:1}100%{transform:translateY(120px) scale(1,1.3);opacity:0}}
+@keyframes g-cloudbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes g-rain{0%{transform:translateY(0);opacity:1}100%{transform:translateY(90px);opacity:0}}
+@keyframes g-hop{0%,100%{transform:translateY(0) scale(1,1)}20%{transform:translateY(0) scale(1.1,.85)}50%{transform:translateY(-70px) scale(.95,1.08)}}
+@keyframes g-ball{0%{transform:translate(0,0)}35%{transform:translate(calc(var(--bx) * .35),260px)}55%{transform:translate(calc(var(--bx) * .6),120px)}75%{transform:translate(calc(var(--bx) * .8),300px)}88%{transform:translate(calc(var(--bx) * .92),230px)}100%{transform:translate(var(--bx),320px)}}
+@keyframes g-squeeze{0%{transform:scaleX(1)}100%{transform:scaleX(.45)}}
+@keyframes g-squeezeR{0%{transform:translateX(0)}100%{transform:translateX(-125px)}}
+@keyframes g-note{0%{transform:translateY(0) rotate(0);opacity:0}20%{opacity:1}100%{transform:translateY(-160px) rotate(20deg);opacity:0}}
+@keyframes g-glitter{0%{transform:translate(0,0) scale(.2) rotate(0);opacity:0}15%{opacity:1}70%{opacity:1}100%{transform:translate(var(--gx),var(--gy)) scale(1) rotate(200deg);opacity:0}}
+@keyframes g-cuckoo{0%,100%{transform:translateX(0)}30%,60%{transform:translateX(-78px)}}
+@keyframes g-cdoor{0%,100%{transform:rotateY(0)}25%,65%{transform:rotateY(-110deg)}}
+@keyframes g-sock{0%{transform:translateY(0) rotate(0)}100%{transform:translateY(820px) rotate(300deg)}}
+@keyframes g-stink{0%{transform:translateY(0);opacity:0}30%{opacity:1}100%{transform:translateY(-80px);opacity:0}}
+@keyframes g-jellyfloor{0%{transform:scale(1.03,.9) skewX(-4deg)}100%{transform:scale(.97,1.1) skewX(4deg)}}
+@keyframes g-hammer{0%{transform:rotate(-70deg)}45%{transform:rotate(-70deg)}62%{transform:rotate(38deg)}72%{transform:rotate(22deg)}82%,100%{transform:rotate(38deg)}}
+@keyframes g-plate{0%{transform:translateY(0) rotate(-10deg)}100%{transform:translateY(470px) rotate(0)}}
+@keyframes g-blast{0%{transform:scaleX(0);opacity:0}30%{opacity:1}100%{transform:scaleX(1.3) translateX(40px);opacity:0}}
+@keyframes g-hatfly{0%,40%{transform:translate(0,0) rotate(0)}100%{transform:translate(260px,-620px) rotate(540deg)}}
+.g-hatfly{animation:g-hatfly 1.4s .9s cubic-bezier(.3,.2,.6,1) both;transform-origin:100px 50px}

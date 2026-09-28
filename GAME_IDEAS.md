@@ -7,7 +7,7 @@ DONE - Pizza Planet: Follow visual recipe cards to drag and drop silly toppings 
 DONE - Space Arena game
 DONE - pirates! old amiga game, modern ish version - https://www.crazygames.com/game/plunder-2d---online-pirate-battle-brp - https://www.reddit.com/r/inkarnate/comments/mw4gpq/exploration_map_for_pirates_lots_of_different/
 
-IN PROGRESS - Dino Park Tycoon: build a dinosaur park (pens, paths, food stalls), keep visitors happy, tap to recapture escaped dinos
+IN PROGRESS DONE - Dino Park Tycoon: build a dinosaur park (pens, paths, food stalls), keep visitors happy, tap to recapture escaped dinos
 
 - infinite falling / zooming game
 - drone game
