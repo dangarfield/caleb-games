@@ -22,3 +22,13 @@ IN PROGRESS DONE - Dino Park Tycoon: build a dinosaur park (pens, paths, food st
 - Night at the Museum: turn-based stealth puzzles (Hitman GO style) - dodge guards' vision cones and lasers to grab the gem
 - Summer Olympics button bash, like the amiga game i had
 - New zealand story-like platformer
+
+
+
+Games to revisit because they look / play badly:
+- Tetris
+- Tron
+- Pac-Man
+- Bomberman
+- Whack-a-mole
+- lots....
