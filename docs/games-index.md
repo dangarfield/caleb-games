@@ -1,6 +1,6 @@
 # Games Index
 
-All 79 games in Garfield Boys' Arcade, plus Librarian (WIP, hidden) — 80 folders under `games/`. The home page is built from each game's `card.json`; a card with `"hidden": true` isn't shown or counted.
+All 80 games in Garfield Boys' Arcade, plus Librarian (WIP, hidden) — 81 folders under `games/`. The home page is built from each game's `card.json`; a card with `"hidden": true` isn't shown or counted.
 
 | Game | Directory | Description |
 |------|-----------|-------------|
@@ -84,6 +84,7 @@ All 79 games in Garfield Boys' Arcade, plus Librarian (WIP, hidden) — 80 folde
 | Crazy Golf! | games/crazy-golf/ | 3D mini-golf (Three.js orthographic course, HTML UI from a Claude Design handoff) — 8 worlds × 9 holes (Jungle Ruins, Pirate Cove, Space Station, Haunted House, Candy Kingdom, Ice Palace, Robot Factory, Pyramid Desert), drag-back putting with power arc + physics-preview dots, 24 hazards (windmill, loop, moving ramp, portal, bumper, water, lava, vines, idol, cannon, low-gravity pad, ghosts, boost pad, toffee, chocolate river, ice, penguins, conveyor belt, spinning arm, crusher gate, sand trap, quicksand, boulders, sphinx), Flat/3D view switch, gems + shop (balls/putters/flags), stars per boy per difficulty unlock worlds, Solo or Caleb-vs-Ezra pass-and-play, every hole proven finishable by a headless solver (`tests/solver.mjs`) |
 | Buttons! | games/buttons/ | 3D find-the-real-button room escape (Three.js rooms with KayKit furniture, HTML UI from a Claude Design handoff) — 10 rooms (Ticket Booth → Coaster Control Room, 30 → 240 code-built buttons: colour × shape × symbol × size × finish), each solved 3 times with a Muddler mix-up between rounds; Bip's clue panel (1 clue up front, 3–5 hidden in clue things, some inside openable drawers, fridges, chests and lockers), a clue generator proven by `tests/clues.mjs` to leave exactly one matching button, the Muddler's fib in rooms 8–10, two-tap inspect + PRESS, 30 wrong-button gags collected in the Button Book, "Make it easier" fade switch, stars + best time per room per boy, first-person Big Dipper coaster finale (Kenney Coaster Kit) and an on-ride photo |
 | Dino Park | games/dino-park/ | Low-poly dino park builder (Three.js park, HTML UI from a Claude Design handoff) for ages 7–10, one finger only — tap a tile then a glowing spot to build (paths lay themselves), tap food/ball bubbles on the Dino Watch, tap runaway dinos to net them; hatch eggs into empty pens; 25 days across 5 parks (Jungle Valley, Volcano Island, Sunny Canyon, Coral Bay, Snowy Peaks), 16 dinos, stars are tiers of a park rating that only goes up, Coin Jar + Dino Shop (parks, pen styles, dino colours, park treats), park levels, Dino Book, Caleb/Ezra saves |
+| Summer Champs | games/summer-champs/ | Ten-event summer athletics championship in Three.js with a broadcast HTML HUD (from a Claude Design handoff): 100m, long jump, triple jump, javelin, discus, high diving, archery, 50m swim, weightlifting, fencing vs 3 rivals; Championship / Practice / Records, Caleb/Ezra kits and records, theme that ducks during events, one trimmed Quaternius anim GLB |
 
 ## Naming quirks worth knowing
 

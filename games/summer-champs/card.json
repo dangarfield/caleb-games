@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "summer-champs",
+  "name": "Summer Champs",
+  "blurb": "Sprint, jump, swim and lift your way to ten gold medals!",
+  "added": "2026-09-29",
+  "icon": {
+    "emoji": "🏅"
+  },
+  "title": {
+    "font": "Barlow Condensed",
+    "weight": 800,
+    "size": 40,
+    "color": "#FFFFFF",
+    "letterSpacing": ".02em",
+    "transform": "uppercase",
+    "style": "italic",
+    "shadow": "0 3px 0 #0B1B3A, 0 5px 14px rgba(0,0,0,.5)"
+  },
+  "blurbStyle": {
+    "color": "#FFFFFF",
+    "shadow": "0 1px 3px rgba(7,18,42,.9)"
+  },
+  "background": {
+    "gradient": [
+      "#07122A",
+      "#132447",
+      "#F2B705"
+    ],
+    "css": "linear-gradient(transparent 0 95%, #F2B705 95%), repeating-linear-gradient(90deg, rgba(255,255,255,.06) 0 2px, transparent 2px 38px) top/100% 34% no-repeat, radial-gradient(circle at 85% 12%, rgba(242,183,5,.28), transparent 45%), linear-gradient(#07122A, #0B1B3A)"
+  },
+  "source": {
+    "files": [
+      "games/summer-champs/index.html",
+      "games/summer-champs/js/sc-ui.js"
+    ],
+    "refreshed": "2026-09-29",
+    "notes": "Title screen is Barlow Condensed 800 italic, as in the game logo in white on stadium navy #07122A with the gold #F2B705 accent bar. A gold track-edge bar at the bottom, faint lane lines up top and a gold glow by the medal echo the broadcast HUD and track. Blurb shortened from the Claude Design card.json to fit 2 lines."
+  },
+  "updated": "2026-09-29"
+}

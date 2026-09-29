@@ -13,7 +13,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // ---pure-start
-const DEFAULT_TITLE = { font: 'Bricolage Grotesque', weight: 800, size: 25, color: '#ffffff', letterSpacing: '-0.02em', transform: 'none', shadow: '0 2px 4px rgba(0,0,0,.3)' };
+const DEFAULT_TITLE = { font: 'Bricolage Grotesque', weight: 800, size: 25, color: '#ffffff', letterSpacing: '-0.02em', transform: 'none', style: 'normal', shadow: '0 2px 4px rgba(0,0,0,.3)' };
 const DEFAULT_THEMED_SHADOW = '0 2px 6px rgba(0,0,0,.35)';
 const DEFAULT_BLURB = { color: 'rgba(255,255,255,.92)', shadow: '0 1px 2px rgba(0,0,0,.25)' };
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -76,7 +76,7 @@ function renderCard(c) {
   const href = c.entry || base;
   const icon = c.icon.image ? `<img src="${esc(base + c.icon.image)}" alt="">` : esc(c.icon.emoji);
   const title = c.wordmark ? `<img class="gc-wordmark" src="${esc(base + c.wordmark)}" alt="${esc(c.name)}">` : esc(c.name);
-  const titleStyle = `font-family:'${cssv(t.font)}',sans-serif;font-weight:${Number(t.weight)};font-size:${Number(t.size)}px;color:${cssv(t.color)};letter-spacing:${cssv(t.letterSpacing)};text-transform:${cssv(t.transform)};text-shadow:${cssv(t.shadow)}`;
+  const titleStyle = `font-family:'${cssv(t.font)}',sans-serif;font-weight:${Number(t.weight)};font-style:${t.style === 'italic' ? 'italic' : 'normal'};font-size:${Number(t.size)}px;color:${cssv(t.color)};letter-spacing:${cssv(t.letterSpacing)};text-transform:${cssv(t.transform)};text-shadow:${cssv(t.shadow)}`;
   return [
     `    <a href="${esc(href)}" class="gc" data-slug="${esc(c.slug)}" data-added="${esc(c.added)}" style="--bg:${cssv(bg)};--glow:${withAlpha(glow, 0.4)};--glow-hover:${withAlpha(glow, 0.6)}">`,
     `      <span class="gc-icon" aria-hidden="true">${icon}</span>`,
@@ -92,12 +92,15 @@ function fontsLink(cards) {
   for (const c of cards) {
     if (!c.title || !c.title.font || c.title.font === DEFAULT_TITLE.font) continue;
     if (!fam.has(c.title.font)) fam.set(c.title.font, new Set());
-    fam.get(c.title.font).add(Number(c.title.weight || 400));
+    fam.get(c.title.font).add((c.title.style === 'italic' ? 1 : 0) + ',' + Number(c.title.weight || 400));
   }
   if (!fam.size) return '';
-  const q = [...fam].sort(([a], [b]) => a.localeCompare(b)).map(([f, w]) => {
-    const ws = [...w].sort((a, b) => a - b);
-    return 'family=' + f.replace(/ /g, '+') + (ws.length === 1 && ws[0] === 400 ? '' : ':wght@' + ws.join(';'));
+  const q = [...fam].sort(([a], [b]) => a.localeCompare(b)).map(([f, set]) => {
+    const vs = [...set].map(v => v.split(',').map(Number)).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const name = 'family=' + f.replace(/ /g, '+');
+    if (vs.some(([i]) => i)) return name + ':ital,wght@' + vs.map(v => v.join(',')).join(';');   // italic needs the ital axis
+    const ws = vs.map(v => v[1]);
+    return name + (ws.length === 1 && ws[0] === 400 ? '' : ':wght@' + ws.join(';'));
   }).join('&amp;');
   return `<link href="https://fonts.googleapis.com/css2?${q}&amp;display=swap" rel="stylesheet">`;
 }

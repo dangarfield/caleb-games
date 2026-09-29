@@ -1,0 +1,15 @@
+{
+  "name": "summer-champs-tools",
+  "private": true,
+  "description": "Dev-only: builds assets/summer-champs-anims.glb from Quaternius UAL1 + UAL2. Not loaded by the game.",
+  "type": "module",
+  "scripts": {
+    "anims": "node build-anims.mjs"
+  },
+  "devDependencies": {
+    "@gltf-transform/core": "^4.5.1",
+    "@gltf-transform/extensions": "^4.5.1",
+    "@gltf-transform/functions": "^4.5.1",
+    "meshoptimizer": "^1.3.0"
+  }
+}

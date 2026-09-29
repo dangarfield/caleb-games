@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Summer Champs - Garfield Boys' Arcade</title>
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,800&family=Barlow:wght@500;600;700&display=swap" rel="stylesheet">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/"
+} }
+</script>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-user-drag:none}
+html,body{margin:0;height:100%;background:#03070F;overflow:hidden;touch-action:none;font-family:Barlow,sans-serif;color:#fff}
+a{color:#F2B705}a:hover{color:#fff}
+#stage{position:absolute;left:50%;top:50%;width:1333px;height:690px;transform:translate(-50%,-50%) scale(var(--s,1));overflow:hidden;background:#07122A}
+#gl{position:absolute;inset:0;width:100%;height:100%;display:block}
+#ui{position:absolute;inset:0}
+.C{font-family:'Barlow Condensed',sans-serif}
+.gold{color:#F2B705}
+.abs{position:absolute}
+@property --h0{syntax:'<number>';inherits:false;initial-value:0}
+@property --h1{syntax:'<number>';inherits:false;initial-value:0}
+@property --h2{syntax:'<number>';inherits:false;initial-value:0}
+@property --h3{syntax:'<number>';inherits:false;initial-value:0}
+@property --v0{syntax:'<number>';inherits:false;initial-value:0}
+@property --v1{syntax:'<number>';inherits:false;initial-value:0}
+@property --v2{syntax:'<number>';inherits:false;initial-value:0}
+@property --v3{syntax:'<number>';inherits:false;initial-value:0}
+#scrim{position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(7,18,42,var(--h0)) 0%,rgba(7,18,42,var(--h1)) 38%,rgba(7,18,42,var(--h2)) 64%,rgba(7,18,42,var(--h3)) 100%),linear-gradient(180deg,rgba(7,18,42,var(--v0)) 0%,rgba(7,18,42,var(--v1)) 30%,rgba(7,18,42,var(--v2)) 60%,rgba(7,18,42,var(--v3)) 78%);transition:--h0 .55s cubic-bezier(.4,0,.2,1),--h1 .55s cubic-bezier(.4,0,.2,1),--h2 .55s cubic-bezier(.4,0,.2,1),--h3 .55s cubic-bezier(.4,0,.2,1),--v0 .55s cubic-bezier(.4,0,.2,1),--v1 .55s cubic-bezier(.4,0,.2,1),--v2 .55s cubic-bezier(.4,0,.2,1),--v3 .55s cubic-bezier(.4,0,.2,1)}
+.back{position:absolute;left:28px;top:28px;height:60px;min-width:60px;padding:0 22px 0 14px;background:rgba(7,18,42,.92);border:1px solid rgba(255,255,255,.22);border-radius:4px;display:flex;align-items:center;justify-content:center;gap:8px;font:700 22px 'Barlow Condensed';letter-spacing:.08em;color:#fff;text-decoration:none;z-index:50}
+.back b{color:#F2B705;font-size:28px;line-height:1;font-weight:700}
+.btn{border:0;margin:0;cursor:pointer;font:inherit;color:inherit;background:none;padding:0;touch-action:manipulation}
+.gbtn{height:80px;padding:0 30px;background:#F2B705;color:#0B1B3A;border-radius:4px;display:flex;align-items:center;gap:20px;font:800 32px 'Barlow Condensed'}
+.gbtn small{display:block;font:700 13px Barlow;letter-spacing:.18em}
+.ghost{height:64px;padding:0 24px;border:1px solid rgba(255,255,255,.25);border-radius:4px;display:flex;align-items:center;font:700 22px 'Barlow Condensed';letter-spacing:.06em;background:rgba(7,18,42,.6)}
+.eyebrow{font:600 15px Barlow;letter-spacing:.22em;color:#F2B705}
+.sc-title{font:800 58px/1 'Barlow Condensed'}
+.row{display:flex;align-items:center;gap:16px;padding:0 20px;background:rgba(255,255,255,.07);border-radius:4px}
+.row.me{background:#F2B705;color:#0B1B3A}
+.dim{color:rgba(255,255,255,.7)}
+.medal{display:inline-block;width:30px;height:30px;border-radius:50%;font:800 17px/30px 'Barlow Condensed';text-align:center;color:#0B1B3A}
+.m1{background:#E5B93A}.m2{background:#C9CFD8}.m3{background:#B7773F;color:#fff}
+.tag{font:700 13px Barlow;letter-spacing:.12em;background:#0B1B3A;color:#F2B705;padding:4px 9px;border-radius:2px}
+/* HUD */
+.hp{background:rgba(7,18,42,.9);border-radius:4px}
+.pad{position:absolute;bottom:28px;width:170px;height:170px;border-radius:6px;background:rgba(7,18,42,.84);border:1px solid rgba(255,255,255,.25);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;transition:background .06s,color .06s}
+.pad b{font:700 76px/1 'Barlow Condensed'}.pad i{font:600 13px Barlow;letter-spacing:.22em;font-style:normal;color:rgba(255,255,255,.65)}
+.pad.on{background:#F2B705;color:#0B1B3A;border-color:#F2B705;box-shadow:0 0 0 5px rgba(242,183,5,.35)}.pad.on i{color:#0B1B3A}
+.act{position:absolute;left:50%;bottom:28px;transform:translateX(-50%);width:280px;height:150px;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(7,18,42,.84);border:3px solid rgba(242,183,5,.6);color:#F2B705;transition:opacity .15s}
+.act b{font:800 60px/1 'Barlow Condensed'}.act i{font:700 13px Barlow;letter-spacing:.2em;font-style:normal}
+.act.hot{background:#F2B705;color:#0B1B3A;border-color:#F2B705;box-shadow:0 0 0 6px rgba(242,183,5,.35),0 0 40px rgba(242,183,5,.5)}
+.act.off{opacity:0;pointer-events:none}
+.act.press{transform:translateX(-50%) scale(.96);filter:brightness(1.12)}
+.seg{display:flex;gap:4px;padding:8px;background:rgba(7,18,42,.88);border-radius:3px}
+.seg span{flex:1;height:18px;background:rgba(255,255,255,.18)}.seg span.f{background:#F2B705}
+.lbl{font:600 13px Barlow;letter-spacing:.2em;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.cue{position:absolute;left:0;right:0;bottom:214px;text-align:center;font:italic 800 76px/1 'Barlow Condensed';text-shadow:0 4px 18px rgba(0,0,0,.55);pointer-events:none;transition:opacity .25s,transform .25s}
+.cue.good{color:#F2B705}.cue.bad{color:#FF6B6F}
+.tk{height:42px;display:flex;align-items:center;background:rgba(7,18,42,.88);font-variant-numeric:tabular-nums}
+.tk.me{background:#F2B705;color:#0B1B3A}
+.tk .r{width:38px;text-align:center;font:700 22px 'Barlow Condensed'}.tk .c{width:6px;height:100%}.tk .n{flex:1;padding-left:12px;font:700 22px 'Barlow Condensed';letter-spacing:.04em}.tk .g{padding-right:14px;font:600 19px 'Barlow Condensed'}
+.hb{width:190px;height:76px;border-radius:6px;background:rgba(7,18,42,.84);border:1px solid rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font:800 34px 'Barlow Condensed'}
+.hb.on,.hb.flash{background:#F2B705;color:#0B1B3A;border-color:#F2B705}
+.hb.w{background:#fff;color:#0B1B3A}
+.hb.w.on{background:#F2B705;border-color:#F2B705;color:#0B1B3A}
+.fade-in{animation:fi .25s ease-out}
+@keyframes fi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes fo{from{opacity:0}to{opacity:1}}
+#load{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#07122A;z-index:40}
+#rot{display:none;position:fixed;inset:0;background:#07122A;z-index:99;align-items:center;justify-content:center;text-align:center;font:800 40px 'Barlow Condensed';padding:40px}
+@media (orientation:portrait){ #rot{display:flex} }
+</style>
+<script src="js/arcade-store.js"></script>
+<script data-arcade-back>
+/* arcade-back v1 (knowledge/arcade-back.md). "← Games" = the browser's back button.
+   Any link whose href is exactly ../../index.html goes BACK in history when this page was opened
+   from the arcade home, so home comes back as it was left (scroll position, no reload).
+   Opened any other way (bookmark, direct URL, dev tool), the link just navigates as normal. */
+(function () {
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!a || a.getAttribute('href') !== '../../index.html') return;
+    var home = new URL(a.href), ref;
+    try { ref = new URL(document.referrer); } catch (err) { return; }
+    var dir = home.pathname.replace(/index\.html$/, '');
+    if (ref.origin !== home.origin || (ref.pathname !== home.pathname && ref.pathname !== dir) || history.length < 2) return;
+    e.preventDefault();
+    var go = function () { location.href = home.href; };
+    // Still on this page after going back (an in-game history entry) or nothing happened: go home directly.
+    addEventListener('popstate', go, { once: true });
+    var t = setTimeout(go, 2500);
+    addEventListener('pagehide', function () { clearTimeout(t); }, { once: true });
+    history.back();
+  });
+})();
+</script>
+</head>
+<body>
+<div id="stage">
+  <canvas id="gl"></canvas>
+  <div id="scrim"></div>
+  <div id="ui"></div>
+  <a class="back" id="back" href="../../index.html" aria-label="Back to games"><b>←</b><span>GAMES</span></a>
+  <div id="load"><span class="eyebrow">10 EVENTS · 1 CHAMPION</span><span class="C" style="font:italic 800 104px/.86 'Barlow Condensed';text-align:center">SUMMER<br>CHAMPS</span><span style="width:92px;height:8px;background:#F2B705"></span><span class="dim" id="loadtxt" style="font:600 16px Barlow;letter-spacing:.16em">LOADING ATHLETES…</span></div>
+</div>
+<div id="rot">TURN YOUR TABLET SIDEWAYS TO PLAY</div>
+<!-- Theme: no controls on purpose, nothing fetched until the first tap (knowledge/audio-patterns.md). -->
+<audio id="theme" src="audio/summer-champs-theme.webm" loop preload="none" aria-hidden="true"></audio>
+<script>
+(function(){ const st = document.getElementById('stage'); const fit = () => st.style.setProperty('--s', Math.min(innerWidth/1333, innerHeight/690)); addEventListener('resize', fit); fit(); })();
+// No long-press menus, callouts or image drags anywhere (arcade rule).
+document.addEventListener('contextmenu', e => e.preventDefault());
+</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

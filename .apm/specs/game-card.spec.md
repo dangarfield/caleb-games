@@ -26,7 +26,7 @@ Every game ships a `games/<slug>/card.json`. `scripts/build-index.mjs` turns all
 | `updated` | | `YYYY-MM-DD`, bumped whenever the card changes. |
 | `icon` | ✓ | `{ "emoji": "🦖" }` or `{ "image": "card-icon.png" }` (square, transparent, ≥ 256px, inside the game folder). |
 | `wordmark` | | A logo image that replaces the text title. Only use it if the game already has a logo. |
-| `title` | | Omit for the default arcade style. Otherwise `{ font, weight, size, color, letterSpacing, transform, shadow }`. |
+| `title` | | Omit for the default arcade style. Otherwise `{ font, weight, size, color, letterSpacing, transform, style, shadow }` (`style: "italic"` when the game's logo is italic; the font link then asks for the italic cut). |
 | `blurbStyle` | | `{ color, shadow }`. Needed on light backgrounds (dark text, `"shadow": "none"`). |
 | `background.gradient` | ✓ | 2–3 hex colours taken from the game's palette. Rendered at 145°. Always used for the glow. |
 | `background.css` | | CSS-only pattern that echoes the game world (grid, stripes, dots, felt, planks, rings). Layers are allowed; `url()` is not. |

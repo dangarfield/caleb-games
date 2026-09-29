@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Summer Champs · Anim Editor</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,800;1,800&family=Barlow:wght@500;600;700&display=swap" rel="stylesheet">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/",
+  "lil-gui": "https://cdn.jsdelivr.net/npm/lil-gui@0.19.2/dist/lil-gui.esm.min.js"
+} }
+</script>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#07122A;color:#fff;font:500 14px Barlow,sans-serif;overflow:hidden}
+a{color:#F2B705}a:hover{color:#fff}
+button,select,input,textarea{font:inherit;color:inherit}
+#app{display:grid;grid-template-columns:minmax(0,1fr) 360px;grid-template-rows:56px minmax(0,1fr) 112px;height:100vh}
+#top{grid-column:1/3;display:flex;align-items:center;gap:12px;padding:0 16px;overflow-x:auto;background:#0B1B3A;border-bottom:1px solid rgba(255,255,255,.12)}
+.brand{font:italic 800 24px 'Barlow Condensed';letter-spacing:.02em;white-space:nowrap}.brand b{color:#F2B705}
+.sel{height:36px;background:#07122A;border:1px solid rgba(255,255,255,.25);border-radius:4px;padding:0 10px;min-width:0}
+.btn{height:36px;padding:0 14px;border-radius:4px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font-weight:700}
+.btn:hover{background:rgba(255,255,255,.14)}
+.btn.gold{background:#F2B705;color:#0B1B3A;border-color:#F2B705}.btn.gold:hover{filter:brightness(1.08)}
+.btn.on{background:#F2B705;color:#0B1B3A;border-color:#F2B705}
+.chk{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;font-weight:600;font-size:13px;cursor:pointer}
+.sp{flex:1}
+#view{position:relative;min-width:0;min-height:0}
+#gl{position:absolute;inset:0;width:100%;height:100%;display:block}
+#cams{position:absolute;left:12px;top:12px;display:flex;gap:6px}
+#cams .btn{height:30px;padding:0 10px;font-size:13px;background:rgba(7,18,42,.8)}
+#info{position:absolute;left:12px;bottom:12px;background:rgba(7,18,42,.82);border-radius:4px;padding:8px 12px;font:600 13px Barlow;letter-spacing:.04em;max-width:70%}
+#info .k{color:#F2B705}
+#side{grid-row:2/4;grid-column:2;display:flex;flex-direction:column;min-height:0;background:#0B1B3A;border-left:1px solid rgba(255,255,255,.12)}
+#mode{display:flex;gap:6px;padding:12px 12px 0}
+#mode .btn{flex:1;justify-content:center;height:32px;font-size:13px}
+#hint{padding:8px 12px 0;color:rgba(255,255,255,.7);font-size:13px;line-height:1.4;text-wrap:pretty}
+#gui{flex:1;min-height:0;overflow:auto;padding:8px 0}
+#gui .lil-gui.root{width:100%!important;--width:100%;--name-width:44%;--background-color:#0B1B3A;--widget-color:#1C2C4E;--focus-color:#2A3D66;--hover-color:#24365A;--number-color:#F2B705;--title-background-color:#132447}
+#notes{border-top:1px solid rgba(255,255,255,.12);padding:12px;display:flex;flex-direction:column;gap:8px;max-height:44%}
+#notes h3{margin:0;font:800 18px 'Barlow Condensed';letter-spacing:.04em}
+#noteTxt{width:100%;height:64px;resize:vertical;background:#07122A;border:1px solid rgba(255,255,255,.25);border-radius:4px;padding:8px}
+#noteList{overflow:auto;display:flex;flex-direction:column;gap:6px;min-height:0}
+.note{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:start;background:rgba(255,255,255,.05);border-radius:4px;padding:6px 8px;font-size:13px;line-height:1.35}
+.note b{color:#F2B705;cursor:pointer}
+.note button{background:none;border:0;color:rgba(255,255,255,.6);cursor:pointer;font-size:16px;line-height:1}
+#time{grid-column:1;display:flex;flex-direction:column;gap:10px;padding:12px 16px;background:#0B1B3A;border-top:1px solid rgba(255,255,255,.12)}
+#row1{display:flex;align-items:center;gap:8px}
+#tlabel{font:800 20px 'Barlow Condensed';min-width:150px;font-variant-numeric:tabular-nums}
+#track{position:relative;height:40px}
+#scrub{position:absolute;left:0;right:0;top:12px;width:100%;margin:0;accent-color:#F2B705}
+#keys{position:absolute;left:0;right:0;top:0;height:40px;pointer-events:none}
+.key{position:absolute;top:0;width:14px;height:14px;margin-left:-7px;transform:rotate(45deg);background:#fff;border:2px solid #0B1B3A;cursor:pointer;pointer-events:auto}
+.key.sel{background:#F2B705;box-shadow:0 0 0 3px rgba(242,183,5,.4)}
+.key.edited::after{content:'';position:absolute;left:3px;top:3px;width:4px;height:4px;background:#E5484D;border-radius:50%}
+.nmark{position:absolute;bottom:0;width:3px;height:12px;margin-left:-1px;background:#8FD3FF;pointer-events:auto;cursor:pointer}
+#modal{position:fixed;inset:0;background:rgba(7,18,42,.8);display:none;align-items:center;justify-content:center;z-index:50}
+#modal .box{width:min(760px,92vw);background:#0B1B3A;border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:20px;display:flex;flex-direction:column;gap:12px}
+#modal textarea{width:100%;height:50vh;background:#07122A;border:1px solid rgba(255,255,255,.25);border-radius:4px;padding:10px;font:500 12px/1.45 ui-monospace,Menlo,monospace}
+#load{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#07122A;z-index:60;font:800 28px 'Barlow Condensed';letter-spacing:.06em}
+</style>
+</head>
+<body>
+<div id="load">LOADING ATHLETES…</div>
+<div id="app">
+  <div id="top">
+    <a class="btn" href="../index.html" style="text-decoration:none;color:#fff">← GAME</a>
+    <span class="brand">ANIM <b>EDITOR</b></span>
+    <select id="clip" class="sel" style="flex:0 0 220px"></select>
+    <label class="chk"><input type="checkbox" id="optProp" checked>Prop</label>
+    <label class="chk"><input type="checkbox" id="optFloor" checked>Event floor</label>
+    <label class="chk"><input type="checkbox" id="optOpp" checked>Opponent</label>
+    <label class="chk"><input type="checkbox" id="optBones">Bones</label>
+    <span class="sp"></span>
+    <label class="chk" title="The game uses your edits the next time it loads"><input type="checkbox" id="optLive">Use edits in game</label>
+    <button class="btn" id="resetClip">Reset clip</button>
+    <button class="btn gold" id="export">Copy changes for Claude</button>
+  </div>
+  <div id="view">
+    <canvas id="gl"></canvas>
+    <div id="cams"><button class="btn" data-cam="side">Side</button><button class="btn" data-cam="front">Front</button><button class="btn" data-cam="back">Back</button><button class="btn" data-cam="top">Top</button><button class="btn" data-cam="event">Game camera</button></div>
+    <div id="info"></div>
+  </div>
+  <div id="side">
+    <div id="mode"><button class="btn" data-mode="key">Edit this key</button><button class="btn" data-mode="offset">Offset whole clip</button></div>
+    <div id="hint"></div>
+    <div id="gui"></div>
+    <div id="notes">
+      <h3>NOTES</h3>
+      <textarea id="noteTxt" placeholder="Describe what looks wrong at this frame, e.g. right arm should be higher, elbow straighter"></textarea>
+      <button class="btn" id="addNote">Add note at this frame</button>
+      <div id="noteList"></div>
+    </div>
+  </div>
+  <div id="time">
+    <div id="row1">
+      <button class="btn" id="play" style="width:84px;justify-content:center">▶ Play</button>
+      <button class="btn" id="prev" title="Previous frame">◀|</button>
+      <button class="btn" id="next" title="Next frame">|▶</button>
+      <select id="speed" class="sel"><option value="0.1">0.1×</option><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option></select>
+      <span id="tlabel">0.00s</span>
+      <span class="sp"></span>
+      <span style="color:rgba(255,255,255,.65);font-size:13px">◆ key poses (click to select) · <span style="color:#8FD3FF">|</span> notes · ✎ = editable custom clip</span>
+    </div>
+    <div id="track"><input type="range" id="scrub" min="0" max="1000" value="0"><div id="keys"></div></div>
+  </div>
+</div>
+<div id="modal"><div class="box"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font:800 24px 'Barlow Condensed'">PASTE THIS TO CLAUDE</span><button class="btn" id="closeModal">Close</button></div><span style="color:rgba(255,255,255,.7)">It's been copied to your clipboard. If it wasn't, select all and copy.</span><textarea id="out" readonly></textarea></div></div>
+<script src="../js/arcade-store.js"></script>
+<script type="module" src="../js/sc-anim-editor.js"></script>
+</body>
+</html>

@@ -38,6 +38,7 @@
         "color": { "type": "string" },
         "letterSpacing": { "type": "string", "default": "normal" },
         "transform": { "enum": ["none", "uppercase", "lowercase", "capitalize"], "default": "none" },
+        "style": { "enum": ["normal", "italic"], "default": "normal", "description": "font-style. Use italic only when the game's own logo is italic." },
         "shadow": { "type": "string", "description": "CSS text-shadow, or \"none\" on light backgrounds." }
       }
     },
