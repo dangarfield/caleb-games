@@ -6,6 +6,16 @@ Review periodically — memory drifts. Newest at the top.
 
 ---
 
+## 2026-09-29 — The home page has a theme tune
+`home-theme.m4a` is encoded per `knowledge/audio-patterns.md` to `audio/home-theme.webm` (Opus 48k, 6dB down,
+~1MB) and wired into `index.template.html`. No controls. It tries to play on load (browsers that allow autoplay,
+e.g. after you've already tapped in the arcade, play at once) and otherwise starts on the first tap, armed on the
+events that grant activation. Pauses when the tab is hidden, carries on when "← Games" brings the page back from
+the back/forward cache, and remembers its position in sessionStorage if the page reloads instead. Unlike a game's
+theme it uses `preload="auto"`, because it tries to play straight away.
+
+---
+
 ## 2026-09-28 — Three.js games build all their UI in HTML/CSS
 The canvas-drawn HUD pill and game-over rule was written for Canvas 2D games and never had a
 Three.js exception, so the steering told a 3D game to draw its UI in the canvas. Rule now: a

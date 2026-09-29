@@ -928,5 +928,43 @@
     }
     function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   </script>
+  <!-- Home theme (knowledge/audio-patterns.md). No controls on purpose: one quiet tune, looping.
+       The file is encoded 6dB down; see audio/home-theme.webm. -->
+  <audio id="theme" src="audio/home-theme.webm" loop preload="auto" aria-hidden="true"></audio>
+  <script>
+    (function () {
+      var el = document.getElementById('theme');
+      if (!el) return;
+      var LEVEL = 0.5;  // on top of the 6dB taken off in the encode
+      // pointerdown/touchstart don't grant user activation on a touch screen; pointerup, touchend, click and keydown do.
+      var EVENTS = ['pointerdown', 'pointerup', 'click', 'touchend', 'keydown'];
+      var playing = false;
+      function arm() { EVENTS.forEach(function (e) { document.addEventListener(e, start, true); }); }
+      function disarm() { EVENTS.forEach(function (e) { document.removeEventListener(e, start, true); }); }
+      function start() {
+        if (playing) return;  // stay armed until it is really playing
+        el.volume = LEVEL;
+        var p;
+        try { p = el.play(); } catch (e) { return; }  // no el.load(): it aborts the play
+        if (p && p.then) p.then(function () { playing = true; disarm(); }, function () {});
+        else { playing = true; disarm(); }
+      }
+      // Pause when the tab is hidden, resume when it comes back (tracked with our own flag, not el.paused).
+      document.addEventListener('visibilitychange', function () {
+        if (!playing) return;
+        if (document.hidden) el.pause(); else el.play().catch(function () {});
+      });
+      // Coming back from a game with "← Games" restores this page from the back/forward cache: carry on.
+      addEventListener('pageshow', function (e) {
+        if (!e.persisted) return;
+        if (playing) el.play().catch(function () {}); else start();
+      });
+      // If the page was reloaded rather than restored from the cache, pick the tune up where it left off.
+      try { var t = parseFloat(sessionStorage.getItem('homeThemeTime')); if (t > 0) el.currentTime = t; } catch (e) {}
+      addEventListener('pagehide', function () { try { sessionStorage.setItem('homeThemeTime', String(el.currentTime)); } catch (e) {} });
+      arm();
+      start();  // try straight away: browsers that allow autoplay here play now, the rest wait for the first tap
+    })();
+  </script>
 </body>
 </html>
