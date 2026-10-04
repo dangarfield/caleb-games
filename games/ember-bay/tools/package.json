@@ -1,0 +1,11 @@
+{
+  "name": "ember-bay-tools",
+  "private": true,
+  "type": "module",
+  "description": "Dev-only: node slim-packs.mjs ../assets keep-models.json (strips unused town models, pre-simplifies heavy meshes)",
+  "dependencies": {
+    "@gltf-transform/core": "^4",
+    "@gltf-transform/functions": "^4",
+    "meshoptimizer": "0.21.0"
+  }
+}

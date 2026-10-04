@@ -126,6 +126,9 @@ function music() {
   it and the promise rejects.
 - **No mute button, no volume slider, no "music: on" setting.** One tune, quiet,
   looping. The tab being in front of you is the only control.
+  The one exception is the arcade home page: it has a single mute button in the
+  header (next to the games count), remembered in `localStorage` as
+  `arcadeHomeMuted`. Games themselves still get no audio controls.
 - **No fade-in.** The file is already at background level. If the track opens
   loud, fix the encode.
 - **`loop` on the element**, not an `ended` handler.

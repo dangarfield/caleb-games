@@ -6,8 +6,10 @@ DONE - orienteering game - https://boardgamegeek.com/image/7624671/waypoints
 DONE - Pizza Planet: Follow visual recipe cards to drag and drop silly toppings onto a pizza dough for goofy customers
 DONE - Space Arena game
 DONE - pirates! old amiga game, modern ish version - https://www.crazygames.com/game/plunder-2d---online-pirate-battle-brp - https://www.reddit.com/r/inkarnate/comments/mw4gpq/exploration_map_for_pirates_lots_of_different/
+DONE - Dino Park Tycoon: build a dinosaur park (pens, paths, food stalls), keep visitors happy, tap to recapture escaped dinos
+DONE - Summer Olympics button bash, like the amiga game i had
 
-IN PROGRESS DONE - Dino Park Tycoon: build a dinosaur park (pens, paths, food stalls), keep visitors happy, tap to recapture escaped dinos
+DONE - Firefighter Training: Aim a water hose to put out cartoon campfires and rescue stranded kittens from trees
 
 - infinite falling / zooming game
 - drone game
@@ -17,10 +19,7 @@ IN PROGRESS DONE - Dino Park Tycoon: build a dinosaur park (pens, paths, food st
 - Monster Mechanic: Snap together silly parts like robot arms and wheels to build custom monster trucks - eg like turbo cats
 - Supermarket Sweep: Run through aisles filling a shopping cart with specific colors or types of food before the timer runs out
 - paint wars - dual stick control. you move your character with the left and pain direction with the right, goal is to get the most paint coloured, or seomthing like that
-- Firefighter Training: Aim a water hose to put out cartoon campfires and rescue stranded kittens from trees
-
 - Night at the Museum: turn-based stealth puzzles (Hitman GO style) - dodge guards' vision cones and lasers to grab the gem
-- Summer Olympics button bash, like the amiga game i had
 - New zealand story-like platformer
 
 

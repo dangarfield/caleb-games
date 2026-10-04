@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "ember-bay",
+  "name": "Ember Bay",
+  "blurb": "Drive the fire engine and answer every call across town!",
+  "added": "2026-10-01",
+  "icon": {
+    "emoji": "🚒"
+  },
+  "title": {
+    "font": "Archivo",
+    "weight": 900,
+    "size": 40,
+    "color": "#E5E043",
+    "letterSpacing": "-0.01em",
+    "transform": "uppercase",
+    "style": "normal",
+    "shadow": "0 3px 0 #111214, 0 5px 14px rgba(0,0,0,.5)"
+  },
+  "blurbStyle": {
+    "color": "#F2F1EC",
+    "shadow": "0 1px 3px rgba(17,18,20,.9)"
+  },
+  "background": {
+    "gradient": [
+      "#111214",
+      "#2C2D30",
+      "#D8362D"
+    ],
+    "css": "repeating-linear-gradient(90deg, #E5E043 0 24px, #D8362D 24px 48px) bottom/100% 8px no-repeat, radial-gradient(circle at 84% 16%, rgba(216,54,45,.35), transparent 46%), repeating-linear-gradient(135deg, rgba(255,255,255,.035) 0 12px, transparent 12px 24px), linear-gradient(#1C1D1F, #111214)"
+  },
+  "source": {
+    "files": [
+      "games/ember-bay/js/eb-view.js",
+      "games/ember-bay/index.html"
+    ],
+    "refreshed": "2026-10-01",
+    "notes": "Home screen title is Archivo 900 uppercase in hi-vis #E5E043 on graphite #1C1D1F (the game also widens it with font-stretch 125%, which the card can't express). The hi-vis/engine-red Battenburg strip along the bottom and the diagonal hatching come from the home and crew screens; the red glow by the fire engine icon echoes the engine livery #D8362D."
+  },
+  "updated": "2026-10-01"
+}

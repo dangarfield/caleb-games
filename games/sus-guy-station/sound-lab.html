@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sus Guy Station · Sound Lab</title>
+<link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@500;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#F3EEE3;color:#1E1E1E;font:500 16px/1.4 Gabarito,system-ui,sans-serif;padding:28px 24px 60px}
+a{color:#1F6F78}a:hover{color:#E8572A}
+.wrap{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+header{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.roundel{width:54px;height:54px;border-radius:50%;border:10px solid #DC241F;position:relative;flex:none}
+.roundel::after{content:"";position:absolute;left:-16px;right:-16px;top:50%;height:12px;margin-top:-6px;background:#0019A8}
+h1{font-size:30px;font-weight:900}
+.sub{color:#555;font-size:15px}
+.card{background:#fff;border-radius:14px;padding:16px 18px;box-shadow:0 1px 0 rgba(0,0,0,.08)}
+.masters{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px 28px}
+.mrow{display:grid;grid-template-columns:90px minmax(0,1fr) 54px;align-items:center;gap:12px;font-weight:800}
+.list{display:flex;flex-direction:column;gap:2px}
+.row{display:grid;grid-template-columns:28px minmax(150px,1.1fr) 104px minmax(160px,1.6fr) 62px 64px;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid #EEE7D8}
+.row:last-child{border-bottom:0}
+.nm{font-weight:800;font-size:17px}.ds{color:#666;font-size:13px}
+.val{font-variant-numeric:tabular-nums;font-weight:800;text-align:right}
+button{font:800 15px Gabarito,system-ui,sans-serif;border:0;border-radius:999px;padding:9px 16px;cursor:pointer;background:#1F6F78;color:#fff}
+button:hover{background:#17575E}
+button.on{background:#E8572A}
+button.ghost{background:#EEE7D8;color:#1E1E1E}button.ghost:hover{background:#E2D9C6}
+input[type=range]{width:100%;accent-color:#1F6F78}
+input[type=checkbox]{width:20px;height:20px;accent-color:#1F6F78}
+.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+pre{background:#1E1E1E;color:#7CF29A;border-radius:10px;padding:12px 14px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-all}
+.note{font-size:13px;color:#666}
+@media (max-width:720px){.row{grid-template-columns:28px minmax(0,1fr) 96px;}.row input[type=range],.row .val,.row .ghost{grid-column:2 / -1}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="roundel"></div>
+    <div><h1>Sound Lab</h1><div class="sub">Play any mix of Sus Guy Station's sounds and set each one's level. Levels save in this browser, and the game uses them straight away.</div></div>
+  </header>
+
+  <div class="card masters">
+    <div class="mrow">Sounds<input type="range" id="mSnd" min="0" max="100" value="80"><span class="val" id="mSndV">80%</span></div>
+    <div class="mrow">Music<input type="range" id="mMus" min="0" max="100" value="80"><span class="val" id="mMusV">80%</span></div>
+  </div>
+
+  <div class="card">
+    <div class="list" id="list"></div>
+  </div>
+
+  <div class="bar">
+    <button id="playTicked">▶ Play ticked together</button>
+    <button class="ghost" id="stopAll">■ Stop all</button>
+    <button class="ghost" id="resetAll">Reset all to defaults</button>
+    <button class="ghost" id="copy">Copy levels</button>
+    <a href="index.html" style="margin-left:auto;font-weight:800">Open the game →</a>
+  </div>
+  <pre id="out"></pre>
+  <div class="note">100% = the recording at its own level. Reset goes back to the game's defaults. The two master sliders here are for listening only; in the game they're the Sounds and Music sliders in the pause menu.</div>
+</div>
+<audio id="theme" src="audio/sus-guy-station-theme.webm" loop preload="auto"></audio>
+<script type="module">
+import * as SFX from './js/audio.js';
+const $ = id => document.getElementById(id), theme = $('theme');
+let mSnd = 0.8, mMus = 0.8;
+// kind: 'once' plays one go; 'loop' starts/stops a repeating sound
+const DEFS = [
+  { id: 'hum', name: 'Tunnel hum', ds: 'Always on in the passages (made in code)', kind: 'loop',
+    start() { SFX.startAmbience(); }, stop() { SFX.stopAmbience(); } },
+  { id: 'footsteps', name: 'Footsteps', ds: 'One step every 0.5 s, like walking', kind: 'loop',
+    start() { SFX.step(); this.t = setInterval(() => SFX.step(), 500); }, stop() { clearInterval(this.t); } },
+  { id: 'train', name: 'Passing train', ds: 'Every 28–38 s in the game (12.5 s long)', kind: 'once', play: () => SFX.rumble() },
+  { id: 'rattle', name: 'Door rattle (A10)', ds: 'Repeats while the cupboard shakes', kind: 'loop',
+    start() { this.t = setInterval(() => SFX.rattle(), 160); }, stop() { clearInterval(this.t); } },
+  { id: 'intro', name: 'Intro transition', ds: 'When you press play (2.6 s)', kind: 'once', play: () => SFX.cue('intro') },
+  { id: 'pass', name: 'Level pass', ds: 'Right call', kind: 'once', play: () => SFX.pass() },
+  { id: 'fail', name: 'Level fail', ds: 'Wrong call', kind: 'once', play: () => SFX.fail() },
+  { id: 'birdsong', name: 'Birdsong', ds: 'The way out: crossfades in over 2 s as the hum fades', kind: 'loop',
+    start() { SFX.birds(true, 0.3); }, stop() { SFX.birds(false, 0.3); } },
+  { id: 'music', name: 'Theme music', ds: 'Loops on the menus and in the game', kind: 'loop',
+    start() { musicVol(); theme.currentTime = 0; theme.play().catch(() => {}); }, stop() { theme.pause(); } },
+];
+const musicVol = () => { theme.volume = Math.min(1, 0.25 * mMus * SFX.level('music')); };
+const pct = v => Math.round(v * 100) + '%';
+const list = $('list'), rows = {};
+DEFS.forEach(d => {
+  const r = document.createElement('div'); r.className = 'row';
+  r.innerHTML = `<input type="checkbox" title="Tick to play together"><div><div class="nm">${d.name}</div><div class="ds">${d.ds}</div></div>
+    <button>${d.kind === 'loop' ? '▶ Start' : '▶ Play'}</button><input type="range" min="0" max="300" step="5"><span class="val"></span><button class="ghost">Reset</button>`;
+  const [tick, , ] = r.querySelectorAll('input'), btn = r.querySelectorAll('button')[0], reset = r.querySelectorAll('button')[1], sl = r.querySelector('input[type=range]'), val = r.querySelector('.val');
+  const show = () => { const v = SFX.level(d.id); sl.value = Math.round(v * 100); val.textContent = pct(v); };
+  sl.addEventListener('input', () => { SFX.setLevel(d.id, sl.value / 100); val.textContent = pct(sl.value / 100); if (d.id === 'music') musicVol(); dump(); });
+  reset.addEventListener('click', () => { SFX.setLevel(d.id, SFX.DEFAULTS[d.id]); show(); if (d.id === 'music') musicVol(); dump(); });
+  d.on = false;
+  d.trigger = () => {
+    SFX.ensureAudio();
+    if (d.kind === 'once') { d.play(); btn.classList.add('on'); setTimeout(() => btn.classList.remove('on'), 400); return; }
+    d.on = !d.on; d.on ? d.start() : d.stop(); btn.classList.toggle('on', d.on); btn.textContent = d.on ? '■ Stop' : '▶ Start';
+  };
+  d.halt = () => { if (d.kind === 'loop' && d.on) d.trigger(); };
+  btn.addEventListener('click', d.trigger);
+  rows[d.id] = { tick, show }; show(); list.appendChild(r);
+});
+$('playTicked').addEventListener('click', () => DEFS.forEach(d => { if (rows[d.id].tick.checked && !(d.kind === 'loop' && d.on)) d.trigger(); }));
+$('stopAll').addEventListener('click', () => DEFS.forEach(d => d.halt()));
+$('resetAll').addEventListener('click', () => { DEFS.forEach(d => { SFX.setLevel(d.id, SFX.DEFAULTS[d.id]); rows[d.id].show(); }); musicVol(); dump(); });
+const master = (id, f) => { const s = $(id), v = $(id + 'V'); s.addEventListener('input', () => { v.textContent = s.value + '%'; f(s.value / 100); }); };
+master('mSnd', v => { mSnd = v; SFX.ensureAudio(); SFX.setVolume(v); });
+master('mMus', v => { mMus = v; musicVol(); });
+SFX.setVolume(mSnd);
+function dump() { $('out').textContent = 'Sound levels (send me this to bake them in):\n' + JSON.stringify(Object.fromEntries(Object.entries(SFX.levels()).map(([k, v]) => [k, +v.toFixed(2)]))); }
+$('copy').addEventListener('click', () => { dump(); navigator.clipboard && navigator.clipboard.writeText(JSON.stringify(SFX.levels())).catch(() => {}); });
+dump();
+</script>
+</body>
+</html>

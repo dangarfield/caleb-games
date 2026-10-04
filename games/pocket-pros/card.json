@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "pocket-pros",
+  "name": "Pocket Pros",
+  "blurb": "Pot your way to the cup in pool, 9-ball and snooker!",
+  "added": "2026-10-02",
+  "icon": {
+    "emoji": "🎱"
+  },
+  "title": {
+    "font": "Barlow Condensed",
+    "weight": 800,
+    "size": 42,
+    "color": "#F4F4F2",
+    "letterSpacing": ".02em",
+    "transform": "uppercase",
+    "shadow": "0 3px 0 #0D1B2E, 0 5px 14px rgba(0,0,0,.5)"
+  },
+  "blurbStyle": {
+    "color": "#F4F4F2",
+    "shadow": "0 1px 3px rgba(13,27,46,.9)"
+  },
+  "background": {
+    "gradient": [
+      "#0D1B2E",
+      "#1F5FAE",
+      "#F7CF2E"
+    ],
+    "css": "linear-gradient(transparent 0 94%, #F7CF2E 94%), radial-gradient(circle at 86% 14%, rgba(247,207,46,.25), transparent 45%), radial-gradient(ellipse at 60% 30%, rgba(255,255,255,.08), transparent 60%), linear-gradient(160deg, #1F5FAE 0%, #154786 45%, #0D1B2E 100%)"
+  },
+  "source": {
+    "files": [
+      "games/pocket-pros/index.html"
+    ],
+    "refreshed": "2026-10-02",
+    "notes": "Title screen is Barlow Condensed 800 on the broadcast navy #0D1B2E, with the blue cloth #1F5FAE and the yellow #F7CF2E scorebar accent. Felt-to-navy fade with a gold rail along the bottom. Built from the Claude Design card.json (research/), blurb reworded to fit 2 lines."
+  },
+  "updated": "2026-10-02"
+}

@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&amp;display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&amp;family=Anta&amp;family=Anton&amp;family=Atma:wght@700&amp;family=Audiowide&amp;family=Baloo+2:wght@800&amp;family=Barlow+Condensed:ital,wght@1,800&amp;family=Bebas+Neue&amp;family=Big+Shoulders+Display:wght@900&amp;family=Black+Ops+One&amp;family=Bungee&amp;family=Caveat+Brush&amp;family=Chewy&amp;family=Chicle&amp;family=Cinzel:wght@700;800&amp;family=Comfortaa:wght@700&amp;family=DM+Serif+Display&amp;family=Faster+One&amp;family=Fredoka:wght@700&amp;family=Gelasio:wght@700&amp;family=Kanit:wght@800&amp;family=Knewave&amp;family=Lilita+One&amp;family=Luckiest+Guy&amp;family=Marcellus+SC&amp;family=MedievalSharp&amp;family=Michroma&amp;family=Monoton&amp;family=Orbitron:wght@900&amp;family=Playfair+Display:wght@800&amp;family=Press+Start+2P&amp;family=Quicksand:wght@700&amp;family=Racing+Sans+One&amp;family=Rubik+Mono+One&amp;family=Russo+One&amp;family=Saira+Condensed:wght@700&amp;family=Silkscreen:wght@700&amp;family=Staatliches&amp;family=Stardos+Stencil:wght@700&amp;family=Teko:wght@600&amp;family=Titan+One&amp;family=VT323&amp;display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&amp;family=Anta&amp;family=Anton&amp;family=Archivo:wght@900&amp;family=Atma:wght@700&amp;family=Audiowide&amp;family=Baloo+2:wght@800&amp;family=Barlow+Condensed:ital,wght@0,800;1,800&amp;family=Bebas+Neue&amp;family=Big+Shoulders+Display:wght@900&amp;family=Black+Ops+One&amp;family=Bungee&amp;family=Caveat+Brush&amp;family=Chewy&amp;family=Chicle&amp;family=Cinzel:wght@700;800&amp;family=Comfortaa:wght@700&amp;family=DM+Serif+Display&amp;family=Faster+One&amp;family=Fredoka:wght@700&amp;family=Gabarito:wght@900&amp;family=Gelasio:wght@700&amp;family=Kanit:wght@800&amp;family=Knewave&amp;family=Lilita+One&amp;family=Luckiest+Guy&amp;family=Marcellus+SC&amp;family=MedievalSharp&amp;family=Michroma&amp;family=Monoton&amp;family=Orbitron:wght@900&amp;family=Playfair+Display:wght@800&amp;family=Press+Start+2P&amp;family=Quicksand:wght@700&amp;family=Racing+Sans+One&amp;family=Rubik+Mono+One&amp;family=Russo+One&amp;family=Saira+Condensed:wght@700&amp;family=Silkscreen:wght@700&amp;family=Staatliches&amp;family=Stardos+Stencil:wght@700&amp;family=Teko:wght@600&amp;family=Titan+One&amp;family=VT323&amp;display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     body { min-height: 100vh; background: #f3ecdf; color: #1f1a14; font-family: 'Bricolage Grotesque', system-ui, sans-serif; padding: 40px clamp(16px, 4vw, 56px) 32px; overflow-x: hidden; }
@@ -23,6 +23,15 @@
     h1 { font-weight: 800; font-size: clamp(2.4rem, 5vw, 3.5rem); line-height: .95; letter-spacing: -.035em; }
     .subtitle { font-weight: 500; font-size: 1.25rem; color: #7a6e5e; margin-top: 6px; }
     .count { font-weight: 800; font-size: 15px; background: #e7dcc8; border-radius: 999px; padding: 10px 18px; }
+    .head-right { display: flex; align-items: center; gap: 10px; }
+    .mute { width: 42px; height: 42px; border: 0; border-radius: 999px; background: #e7dcc8; color: #1f1a14; display: grid; place-items: center; cursor: pointer; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; transition: transform .15s ease, background .15s ease; }
+    .mute:hover { background: #ddcfb6; }
+    .mute:active { transform: scale(.92); }
+    .mute svg { width: 22px; height: 22px; }
+    .mute .ico-off { display: none; }
+    .mute[aria-pressed="true"] { background: #1f1a14; color: #f3ecdf; }
+    .mute[aria-pressed="true"] .ico-on { display: none; }
+    .mute[aria-pressed="true"] .ico-off { display: block; }
 
     .game-grid { max-width: 1240px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 22px; }
     .gc { position: relative; height: 210px; border-radius: 24px; overflow: hidden; background: var(--bg); padding: 20px 22px; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; box-shadow: 0 8px 30px var(--glow), 0 2px 8px rgba(0,0,0,.2); transition: transform .2s ease, box-shadow .2s ease; user-select: none; -webkit-user-select: none; }
@@ -156,10 +165,34 @@
       <h1>Garfield Boys' Arcade</h1>
       <p class="subtitle">Pick a game and have fun!</p>
     </div>
-    <div class="count">80 games</div>
+    <div class="head-right">
+      <div class="count">83 games</div>
+      <button id="muteBtn" class="mute" type="button" aria-pressed="false" aria-label="Mute music" title="Mute music">
+        <svg class="ico-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path d="M15.5 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg>
+        <svg class="ico-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>
+      </button>
+    </div>
   </header>
 
   <main class="game-grid">
+    <a href="games/sus-guy-station/" class="gc" data-slug="sus-guy-station" data-added="2026-10-04" style="--bg:radial-gradient(circle at 80% 24%, #173F45 0 9%, #1F6F78 9.5% 17%, #F3B33D 17.5% 26%, transparent 26.5%), linear-gradient(transparent 0 95%, #1F6F78 95%), linear-gradient(#E8572A, #E8572A);--glow:#f3b33d66;--glow-hover:#f3b33d99">
+      <span class="gc-icon" aria-hidden="true">🚇</span>
+      <span class="gc-new" hidden>NEW</span>
+      <span class="gc-title" style="font-family:'Gabarito',sans-serif;font-weight:900;font-style:normal;font-size:38px;color:#F6EEDC;letter-spacing:-0.02em;text-transform:none;text-shadow:0 3px 0 #173F45, 0 5px 14px rgba(0,0,0,.35)">Sus Guy Station</span>
+      <span class="gc-blurb" style="color:#1E1E1E;text-shadow:none">Walk the Underground passage. Something different? Turn back!</span>
+    </a>
+    <a href="games/pocket-pros/" class="gc" data-slug="pocket-pros" data-added="2026-10-02" style="--bg:linear-gradient(transparent 0 94%, #F7CF2E 94%), radial-gradient(circle at 86% 14%, rgba(247,207,46,.25), transparent 45%), radial-gradient(ellipse at 60% 30%, rgba(255,255,255,.08), transparent 60%), linear-gradient(160deg, #1F5FAE 0%, #154786 45%, #0D1B2E 100%);--glow:#f7cf2e66;--glow-hover:#f7cf2e99">
+      <span class="gc-icon" aria-hidden="true">🎱</span>
+      <span class="gc-new" hidden>NEW</span>
+      <span class="gc-title" style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-style:normal;font-size:42px;color:#F4F4F2;letter-spacing:.02em;text-transform:uppercase;text-shadow:0 3px 0 #0D1B2E, 0 5px 14px rgba(0,0,0,.5)">Pocket Pros</span>
+      <span class="gc-blurb" style="color:#F4F4F2;text-shadow:0 1px 3px rgba(13,27,46,.9)">Pot your way to the cup in pool, 9-ball and snooker!</span>
+    </a>
+    <a href="games/ember-bay/" class="gc" data-slug="ember-bay" data-added="2026-10-01" style="--bg:repeating-linear-gradient(90deg, #E5E043 0 24px, #D8362D 24px 48px) bottom/100% 8px no-repeat, radial-gradient(circle at 84% 16%, rgba(216,54,45,.35), transparent 46%), repeating-linear-gradient(135deg, rgba(255,255,255,.035) 0 12px, transparent 12px 24px), linear-gradient(#1C1D1F, #111214);--glow:#d8362d66;--glow-hover:#d8362d99">
+      <span class="gc-icon" aria-hidden="true">🚒</span>
+      <span class="gc-new" hidden>NEW</span>
+      <span class="gc-title" style="font-family:'Archivo',sans-serif;font-weight:900;font-style:normal;font-size:40px;color:#E5E043;letter-spacing:-0.01em;text-transform:uppercase;text-shadow:0 3px 0 #111214, 0 5px 14px rgba(0,0,0,.5)">Ember Bay</span>
+      <span class="gc-blurb" style="color:#F2F1EC;text-shadow:0 1px 3px rgba(17,18,20,.9)">Drive the fire engine and answer every call across town!</span>
+    </a>
     <a href="games/summer-champs/" class="gc" data-slug="summer-champs" data-added="2026-09-29" style="--bg:linear-gradient(transparent 0 95%, #F2B705 95%), repeating-linear-gradient(90deg, rgba(255,255,255,.06) 0 2px, transparent 2px 38px) top/100% 34% no-repeat, radial-gradient(circle at 85% 12%, rgba(242,183,5,.28), transparent 45%), linear-gradient(#07122A, #0B1B3A);--glow:#f2b70566;--glow-hover:#f2b70599">
       <span class="gc-icon" aria-hidden="true">🏅</span>
       <span class="gc-new" hidden>NEW</span>
@@ -705,6 +738,7 @@
       'racer13_diff': 'Racer 13 — Difficulty',
       'rps-custom-sets': 'RPS — Custom Icon Sets',
       'cameraIndex': 'Camera Index',
+      'arcadeHomeMuted': 'Home — Music Muted',
     };
     // localStorage is ONE quota (~5 MB of UTF-16 characters) for the whole site, shared by
     // every game, and when it fills up NOTHING can save — Domino Rally reported exactly that.
@@ -934,7 +968,8 @@
     }
     function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   </script>
-  <!-- Home theme (knowledge/audio-patterns.md). No controls on purpose: one quiet tune, looping.
+  <!-- Home theme (knowledge/audio-patterns.md). One quiet tune, looping; the only control is the
+       mute button in the header, remembered in localStorage (arcadeHomeMuted).
        The file is encoded 6dB down; see audio/home-theme.webm. -->
   <audio id="theme" src="audio/home-theme.webm" loop preload="auto" aria-hidden="true"></audio>
   <script>
@@ -945,10 +980,29 @@
       // pointerdown/touchstart don't grant user activation on a touch screen; pointerup, touchend, click and keydown do.
       var EVENTS = ['pointerdown', 'pointerup', 'click', 'touchend', 'keydown'];
       var playing = false;
+      var btn = document.getElementById('muteBtn');
+      var muted = false;
+      try { muted = localStorage.getItem('arcadeHomeMuted') === '1'; } catch (e) {}
+      function showMute() {
+        btn.setAttribute('aria-pressed', muted ? 'true' : 'false');
+        btn.setAttribute('aria-label', muted ? 'Unmute music' : 'Mute music');
+        btn.title = btn.getAttribute('aria-label');
+      }
+      showMute();
+      btn.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+      btn.addEventListener('click', function () {
+        muted = !muted;
+        try { muted ? localStorage.setItem('arcadeHomeMuted', '1') : localStorage.removeItem('arcadeHomeMuted'); } catch (e) {}
+        showMute();
+        if (muted) el.pause();
+        else if (playing) el.play().catch(function () {});
+        else start();  // this tap is the user gesture, so it can start the tune
+      });
       function arm() { EVENTS.forEach(function (e) { document.addEventListener(e, start, true); }); }
       function disarm() { EVENTS.forEach(function (e) { document.removeEventListener(e, start, true); }); }
-      function start() {
-        if (playing) return;  // stay armed until it is really playing
+      function start(e) {
+        if (muted || playing) return;
+        if (e && e.target && e.target.closest && e.target.closest('#muteBtn')) return;  // the button handles its own taps  // stay armed until it is really playing
         el.volume = LEVEL;
         var p;
         try { p = el.play(); } catch (e) { return; }  // no el.load(): it aborts the play
@@ -958,11 +1012,12 @@
       // Pause when the tab is hidden, resume when it comes back (tracked with our own flag, not el.paused).
       document.addEventListener('visibilitychange', function () {
         if (!playing) return;
-        if (document.hidden) el.pause(); else el.play().catch(function () {});
+        if (document.hidden) el.pause(); else if (!muted) el.play().catch(function () {});
       });
       // Coming back from a game with "← Games" restores this page from the back/forward cache: carry on.
       addEventListener('pageshow', function (e) {
         if (!e.persisted) return;
+        if (muted) return;
         if (playing) el.play().catch(function () {}); else start();
       });
       // If the page was reloaded rather than restored from the cache, pick the tune up where it left off.

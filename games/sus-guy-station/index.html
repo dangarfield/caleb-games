@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Sus Guy Station - Garfield Boys' Arcade</title>
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@500;700;800;900&display=swap" rel="stylesheet">
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}</script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#EBDCC0;touch-action:none;font-family:'Gabarito','Segoe UI',system-ui,sans-serif;color:#1E1E1E;
+  -webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none}
+img,a,canvas{-webkit-user-drag:none}
+button{font-family:inherit;color:inherit;border:none;background:none;cursor:pointer}
+canvas#c{position:fixed;inset:0;display:block;width:100%;height:100%}
+.hidden{display:none !important}
+/* matches the pause button top right: ink pill, cream text, 52px tall, Gabarito 800 20px */
+#backBtn{position:fixed;top:12px;left:12px;z-index:9999;display:flex;align-items:center;gap:8px;height:52px;padding:0 22px 0 16px;box-sizing:border-box;
+  background:#1E1E1E;color:#F6EEDC;border:4px solid #1E1E1E;border-radius:999px;text-decoration:none;font:800 20px/1 'Gabarito','Segoe UI',system-ui,sans-serif;transition:transform .1s}
+#backBtn:hover{background:#333;color:#F6EEDC}
+#backBtn:active{transform:scale(0.96)}
+#ui{position:fixed;inset:0;z-index:20;pointer-events:none}
+#veil{position:absolute;inset:0;background:rgba(40,26,14,.5);pointer-events:auto}
+#veil.home{background:linear-gradient(90deg,rgba(40,26,14,0) 38%,rgba(40,26,14,.5) 58%)}
+#veil.clear{background:transparent}
+#stage{position:absolute;left:50%;top:50%;width:1333px;height:690px;transform:translate(-50%,-50%) scale(var(--s,1))}
+.screen{position:absolute;inset:0}
+.screen > *{pointer-events:auto}
+#topRight{position:fixed;top:12px;right:12px;display:flex;align-items:center;gap:10px;pointer-events:auto;z-index:30}
+.iBtn{width:52px;height:52px;border-radius:50%;background:#F6EEDC;border:4px solid #1E1E1E;display:flex;align-items:center;justify-content:center;font:italic 900 30px Georgia,serif}
+.pBtn{width:52px;height:52px;border-radius:50%;background:#1E1E1E;display:flex;align-items:center;justify-content:center;gap:6px}
+.pBtn i{width:6px;height:20px;background:#F6EEDC}
+.chip{display:flex;align-items:center;gap:10px;background:#F6EEDC;border:4px solid #1E1E1E;border-radius:999px;padding:4px 18px 4px 4px;height:52px}
+.av{border-radius:50%;color:#F6EEDC;font-weight:900;display:flex;align-items:center;justify-content:center;flex:none}
+.chip .av{width:36px;height:36px;font-size:20px}
+.chip b{font-weight:800;font-size:20px}
+.chip span{width:2px;height:24px;background:#C9BBA2}
+#timer{font-weight:900;font-size:22px;font-variant-numeric:tabular-nums}
+.yBtn{background:#F3B33D;color:#1E1E1E;font-weight:900;border:5px solid #1E1E1E;border-radius:999px;text-align:center}
+.yBtn:active,.oBtn:active,.pcard:active{transform:scale(0.97)}
+.oBtn{border:3px solid #1E1E1E;border-radius:999px;font-weight:800;font-size:23px;padding:12px;text-align:center}
+/* home */
+.poster{position:absolute;left:64px;top:60px;bottom:40px;width:470px;background:#E8572A;border:16px solid #F6EEDC;box-shadow:0 18px 40px rgba(60,30,10,.35);overflow:hidden;display:flex;flex-direction:column}
+.rings{position:relative;height:210px;flex:none;overflow:hidden}
+.rings i{position:absolute;left:50%;border-radius:50%}
+.poster h1{font-weight:900;font-size:84px;line-height:.9;letter-spacing:-.02em;color:#F6EEDC}
+.pick{position:absolute;left:600px;right:48px;top:72px;bottom:40px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px}
+.band{background:#E8572A;color:#F6EEDC;font-weight:900;font-size:44px;padding:4px 28px 8px;border:8px solid #F6EEDC}
+.cards{display:flex;gap:24px;align-items:flex-start}
+.pcard{width:320px;background:#F6EEDC;border:6px solid #F6EEDC;border-radius:0;padding:22px 24px;display:flex;flex-direction:column;gap:16px;text-align:left;transition:transform .15s,box-shadow .15s,border-color .15s}
+.pcard.sel{border-color:#1E1E1E;box-shadow:0 14px 24px rgba(30,20,10,.35);transform:translateY(-6px)}
+.pcard .av{width:76px;height:76px;font-size:42px}
+.pcard.sel .av{box-shadow:0 0 0 6px #F3B33D}
+.pcard .nm{font-size:40px;font-weight:900;line-height:1}
+.pcard .me{visibility:hidden;align-self:flex-start;background:#F3B33D;font-size:16px;font-weight:900;padding:3px 12px;border-radius:999px}
+.pcard.sel .me{visibility:visible}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;border-top:3px solid #1E1E1E;padding-top:14px}
+.stats small{display:block;font-size:18px;font-weight:700;color:#5A4A3A}
+.stats strong{display:block;font-size:44px;font-weight:900;line-height:1.05;font-variant-numeric:tabular-nums}
+.stats strong.none{color:#8C7B66}
+#playBtn{width:664px;font-size:34px;padding:16px}
+#playBtn.off{background:#D9CCB4;color:#3E3226;border-color:#D9CCB4;font-size:30px}
+/* how to */
+.howto{position:absolute;left:96px;right:96px;top:56px;bottom:40px;display:grid;grid-template-columns:1fr 1fr;box-shadow:0 18px 40px rgba(0,0,0,.35)}
+.howto > div{padding:30px 36px;display:flex;flex-direction:column;gap:20px;border:14px solid #F6EEDC}
+.howto h2{font-size:52px;font-weight:900;line-height:1}
+.rule{display:flex;gap:18px;align-items:center;font-size:30px;font-weight:800;line-height:1.15}
+.rule i{flex:none;width:52px;height:52px;border-radius:50%;background:#F3B33D;font-style:normal;font-weight:900;font-size:26px;display:flex;align-items:center;justify-content:center}
+.gest{display:flex;align-items:center;gap:20px;font-size:28px;font-weight:800;line-height:1.15}
+.gest .ic{flex:none;width:84px;height:84px;border-radius:18px;background:#FFFBF2;border:3px solid #1E1E1E;display:flex;align-items:center;justify-content:center;gap:6px}
+.dot{border-radius:50%;display:block}
+/* cards */
+.card{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:#F6EEDC;border:10px solid #F6EEDC;box-shadow:0 18px 40px rgba(0,0,0,.35)}
+.card .hd{padding:16px 26px;font-weight:900;line-height:1}
+.vol{-webkit-appearance:none;appearance:none;flex:1;height:14px;border-radius:999px;background:linear-gradient(90deg,#1F6F78 var(--v,50%),#D9CCB4 var(--v,50%));outline:none}
+.vol::-webkit-slider-thumb{-webkit-appearance:none;width:40px;height:40px;border-radius:50%;background:#F3B33D;border:4px solid #1E1E1E}
+.vol::-moz-range-thumb{width:32px;height:32px;border-radius:50%;background:#F3B33D;border:4px solid #1E1E1E}
+.snap{margin:24px 0 24px 24px;width:300px;height:230px;object-fit:cover;background:#E5D8BF}
+/* win */
+.winP{position:absolute;left:64px;top:60px;bottom:40px;width:540px;background:#E8572A;border:16px solid #F6EEDC;box-shadow:0 18px 40px rgba(60,30,10,.35);overflow:hidden;display:flex;flex-direction:column}
+/* in-game */
+/* Walk: hold to walk (bottom left); every other touch on the screen just looks around.
+   Arrow only, no shadow, no pressed state: fades in when the run starts, drops to 25% after 10 s */
+#walkBtn{position:absolute;left:36px;bottom:36px;width:132px;height:132px;border-radius:50%;background:#F3B33D;border:6px solid #1E1E1E;pointer-events:auto;touch-action:none;display:flex;align-items:center;justify-content:center;padding:0;outline:none;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;opacity:0;transition:opacity .8s ease-out}
+#walkBtn svg{width:66px;height:66px;display:block;pointer-events:none}
+#walkBtn:focus,#walkBtn:focus-visible{outline:none}
+#walkBtn.in{opacity:1}
+#walkBtn.dim{opacity:.25;transition:opacity 1.5s ease}   /* 10 s after it appears */
+.wIc{width:30px;height:30px;border-radius:50%;background:#F3B33D;border:3px solid #fff;display:flex;align-items:center;justify-content:center}
+.wIc svg{width:18px;height:18px;display:block}
+#hint{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);background:rgba(30,30,30,.72);border-radius:20px;padding:18px 30px;display:flex;gap:34px;color:#fff;font-weight:800;font-size:24px;white-space:nowrap;transition:opacity 1.2s;pointer-events:none}
+#hint.fade{opacity:0}
+#hint div{display:flex;align-items:center;gap:12px}
+#dbg{position:fixed;top:72px;right:12px;bottom:12px;width:400px;background:rgba(14,16,18,.94);color:#E8E6DA;font:600 13px/1.4 ui-monospace,Menlo,monospace;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;pointer-events:auto;z-index:50}
+#dbg .dh{display:flex;justify-content:space-between;font-size:15px;color:#7CF29A}
+#dbg .dh span{color:#9AA3AB;font-size:12px}
+#dbg .dl{color:#9AA3AB;font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin-top:4px}
+#dbg button{font:inherit;color:inherit;text-align:left;padding:6px 8px;border-radius:6px;background:rgba(255,255,255,.06)}
+#dbg button:hover{background:rgba(255,255,255,.14)}
+#dbg button.on{background:#F3B33D;color:#1E1E1E}
+#dbg button i{font-style:normal;opacity:.6}
+#dbgFilter{font:inherit;color:#E8E6DA;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:7px 9px;outline:none;user-select:text;-webkit-user-select:text}
+#dbgFilter:focus{border-color:#7CF29A}
+.ftile{display:flex;align-items:center;justify-content:center;text-align:center;border-radius:10px;font-size:17px;font-weight:900;line-height:1.1;padding:4px 8px;overflow:hidden}
+.ftile.on{background:#FFFBF2;border:3px solid #1F6F78;color:#1E1E1E;cursor:pointer}
+.ftile.on.cur{background:#F3B33D;border-color:#1E1E1E;box-shadow:0 4px 0 #1E1E1E}
+.ftile.off{border:3px dashed #C9BBA2;color:#8C7B66;font-size:28px}
+@keyframes fadeUp{from{opacity:0}to{opacity:1}}
+.fadeUp{animation:fadeUp .35s ease-out}
+#dbgCount{display:grid;grid-template-columns:repeat(11,1fr);gap:4px}
+#dbgCount button{text-align:center}
+#dbgList{overflow:auto;display:flex;flex-direction:column;gap:2px;flex:1;min-height:0}
+#debug{position:fixed;top:72px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#7CF29A;font:600 14px/1.5 ui-monospace,Menlo,monospace;padding:8px 14px;border-radius:8px;white-space:pre;pointer-events:none;z-index:40}
+#blackout{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:900}
+</style>
+<script data-arcade-back>
+/* arcade-back v1 (knowledge/arcade-back.md). "← Games" = the browser's back button.
+   Any link whose href is exactly ../../index.html goes BACK in history when this page was opened
+   from the arcade home, so home comes back as it was left (scroll position, no reload).
+   Opened any other way (bookmark, direct URL, dev tool), the link just navigates as normal. */
+(function () {
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!a || a.getAttribute('href') !== '../../index.html') return;
+    var home = new URL(a.href), ref;
+    try { ref = new URL(document.referrer); } catch (err) { return; }
+    var dir = home.pathname.replace(/index\.html$/, '');
+    if (ref.origin !== home.origin || (ref.pathname !== home.pathname && ref.pathname !== dir) || history.length < 2) return;
+    e.preventDefault();
+    var go = function () { location.href = home.href; };
+    // Still on this page after going back (an in-game history entry) or nothing happened: go home directly.
+    addEventListener('popstate', go, { once: true });
+    var t = setTimeout(go, 2500);
+    addEventListener('pagehide', function () { clearTimeout(t); }, { once: true });
+    history.back();
+  });
+})();
+</script>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+<canvas id="c"></canvas>
+<div id="whiteout" style="position:fixed;inset:0;background:#FFFDF6;opacity:0;pointer-events:none"></div>
+<div id="blackout"></div>
+<div id="ui">
+  <div id="veil" class="home"></div>
+  <div id="topRight">
+    <div id="hud" class="hidden" style="display:flex;align-items:center;gap:10px">
+      <div class="chip"><div class="av" id="hudAv">C</div><b id="hudName">Caleb</b><span></span><div id="timer">0:00</div></div>
+    </div>
+    <button class="iBtn hidden" id="findsBtn" aria-label="Things I found" style="background:#F3B33D"><span style="position:relative;display:block;width:24px;height:24px;margin:-5px 0 0 -5px;border:4px solid #1E1E1E;border-radius:50%"><i style="position:absolute;right:-10px;bottom:-12px;width:6px;height:13px;background:#1E1E1E;border-radius:3px;transform:rotate(-45deg)"></i></span></button>
+    <button class="iBtn" id="infoBtn" aria-label="How to play">i</button>
+    <button class="pBtn hidden" id="pauseBtn" aria-label="Pause"><i></i><i></i></button>
+  </div>
+  <button class="hidden" id="walkBtn" aria-label="Walk" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 9h-5v9H9v-9H4z" fill="#1E1E1E"/></svg></button>
+
+  <div id="stage">
+    <section class="screen" id="home">
+      <div class="poster">
+        <div class="rings"><i style="top:18px;width:180px;height:180px;margin-left:-90px;background:#F3B33D"></i><i style="top:48px;width:120px;height:120px;margin-left:-60px;background:#1F6F78"></i><i style="top:76px;width:64px;height:64px;margin-left:-32px;background:#173F45"></i></div>
+        <div style="padding:4px 34px 0;display:flex;flex-direction:column;gap:12px"><h1>Sus Guy<br>Station</h1><div style="font-weight:800;font-size:28px;line-height:1.2">Something different? Turn back!</div></div>
+        <div style="margin-top:auto;background:#1F6F78;color:#F6EEDC;padding:18px 34px;font-weight:800;font-size:24px">Get to Platform 10 to get out!</div>
+      </div>
+      <div class="pick">
+        <div class="band">Who's playing?</div>
+        <div class="cards" id="cards"></div>
+        <button class="yBtn off" id="playBtn">Tap your name first</button>
+      </div>
+    </section>
+
+    <section class="screen hidden" id="howto">
+      <div class="howto">
+        <div style="background:#E8572A;border-right:none">
+          <h2 style="color:#F6EEDC">How to play</h2>
+          <div class="rule"><i>1</i>Look at everything.</div>
+          <div class="rule"><i>2</i>Something different? Turn back!</div>
+          <div class="rule"><i>3</i>All the same? Keep going!</div>
+          <div class="rule"><i>4</i>Get to Platform 10 to get out!</div>
+        </div>
+        <div style="background:#F6EEDC">
+          <h2>How to move</h2>
+          <div class="gest"><div class="ic"><span style="width:58px;height:58px;border-radius:50%;background:#F3B33D;border:4px solid #1E1E1E;display:flex;align-items:center;justify-content:center"><svg style="width:30px;height:30px" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 9h-5v9H9v-9H4z" fill="#1E1E1E"/></svg></span></div>Hold the arrow button to walk</div>
+          <div class="gest"><div class="ic" style="color:#E8572A;font-weight:900;font-size:22px">←<span class="dot" style="width:22px;height:22px;background:#E8572A"></span>→</div>Slide your finger anywhere to look</div>
+          <div class="gest"><div class="ic"><span class="dot" style="width:20px;height:20px;background:#1E1E1E"></span><span class="dot" style="width:20px;height:20px;background:#1E1E1E"></span></div>Tap two times to turn round</div>
+          <button class="yBtn" id="howtoOk" style="margin-top:auto;align-self:flex-end;font-size:30px;padding:14px 44px">OK, let's go!</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen hidden" id="pause">
+      <div class="card" style="width:500px">
+        <div class="hd" style="background:#1F6F78;color:#F6EEDC;display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:50px">Paused</div><div style="font-size:20px;font-weight:800" id="pauseInfo"></div></div>
+        <div style="padding:20px 24px;display:flex;flex-direction:column;gap:12px">
+          <button class="yBtn" id="resumeBtn" style="font-size:28px;padding:12px">Keep playing</button>
+          <div style="display:flex;flex-direction:column;gap:10px;background:#FFFBF2;border-radius:14px;padding:16px 20px">
+            <div style="display:grid;grid-template-columns:110px minmax(0,1fr);align-items:center;gap:6px 16px"><div style="font-size:24px;font-weight:900">Sounds</div><input type="range" class="vol" id="sndVol" min="0" max="100" value="80"><div style="font-size:24px;font-weight:900">Music</div><input type="range" class="vol" id="musVol" min="0" max="100" value="80"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+            <button class="oBtn" id="pHow">How to play</button><button class="oBtn" id="pRestart">Start again</button><button class="oBtn" id="pHome">Home</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen hidden" id="oops">
+      <div class="card" id="oopsCard" style="display:grid">
+        <div class="hd" id="oopsHd" style="grid-column:1 / -1;font-size:52px">Oops! Back to 0</div>
+        <img class="snap" id="oopsImg" alt="">
+        <div style="padding:24px 28px;display:flex;flex-direction:column;gap:14px">
+          <div id="oopsLead" style="font-size:24px;font-weight:800;color:#5A4A3A">You missed it!</div>
+          <div id="oopsBig" style="font-size:42px;font-weight:900;line-height:1.05"></div>
+          <div id="oopsSmall" style="font-size:22px;line-height:1.35"></div>
+          <button class="yBtn" id="oopsBtn" style="margin-top:auto;align-self:flex-start;font-size:28px;padding:12px 40px">Try again</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen hidden" id="yay">
+      <div class="card" id="yayCard" style="display:grid">
+        <div class="hd" style="grid-column:1 / -1;font-size:52px;background:#F3B33D;color:#1E1E1E">Well spotted!</div>
+        <img class="snap" id="yayImg" alt="">
+        <div style="padding:24px 28px;display:flex;flex-direction:column;gap:14px">
+          <div style="font-size:24px;font-weight:800;color:#1F6F78">You found a new one!</div>
+          <div id="yayBig" style="font-size:42px;font-weight:900;line-height:1.05"></div>
+          <div id="yayCount" style="font-size:22px;line-height:1.35"></div>
+          <button class="yBtn" id="yayBtn" style="margin-top:auto;align-self:flex-start;font-size:28px;padding:12px 40px">Keep going</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen hidden" id="finds">
+      <div class="card" style="width:1213px;height:598px;display:flex;flex-direction:column">
+        <div class="hd" style="background:#F3B33D;display:flex;align-items:center;justify-content:space-between;gap:20px">
+          <div style="font-size:46px" id="findsTitle">Things I found</div>
+          <div style="display:flex;align-items:center;gap:16px"><div id="findsCount" style="font-size:28px;font-weight:900">0 of 32</div><div style="width:220px;height:18px;border-radius:999px;background:#F6EEDC;border:3px solid #1E1E1E;overflow:hidden"><div id="findsBar" style="height:100%;width:0;background:#1F6F78"></div></div></div>
+        </div>
+        <div style="flex:1;min-height:0;display:grid;grid-template-columns:500px minmax(0,1fr);gap:20px;padding:16px 18px 0">
+          <div id="findsGrid" style="min-height:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:minmax(0,1fr);gap:8px"></div>
+          <div style="min-height:0;display:flex;flex-direction:column;gap:12px">
+            <div id="fpWrap" style="position:relative;height:284px;flex:none;background:#2B2620;border:5px solid #1E1E1E;overflow:hidden">
+              <canvas id="fpCanvas" style="position:absolute;inset:0;width:100%;height:100%;display:block"></canvas>
+              <div id="fpEmpty" class="hidden" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:30px;background:rgba(30,30,30,.55);color:#F6EEDC;font-size:30px;font-weight:900;line-height:1.2">Find something different, then turn back.<br>It will show up here!</div>
+            </div>
+            <div id="fpObj" style="align-self:flex-start;background:#F3B33D;border:4px solid #1E1E1E;border-radius:999px;font-size:26px;font-weight:900;padding:4px 22px">Look at the clock</div>
+            <div id="fpSay" style="font-size:30px;font-weight:900;line-height:1.15">The clock was square.</div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:20px;padding:12px 18px 16px">
+          <div style="font-size:22px;font-weight:700;color:#5A4A3A">Tap one to see it again!</div>
+          <button class="yBtn" id="findsBack" style="font-size:26px;padding:10px 44px">Back</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen hidden" id="win">
+      <div class="winP">
+        <div style="position:relative;height:130px;flex:none;overflow:hidden"><i style="position:absolute;left:50%;top:30px;width:220px;height:220px;margin-left:-110px;border-radius:50%;background:#F3B33D"></i><i style="position:absolute;left:50%;top:66px;width:148px;height:148px;margin-left:-74px;border-radius:50%;background:#FFE08A"></i></div>
+        <div style="padding:14px 34px 0;display:flex;flex-direction:column;gap:14px">
+          <div style="font-weight:900;font-size:64px;line-height:.95;letter-spacing:-.02em;color:#F6EEDC">You got out!</div>
+          <div id="winTimes"></div>
+          <div id="winLine" style="font-size:24px;font-weight:800"></div>
+        </div>
+        <div style="margin-top:auto;background:#1E1E1E;padding:18px 28px;display:flex;gap:12px;justify-content:flex-end">
+          <button id="winHome" style="color:#F6EEDC;font-weight:800;font-size:24px;padding:10px 26px;border-radius:999px;border:3px solid #F6EEDC">Home</button>
+          <button id="winAgain" style="background:#F3B33D;font-weight:900;font-size:26px;padding:10px 32px;border-radius:999px">Play again</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="hint" class="hidden">
+    <div><span class="wIc"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 9h-5v9H9v-9H4z" fill="#1E1E1E"/></svg></span>Hold to walk</div>
+    <div><span style="font-size:26px">← ● →</span>Slide to look</div>
+    <div><span style="font-size:26px">● ●</span>Tap two times to turn</div>
+  </div>
+  <div id="debug" class="hidden"></div>
+  <div id="dbg" class="hidden">
+    <div class="dh">DEBUG MENU <span>P or Esc to close</span></div>
+    <div style="color:#9AA3AB;font-size:12px">R/F forward/back · D/G step left/right · ←/→ turn · mouse drag look · Q turn round · Esc pause · I info</div>
+    <div class="dl">Lap count</div>
+    <div id="dbgCount"></div>
+    <div class="dl">Change on this lap</div>
+    <input id="dbgFilter" type="search" placeholder="Filter: A24, sneaky, sus guy…" autocomplete="off" spellcheck="false">
+    <div id="dbgList"></div>
+  </div>
+</div>
+<audio id="theme" src="audio/sus-guy-station-theme.webm" loop preload="none" aria-hidden="true"></audio>
+<script src="js/arcade-store.js"></script>
+<script type="module" src="js/game.js"></script>
+</body>
+</html>
