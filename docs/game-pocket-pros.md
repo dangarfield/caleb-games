@@ -2,7 +2,7 @@
 
 Three cue games on three.js tables built to regulation sizes, with a TV-broadcast HTML HUD:
 - **English pool:** 7ft table, blue cloth, reds and yellows, blackball rules made easier for kids.
-- **9-ball:** 9ft American table, red cloth, 2¼in balls. Hit the lowest number first; any pot carries on; the 9 wins. A foul gives ball in hand anywhere. Break from behind the head string.
+- **9-ball:** 9ft American table, red cloth, 2¼in balls. An "Order" strip at the top centre shows balls 1–9 in their colours: the one to hit next is bigger with a yellow ring, potted ones fade. Hit the lowest number first; any pot carries on; the 9 wins. A foul gives ball in hand anywhere. Break from behind the head string.
 - **Snooker:** 12ft table, green cloth, 52.5mm balls, 6, 10 or 15 reds. Red then colour, colours re-spot, then yellow to black. Fouls give at least 4 points. Kid version: no free ball or miss rule; a tied score after the black re-spots the black.
 
 The cup progress and titles are saved for each game. Saved records from before 9-ball and snooker were added still count as English pool.
@@ -22,7 +22,7 @@ The cup progress and titles are saved for each game. Saved records from before 9
 
 ## Rules
 - The table stays open after the break. The first colour you pot legally becomes yours.
-- Fouls give the opponent 2 shots: potting the cue ball, missing everything, hitting the wrong colour or the black first, or potting an opponent's ball.
+- Fouls give the opponent 2 shots (pub rules: once they pot one of theirs, the spare shot is gone and they just carry on; only 1 shot if they're already on the black): potting the cue ball, missing everything, hitting the wrong colour or the black first, or potting an opponent's ball.
 - If the cue ball goes in, it's ball in hand anywhere in the D.
 - Potting the black after all seven of your colours wins the frame. Potting it early, or fouling on it, loses the frame. If the black goes in on the break, the balls are re-racked.
 

@@ -30,6 +30,13 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;-webki
 #ui{position:fixed;inset:0;pointer-events:none;z-index:10}
 #ui .pe{pointer-events:auto}
 #topRight{position:absolute;top:12px;right:12px;display:flex;gap:8px}
+/* 9-ball order strip, top centre: 1 to 9 in their colours; the one to hit next is bigger with a yellow ring, potted ones fade. */
+#order{position:absolute;top:12px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:6px 12px;background:rgba(13,27,46,.88);box-shadow:0 8px 20px rgba(0,0,0,.35);pointer-events:none}
+#order .ol{font:600 12px/1 'Barlow Condensed',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#aab8cc;margin-right:4px}
+#order b{position:relative;width:28px;height:28px;border-radius:50%;box-shadow:0 0 0 1px rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center;transition:transform .2s,opacity .2s}
+#order b span{width:15px;height:15px;border-radius:50%;background:#f4f4f2;color:#111;font:800 11px/15px 'Barlow Condensed',sans-serif;text-align:center}
+#order b.gone{opacity:.22;transform:scale(.8)}
+#order b.next{transform:scale(1.22);box-shadow:0 0 0 3px #f7cf2e}
 #toast{position:absolute;top:68px;left:50%;transform:translate(-50%,-8px);opacity:0;transition:opacity .25s,transform .25s;display:flex;align-items:stretch;background:#0d1b2e;box-shadow:0 12px 30px rgba(0,0,0,.5);max-width:calc(100vw - 24px)}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 #foulFx{position:absolute;inset:0;pointer-events:none;opacity:0;box-shadow:inset 0 0 90px rgba(217,38,44,.22);transition:opacity .4s}
@@ -187,6 +194,7 @@ h2{font-size:clamp(38px,7vw,60px);margin-top:10px}
 <canvas id="c"></canvas>
 
 <div id="ui" class="hidden">
+  <div id="order" class="hidden"></div>
   <div id="topRight">
     <button id="helpBtn" class="btn icon pe" aria-label="How to play" title="How to play"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></button>
     <button id="viewBtn" class="btn icon pe" aria-label="Switch to top view" title="Top view"><svg viewBox="0 0 24 24"><rect x="2.5" y="5.5" width="19" height="13" rx="2"/><path d="M5.5 8.5h.01M12 8.5h.01M18.5 8.5h.01M5.5 15.5h.01M12 15.5h.01M18.5 15.5h.01"/><circle cx="15" cy="12" r="1.3"/></svg></button>
@@ -305,7 +313,7 @@ const GAMES = {
     baulk: 0.366, D: 0.146, muR: 0.016, cloth: '#1a529a', sheen: 0x2f6fc0, cush: 0x154a8c, rail: 0x151517, body: 0x0e0e10, wood: false, diam: 0x9a9ea6, hand: 'D', camK: 1,
     how: 'Get your balls in the holes. Red or yellow, the first one in is yours. Then get the black in last to win!',
     score: 'Your balls show here. When they are all gone, go for the black. Tap ? to see this again.',
-    rules: ['The first ball you get in, red or yellow, is yours.', 'Get all of yours in, then the black, to win.', 'Oops! If you make a mistake, the other player gets 2 goes.', 'If the white ball goes in, they can move it in the D.', 'If the black goes in too soon, you lose the game.'] },
+    rules: ['The first ball you get in, red or yellow, is yours.', 'Get all of yours in, then the black, to win.', 'Oops! If you make a mistake, the other player gets 2 goes. Once they get one in, the extra go is gone. Only 1 go on the black.', 'If the white ball goes in, they can move it in the D.', 'If the black goes in too soon, you lose the game.'] },
   nine: { id: 'nine', label: '9-ball', kick: 'American 9-ball · 9ft table', HL: 1.27, HW: 0.635, RB: 0.028575, RC: 0.028575, cueM: 1,
     CW: 0.05, RW: 0.15, CH: 0.046, CG: 0.09, MG: 0.064, cOff: 0.028, cR: 0.072, cCap: 0.058, mOff: 0.057, mR: 0.066, mCap: 0.05,
     baulk: 0.635, D: 0, muR: 0.011, cloth: '#8c1b24', sheen: 0xc4404c, cush: 0x7a1720, rail: 0x2b1a12, body: 0x1a100b, wood: true, diam: 0xefe8d8, hand: 'kitchen', camK: 1.2,
@@ -996,12 +1004,13 @@ function applyUK(r, p, o) {
     toast('Your balls', `${pname(p)} has the ${NAMES[r.assign]}`, r.assign === 'R' ? '#d9262c' : '#f7cf2e');
   }
   if (r.foul) {
-    S.cur = o; S.visits = 2; foulSfx();
-    flashFoul(r.foul, `${pname(o)} gets 2 goes`);
+    // Pub rules: a foul gives 2 goes, but only 1 if the other player is already on the black.
+    S.cur = o; S.visits = onFor(o) === 'B' ? 1 : 2; foulSfx();
+    flashFoul(r.foul, S.visits > 1 ? `${pname(o)} gets 2 goes` : `${pname(o)} gets 1 go on the black`);
     if (S.log.cue) { S.inHand = 'D'; placeCueStart(); }
   } else if (!r.cont) {
     if (S.visits > 1) S.visits--; else { S.cur = o; S.visits = 1; }
-  }
+  } else S.visits = 1;   // potted one of yours: the spare go is gone, you just carry on
 }
 function applyNine(r, p, o) {
   const pots = S.log.potted;
@@ -1432,7 +1441,10 @@ function renderHud() {
     if (G.id === 'uk') {
       const g = S.groups[p], rem = g ? remaining(g) : 7;
       if (g) strip = GCOL[g];
-      for (let i = 0; i < 7; i++) dots += !g ? '<i></i>' : i < rem ? `<i style="background:${GCOL[g]}"></i>` : '<i style="background:transparent;box-shadow:inset 0 0 0 2px #b3b5b1"></i>';
+      // Score order: a filled dot for each of your colours potted, hollow for the ones still to get. Fills left to right.
+      const got = g ? 7 - rem : 0, d = [];
+      for (let i = 0; i < 7; i++) d.push(i < got ? `<i style="background:${GCOL[g]}"></i>` : '<i style="background:transparent;box-shadow:inset 0 0 0 2px #b3b5b1"></i>');
+      dots = d.join('');
       chip = p === S.cur && S.visits > 1 ? '2 goes' : g && rem === 0 ? 'Black next' : '';
     } else if (G.id === 'nine') {
       dots = S.potBy[p].map(dotHtml).join('');
@@ -1460,6 +1472,15 @@ function renderHud() {
   else { const ph = S.snk.phase; what = `On: <b>${ph === 'red' ? 'a red' : ph === 'colour' ? 'a colour' : SNAME[snkSet(balls, 'seq')[0]] || 'black'}</b> · ${snkLeft()} left`; }
   const tail = G.id === 'snk' && innerWidth < 1100 ? '' : ` · ${S.champ ? ROUNDS[S.champ.round].name + ' · ' : ''}Game <b>${S.frameNo}</b>`;
   $('statusR').innerHTML = tut.sandbox ? 'How to play · <b>Practice</b>' : what + tail;
+  const nine = G.id === 'nine';
+  $('order').classList.toggle('hidden', !nine);
+  if (nine) {
+    const low = lowest(balls);
+    $('order').innerHTML = '<span class="ol">Order</span>' + ['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(t => {
+      const on = balls.some(b => b.on && b.t === t), bg = t === '9' ? `linear-gradient(#f4f4f2 0 22%,${NCOL[t]} 22% 78%,#f4f4f2 78%)` : NCOL[t];
+      return `<b class="${!on ? 'gone' : t === low ? 'next' : ''}" style="background:${bg}"><span>${t}</span></b>`;
+    }).join('');
+  }
   const human = S.phase === 'aim' && !S.players[S.cur].ai;
   $('ctrl').classList.toggle('off', !human);
 }

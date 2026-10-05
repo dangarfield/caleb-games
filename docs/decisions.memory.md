@@ -6,6 +6,13 @@ Review periodically — memory drifts. Newest at the top.
 
 ---
 
+## 2026-10-05 — Music and sound effects may come from Uppbeat
+Dan may supply music and sound effects downloaded from uppbeat.io as well as his own masters. They ship as local
+files in the game folder (music Opus/WebM 48k, SFX Opus/WebM mono 64k), with the originals and Uppbeat's credit
+text (plus the plan it came from) kept in the game's `research/`. Recorded SFX play through Web Audio buffers on the
+**Sounds** level. Rules: `knowledge/audio-patterns.md` → *Supplied audio*; pointer added to `arcade-build`
+(.apm, .claude, .kiro, AGENTS.md) and `docs/new-game-guide.md`.
+
 ## 2026-09-29 — The home page has a theme tune
 `home-theme.m4a` is encoded per `knowledge/audio-patterns.md` to `audio/home-theme.webm` (Opus 48k, 6dB down,
 ~1MB) and wired into `index.template.html`. No controls. It tries to play on load (browsers that allow autoplay,

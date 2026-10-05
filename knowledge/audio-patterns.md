@@ -1,8 +1,9 @@
 # Audio Patterns
 
-Two separate things live here. **SFX are generated at runtime** — no audio assets,
-and that covers almost every game. **Theme music is a file**, and the rules for it
-are at the bottom. Read this when a game needs sound.
+Three things live here. **SFX are generated at runtime** by default — no audio assets. **Theme music is a
+file**, with its own rules below. And **supplied audio** — music and sound effects Dan downloads from
+[uppbeat.io](https://uppbeat.io) or records himself — has its own section at the bottom (files, credits,
+encoding). Read this when a game needs sound.
 
 ## Web Audio SFX (no files)
 
@@ -140,3 +141,36 @@ function music() {
   click, and `el.paused === false` after exactly one.
 
 See `games/mmm-leaves/js/audio.js` for a worked example.
+
+## Supplied audio: Uppbeat and other sources
+
+Dan may supply **music and sound effects downloaded from [uppbeat.io](https://uppbeat.io)**, alongside his own
+masters. Treat these as first-class audio assets, not exceptions: a game can ship recorded music *and* recorded
+SFX files when he hands them over. Generated Web Audio SFX (above) are still the default when nothing is supplied.
+
+### Where the files go
+- **Originals** (mp3/wav as downloaded) go in `games/<name>/research/` (gitignored), keeping Uppbeat's file name,
+  so the source of every shipped sound can be traced.
+- **Credit:** next to each original keep `<original-name>.credit.txt` with the exact credit text Uppbeat gives
+  on download (track/sound name, artist, licence code), the Uppbeat plan it was downloaded on, and the date.
+  If Dan didn't pass the credit on, ask him for it rather than inventing one.
+- **Shipped files:** music in `games/<name>/music/` (or `audio/`), sound effects in `games/<name>/sfx/`,
+  named for what they are in the game (`ch1-the-low-meadows.webm`, `door-creak.webm`), not Uppbeat's names.
+
+### Encoding
+- **Music:** exactly as *Theme music* above (Opus in WebM, 48k VBR, cover art stripped). Trim leading and
+  trailing silence if the track loops, so the loop has no gap.
+- **Sound effects:** Opus in WebM, mono, 64k, `-map_metadata -1`, leading/trailing silence trimmed, peaks no
+  higher than −1 dBTP. Level them against each other (aim for a similar loudness across a game's SFX set) so
+  no single sound jumps out:
+  ```sh
+  ffmpeg -i "<uppbeat file>" -vn -ac 1 -af "silenceremove=start_periods=1:start_threshold=-50dB,areverse,silenceremove=start_periods=1:start_threshold=-50dB,areverse" \
+         -c:a libopus -b:a 64k -vbr on -map_metadata -1 sfx/<name>.webm
+  ```
+
+### Wiring
+- **SFX play through Web Audio, not `<audio>` elements:** fetch and `decodeAudioData` each file once (after the
+  first gesture), then play `AudioBufferSourceNode`s through one **sounds** gain node. That gives exact timing,
+  lets a sound overlap itself, and works on iPad, where `el.volume` is ignored.
+- **Volume:** if the game has volume controls, recorded SFX share the **Sounds** level (with narration and
+  generated SFX) and music has its own **Music** level. Without controls, follow the quiet-by-default rules above.

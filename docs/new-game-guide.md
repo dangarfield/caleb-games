@@ -248,6 +248,12 @@ function music() {
 See `games/dragonseed/` for a worked example (`js/game.js` → `music()`,
 `tests/musictest.mjs`).
 
+## Supplied audio (Uppbeat)
+
+Dan may supply music and sound effects from [uppbeat.io](https://uppbeat.io). Originals and their credit go in
+`research/`, encoded files ship in the game folder. Full rules:
+`knowledge/audio-patterns.md` → *Supplied audio: Uppbeat and other sources*.
+
 ## Shared localStorage
 
 ```js
