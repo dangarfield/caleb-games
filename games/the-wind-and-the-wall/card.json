@@ -1,0 +1,19 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "the-wind-and-the-wall",
+  "name": "The Wind & The Wall",
+  "blurb": "Climb the Giant's hill. Dance through his walls. Free the wind.",
+  "added": "2026-10-05",
+  "icon": { "emoji": "🪁" },
+  "title": { "font": "Young Serif", "weight": 400, "size": 32, "color": "#2F3F2C", "shadow": "0 2px 0 rgba(244,236,217,.7)" },
+  "blurbStyle": { "color": "#2F3F2C", "shadow": "none" },
+  "background": {
+    "gradient": ["#A9D0DC", "#DDEBE4", "#86A672"],
+    "css": "radial-gradient(ellipse 130% 62% at 28% 102%, #A9C293 0 60%, transparent 61%), radial-gradient(ellipse 80% 40% at 100% 70%, #86A672 0 60%, transparent 61%), linear-gradient(#A9D0DC, #DDEBE4 70%)"
+  },
+  "source": {
+    "files": ["games/the-wind-and-the-wall/index.html", "games/the-wind-and-the-wall/card.json"],
+    "refreshed": "2026-10-05",
+    "notes": "Title in the game's own Young Serif, moss ink #2F3F2C on the meadow palette from the Claude Design build (sky #A9D0DC, haze #DDEBE4, hills #A9C293 / #86A672). Kite icon for Wren's red kite."
+  }
+}

@@ -1,6 +1,6 @@
 # Games Index
 
-All 83 games in Garfield Boys' Arcade, plus Librarian (WIP, hidden) — 84 folders under `games/`. The home page is built from each game's `card.json`; a card with `"hidden": true` isn't shown or counted.
+All 84 games in Garfield Boys' Arcade, plus Librarian (WIP, hidden) — 85 folders under `games/`. The home page is built from each game's `card.json`; a card with `"hidden": true` isn't shown or counted.
 
 | Game | Directory | Description |
 |------|-----------|-------------|
@@ -88,6 +88,7 @@ All 83 games in Garfield Boys' Arcade, plus Librarian (WIP, hidden) — 84 folde
 | Ember Bay | games/ember-bay/ | Open-town firefighter game in Three.js with an HTML HUD (from a Claude Design handoff): drive the fire engine round a seeded coastal town (traffic pulls over for the siren, pedestrians, bridges, island) to 22 minigames × 3 levels = 66 tasks, ranks every 11 tasks, badges per job, Tasks list + Map + minimap nav, Caleb/Ezra progress, Sound + Music sliders |
 | Pocket Pros | games/pocket-pros/ | Three cue games on regulation three.js tables with a TV-broadcast HTML HUD (from a Claude Design handoff): English pool (kid blackball), 9-ball and snooker (6/10/15 reds); Vs computer (3 named AIs), The Cup (quarter/semi/final ladder per difficulty) or Take turns; custom 1ms-substep physics with spin; first-go coach; one theme per game that cross-fades on the menu, Music slider |
 | Sus Guy Station | games/sus-guy-station/ | "Exit 8"-style spot-the-difference walk through a three.js Underground passage with an HTML HUD (from a Claude Design handoff): something different? turn back; all the same? keep going; reach Platform 10 to get out. 32 anomalies (Help Point says your name, giant Sus Guy, water...), Things I found gallery, Caleb/Ezra counts and best times, Sounds + Music sliders |
+| The Wind & The Wall | games/the-wind-and-the-wall/ | Narrated story climb in three.js (from a Claude Design build): Wren runs up the Earth Giant's hill and becomes the shapes carved in his walls (poses, items, spells on a Hush wheel) to free the trapped Wind; 7 chapters / 29 stages, illustrated opening, feather memories, per-chapter music, 195 voiced lines, Big Run endless mode |
 
 ## Naming quirks worth knowing
 

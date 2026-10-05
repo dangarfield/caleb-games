@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<title>Sound Lab · The Wind &amp; The Wall</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#F4ECD9;--moss:#2F3F2C;--scarf:#D9553B;--sage:#E6EEDD;--wind:#BFE3F0;--honey:#EDC36A;--ink:#3D3932}
+*{box-sizing:border-box;margin:0}
+body{background:#DDEBE4;color:var(--moss);font:500 14px Figtree,system-ui,sans-serif;padding:24px}
+h1{font:400 30px 'Young Serif'}
+h2{font:800 12px Figtree;letter-spacing:.08em;text-transform:uppercase;color:var(--scarf);margin-bottom:10px}
+.sub{color:var(--ink);margin:4px 0 20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:16px;max-width:1300px}
+.card{background:var(--paper);border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:10px}
+.row{display:grid;grid-template-columns:150px 1fr 54px auto;align-items:center;gap:10px}
+.row label{font-weight:700}
+.row input[type=range]{width:100%;accent-color:var(--moss)}
+.row output{font:800 13px Figtree;text-align:right}
+.note{font-size:12px;color:#6b665c;line-height:1.45}
+button{font:800 13px Figtree;border:0;border-radius:99px;padding:8px 14px;background:var(--moss);color:var(--paper);cursor:pointer}
+button.soft{background:var(--sage);color:var(--moss)}
+button.hot{background:var(--scarf);color:#fff}
+button.sm{padding:6px 11px}
+select{font:700 13px Figtree;padding:7px 10px;border-radius:10px;border:1px solid #cfc6b4;background:#fff;width:100%}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.meter{height:8px;border-radius:99px;background:#e2d9c4;overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:var(--moss);transition:width .1s}
+.meter.voice i{background:var(--scarf)}
+.live{display:grid;grid-template-columns:110px 1fr 54px;align-items:center;gap:10px;font-weight:700}
+textarea{width:100%;min-height:230px;font:500 12.5px ui-monospace,Menlo,monospace;border-radius:12px;border:1px solid #cfc6b4;padding:12px;background:#fff;color:#222}
+.narr{font-size:13px;color:var(--ink);line-height:1.4}
+.narr b{color:var(--moss)}
+.wide{grid-column:1/-1}
+</style>
+</head>
+<body>
+<h1>Sound Lab</h1>
+<p class="sub">The Wind &amp; The Wall. Uses the same maths as the game: every sound plays at <b>base level × its slider</b>, and the music dips while the narrator speaks. Starting values are read from <code>index.html</code>. Tweak, listen, then <b>Copy values</b> and paste them back to Claude.</p>
+
+<div class="grid">
+
+  <div class="card">
+    <h2>Player sliders (pause menu)</h2>
+    <div class="row"><label>Music slider</label><input type="range" id="MUSIC_VOL" min="0" max="1" step="0.05"><output></output><span></span></div>
+    <div class="row"><label>Sounds slider</label><input type="range" id="SOUND_VOL" min="0" max="1" step="0.05"><output></output><span></span></div>
+    <p class="note">These are what the boys see. Default 80%. Sounds covers the narration and every sound effect.</p>
+    <h2 style="margin-top:8px">Live levels</h2>
+    <div class="live"><span>Music</span><div class="meter"><i id="mMusic"></i></div><span id="vMusic">0</span></div>
+    <div class="live"><span>Narration</span><div class="meter voice"><i id="mVoice"></i></div><span id="vVoice">0</span></div>
+  </div>
+
+  <div class="card">
+    <h2>Music</h2>
+    <select id="track"></select>
+    <div class="btns"><button id="musicPlay">Play music</button><button class="soft" id="musicStop">Stop</button><button class="soft" id="musicNext">Cross-fade to next chapter</button></div>
+    <div class="row"><label>MUSIC_LEVEL</label><input type="range" id="MUSIC_LEVEL" min="0" max="1" step="0.05"><output></output><span></span></div>
+    <div class="row"><label>MUSIC_DUCK (dip)</label><input type="range" id="MUSIC_DUCK" min="0" max="1" step="0.05"><output></output><span></span></div>
+    <div class="row"><label>MUSIC_FADE (s)</label><input type="range" id="MUSIC_FADE" min="0" max="6" step="0.5"><output></output><span></span></div>
+    <p class="note">The dip is a multiplier: 0.6 means the music drops 40% while she speaks, 1 means no dip.</p>
+  </div>
+
+  <div class="card">
+    <h2>Narration</h2>
+    <div class="row"><label>NARRATION_LEVEL</label><input type="range" id="NARRATION_LEVEL" min="0" max="1" step="0.05"><output></output><span></span></div>
+    <div id="narrList" class="btns" style="flex-direction:column;align-items:stretch"></div>
+    <div class="btns"><button class="soft" id="narrShuffle">Pick 2 different lines</button><button class="soft" id="narrStop">Stop narration</button></div>
+    <p class="note">Play music first, then a line, to hear the dip.</p>
+  </div>
+
+  <div class="card">
+    <h2>Sound effects (SFX_LEVELS)</h2>
+    <div id="sfxList" style="display:flex;flex-direction:column;gap:8px"></div>
+    <p class="note">Each sound plays at its level × the Sounds slider.</p>
+  </div>
+
+  <div class="card wide">
+    <h2>Values to paste back</h2>
+    <textarea id="out" readonly></textarea>
+    <div class="btns"><button class="hot" id="copy">Copy values</button><button class="soft" id="reset">Reset to the game's values</button></div>
+  </div>
+
+</div>
+
+<audio id="deckA" loop preload="none"></audio>
+<audio id="deckB" loop preload="none"></audio>
+<audio id="voice" preload="none"></audio>
+<script src="story.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const TRACKS = ['the-low-meadows', 'the-orchard-terraces', 'the-fogmoor', 'the-millrace-gorge', 'the-bramblewood', 'the-standing-stones', 'the-crown'];
+const MUSIC_FILES = TRACKS.map((n, i) => 'music/music-ch' + (i + 1) + '-' + n + '.webm');
+const FALLBACK = { MUSIC_LEVEL: 1, NARRATION_LEVEL: 0.5, MUSIC_DUCK: 0.6, MUSIC_FADE: 2.5, MUSIC_VOL: 0.8, SOUND_VOL: 0.8,
+  SFX: { 'ui-click': 0.5, 'jump': 0.5, 'land': 0.5, 'spell': 0.5, 'throw': 0.5, 'unlock': 0.5, 'wall-squeeze': 0.5, 'wall-bump': 0.5, 'cairn-and-complete': 0.5, 'feather': 0.5 } };
+let GAME = JSON.parse(JSON.stringify(FALLBACK));
+const V = {};   // live values
+
+// ---- read the game's current values from index.html so the lab always starts in sync ----
+async function readGame() {
+  try {
+    const src = await (await fetch('index.html', { cache: 'no-store' })).text();
+    const num = k => { const m = src.match(new RegExp('const ' + k + '\\s*=\\s*([0-9.]+)')); return m ? +m[1] : FALLBACK[k]; };
+    ['MUSIC_LEVEL', 'NARRATION_LEVEL', 'MUSIC_DUCK', 'MUSIC_FADE'].forEach(k => GAME[k] = num(k));
+    const m = src.match(/const SFX_LEVELS = \{([\s\S]*?)\};/);
+    if (m) { const o = {}; m[1].replace(/'([^']+)'\s*:\s*([0-9.]+)/g, (_, k, v) => { o[k] = +v; }); if (Object.keys(o).length) GAME.SFX = o; }
+  } catch (e) { /* opened from disk: use the fallback values */ }
+}
+
+// ---- audio: music on two decks (cross-fade), narration on one element, SFX through Web Audio ----
+const decks = [$('deckA'), $('deckB')]; decks.forEach(d => d._f = 0);
+const voice = $('voice');
+let cur = 0, track = 0, fade = null, speaking = false;
+function levels() {
+  const m = Math.min(1, V.MUSIC_LEVEL * V.MUSIC_VOL * (speaking ? V.MUSIC_DUCK : 1));
+  decks.forEach(d => d.volume = Math.max(0, Math.min(1, m * d._f)));
+  voice.volume = Math.min(1, V.NARRATION_LEVEL * V.SOUND_VOL);
+  const mv = decks[cur].paused ? 0 : m * decks[cur]._f, vv = speaking ? voice.volume : 0;
+  $('mMusic').style.width = (mv * 100) + '%'; $('vMusic').textContent = mv.toFixed(2);
+  $('mVoice').style.width = (vv * 100) + '%'; $('vVoice').textContent = vv.toFixed(2);
+  if (bus) bus.gain.value = V.SOUND_VOL;
+}
+function step() {
+  if (!fade) return;
+  const u = Math.min(1, (performance.now() - fade.t0) / (Math.max(0.05, V.MUSIC_FADE) * 1000));
+  fade.out._f = fade.from * (1 - u); fade.inn._f = u; levels();
+  if (u < 1) requestAnimationFrame(step); else { fade.out.pause(); fade.out._f = 0; fade = null; levels(); }
+}
+function playMusic(i) {
+  if (fade) { fade.out.pause(); fade.out._f = 0; fade = null; }
+  const d = decks[cur];
+  if (!d.paused && track === i) return;
+  if (d.paused) { track = i; d.src = MUSIC_FILES[i]; d._f = 1; levels(); d.play(); levels(); return; }
+  const out = d; cur = 1 - cur; const inn = decks[cur]; track = i;
+  inn.src = MUSIC_FILES[i]; inn._f = 0; levels(); inn.play();
+  fade = { out, inn, from: out._f, t0: performance.now() }; requestAnimationFrame(step);
+}
+$('musicPlay').onclick = () => playMusic(+$('track').value);
+$('musicStop').onclick = () => { if (fade) { fade.out.pause(); fade = null; } decks.forEach(d => { d.pause(); d._f = 0; }); levels(); };
+$('musicNext').onclick = () => { const n = (track + 1) % 7; $('track').value = n; playMusic(n); };
+$('track').innerHTML = TRACKS.map((t, i) => '<option value="' + i + '">Chapter ' + (i + 1) + ' · ' + t.replace(/-/g, ' ') + '</option>').join('');
+$('track').onchange = () => { if (!decks[cur].paused) playMusic(+$('track').value); };
+
+voice.addEventListener('playing', () => { speaking = true; levels(); });
+['ended', 'pause', 'error'].forEach(e => voice.addEventListener(e, () => { speaking = false; levels(); }));
+$('narrStop').onclick = () => voice.pause();
+
+// two random narration lines, named the way the game names them
+function narrationPool() {
+  const S = globalThis.WIND_STORY, out = [];
+  if (!S) return [['opening-01', 'Opening 1'], ['ch0-prologue-intro', 'Prologue intro']];
+  S.opening.forEach((o, i) => out.push(['opening-0' + (i + 1), o.text]));
+  S.stages.forEach(s => {
+    const p = s.id === 'p' ? 'ch0-prologue' : 'ch' + String(s.code).split('-')[0] + '-' + s.code;
+    out.push([p + '-intro', s.tale]); out.push([p + '-outro', s.outro]);
+    (s.says || []).forEach((t, k) => out.push([p + '-climb-' + (k + 1), t]));
+  });
+  return out;
+}
+const POOL = narrationPool();
+function shuffleNarr() {
+  const a = POOL[Math.floor(Math.random() * POOL.length)]; let b; do { b = POOL[Math.floor(Math.random() * POOL.length)]; } while (b === a && POOL.length > 1);
+  $('narrList').innerHTML = [a, b].map(([n, t]) => '<div class="narr"><button class="sm" data-vo="' + n + '">▶ ' + n + '</button><div style="margin-top:4px">' + t.slice(0, 140) + (t.length > 140 ? '…' : '') + '</div></div>').join('');
+  $('narrList').querySelectorAll('[data-vo]').forEach(b => b.onclick = () => { voice.src = 'voiceover/' + b.dataset.vo + '.webm'; levels(); voice.play(); });
+}
+$('narrShuffle').onclick = shuffleNarr;
+
+// SFX through Web Audio, like the game
+let ctx = null, bus = null; const buf = {};
+function ensureCtx() {
+  if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+  ctx = new (window.AudioContext || window.webkitAudioContext)(); bus = ctx.createGain(); bus.connect(ctx.destination); levels();
+  Object.keys(V.SFX).forEach(n => fetch('sfx/' + n + '.webm').then(r => r.arrayBuffer()).then(a => ctx.decodeAudioData(a)).then(b => { buf[n] = b; }).catch(() => {}));
+}
+document.addEventListener('pointerdown', ensureCtx, true);
+function playSfx(n) {
+  ensureCtx();
+  const go = () => { if (!buf[n]) return setTimeout(go, 80); const s = ctx.createBufferSource(), g = ctx.createGain(); s.buffer = buf[n]; g.gain.value = V.SFX[n]; s.connect(g); g.connect(bus); s.start(); };
+  go();
+}
+
+// ---- controls ----
+const fmt = (k, v) => k === 'MUSIC_FADE' ? v.toFixed(1) + 's' : k.endsWith('_VOL') ? Math.round(v * 100) + '%' : v.toFixed(2);
+function bindRange(el, get, set, key) {
+  const o = el.parentElement.querySelector('output');
+  el.value = get(); o.textContent = fmt(key, get());
+  el.oninput = () => { set(+el.value); o.textContent = fmt(key, +el.value); levels(); writeOut(); };
+}
+function buildSfx() {
+  $('sfxList').innerHTML = Object.keys(V.SFX).map(n => '<div class="row"><label>' + n + '</label><input type="range" min="0" max="1.5" step="0.05" data-sfx="' + n + '"><output></output><button class="sm" data-play="' + n + '">▶</button></div>').join('');
+  $('sfxList').querySelectorAll('[data-sfx]').forEach(el => { const n = el.dataset.sfx; bindRange(el, () => V.SFX[n], v => V.SFX[n] = v, 'sfx'); });
+  $('sfxList').querySelectorAll('[data-play]').forEach(b => b.onclick = () => playSfx(b.dataset.play));
+}
+function init() {
+  Object.assign(V, JSON.parse(JSON.stringify(GAME)));
+  ['MUSIC_VOL', 'SOUND_VOL', 'MUSIC_LEVEL', 'MUSIC_DUCK', 'MUSIC_FADE', 'NARRATION_LEVEL'].forEach(k => bindRange($(k), () => V[k], v => V[k] = v, k));
+  buildSfx(); levels(); writeOut();
+}
+function writeOut() {
+  const sfx = Object.entries(V.SFX).map(([k, v]) => "  '" + k + "': " + v.toFixed(2)).join(',\n');
+  $('out').value =
+`// The Wind & The Wall: sound levels from the Sound Lab
+const MUSIC_LEVEL = ${V.MUSIC_LEVEL.toFixed(2)};
+const NARRATION_LEVEL = ${V.NARRATION_LEVEL.toFixed(2)};
+const MUSIC_DUCK = ${V.MUSIC_DUCK.toFixed(2)};
+const MUSIC_FADE = ${V.MUSIC_FADE.toFixed(1)};
+const SFX_LEVELS = {
+${sfx}
+};
+// tested with: Music slider ${Math.round(V.MUSIC_VOL * 100)}%, Sounds slider ${Math.round(V.SOUND_VOL * 100)}%`;
+}
+$('copy').onclick = async () => { try { await navigator.clipboard.writeText($('out').value); $('copy').textContent = 'Copied!'; } catch (e) { $('out').select(); document.execCommand('copy'); $('copy').textContent = 'Copied!'; } setTimeout(() => $('copy').textContent = 'Copy values', 1500); };
+$('reset').onclick = () => { decks.forEach(d => d.pause()); voice.pause(); init(); };
+
+readGame().then(() => { init(); shuffleNarr(); });
+</script>
+</body>
+</html>

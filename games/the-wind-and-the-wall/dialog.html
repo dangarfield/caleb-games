@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<title>Dialogue · The Wind &amp; The Wall</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#F4ECD9;--paper2:#FBF8F2;--moss:#2F3F2C;--scarf:#D9553B;--sage:#E6EEDD;--line:#D9D2C4;--mute:#6B655B;--ink:#3D3932}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;scroll-padding-top:120px}
+body{background:var(--paper);color:var(--moss);font:500 14px Figtree,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--scarf)}a:hover{color:#B5452F}
+button{font:inherit;cursor:pointer;border:none}
+header{position:sticky;top:0;z-index:5;background:rgba(244,236,217,.96);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);padding:14px clamp(16px,4vw,48px);display:flex;flex-direction:column;gap:10px}
+.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+h1{font:400 28px 'Young Serif';margin-right:auto}
+.b{background:var(--paper2);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font:700 13px Figtree;color:var(--moss);text-decoration:none}
+.b:hover{border-color:var(--moss)}
+.b.pri{background:var(--moss);color:var(--paper);border-color:var(--moss)}
+nav{display:flex;gap:6px;flex-wrap:wrap}
+nav a{font:700 12px Figtree;padding:6px 11px;border-radius:99px;background:var(--sage);color:var(--moss);text-decoration:none}
+nav a:hover{background:var(--moss);color:var(--paper)}
+main{max-width:1180px;margin:0 auto;padding:24px clamp(16px,4vw,48px) 80px;display:flex;flex-direction:column;gap:36px}
+.note{font-size:14px;line-height:1.55;color:var(--mute);max-width:760px;text-wrap:pretty}
+.note code{font:500 12px 'IBM Plex Mono';background:var(--paper2);padding:1px 5px;border-radius:4px}
+section{display:flex;flex-direction:column;gap:14px}
+h2{font:400 34px 'Young Serif';display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+h2 small{font:700 12px Figtree;letter-spacing:.14em;text-transform:uppercase;color:#B5452F}
+h3{font:400 24px 'Young Serif'}
+.stage{background:var(--paper2);border:1px solid var(--line);border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:14px}
+.shead{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.code{font:700 11px Figtree;letter-spacing:.12em;color:#B5452F;text-transform:uppercase}
+.beat{display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:18px;align-items:start}
+.beat + .beat{border-top:1px dashed var(--line);padding-top:14px}
+.art{position:relative;aspect-ratio:3/4;border-radius:14px;overflow:hidden;background:#E8E0CE}
+.art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.ph{position:absolute;inset:0;border:2px dashed #C9BFA9;border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;justify-content:flex-end;background:repeating-linear-gradient(135deg,#EDE5D3 0 12px,#E8DFCB 12px 24px)}
+.ph .path{font:500 11px 'IBM Plex Mono';color:var(--mute)}
+.ph .brief{font:400 13px/1.45 'Young Serif';color:var(--ink)}
+.txt{display:flex;flex-direction:column;gap:6px}
+.kind{font:700 11px Figtree;letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+.txt .t{font:400 17px/1.65 'Young Serif';color:var(--ink);text-wrap:pretty}
+.txt .ttl{font:400 20px 'Young Serif'}
+.lines{display:flex;flex-direction:column;gap:6px;background:var(--sage);border-radius:14px;padding:12px 16px}
+.lines .kind{color:var(--moss)}
+.line{display:grid;grid-template-columns:110px 1fr;gap:12px;font:400 15px/1.5 'Young Serif'}
+.line span{font:600 11px Figtree;color:var(--mute);padding-top:3px}
+.mem{background:var(--moss);color:var(--paper);border-radius:14px;padding:14px}
+.mem .beat{grid-template-columns:minmax(0,200px) minmax(0,1fr)}
+.mem .kind{color:#E6EEDD}
+.mem .t{color:var(--paper)}
+.mem .ph{background:repeating-linear-gradient(135deg,#3A4C36 0 12px,#34452F 12px 24px);border-color:#5A6E55}
+.mem .ph .path{color:#C9D3C2}.mem .ph .brief{color:var(--paper)}
+@media (max-width:720px){.beat,.mem .beat{grid-template-columns:1fr}.line{grid-template-columns:1fr;gap:0}}
+</style>
+<script src="story.js"></script>
+</head>
+<body>
+<header>
+  <div class="top"><h1>The Wind &amp; The Wall · Dialogue</h1><button class="b pri" id="copy">Copy voiceover script</button><a class="b" href="index.html">← Game</a></div>
+  <nav id="nav"></nav>
+</header>
+<main id="main"></main>
+<script>
+const S = globalThis.WIND_STORY, $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const art = (img, brief) => '<div class="art"><div class="ph"><div class="path">' + esc(img) + '</div><div class="brief">' + esc(brief) + '</div></div><img alt="" src="' + esc(img) + '" onerror="this.remove()"></div>';
+const beat = (img, brief, kind, title, text) => '<div class="beat">' + art(img, brief) + '<div class="txt"><div class="kind">' + kind + '</div>' + (title ? '<div class="ttl">' + esc(title) + '</div>' : '') + '<div class="t">' + esc(text) + '</div></div></div>';
+const label = s => s.id === 'p' ? 'Prologue' : s.code;
+let html = '<p class="note">Every line of story in the game, in the order a player meets it, with the picture that goes with it. Drop finished art into <code>art/</code> using the file name shown on each placeholder and it will appear here and in the game. Text is edited in <code>story.js</code>.</p>';
+html += '<section id="opening"><h2><small>Before the Prologue</small>The Opening</h2><div class="stage">' + S.opening.map(o => beat(o.img, o.brief, o.kicker, o.title, o.text)).join('') + '</div></section>';
+const nav = ['<a href="#opening">Opening</a>'];
+S.chapters.forEach((c, ci) => {
+  const st = S.stages.filter(s => s.ch === ci); if (!st.length) return;
+  nav.push('<a href="#ch' + ci + '">' + (ci + 1) + ' · ' + c + '</a>');
+  html += '<section id="ch' + ci + '"><h2><small>Chapter ' + (ci + 1) + '</small>' + esc(c) + '</h2>';
+  st.forEach(s => {
+    const lines = s.says.map(l => '<div class="line"><span>During the climb</span>“' + esc(l) + '”</div>').join('') + (s.unlockLine ? '<div class="line"><span>Breath freed</span>“' + esc(s.unlockLine) + '”</div>' : '') + '<div class="line"><span>Celebration dance</span>' + (s.dance ? '“' + esc(s.dance) + '”' : '<em style="color:var(--mute)">One of the dance lines below</em>') + '</div>';
+    html += '<div class="stage" id="s-' + s.id + '"><div class="shead"><span class="code">' + label(s) + '</span><h3>' + esc(s.name) + '</h3></div>' +
+      beat(s.img, s.imgBrief, 'Stage start', '', s.tale) +
+      '<div class="lines"><div class="kind">Spoken over gameplay · no picture</div>' + lines + '</div>' +
+      beat(s.imgOut, s.imgOutBrief, 'Stage end', '', s.outro) +
+      (s.memory ? '<div class="mem">' + beat(s.memory.img, s.memory.brief, 'Feather · ' + s.memory.bird, s.memory.title, s.memory.text) + '</div>' : '') + '</div>';
+  });
+  html += '</section>';
+});
+html += '<section id="epilogue"><h2><small>After the Last Wall</small>The Epilogue</h2><div class="stage">' + S.epilogue.map(o => beat(o.img, o.brief, o.kicker, o.title, o.text)).join('') + '</div></section>';
+html += '<section id="dance"><h2><small>End of each stage</small>Celebration lines</h2><div class="lines">' + S.dance.lines.map(l => '<div class="line"><span>Any stage</span>“' + esc(l) + '”</div>').join('') + '<div class="line"><span>Breath freed</span>“' + esc(S.dance.breath) + '”</div></div></section>';
+nav.push('<a href="#epilogue">Epilogue</a>', '<a href="#dance">Dance lines</a>');
+$('main').innerHTML = html; $('nav').innerHTML = nav.join('');
+$('copy').onclick = () => {
+  const out = ['THE WIND & THE WALL', '', 'THE OPENING', ...S.opening.map(o => o.kicker + ' — ' + o.title + '\n' + o.text + '\n')];
+  S.chapters.forEach((c, ci) => { out.push('', 'CHAPTER ' + (ci + 1) + ' — ' + c.toUpperCase()); S.stages.filter(s => s.ch === ci).forEach(s => { out.push('', label(s) + ' — ' + s.name, '[Start] ' + s.tale); s.says.forEach(l => out.push('[Climb] ' + l)); if (s.unlockLine) out.push('[Breath] ' + s.unlockLine); out.push('[End] ' + s.outro); if (s.memory) out.push('[Feather · ' + s.memory.bird + ' — ' + s.memory.title + '] ' + s.memory.text); }); });
+  out.push('', 'THE EPILOGUE', ...S.epilogue.map(o => o.kicker + ' — ' + o.title + '\n' + o.text + '\n'));
+  navigator.clipboard.writeText(out.join('\n')).then(() => { $('copy').textContent = 'Copied'; setTimeout(() => $('copy').textContent = 'Copy voiceover script', 1500); });
+};
+</script>
+</body>
+</html>

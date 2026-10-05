@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<title>Pose Editor · The Wind &amp; The Wall</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#F4ECD9;--paper2:#FBF8F2;--moss:#2F3F2C;--scarf:#D9553B;--sage:#E6EEDD;--line:#D9D2C4;--ink:#1F1D1A;--mute:#6B655B}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:var(--paper);color:var(--moss);font:500 13px Figtree,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--scarf)}a:hover{color:#B5452F}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer;border:none;background:none}
+#app{display:grid;grid-template-columns:280px minmax(0,1fr) 300px;height:100%}
+aside{display:flex;flex-direction:column;gap:14px;padding:16px;overflow:auto;background:var(--paper)}
+aside.l{border-right:1px solid var(--line)}aside.r{border-left:1px solid var(--line)}
+h1{font:400 22px/1.1 'Young Serif'}
+h2{font:700 11px Figtree;letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+.sec{display:flex;flex-direction:column;gap:8px}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.b{background:var(--paper2);border:1px solid var(--line);border-radius:10px;padding:7px 10px;font:700 12px Figtree;min-height:32px}
+.b:hover{border-color:var(--moss)}
+.b.on{background:var(--moss);color:var(--paper);border-color:var(--moss)}
+.b.pri{background:var(--scarf);border-color:var(--scarf);color:#fff}
+.b.pri:hover{background:#C44A32}
+.b.sm{padding:4px 8px;min-height:26px;font-size:11px}
+.b:disabled{opacity:.4;cursor:default}
+.inp,select{width:100%;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:600 13px Figtree}
+.inp:focus,select:focus{outline:2px solid var(--moss);outline-offset:-1px}
+.lib{display:flex;flex-direction:column;gap:4px}
+.pose{display:grid;grid-template-columns:1fr auto auto;gap:4px;align-items:center;background:var(--paper2);border:1px solid var(--line);border-radius:10px;padding:4px 4px 4px 10px}
+.pose.on{border-color:var(--scarf);box-shadow:0 0 0 1px var(--scarf)}
+.pose .nm{font:400 15px 'Young Serif';text-align:left;padding:4px 0;display:flex;flex-direction:column;gap:2px}
+.pose .nm small{font:500 11px 'IBM Plex Mono';color:var(--mute)}
+.empty{font-size:12px;color:var(--mute);line-height:1.5}
+.grp{display:flex;flex-direction:column;gap:3px}
+.grp h3{font:700 11px Figtree;color:var(--mute);margin-top:4px}
+.bone{display:flex;justify-content:space-between;align-items:center;text-align:left;padding:6px 10px;border-radius:8px;font:600 13px Figtree}
+.bone:hover{background:var(--sage)}
+.bone.on{background:var(--moss);color:var(--paper)}
+.bone i{width:7px;height:7px;border-radius:50%;background:var(--scarf);opacity:0}
+.bone.chg i{opacity:1}
+.sl{display:grid;grid-template-columns:16px 1fr 46px;gap:8px;align-items:center;font:700 12px 'IBM Plex Mono'}
+.sl input[type=range]{width:100%;accent-color:var(--moss)}
+.sl output{text-align:right}
+.chk{display:flex;gap:8px;align-items:center;font:600 12px Figtree;cursor:pointer}
+.chk input{accent-color:var(--moss);width:16px;height:16px}
+#view{position:relative;min-width:0;background:linear-gradient(#A9D0DC,#DDEBE4 60%)}
+#view canvas{display:block;width:100%;height:100%}
+.tool{position:absolute;top:14px;left:50%;transform:translateX(-50%);display:flex;gap:6px;background:rgba(244,236,217,.92);border-radius:14px;padding:6px;box-shadow:0 6px 20px rgba(31,29,26,.12)}
+.cams{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:6px;background:rgba(244,236,217,.92);border-radius:14px;padding:6px}
+#sel{position:absolute;left:14px;top:14px;background:var(--moss);color:var(--paper);border-radius:10px;padding:8px 12px;font:400 15px 'Young Serif'}
+#hint{position:absolute;right:14px;bottom:14px;font:500 11px/1.6 'IBM Plex Mono';color:var(--moss);background:rgba(244,236,217,.85);border-radius:10px;padding:8px 10px;text-align:right}
+#loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:400 22px 'Young Serif';background:rgba(244,236,217,.6)}
+.tool .b{padding:6px 9px;min-height:30px;font-size:12px;white-space:nowrap}
+@media (max-width:1280px){#app{grid-template-columns:240px minmax(0,1fr) 260px}#hint{display:none}.tool{top:auto;bottom:62px;flex-wrap:wrap;justify-content:center;width:max-content;max-width:calc(100% - 20px)}}
+#toast{position:fixed;left:50%;top:18px;transform:translateX(-50%);background:var(--moss);color:var(--paper);border-radius:12px;padding:9px 14px;font:700 13px Figtree;opacity:0;transition:opacity .25s;pointer-events:none;z-index:9}
+#toast.on{opacity:1}
+textarea{width:100%;height:120px;border:1px solid var(--line);border-radius:10px;padding:8px;font:400 11px 'IBM Plex Mono';resize:vertical}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+</head>
+<body>
+<div id="app">
+  <aside class="l">
+    <div class="row" style="justify-content:space-between"><h1>Pose Editor</h1><a class="b sm" href="animation-studio.html" target="_top">← Studio</a></div>
+
+    <div class="sec">
+      <h2>Start from</h2>
+      <div class="row">
+        <button class="b sm" data-start="rest">Rest</button>
+        <button class="b sm" data-start="stand">Stand</button>
+        <button class="b sm" data-start="star">Star</button>
+        <button class="b sm" data-start="scarecrow">Scarecrow</button>
+        <button class="b sm" data-start="reed">Reed</button>
+        <button class="b sm" data-start="duck">Duck</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h2>Wall reference</h2>
+      <select id="refSel"></select>
+      <label class="chk"><input type="checkbox" id="refShow" checked> Show the opening behind Wren</label>
+    </div>
+
+    <div class="sec">
+      <h2>Save keyframe</h2>
+      <input class="inp" id="poseName" placeholder="Name, e.g. Heron v1">
+      <div class="row"><button class="b pri" id="saveNew">Save new</button><button class="b" id="saveUpd" disabled>Update selected</button></div>
+    </div>
+
+    <div class="sec">
+      <h2>Keyframes</h2>
+      <div class="lib" id="lib"></div>
+    </div>
+
+    <div class="sec">
+      <h2>Share</h2>
+      <div class="row"><button class="b sm" id="exportBtn">Download JSON</button><button class="b sm" id="copyBtn">Copy JSON</button><button class="b sm" id="importBtn">Import…</button></div>
+      <input type="file" id="importFile" accept=".json,application/json" hidden>
+    </div>
+  </aside>
+
+  <div id="view">
+    <div id="sel">Pick a joint</div>
+    <div class="tool">
+      <button class="b on" id="modeRot" title="R">Rotate</button>
+      <button class="b" id="modeMove" title="G">Move hips</button>
+      <span style="width:6px"></span>
+      <button class="b" id="undoBtn" title="Ctrl+Z">Undo</button>
+      <button class="b" id="redoBtn" title="Ctrl+Shift+Z">Redo</button>
+      <span style="width:6px"></span>
+      <button class="b" id="mirLR" title="Copy left side to right">L → R</button>
+      <button class="b" id="mirRL" title="Copy right side to left">R → L</button>
+      <button class="b" id="mirAll" title="M">Mirror</button>
+    </div>
+    <div class="cams">
+      <button class="b sm on" data-cam="back">Behind</button>
+      <button class="b sm" data-cam="front">Front</button>
+      <button class="b sm" data-cam="left">Left</button>
+      <button class="b sm" data-cam="right">Right</button>
+      <button class="b sm" data-cam="game">Game camera</button>
+    </div>
+    <div id="hint">click a joint · drag the rings<br>R rotate · G move hips · M mirror<br>Ctrl+Z undo · Esc deselect</div>
+    <div id="loading">Loading Wren…</div>
+  </div>
+
+  <aside class="r">
+    <div class="sec">
+      <h2>Selected joint</h2>
+      <div class="sl"><span style="color:#C0392B">X</span><input type="range" id="rx" min="-180" max="180" step="1"><output id="ox">0</output></div>
+      <div class="sl"><span style="color:#3E8E3E">Y</span><input type="range" id="ry" min="-180" max="180" step="1"><output id="oy">0</output></div>
+      <div class="sl"><span style="color:#2F6FB5">Z</span><input type="range" id="rz" min="-180" max="180" step="1"><output id="oz">0</output></div>
+      <div class="row"><button class="b sm" id="resetBone">Reset joint</button><button class="b sm" id="resetAll">Reset all to rest</button></div>
+    </div>
+    <div class="sec">
+      <h2>Display</h2>
+      <label class="chk"><input type="checkbox" id="optGround" checked> Keep feet on the ground (as in game)</label>
+      <label class="chk"><input type="checkbox" id="optSkel" checked> Show skeleton</label>
+      <label class="chk"><input type="checkbox" id="optAll"> Show every bone (fingers etc.)</label>
+    </div>
+    <div class="sec">
+      <h2>Joints</h2>
+      <div id="bones"></div>
+    </div>
+  </aside>
+</div>
+<div id="toast"></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+
+const $ = id => document.getElementById(id);
+const toastEl = $('toast'); let toastTimer;
+const toast = m => { toastEl.textContent = m; toastEl.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('on'), 1600); };
+
+const PS = {
+  duck: { d: 'M50 66 L50 80 M50 68 L38 54 L46 46 M50 68 L62 54 L54 46 M50 80 L36 84 L38 94 M50 80 L64 84 L62 94', hx: 50, hy: 58 },
+  scarecrow: { d: 'M50 24 L50 56 M16 31 L84 31 M50 56 L47 93 M50 56 L53 93', hx: 50, hy: 15 },
+  star: { d: 'M50 24 L50 56 M50 30 L22 8 M50 30 L78 8 M50 56 L24 93 M50 56 L76 93', hx: 50, hy: 15 },
+  reed: { d: 'M50 28 L50 60 M48 32 L44 2 M52 32 L56 2 M50 60 L48 93 M50 60 L52 93', hx: 50, hy: 20 },
+  leaf: { d: 'M62 24 L44 58 M60 28 L82 6 M60 28 L92 16 M44 58 L28 93 M44 58 L40 93', hx: 66, hy: 16 },
+  heron: { d: 'M50 24 L50 56 M50 30 L18 46 M50 30 L82 46 M50 56 L50 93 M50 56 L72 64 L54 76', hx: 50, hy: 15 },
+  reach: { d: 'M50 24 L50 56 M52 29 L60 2 M48 30 L14 30 M50 56 L47 93 M50 56 L53 93', hx: 50, hy: 15 },
+  moth: { d: 'M50 62 L50 76 M50 64 L14 56 L6 70 M50 64 L86 56 L94 70 M50 76 L34 82 L30 94 M50 76 L66 82 L70 94', hx: 50, hy: 54 },
+  hare: { d: 'M50 22 L50 46 M50 26 L34 6 M50 26 L66 6 M50 46 L36 52 L44 64 M50 46 L64 52 L56 64', hx: 50, hy: 14 },
+  wheel: { d: 'M50 40 L50 70 M50 66 L26 94 M50 66 L74 94 M50 40 L24 6 M50 40 L76 6', hx: 50, hy: 80 },
+  otter: { d: 'M78 85 L34 87 M72 86 L54 93 M34 87 L6 83 M34 87 L8 92', hx: 86, hy: 83 },
+  curl: { d: 'M44 66 C72 56 82 94 52 94 C36 94 32 84 42 80', hx: 38, hy: 68 },
+  bridge: { d: 'M16 94 L30 64 Q50 42 70 64 L84 94', hx: 24, hy: 76 },
+  splits: { d: 'M50 58 L50 84 M50 62 L28 40 M50 62 L72 40 M50 86 L6 92 M50 86 L94 92', hx: 50, hy: 50 },
+  kite: { d: 'M50 22 L50 52 M50 26 L26 4 M50 26 L74 4 M50 52 L47 84 M50 52 L53 84', hx: 50, hy: 14 }
+};
+const POSE_NAMES = Object.keys(PS);
+const cap = s => s[0].toUpperCase() + s.slice(1);
+const DIRS = {
+  stand: { sp: [0, 1, 0], lua: [-0.12, -1, 0], lfa: [-0.05, -1, 0.05], rua: [0.12, -1, 0], rfa: [0.05, -1, 0.05], lth: [-0.04, -1, 0], lsh: [-0.02, -1, 0], rth: [0.04, -1, 0], rsh: [0.02, -1, 0] },
+  scarecrow: { sp: [0, 1, 0], lua: [-1, 0, 0], lfa: [-1, 0.02, 0], rua: [1, 0, 0], rfa: [1, 0.02, 0], lth: [-0.06, -1, 0], lsh: [-0.02, -1, 0], rth: [0.06, -1, 0], rsh: [0.02, -1, 0] },
+  star: { sp: [0, 1, 0], lua: [-0.78, 0.62, 0], lfa: [-0.78, 0.62, 0], rua: [0.78, 0.62, 0], rfa: [0.78, 0.62, 0], lth: [-0.55, -0.84, 0], lsh: [-0.55, -0.84, 0], rth: [0.55, -0.84, 0], rsh: [0.55, -0.84, 0] },
+  reed: { sp: [0, 1, 0], lua: [-0.1, 1, 0], lfa: [0.03, 1, 0], rua: [0.1, 1, 0], rfa: [-0.03, 1, 0], lth: [-0.02, -1, 0], lsh: [0.01, -1, 0], rth: [0.02, -1, 0], rsh: [-0.01, -1, 0] },
+  duck: { sp: [0, 0.75, -0.66], lua: [-0.55, 0.55, -0.62], lfa: [0.75, 0.55, -0.2], rua: [0.55, 0.55, -0.62], rfa: [-0.75, 0.55, -0.2], lth: [-0.42, -0.15, -0.9], lsh: [-0.1, -1, 0.15], rth: [0.42, -0.15, -0.9], rsh: [0.1, -1, 0.15] }
+};
+
+/* ---------- scene ---------- */
+const view = $('view');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+view.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, 1, 0.05, 100);
+const grad = new THREE.DataTexture(new Uint8Array([90, 170, 255]), 3, 1, THREE.RedFormat);
+grad.minFilter = grad.magFilter = THREE.NearestFilter; grad.needsUpdate = true;
+const toon = (c, o = {}) => new THREE.MeshToonMaterial(Object.assign({ color: c, gradientMap: grad }, o));
+scene.add(new THREE.HemisphereLight('#FFF6E5', '#9DB884', 1.1));
+const sun = new THREE.DirectionalLight('#FFF1D6', 1.6); sun.position.set(-6, 10, 4); scene.add(sun);
+const ground = new THREE.Mesh(new THREE.CircleGeometry(4, 48), toon('#E6D8B8')); ground.rotation.x = -Math.PI / 2; scene.add(ground);
+const grid = new THREE.GridHelper(4, 16, '#B9A684', '#CDBFA0'); grid.position.y = 0.002; scene.add(grid);
+
+const orbit = new OrbitControls(camera, renderer.domElement);
+orbit.target.set(0, 0.9, 0); orbit.enableDamping = true; orbit.dampingFactor = 0.12;
+const CAMS = { back: [0, 1.3, 3.6], front: [0, 1.3, -3.6], left: [-3.6, 1.3, 0], right: [3.6, 1.3, 0], game: [0, 3.1, 7.4] };
+function setCam(k) {
+  const p = CAMS[k]; camera.position.set(...p);
+  orbit.target.set(0, k === 'game' ? 1.5 : 0.9, k === 'game' ? -2 : 0);
+  if (k === 'game') { camera.fov = 46; } else camera.fov = 40;
+  camera.updateProjectionMatrix(); orbit.update();
+  document.querySelectorAll('[data-cam]').forEach(b => b.classList.toggle('on', b.dataset.cam === k));
+}
+document.querySelectorAll('[data-cam]').forEach(b => b.onclick = () => setCam(b.dataset.cam));
+
+const tc = new TransformControls(camera, renderer.domElement);
+tc.setSpace('local'); tc.setMode('rotate'); tc.size = 0.75;
+scene.add(tc);
+tc.addEventListener('dragging-changed', e => { orbit.enabled = !e.value; if (e.value) pushUndo(); else { syncSliders(); refreshChanged(); } });
+tc.addEventListener('objectChange', () => syncSliders(true));
+
+/* reference wall opening */
+const refCanvas = document.createElement('canvas'); refCanvas.width = refCanvas.height = 512;
+const refTex = new THREE.CanvasTexture(refCanvas); refTex.colorSpace = THREE.SRGBColorSpace;
+const refPlane = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4), new THREE.MeshBasicMaterial({ map: refTex, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+refPlane.position.set(0, 1.2, -0.7); scene.add(refPlane);
+function drawRef(key) {
+  const g = refCanvas.getContext('2d'); g.clearRect(0, 0, 512, 512);
+  if (!key) { refPlane.visible = false; refTex.needsUpdate = true; return; }
+  refPlane.visible = $('refShow').checked;
+  g.fillStyle = 'rgba(205,191,166,.55)'; g.fillRect(0, 0, 512, 512);
+  const k = 512 / 2.4 * (1.1 / 51.2), p = PS[key], path = new Path2D(p.d);
+  g.save(); g.setTransform(k, 0, 0, k, 256 - 50 * k, 512 - 94 * k);
+  g.globalCompositeOperation = 'destination-out'; g.lineCap = g.lineJoin = 'round';
+  g.lineWidth = 17; g.stroke(path); g.beginPath(); g.arc(p.hx, p.hy, 12, 0, 7); g.fill();
+  g.globalCompositeOperation = 'source-over'; g.strokeStyle = '#2F3F2C'; g.lineWidth = 1.2; g.setLineDash([3, 3]);
+  g.restore();
+  refTex.needsUpdate = true;
+}
+$('refSel').innerHTML = '<option value="">No reference</option>' + POSE_NAMES.map(k => '<option value="' + k + '">' + cap(k) + '</option>').join('');
+$('refSel').onchange = () => drawRef($('refSel').value);
+$('refShow').onchange = () => { refPlane.visible = $('refShow').checked && !!$('refSel').value; };
+
+/* ---------- model ---------- */
+const root = new THREE.Group(); scene.add(root);
+let model, bones = [], byName = {}, rest = [], restHips = null, hips = null, skel = null, keyBones = [], picked = null;
+const short = n => n.replace(/^mixamorig[:_]?/i, '');
+const pair = n => n.includes('Left') ? n.replace('Left', 'Right') : n.includes('Right') ? n.replace('Right', 'Left') : n;
+const GROUPS = [
+  ['Body', ['Hips', 'Spine', 'Spine1', 'Spine2', 'Neck', 'Head']],
+  ['Left arm', ['LeftShoulder', 'LeftArm', 'LeftForeArm', 'LeftHand']],
+  ['Right arm', ['RightShoulder', 'RightArm', 'RightForeArm', 'RightHand']],
+  ['Left leg', ['LeftUpLeg', 'LeftLeg', 'LeftFoot', 'LeftToeBase']],
+  ['Right leg', ['RightUpLeg', 'RightLeg', 'RightFoot', 'RightToeBase']]
+];
+const markerGeo = new THREE.SphereGeometry(1, 14, 10);
+const markers = [];
+const mkMat = c => new THREE.MeshBasicMaterial({ color: c, depthTest: false, transparent: true, opacity: 0.9 });
+const MAT_KEY = mkMat('#F4ECD9'), MAT_SEL = mkMat('#D9553B'), MAT_MINOR = mkMat('#A9C293');
+
+new FBXLoader().load('research/Ch03_nonPBR.fbx', obj => {
+  model = obj;
+  const box = new THREE.Box3().setFromObject(model); const h = box.max.y - box.min.y;
+  model.scale.multiplyScalar(1.7 / h); model.rotation.y = Math.PI;
+  model.traverse(o => {
+    if (o.isMesh) {
+      const conv = m => toon(m.color ? '#' + m.color.getHexString() : '#ffffff', { map: m.map || null, transparent: !!m.transparent, alphaTest: m.alphaTest || 0 });
+      o.material = Array.isArray(o.material) ? o.material.map(conv) : conv(o.material);
+      o.frustumCulled = false;
+    }
+    if (o.isBone) bones.push(o);
+  });
+  root.add(model);
+  bones.forEach(b => byName[b.name] = b);
+  rest = bones.map(b => b.quaternion.clone());
+  hips = bones.find(b => short(b.name) === 'Hips') || bones[0];
+  restHips = hips.position.clone();
+  const keyShort = new Set(GROUPS.flatMap(g => g[1]));
+  keyBones = bones.filter(b => keyShort.has(short(b.name)));
+  skel = new THREE.SkeletonHelper(model); skel.material.depthTest = false; skel.material.transparent = true; skel.material.opacity = 0.55; skel.renderOrder = 998; scene.add(skel);
+  bones.forEach(b => {
+    const isKey = keyShort.has(short(b.name));
+    const m = new THREE.Mesh(markerGeo, isKey ? MAT_KEY : MAT_MINOR); m.renderOrder = 999; m.userData.bone = b; m.userData.key = isKey;
+    m.scale.setScalar(isKey ? 0.028 : 0.012); scene.add(m); markers.push(m);
+  });
+  $('loading').remove();
+  buildBoneList(); renderLib(); setCam('back'); applyDirs('stand'); undoStack.length = 0; refreshChanged();
+}, undefined, e => { $('loading').textContent = 'Could not load research/Ch03_nonPBR.fbx'; console.error(e); });
+
+/* ---------- aim solver (same as game) ---------- */
+const tA = new THREE.Vector3(), tB = new THREE.Vector3(), q1 = new THREE.Quaternion(), q2 = new THREE.Quaternion(), q3 = new THREE.Quaternion();
+const B = s => bones.find(b => short(b.name) === s);
+function aim(bone, child, dir) {
+  if (!bone || !child) return;
+  bone.updateMatrixWorld(true);
+  tA.setFromMatrixPosition(bone.matrixWorld); tB.setFromMatrixPosition(child.matrixWorld);
+  q1.setFromUnitVectors(tB.sub(tA).normalize(), new THREE.Vector3(...dir).normalize());
+  bone.getWorldQuaternion(q2); q1.multiply(q2);
+  bone.parent.getWorldQuaternion(q3); q3.invert().multiply(q1);
+  bone.quaternion.copy(q3); bone.updateMatrixWorld(true);
+}
+function applyDirs(k) {
+  bones.forEach((b, i) => b.quaternion.copy(rest[i])); hips.position.copy(restHips);
+  if (k === 'rest') return;
+  const D = DIRS[k]; root.updateMatrixWorld(true);
+  aim(B('Spine'), B('Neck'), D.sp);
+  aim(B('LeftArm'), B('LeftForeArm'), D.lua); aim(B('LeftForeArm'), B('LeftHand'), D.lfa);
+  aim(B('RightArm'), B('RightForeArm'), D.rua); aim(B('RightForeArm'), B('RightHand'), D.rfa);
+  aim(B('LeftUpLeg'), B('LeftLeg'), D.lth); aim(B('LeftLeg'), B('LeftFoot'), D.lsh);
+  aim(B('RightUpLeg'), B('RightLeg'), D.rth); aim(B('RightLeg'), B('RightFoot'), D.rsh);
+}
+document.querySelectorAll('[data-start]').forEach(b => b.onclick = () => { pushUndo(); applyDirs(b.dataset.start); afterPoseChange(); if (PS[b.dataset.start]) { $('refSel').value = b.dataset.start; drawRef(b.dataset.start); } toast('Started from ' + b.textContent); });
+
+/* ---------- pose snapshot / undo ---------- */
+const snap = () => ({ q: bones.map(b => b.quaternion.toArray()), h: hips.position.toArray() });
+const restore = s => { bones.forEach((b, i) => b.quaternion.fromArray(s.q[i])); hips.position.fromArray(s.h); };
+const undoStack = [], redoStack = [];
+function pushUndo() { if (!bones.length) return; undoStack.push(snap()); if (undoStack.length > 80) undoStack.shift(); redoStack.length = 0; }
+function undo() { if (!undoStack.length) return; redoStack.push(snap()); restore(undoStack.pop()); afterPoseChange(); }
+function redo() { if (!redoStack.length) return; undoStack.push(snap()); restore(redoStack.pop()); afterPoseChange(); }
+$('undoBtn').onclick = undo; $('redoBtn').onclick = redo;
+function afterPoseChange() { syncSliders(); refreshChanged(); }
+
+/* ---------- mirror ---------- */
+const mq = a => [a[0], -a[1], -a[2], a[3]];
+function copySide(from) {
+  pushUndo();
+  bones.forEach(b => { if (!b.name.includes(from)) return; const o = byName[pair(b.name)]; if (o) o.quaternion.fromArray(mq(b.quaternion.toArray())); });
+  afterPoseChange();
+}
+function mirrorAll() {
+  pushUndo(); const s = snap();
+  bones.forEach((b, i) => { const j = bones.indexOf(byName[pair(b.name)]); b.quaternion.fromArray(mq(s.q[j >= 0 ? j : i])); });
+  hips.position.x = -hips.position.x;
+  afterPoseChange();
+}
+$('mirLR').onclick = () => copySide('Left'); $('mirRL').onclick = () => copySide('Right'); $('mirAll').onclick = mirrorAll;
+
+/* ---------- selection ---------- */
+function select(b) {
+  picked = b;
+  if (b) tc.attach(b); else tc.detach();
+  if (b && tc.mode === 'translate' && b !== hips) setMode('rotate');
+  markers.forEach(m => m.material = m.userData.bone === b ? MAT_SEL : m.userData.key ? MAT_KEY : MAT_MINOR);
+  $('sel').textContent = b ? short(b.name) : 'Pick a joint';
+  document.querySelectorAll('.bone').forEach(el => el.classList.toggle('on', b && el.dataset.b === b.name));
+  syncSliders();
+}
+function setMode(m) {
+  if (m === 'translate' && picked !== hips) select(hips);
+  tc.setMode(m); tc.setSpace(m === 'translate' ? 'world' : 'local');
+  $('modeRot').classList.toggle('on', m === 'rotate'); $('modeMove').classList.toggle('on', m === 'translate');
+}
+$('modeRot').onclick = () => setMode('rotate'); $('modeMove').onclick = () => setMode('translate');
+
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let down = null;
+renderer.domElement.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY, axis: tc.axis }; });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!down || down.axis || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5) { down = null; return; }
+  down = null;
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const vis = markers.filter(m => m.visible);
+  let best = null, bd = Infinity;
+  vis.forEach(m => { const d = ray.ray.distanceToPoint(m.position); const lim = m.userData.key ? 0.06 : 0.025; if (d < lim && d < bd) { bd = d; best = m; } });
+  if (best) select(best.userData.bone);
+});
+
+/* ---------- bone list ---------- */
+function buildBoneList() {
+  const all = $('optAll').checked, used = new Set();
+  let html = '';
+  GROUPS.forEach(([g, list]) => {
+    const items = list.map(s => bones.find(b => short(b.name) === s)).filter(Boolean);
+    items.forEach(b => used.add(b));
+    html += '<div class="grp"><h3>' + g + '</h3>' + items.map(b => '<button class="bone" data-b="' + b.name + '"><span>' + short(b.name).replace(/^(Left|Right)/, '') + '</span><i></i></button>').join('') + '</div>';
+  });
+  if (all) { const rest = bones.filter(b => !used.has(b)); html += '<div class="grp"><h3>Everything else</h3>' + rest.map(b => '<button class="bone" data-b="' + b.name + '"><span>' + short(b.name) + '</span><i></i></button>').join('') + '</div>'; }
+  $('bones').innerHTML = html;
+  $('bones').querySelectorAll('.bone').forEach(el => el.onclick = () => select(byName[el.dataset.b]));
+  markers.forEach(m => m.visible = m.userData.key || all);
+  select(picked); refreshChanged();
+}
+$('optAll').onchange = buildBoneList;
+$('optSkel').onchange = () => { if (skel) skel.visible = $('optSkel').checked; };
+function refreshChanged() {
+  document.querySelectorAll('.bone').forEach(el => { const b = byName[el.dataset.b], i = bones.indexOf(b); el.classList.toggle('chg', i >= 0 && b.quaternion.angleTo(rest[i]) > 0.01); });
+}
+
+/* ---------- sliders ---------- */
+const ax = ['x', 'y', 'z'], toD = r => Math.round(r * 180 / Math.PI);
+let sliding = false;
+function syncSliders(live) {
+  ax.forEach(a => { const s = $('r' + a), o = $('o' + a); const v = picked ? toD(picked.rotation[a]) : 0; if (!sliding || live) s.value = v; o.textContent = v + '°'; s.disabled = !picked; });
+}
+ax.forEach(a => {
+  const s = $('r' + a);
+  s.addEventListener('pointerdown', () => { if (picked) { pushUndo(); sliding = true; } });
+  s.addEventListener('input', () => { if (!picked) return; picked.rotation[a] = +s.value * Math.PI / 180; $('o' + a).textContent = s.value + '°'; refreshChanged(); });
+  s.addEventListener('change', () => { sliding = false; });
+});
+$('resetBone').onclick = () => { if (!picked) return; pushUndo(); picked.quaternion.copy(rest[bones.indexOf(picked)]); if (picked === hips) hips.position.copy(restHips); afterPoseChange(); };
+$('resetAll').onclick = () => { pushUndo(); applyDirs('rest'); afterPoseChange(); };
+
+/* ---------- library ---------- */
+const KEY = 'wind-wall-poses-v1';
+let lib = []; try { lib = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { lib = []; }
+let current = null;
+const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(lib)); } catch (e) { toast('Could not save to this browser'); } };
+const r5 = v => Math.round(v * 1e5) / 1e5;
+function capture(name) {
+  const out = {};
+  bones.forEach((b, i) => { if (b.quaternion.angleTo(rest[i]) > 1e-4) out[b.name] = b.quaternion.toArray().map(r5); });
+  return { id: current && current.id && name === undefined ? current.id : 'p' + Date.now().toString(36), name: name || 'Untitled', forPose: $('refSel').value || null, bones: out, hips: hips.position.toArray().map(r5), updated: new Date().toISOString() };
+}
+function applyPose(p) {
+  pushUndo();
+  bones.forEach((b, i) => b.quaternion.copy(rest[i])); hips.position.copy(restHips);
+  for (const n in p.bones) if (byName[n]) byName[n].quaternion.fromArray(p.bones[n]);
+  if (p.hips) hips.position.fromArray(p.hips);
+  if (p.forPose) { $('refSel').value = p.forPose; drawRef(p.forPose); }
+  afterPoseChange();
+}
+function renderLib() {
+  $('saveUpd').disabled = !current;
+  if (!lib.length) { $('lib').innerHTML = '<div class="empty">No keyframes yet. Shape Wren, name the pose, then press Save new.</div>'; return; }
+  $('lib').innerHTML = lib.map(p => '<div class="pose' + (current && current.id === p.id ? ' on' : '') + '"><button class="nm" data-load="' + p.id + '">' + p.name.replace(/</g, '&lt;') + '<small>' + (p.forPose ? cap(p.forPose) + ' · ' : '') + Object.keys(p.bones).length + ' joints</small></button><button class="b sm" data-dup="' + p.id + '" title="Duplicate">⧉</button><button class="b sm" data-del="' + p.id + '" title="Delete">✕</button></div>').join('');
+  $('lib').querySelectorAll('[data-load]').forEach(b => b.onclick = () => { current = lib.find(p => p.id === b.dataset.load); applyPose(current); $('poseName').value = current.name; renderLib(); });
+  $('lib').querySelectorAll('[data-dup]').forEach(b => b.onclick = () => { const p = lib.find(p => p.id === b.dataset.dup); const c = JSON.parse(JSON.stringify(p)); c.id = 'p' + Date.now().toString(36); c.name = p.name + ' copy'; lib.splice(lib.indexOf(p) + 1, 0, c); persist(); renderLib(); });
+  $('lib').querySelectorAll('[data-del]').forEach(b => b.onclick = () => { const p = lib.find(p => p.id === b.dataset.del); if (!confirm('Delete "' + p.name + '"?')) return; lib = lib.filter(x => x !== p); if (current === p) current = null; persist(); renderLib(); });
+}
+$('saveNew').onclick = () => { const n = $('poseName').value.trim() || ($('refSel').value ? cap($('refSel').value) : 'Pose ' + (lib.length + 1)); current = null; const p = capture(n); lib.push(p); current = p; persist(); renderLib(); toast('Saved "' + n + '"'); };
+$('saveUpd').onclick = () => { if (!current) return; const n = $('poseName').value.trim() || current.name; const p = capture(n); p.id = current.id; lib[lib.indexOf(current)] = p; current = p; persist(); renderLib(); toast('Updated "' + n + '"'); };
+
+const exportJSON = () => JSON.stringify({ version: 1, model: 'research/Ch03_nonPBR.fbx', space: 'bone-local quaternions [x,y,z,w]; bones not listed stay at rest', poses: lib }, null, 1);
+$('exportBtn').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([exportJSON()], { type: 'application/json' })); a.download = 'wren-poses.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); };
+$('copyBtn').onclick = async () => { try { await navigator.clipboard.writeText(exportJSON()); toast('Copied ' + lib.length + ' keyframes'); } catch (e) { toast('Copy blocked, use Download'); } };
+$('importBtn').onclick = () => $('importFile').click();
+$('importFile').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try { const d = JSON.parse(await f.text()); const arr = Array.isArray(d) ? d : d.poses; let n = 0; arr.forEach(p => { if (!p.bones) return; const i = lib.findIndex(x => x.id === p.id); if (i >= 0) lib[i] = p; else lib.push(p); n++; }); persist(); renderLib(); toast('Imported ' + n + ' keyframes'); }
+  catch (err) { toast('That file is not a pose file'); }
+  e.target.value = '';
+};
+
+/* ---------- keys ---------- */
+window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'range' && e.target.type !== 'checkbox') return;
+  const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if ((e.ctrlKey || e.metaKey) && k === 'y') { e.preventDefault(); redo(); return; }
+  if (k === 'r') setMode('rotate');
+  if (k === 'g') setMode('translate');
+  if (k === 'm') mirrorAll();
+  if (k === 'escape') select(null);
+});
+
+/* ---------- loop ---------- */
+const v = new THREE.Vector3();
+function frame() {
+  requestAnimationFrame(frame);
+  if (model) {
+    root.position.y = 0; root.updateMatrixWorld(true);
+    if ($('optGround').checked) {
+      let minY = Infinity;
+      ['LeftFoot', 'RightFoot', 'LeftToeBase', 'RightToeBase', 'LeftHand', 'RightHand', 'LeftLeg', 'RightLeg'].forEach(s => { const b = B(s); if (!b) return; v.setFromMatrixPosition(b.matrixWorld); minY = Math.min(minY, v.y); });
+      root.position.y = -minY + 0.06; root.updateMatrixWorld(true);
+    }
+    markers.forEach(m => m.position.setFromMatrixPosition(m.userData.bone.matrixWorld));
+  }
+  orbit.update();
+  renderer.render(scene, camera);
+}
+function resize() { const r = view.getBoundingClientRect(); renderer.setSize(r.width, r.height, false); camera.aspect = r.width / Math.max(1, r.height); camera.updateProjectionMatrix(); }
+new ResizeObserver(resize).observe(view); resize();
+setCam('back'); frame();
+</script>
+</body>
+</html>
