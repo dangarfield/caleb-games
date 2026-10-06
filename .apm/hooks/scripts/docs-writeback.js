@@ -25,7 +25,7 @@ const gamesTouched = new Set();
 const docsTouched = new Set();
 for (const f of files) {
   const g = f.match(/^games\/([^/]+)\//);
-  if (g) gamesTouched.add(g[1]);
+  if (g && !g[1].startsWith('_')) gamesTouched.add(g[1]); // games/_shared is not a game
   const d = f.match(/^docs\/game-(.+)\.md$/);
   if (d) docsTouched.add(d[1]);
 }

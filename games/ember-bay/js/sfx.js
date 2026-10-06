@@ -42,7 +42,7 @@ function loadSamples() {
   if (loading) return loading;
   const c = ac();
   loading = Promise.all(Object.entries(FILES).map(async ([k, f]) => {
-    try { const ab = await (await fetch('audio/sfx/' + f + '.mp3')).arrayBuffer(); bufs[k] = await new Promise((res, rej) => c.decodeAudioData(ab, res, rej)); }
+    try { const ab = await (await fetch('../_shared/audio/sfx/' + f + '.mp3')).arrayBuffer(); bufs[k] = await new Promise((res, rej) => c.decodeAudioData(ab, res, rej)); }
     catch (e) { console.warn('sfx ' + k + ' did not load', e); }
   }));
   return loading;

@@ -6,7 +6,7 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { loadPeople } from './city-assets.js';
 
 export async function createCrew(getCanvases, ids = ['person_casual_male', 'person_casual2_male'], opts = {}) {
-  const P = await loadPeople('./assets/', ids);
+  const P = await loadPeople('../_shared/assets/', ids);
   const gl = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
   gl.outputColorSpace = THREE.SRGBColorSpace; gl.setClearColor(0x000000, 0);
   const rigs = ids.map(id => {

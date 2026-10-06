@@ -6,6 +6,12 @@ Review periodically — memory drifts. Newest at the top.
 
 ---
 
+## 2026-10-06 — Assets used by more than one game live in `games/_shared/`
+Kaiju Pothole is built from Ember Bay's converted model library, so `games/ember-bay/assets/` and `audio/sfx/` moved to
+`games/_shared/assets/` and `games/_shared/audio/sfx/` and both games load them from `../_shared/`. One copy, ~40 MB, no
+game reaching into another game's folder. `games/_*` folders are not games: `scripts/build-index.mjs` and the
+`docs-writeback` hook skip them. A game's own files (its theme, its own sounds) stay in its own folder.
+
 ## 2026-10-05 — Music and sound effects may come from Uppbeat
 Dan may supply music and sound effects downloaded from uppbeat.io as well as his own masters. They ship as local
 files in the game folder (music Opus/WebM 48k, SFX Opus/WebM mono 64k), with the originals and Uppbeat's credit

@@ -1,5 +1,5 @@
 // Ember Bay: slim the town model packs (run once after the packs or the town layout change).
-//   cd games/ember-bay/tools && npm install && node slim-packs.mjs ../assets keep-models.json
+//   cd games/ember-bay/tools && npm install && node slim-packs.mjs ../../_shared/assets keep-models.json
 // 1. Drops every model that is never used. keep-models.json lists the ids to keep: everything the town
 //    generator places (seed 1333) + every id the minigames load (found by running all 66 levels) + every
 //    id quoted in js/*.js. The *.json indexes are left untouched, so the generator's indices still line up;
@@ -8,7 +8,7 @@
 //    weld on position+uv, meshoptimizer simplify to 30% with locked borders (palette UVs don't bleed),
 //    keep only if it saves >15%, then re-facet (flat normals).
 // Output overwrites <assets>/{city,extra}-*.glb.gz. ALWAYS start from the originals (copy
-// research/Firefighter minigames for threejs/assets/{city,extra}-*.glb.gz into ../assets first): running it on
+// research/Firefighter minigames for threejs/assets/{city,extra}-*.glb.gz into ../../_shared/assets first): running it on
 // already-slimmed packs would simplify the heavy meshes a second time.
 import fs from 'node:fs';
 import zlib from 'node:zlib';

@@ -36,7 +36,7 @@ difficulty step. There are no timers.
 
 ## Sound
 
-- **SFX** (`js/sfx.js`): recorded samples in `audio/sfx/` (mono 64k mp3 made from Dan's files in `research/interiors/sounds/`, decoded once on the first tap; 1.5 MB):
+- **SFX** (`js/sfx.js`): recorded samples in `../_shared/audio/sfx/` (mono 64k mp3 made from Dan's files in `research/interiors/sounds/`, decoded once on the first tap; 1.5 MB):
   - **Driving:** **engine** (plays from the top when you move off, then loops 0:11–0:48 while you keep driving, pitch follows speed, fades when you stop), **reverse** beeper (while reversing), **bump** (hitting a building, a car, the sea edge or a mountain; louder when faster), **siren** (loops while on), **horn** (sustains while held, tapers off on release).
   - **Minigames:** **water** (while a hose sprays), **fire** (crackle while flames burn), **steam** (each flame going out), vehicle loops **rotors** (Heli Bucket), **drone** (Drone Drop) and **boat** (River Rescue) while the game runs. Each rescue game has its own "good" sound: Catch! **boing** (pig lands on the cushion) plus an **oink** when a pig appears at a window, Cat Rescue **meow** (at the start and when you grab the cat), Torch Hunt and Pet Parade **chick** cheeps.
   - **Progress and UI:** **waypoint-reached** (pulling into a task ring, finishing a level), **waypoint-started** (Go, picking a firefighter, Set target / Go there), **achievement** (badge, rank up, all done), **fail** (Nearly!), **radio** walkie-talkie (each Chief Ember line, Dispatch start), **tap** (UI buttons).
@@ -57,7 +57,7 @@ difficulty step. There are no timers.
 - `js/city-peds.js`, `js/city-markers.js`, `js/home-crew.js`: pedestrians, task markers, home crew portraits.
 - `js/mg-kit.js`, `js/minigames.js` (+ `minigames2.js`, `minigames3.js`, `mgc1.js`, `mgc2.js`), `js/minigames-meta.js`: the minigames.
 - `js/arcade-store.js`: an unmodified copy of `games/dragonseed/js/store.js`.
-- `assets/`: about 39 MB of converted packs. `city-{buildings,ground,vehicles,props,nature}.glb.gz` + `city-assets-index.json` + `city-palette-1024.jpg` (LowPoly City), `city-templates.json` (lot templates), `extra-*.glb.gz` + `.json` (SimplePoly City, Rgsdev vehicles, FBX building pack, cartoon cars, boats, helicopter/drone, the Blaze kit), `people/` (24 street characters, Quaternius), `animals/`, `interiors/` (9 rooms), `hazards/` (15).
+- `../_shared/assets/` (was `assets/`, moved 2026-10-06 so Kaiju Pothole uses the same copy): about 39 MB of converted packs. `city-{buildings,ground,vehicles,props,nature}.glb.gz` + `city-assets-index.json` + `city-palette-1024.jpg` (LowPoly City), `city-templates.json` (lot templates), `extra-*.glb.gz` + `.json` (SimplePoly City, Rgsdev vehicles, FBX building pack, cartoon cars, boats, helicopter/drone, the Blaze kit), `people/` (24 street characters, Quaternius), `animals/`, `interiors/` (9 rooms), `hazards/` (15).
 - `tools/slim-packs.mjs` (+ `package.json`, `keep-models.json`): strips never-used models from the town packs and pre-simplifies heavy meshes (what used to run at load). Start from the original packs in the design folder; see the file header.
 - `tools/`: dev-only converters from the design (`fbx-convert.js`, `kit-models.js`, `simplify-room.js`, `hazards-gen.js`, `chick-gen.js`) and `dc-to-view.mjs`.
 
@@ -94,3 +94,4 @@ The design's old `localStorage['blaze-emberbay-save-v1']` is migrated once into 
 - 2026-10-03: All sound effects halved relative to the music (`SFX_LEVEL = 0.5` on the sfx master in `js/sfx.js`).
 - 2026-10-03: Chief Ember's story portrait is now a live 3D character (Cowboy_Male, head and shoulders).
 - 2026-10-03: Default levels are now Music 80, Sound 20 (players with a save keep their own settings).
+- 2026-10-06: `assets/` and `audio/sfx/` moved to `games/_shared/` (shared with Kaiju Pothole); every `'./assets/'` / `'audio/sfx/'` path now points at `../_shared/`. `audio/ember-bay-theme.webm` stays here.

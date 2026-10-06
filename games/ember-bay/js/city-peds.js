@@ -15,9 +15,9 @@ export async function createPedestrians(c, root, { count = 45, near = null, off,
   }
   const segs = (c.segs || []).filter(s => !s.bridge && s.L > 30);
   if (!segs.length) return null;
-  const list = (await (await fetch('./assets/people/index.json')).json()).filter(e => e.street).map(e => e.id);
+  const list = (await (await fetch('../_shared/assets/people/index.json')).json()).filter(e => e.street).map(e => e.id);
   const pick = [...list].sort(() => rnd() - 0.5).slice(0, 12);
-  const lib = await loadPeople('./assets/', pick);
+  const lib = await loadPeople('../_shared/assets/', pick);
   const W = (x, z) => new THREE.Vector3(x - off.x, Y0, z - off.z);
   const corner = (n, qx, qz) => W(n.x + qx * O, n.z + qz * O);
   const peds = [];

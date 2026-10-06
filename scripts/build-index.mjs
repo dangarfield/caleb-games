@@ -130,6 +130,7 @@ const gamesDir = join(ROOT, 'games');
 const cards = [], errors = [], warnings = [];
 for (const d of readdirSync(gamesDir, { withFileTypes: true })) {
   if (!d.isDirectory()) continue;
+  if (d.name.startsWith('_')) continue; // games/_shared etc: assets used by several games, not a game
   const file = join(gamesDir, d.name, 'card.json');
   if (!existsSync(file) && readdirSync(join(gamesDir, d.name)).length === 0) continue; // empty placeholder folder
   if (!existsSync(file)) { warnings.push(`games/${d.name}: no card.json, so it isn't on the home page`); continue; }

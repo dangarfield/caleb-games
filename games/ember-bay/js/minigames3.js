@@ -163,7 +163,7 @@ B3.race = async (S, ctx) => {
 // ---------- Heat Seeker: thermal camera through the walls ----------
 B3.heat = async (S, ctx) => {
   const L = ctx.level, batt = [20, 15, 12][L];
-  const id = ['room_kitchen', 'room_office', 'room_dining'][L], P = await loadPack('interiors', './assets/', [id]), r = P.get(id).clone(true); S.scene.add(r);
+  const id = ['room_kitchen', 'room_office', 'room_dining'][L], P = await loadPack('interiors', '../_shared/assets/', [id]), r = P.get(id).clone(true); S.scene.add(r);
   const bb = new THREE.Box3().setFromObject(r), c = bb.getCenter(new THREE.Vector3()), sz = bb.getSize(new THREE.Vector3());
   S.camera.position.set(c.x + sz.x * 0.2, 7.5, c.z + sz.z * 1.05); S.camera.lookAt(c.x, 0.6, c.z);
   S.scene.fog = new THREE.FogExp2('#7a7b78', 0.12); S.scene.background = new THREE.Color('#6d6e6b');

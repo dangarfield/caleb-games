@@ -18,7 +18,7 @@ const bar = '<span style="width:1px;height:28px;background:#3b3c3f"></span>';
 const tree = (h = 6) => { const g = new THREE.Group(); g.add(at(cyl(0.35, 0.5, h, '#7a5a3a', 10), 0, h / 2, 0)); [[0, h + 0.6, 0, 2.2], [1.3, h - 0.3, 0.3, 1.6], [-1.2, h - 0.2, -0.3, 1.7], [0.2, h - 0.8, 1.1, 1.4]].forEach(([x, y, z, r]) => g.add(at(sph(r, '#4f8a3a', 10), x, y, z))); return g; };
 const kitty = () => { const g = new THREE.Group(), o = '#e8923a'; g.add(at(sph(0.28, o), 0, 0.28, 0), at(sph(0.2, o), 0, 0.5, 0.22), at(new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.14, 4), mat(o)), 0.1, 0.68, 0.22), at(new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.14, 4), mat(o)), -0.1, 0.68, 0.22)); const t = at(cyl(0.04, 0.04, 0.5, o, 6), 0, 0.35, -0.3); t.rotation.x = -0.8; g.add(t); return g; };
 async function room(S, id) {
-  const P = await loadPack('interiors', './assets/', [id]); const r = P.get(id).clone(true); S.scene.add(r);
+  const P = await loadPack('interiors', '../_shared/assets/', [id]); const r = P.get(id).clone(true); S.scene.add(r);
   const bb = new THREE.Box3().setFromObject(r), c = bb.getCenter(new THREE.Vector3()), sz = bb.getSize(new THREE.Vector3()), ray = new THREE.Raycaster();
   c.y = bb.min.y + 2.55; r.updateMatrixWorld(true);
   const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]], walls = dirs.filter(([x, z]) => { ray.set(c, new THREE.Vector3(x, 0, z)); ray.far = Math.max(sz.x, sz.z); const h = ray.intersectObject(r, true)[0]; return h && h.distance > (x ? sz.x : sz.z) * 0.3; });
@@ -215,7 +215,7 @@ B2.smoke = async (S, ctx) => {
     m.userData.win = true; S.scene.add(m); wins.push(m);
   }
   const friend = new THREE.Group(); friend.userData.friend = true; let fmx = null;
-  try { const { loadPeople } = await import('./city-assets.js'), SU = await import('three/addons/utils/SkeletonUtils.js'), P = await loadPeople('./assets/', ['person_casual2_female']), src = P.get('person_casual2_female'); const o = SU.clone(src.scene); fmx = new THREE.AnimationMixer(o); const c = src.clips.find(k => /wave/i.test(k.name)) || src.clips.find(k => k.name === 'Idle') || src.clips[0]; if (c) fmx.clipAction(c).play(); friend.add(o); } catch (e) { friend.add(at(cyl(0.18, 0.2, 0.7, C.blue, 10), 0, 0.35, 0), at(sph(0.17, '#e8c39e'), 0, 0.85, 0)); }
+  try { const { loadPeople } = await import('./city-assets.js'), SU = await import('three/addons/utils/SkeletonUtils.js'), P = await loadPeople('../_shared/assets/', ['person_casual2_female']), src = P.get('person_casual2_female'); const o = SU.clone(src.scene); fmx = new THREE.AnimationMixer(o); const c = src.clips.find(k => /wave/i.test(k.name)) || src.clips.find(k => k.name === 'Idle') || src.clips[0]; if (c) fmx.clipAction(c).play(); friend.add(o); } catch (e) { friend.add(at(cyl(0.18, 0.2, 0.7, C.blue, 10), 0, 0.35, 0), at(sph(0.17, '#e8c39e'), 0, 0.85, 0)); }
   const fs = spotsOn(r, bb, S.camera, 1, { maxY: 0.15, size: 0.3, lift: 1 })[0]; friend.position.copy(fs || new THREE.Vector3(bb.min.x + sx * 0.4, bb.min.y, bb.min.z + sz * 0.35)); friend.lookAt(S.camera.position.x, friend.position.y, S.camera.position.z); S.scene.add(friend);
   const ring = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.55, 32), new THREE.MeshBasicMaterial({ color: C.hv, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, fog: false })); ring.rotation.x = -Math.PI / 2; ring.position.copy(friend.position).add(new THREE.Vector3(0, 0.03, 0)); S.scene.add(ring);
   let open = 0, dens = 0.3, found = false;
@@ -241,7 +241,7 @@ B2.smoke = async (S, ctx) => {
 B2.hazard = async (S, ctx) => {
   const L = ctx.level, need = [5, 6, 7][L];
   const IDS = ['hazard_overloaded_socket', 'hazard_candle_curtain', 'hazard_iron_left_on', 'hazard_heater_towel', 'hazard_cigarette_sofa', 'hazard_extension_daisy', 'hazard_alarm_no_battery', 'hazard_ebike_battery', 'hazard_frayed_cable', 'hazard_clutter', 'hazard_gas_cylinder'].sort(() => Math.random() - 0.5).slice(0, need);
-  const [{ r, bb, view }, P] = await Promise.all([room(S, ['room_yellow_lounge', 'room_kitchen_diner', 'room_brown_lounge'][L]), loadPack('hazards', './assets/', IDS)]);
+  const [{ r, bb, view }, P] = await Promise.all([room(S, ['room_yellow_lounge', 'room_kitchen_diner', 'room_brown_lounge'][L]), loadPack('hazards', '../_shared/assets/', IDS)]);
   view(S.camera, 0.85, 3.4, 0.7); S.camera.updateMatrixWorld();
   const spots = spotsOn(r, bb, S.camera, need * 4, { minSep: 1.1, size: 0.3, lift: 0.3 }), meshes = []; r.traverse(o => o.isMesh && meshes.push(o));
   const ray = new THREE.Raycaster(), hz = [];

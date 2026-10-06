@@ -16,7 +16,7 @@ async function gunzip(url) {
   return new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
 }
 
-export function loadCityAssets(base = './assets/') {
+export function loadCityAssets(base = '../_shared/assets/') {
   if (cache) return cache;
   cache = (async () => {
     const tex = await new THREE.TextureLoader().loadAsync(base + 'city-palette-1024.jpg');
@@ -58,7 +58,7 @@ export function partsOf(m) {
 
 // Animated animals (skinned, own files). Returns { list, get(id) → { scene, clips } } ; clone per placement with SkeletonUtils.
 let animalCache = null;
-export function loadAnimals(base = './assets/') {
+export function loadAnimals(base = '../_shared/assets/') {
   if (animalCache) return animalCache;
   animalCache = (async () => {
     const list = await (await fetch(base + 'animals/index.json')).json();
@@ -72,7 +72,7 @@ export function loadAnimals(base = './assets/') {
 // Animated people — skinned bounds normalised via index fix {s,x,y,z}: feet at y=0, centred, 1.75 m tall. (Quaternius Ultimate Animated Characters). Same shape as loadAnimals; 1.75 m tall, clips Idle/Walk/Run/Jump/Roll/…
 // entry.street = suitable as a pedestrian (casual, suits, workers, doctors, chefs…). Loaded on demand: pass ids to load a subset.
 const peopleCache = {};
-export async function loadPeople(base = './assets/', ids) {
+export async function loadPeople(base = '../_shared/assets/', ids) {
   const list = await (await fetch(base + 'people/index.json')).json();
   const want = ids ? list.filter(e => ids.includes(e.id)) : list, loader = new GLTFLoader();
   await Promise.all(want.map(async e => { if (peopleCache[e.id]) return; peopleCache[e.id] = loader.parseAsync(await gunzip(base + e.file), '').then(g => { g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; for (const m of [].concat(o.material)) { m.metalness = 0; m.roughness = Math.max(0.6, m.roughness ?? 1); if (/skin/i.test(m.name || '') && m.color) { const FIX = { person_casual_male: '#f2cfb3', person_casual2_male: '#f2cfb3' }, T = ['#f6d7c3', '#eec3a3', '#e0ac85', '#c98f63', '#a86f48', '#8a5636', '#6b3f27', '#4e2d1c']; let hsh = 0; for (const ch of e.id) hsh = (hsh * 31 + ch.charCodeAt(0)) | 0; m.color.set(FIX[e.id] || T[Math.abs(hsh) % T.length]); } } } }); mergeSkinned(g.scene); const f = e.fix; if (f) { g.scene.scale.multiplyScalar(f.s); g.scene.position.set(f.x, f.y, f.z); } const scene = new THREE.Group(); scene.name = e.id; scene.add(g.scene); return { scene, clips: g.animations }; }); }));
@@ -82,7 +82,7 @@ export async function loadPeople(base = './assets/', ids) {
 
 // Static packs: 'interiors' (9 cut-away rooms: 3 lounges, 2 kitchens, dining, 2 bedrooms, office; 2.9 m walls, 3.6–6.9 m square) and 'hazards' (15 home fire-safety props, built by hazards-gen.js).
 const packCache = {};
-export async function loadPack(dir, base = './assets/', ids) {
+export async function loadPack(dir, base = '../_shared/assets/', ids) {
   const list = await (await fetch(base + dir + '/index.json')).json();
   const want = ids ? list.filter(e => ids.includes(e.id)) : list, loader = new GLTFLoader();
   await Promise.all(want.map(async e => { if (packCache[e.id]) return; packCache[e.id] = loader.parseAsync(await gunzip(base + e.file), '').then(g => { g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); g.scene.name = e.id; return g.scene; }); }));

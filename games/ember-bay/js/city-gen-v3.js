@@ -572,7 +572,7 @@ export function generate(seed, data) {
   };
 }
 
-export async function loadGenData(base = './assets/') {
+export async function loadGenData(base = '../_shared/assets/') {
   const [t, index, ...extra] = await Promise.all([fetch(base + 'city-templates.json').then(r => r.json()), fetch(base + 'city-assets-index.json').then(r => r.json()),
     ...['buildings', 'vehicles', 'props', 'vehicles2', 'air', 'kit'].map(c => fetch(base + 'extra-' + c + '.json').then(r => (r.ok ? r.json() : [])).catch(() => []))]);
   const ids = t.ids.slice(), idx = index.map(e => ({ ...e, src: 'lowpoly' }));
