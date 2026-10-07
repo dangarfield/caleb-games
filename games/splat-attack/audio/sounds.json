@@ -1,0 +1,275 @@
+{
+  "_readme": "Splat Attack! audio manifest. Files live in audio/music and audio/sfx (Opus WebM). 'vol' is 0-1 and is multiplied by the Music or Sounds slider (default 80%). More than one file under 'files' = one picked at random. 'pitch' = random pitch spread (0.1 = +/-10%). 'hold' sounds loop only while the game keeps asking for them. 'gap' = minimum ms between repeats. Missing files are skipped. Music: menu + one track per map, crossfaded. Each sound is reused for every event in its note. See docs/game-splat-attack.md (Sound).",
+  "music": {
+    "_fade": {
+      "crossfade": 1.5,
+      "duckDuringPause": 0.4
+    },
+    "menu": {
+      "label": "Menu",
+      "files": [
+        "music/menu.webm"
+      ],
+      "vol": 0.6,
+      "loop": true,
+      "note": "Title, setup steps, power-ups page. Results keep the map track; Menu switches back"
+    },
+    "park": {
+      "label": "Playground",
+      "files": [
+        "music/park.webm"
+      ],
+      "vol": 0.6,
+      "loop": true,
+      "note": "Every mode on Playground"
+    },
+    "kitchen": {
+      "label": "Kitchen",
+      "files": [
+        "music/kitchen.webm"
+      ],
+      "vol": 0.6,
+      "loop": true,
+      "note": "Every mode on Kitchen"
+    },
+    "moon": {
+      "label": "Moon Base",
+      "files": [
+        "music/moon.webm"
+      ],
+      "vol": 0.6,
+      "loop": true,
+      "note": "Every mode on Moon Base"
+    },
+    "castle": {
+      "label": "Castle",
+      "files": [
+        "music/castle.webm"
+      ],
+      "vol": 0.6,
+      "loop": true,
+      "note": "Every mode on Castle"
+    },
+    "snow": {
+      "label": "Snow Pillars",
+      "files": [
+        "music/snow.webm"
+      ],
+      "vol": 0.6,
+      "loop": true,
+      "note": "Every mode on Snow Pillars"
+    },
+    "skate": {
+      "label": "Skate Park",
+      "files": [
+        "music/skate.webm"
+      ],
+      "vol": 0.6,
+      "loop": true,
+      "note": "Every mode on Skate Park"
+    }
+  },
+  "sfx": {
+    "tap": {
+      "group": "Menus",
+      "files": [
+        "sfx/tap.webm"
+      ],
+      "vol": 0.7,
+      "pitch": 0,
+      "note": "Every button, toggle, slider and switch. Buddy orders"
+    },
+    "splash": {
+      "group": "Menus",
+      "files": [
+        "sfx/splash.webm",
+        "sfx/splash_2.webm"
+      ],
+      "vol": 0.79,
+      "pitch": 0,
+      "note": "Confirm + screen transition: Caleb / Ezra, game, map, level, Surprise me, Menu, Play again"
+    },
+    "notify": {
+      "group": "Menus",
+      "files": [
+        "sfx/notify.webm"
+      ],
+      "vol": 0.78,
+      "note": "Notification pill, pause and how-to-play (skipped if another sound just played)"
+    },
+    "pip": {
+      "group": "Match",
+      "files": [
+        "sfx/pip.webm"
+      ],
+      "vol": 0.67,
+      "note": "3, 2, 1 and each of the last 10 seconds"
+    },
+    "go": {
+      "group": "Match",
+      "files": [
+        "sfx/go.webm"
+      ],
+      "vol": 0.68,
+      "note": "GO! (the last pip of the countdown)"
+    },
+    "whistle": {
+      "group": "Match",
+      "files": [
+        "sfx/go.webm"
+      ],
+      "vol": 0.69,
+      "pitch": 0,
+      "note": "Match ends. Uses the GO pip until a whistle file is added"
+    },
+    "cheer": {
+      "group": "Match",
+      "files": [
+        "sfx/cheer.webm"
+      ],
+      "vol": 0.41,
+      "note": "You win, and New best! on results"
+    },
+    "shoot": {
+      "group": "Painter",
+      "files": [
+        "sfx/shoot.webm"
+      ],
+      "vol": 0.45,
+      "pitch": 0.1,
+      "note": "Loops only while you are shooting. The nearest other painter shooting within 9 units also plays, quieter",
+      "hold": true
+    },
+    "splat": {
+      "group": "Painter",
+      "files": [
+        "sfx/splat.webm"
+      ],
+      "vol": 0.45,
+      "pitch": 0.3,
+      "gap": 60,
+      "note": "Paint hits a wall, a painter (you getting hit too), goo or an ice tower. Not floor landings. Paint Bomb plays it big and low"
+    },
+    "pop": {
+      "group": "Painter",
+      "files": [
+        "sfx/pop.webm"
+      ],
+      "vol": 0.33,
+      "pitch": 0.18,
+      "note": "Anyone splatted, goo popped, respawn pop-in"
+    },
+    "empty": {
+      "group": "Painter",
+      "files": [
+        "sfx/empty.webm"
+      ],
+      "vol": 0.77,
+      "hold": true,
+      "note": "Plays only while you keep trying to shoot with no paint (11s file, stops when you let go)"
+    },
+    "refill": {
+      "group": "Painter",
+      "files": [
+        "sfx/refill.webm"
+      ],
+      "vol": 0.2,
+      "hold": true,
+      "note": "Refilling on your colour or base"
+    },
+    "boing": {
+      "group": "Painter",
+      "files": [
+        "sfx/boing.webm"
+      ],
+      "vol": 0.86,
+      "pitch": 0.12,
+      "note": "See-saw, sink boingers, kickers, catapults"
+    },
+    "whoosh": {
+      "group": "Painter",
+      "files": [
+        "sfx/whoosh.webm"
+      ],
+      "vol": 1,
+      "pitch": 0.1,
+      "note": "Jet pads, half-pipe ride, roller dash"
+    },
+    "powerup": {
+      "group": "Power-ups and modes",
+      "files": [
+        "sfx/powerup.webm"
+      ],
+      "vol": 0.85,
+      "note": "Grab a power-up"
+    },
+    "power_go": {
+      "group": "Power-ups and modes",
+      "files": [
+        "sfx/power_go.webm"
+      ],
+      "vol": 0.87,
+      "note": "Use any power-up"
+    },
+    "alert": {
+      "group": "Power-ups and modes",
+      "files": [
+        "sfx/alert.webm"
+      ],
+      "vol": 0.87,
+      "note": "Bucket grabbed, dropped, delivered or new; they scored; pump lost; you lose a life"
+    },
+    "horn": {
+      "group": "Power-ups and modes",
+      "files": [
+        "sfx/horn.webm"
+      ],
+      "vol": 0.96,
+      "note": "Frenzy, ring starts closing, new goo wave, Goo King"
+    },
+    "water": {
+      "group": "Maps",
+      "files": [
+        "sfx/water.webm"
+      ],
+      "vol": 0.59,
+      "hold": true,
+      "note": "Kitchen tap running"
+    },
+    "grind": {
+      "group": "Maps",
+      "files": [
+        "sfx/grind.webm"
+      ],
+      "vol": 0.26,
+      "hold": true,
+      "note": "Skate Park rail grind (you)"
+    },
+    "teleport": {
+      "group": "Maps",
+      "files": [
+        "sfx/teleport.webm"
+      ],
+      "vol": 1,
+      "pitch": 0.06,
+      "note": "Moon Base teleport pads"
+    },
+    "ice_crash": {
+      "group": "Maps",
+      "files": [
+        "sfx/ice_crash.webm"
+      ],
+      "vol": 0.72,
+      "note": "Snow Pillars: an ice tower falls and smashes"
+    },
+    "stomp": {
+      "group": "Maps",
+      "files": [
+        "sfx/stomp.webm"
+      ],
+      "vol": 0.53,
+      "pitch": 0.1,
+      "note": "Yeti landing, castle gates and doors clanking"
+    }
+  }
+}

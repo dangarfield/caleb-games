@@ -1,0 +1,63 @@
+# Splat Attack!
+
+Splat your colour over the grey map before the others do. A dual-stick paint-em-up in three.js with an HTML HUD, built in Claude Design (it started life as "Drip Squad") and integrated on 2026-10-07. Single player against AI bots, touch-only, 1333×690 landscape.
+
+## How it plays
+- **Title:** Caleb and Ezra each pick a paint colour (4) and a hat (12), then tap their name. The chosen colour tints the menus.
+- **Setup steps:** Game → Map → Level, with a splat transition between each. **Surprise me!** picks a random mode and map, **Surprise map!** a random map. The pick stays hidden until the match banner.
+- **Controls:** floating left stick to move, floating right stick to aim (past the deadzone it fires). Power-up button above the right stick. In team modes, buddy buttons (Follow me / Go paint, plus Guard pump in co-op) sit above the left stick. Top-right: ∞ lives, info, pause.
+- **Paint rules:** your own paint makes you faster, refills your ink and heals you. Enemy paint slows you and gives no refill. 100 HP in 4 blocks; 0 HP pops you into a puddle of the shooter's colour, then you respawn at base after 3 s with a 3 s shield. Walls and props take paint too, and count towards Turf Tick %.
+
+## Modes
+- **Cover the Floor (Turf Tick):** 4 teams of 2, 3:00. Every second banks your team's % of paint; ×3 bonus zones; 30 s Frenzy at the end (faster fire, zones ×5). The top leaderboard keeps itself sorted: bars slide past each other when a team overtakes (`ttLanes`, ties keep their order), widths ease and scores count up.
+- **Last Splat Standing:** 8 solo players, 3 lives on every level (∞ = practice, no high score), shrinking ring. Outside the ring you can't paint and lose 10 HP a second.
+- **Bucket Brigade:** 4 v 4, first to 3. Carry the bucket from the middle to your base. The carrier is slow and can't shoot or use teleports/jets.
+- **Grey Goo Attack:** co-op, you + 3 bots on one colour against 5 waves of goo (Blob, Sprinter, Sludger, Spitter) and the Goo King, defending 3 paint pumps.
+
+Each mode has a how-to-play card shown the first time it's played, re-openable from the in-match info button.
+
+## Maps
+Playground, Kitchen (tiny players, a sink and a tap), Moon Base (low gravity, jet pads, teleports), Castle (timed gates and catapults), Snow Pillars (ice, toppling pillars, a yeti), Skate Park (half-pipe ring, rails, kickers). Every map works with all 4 modes and keeps its own spots per mode. Everything starts plain grey.
+
+## Power-ups
+6 pads per map, one held at a time: Super Soaker, Roller, Paint Bomb, Bubble Shield, Sprinkler, Colour Thief (repairs a pump in Grey Goo), Sneaky Squid, Rainbow Storm.
+
+## Saves
+IndexedDB through `js/arcade-store.js` (an unmodified copy of `games/dragonseed/js/store.js`): `ArcadeStore("splat-attack")`.
+- `calebArcadeData:splat-attack`: one object of flat keys, `p.<boy>` (colour + hat), `best.<boy>.<mode>.<level>` (`{best, wins}`), last level, seen-how-to-play flags, performance mode, `vol.music` / `vol.sfx`, plus `sid`/`gen`. Every write goes through `{ guard: true }`, so an old tab left open on the game stops saving instead of overwriting the bests.
+- The design build used `localStorage` (`sa.*`). That was replaced before ship because the arcade shares one 5 MB quota.
+
+## Terrain (baked)
+At match start the game needs a walkable heightfield for the map: an ~81×81 grid of ground heights (H, NH, HI per cell), found by ray-casting down onto the map. Live, that's slow (Moon Base ~17 s and Skate Park ~3 s on a desktop; far worse on the tablet), so it's **baked offline**:
+- `terrain.bin` + `terrain.json`: every map × mode (24 entries, 13 unique grids, ~540 KB), Int16 heights ×100. Fetched in the background at boot; with them a match builds in tens of ms.
+- `tools/bake-terrain.mjs` regenerates them: `node games/splat-attack/tools/bake-terrain.mjs` from the repo root (headless Chrome via puppeteer; `CHROME=` to point at a browser, `LOCAL_THREE=` to serve three@0.160.0 from disk when unpkg isn't reachable). The bake is deterministic.
+- Each entry is keyed by the full heightfield key, which includes the map builder's source length and grid size, so **editing a map makes its entry stale on its own**: the game then works it out live and warns in the console to re-run the bake.
+- The Oct 2026 per-browser IndexedDB terrain cache (`hf.*`, `hfKeys`) is no longer used; the game deletes those items on boot.
+
+## Files
+- `index.html`: the whole game, assembled by the Claude Design build from its `src/` (dq-game.js map/character library, game.js engine, modes.js gimmicks + Bucket Brigade + Grey Goo, ui.js menus/HUD, style.css). three@0.160.0 and Phosphor Icons 2.1.1 from unpkg via import map, Rubik + Rubik Wet Paint from Google Fonts. Arcade favicon (`../../favicon.svg`), static `← Games` link + `data-arcade-back` snippet, long-press killed.
+- `js/arcade-store.js`: saves.
+- `card-icon.png`: the home card's pink wet splat. It and the card's CSS splats are generated by `research/card-tools/card-splats.py`, a 1:1 port of the design's `drawSplat` (dq.js), matching the design's home card (frame 1c).
+- `maps/*.png`, `modes/*.png`: card pictures for the map and mode steps.
+- `audio/sounds.json`: the audio manifest (per-sound `vol`, `pitch`, `gap`, `hold`, alternates; music crossfade and pause duck). Read by `SND` in `index.html`.
+- `audio/music/{menu,park,kitchen,moon,castle,snow,skate}.webm`: menu track plus one per map, crossfaded. Opus 48k, silence trimmed, **no level cut** (levels are balanced in sounds.json).
+- `audio/sfx/*.webm`: 23 sounds, Opus mono 64k, levels unchanged from the originals.
+- `research/` (gitignored): the Claude Design project (`Drip Squad UI design/`, including `src/`, the Look and Feel and Sound Lab boards, the spec/plan and screenshots), the original music (`music/*.m4a`) and SFX (`audio/`, `sfx-originals/`).
+
+## Sound
+Web Audio, unlocked on the first pointer/touch. Music and Sounds sliders in pause (default 80%) multiply each entry's `vol`. Music: Menu on title/setup, the map's track in a match (results keep it), ducked while paused. SFX: tap, splash, notify, pip, go, whistle, cheer, shoot, splat, pop, empty, refill, boing, whoosh, powerup, power_go, alert, horn, water, grind, teleport, ice_crash, stomp.
+
+## Performance
+Built for a Galaxy Tab A-class tablet. Performance mode is on by default (pause menu): no shadows, 30 fps cap, pixel ratio ≤ 1.5, fewer drips and particles. Paint is a CPU grid per surface (gameplay truth) plus a canvas texture with throttled dirty-region uploads. AI ticks at 10 Hz on a nav grid.
+
+## Known gaps (from the design build)
+- Skate Park's rotating Bucket Brigade hub halves are static.
+- Walls show splash-up from floor paint, not direct hits.
+- Not yet measured on a real Tab A.
+- Uppbeat credits for the music and SFX aren't in `research/` or shown in the game yet.
+
+## Memory
+- 2026-10-07: integrated from Claude Design. Saves moved from localStorage to ArcadeStore (incl. heightfield cache); static back link + arcade-back snippet; long-press killed; SFX re-encoded mp3/wav → Opus WebM; card.json written to the arcade schema.
+- 2026-10-07: Last Splat Standing lives set to 3 on every level (design had Easy 5 / Normal 4 / Hard 3). Arcade favicon added. Home card redone to match the design's splash card: generated wet splats (icon PNG + CSS) instead of emoji + gradient blobs.
+- 2026-10-07: terrain heightfields baked offline into terrain.bin/terrain.json (tools/bake-terrain.mjs) instead of being worked out on the tablet and cached in the browser; old IndexedDB hf cache removed on boot.
+- 2026-10-07: Cover the Floor leaderboard now ranks live and tweens swaps (built once per match, re-ranked every 0.25 s HUD tick); previously fixed team order rebuilt via innerHTML.

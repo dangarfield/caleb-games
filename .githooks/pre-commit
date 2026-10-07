@@ -4,6 +4,33 @@
 # 2. index.html matches the games/*/card.json files (never hand-edit index.html)
 set -u
 cd "$(git rev-parse --show-toplevel)" || exit 1
+
+# Git runs hooks in a non-interactive shell that does not source ~/.zshrc, so
+# nvm's node is not on PATH and `node` is "command not found". Make node
+# resolvable from the common locations before we need it.
+if ! command -v node >/dev/null 2>&1; then
+  # Homebrew (Apple Silicon / Intel)
+  for d in /opt/homebrew/bin /usr/local/bin; do
+    [ -x "$d/node" ] && PATH="$d:$PATH"
+  done
+  # nvm: prefer the "default" alias, else the newest installed version
+  if ! command -v node >/dev/null 2>&1; then
+    nvm_root="${NVM_DIR:-$HOME/.nvm}/versions/node"
+    if [ -d "$nvm_root" ]; then
+      def="$(cat "$HOME/.nvm/alias/default" 2>/dev/null)"
+      cand=""
+      [ -n "$def" ] && cand="$(ls -d "$nvm_root"/v${def}* 2>/dev/null | sort -V | tail -1)"
+      [ -z "$cand" ] && cand="$(ls -d "$nvm_root"/v* 2>/dev/null | sort -V | tail -1)"
+      [ -n "$cand" ] && [ -x "$cand/bin/node" ] && PATH="$cand/bin:$PATH"
+    fi
+  fi
+  export PATH
+fi
+if ! command -v node >/dev/null 2>&1; then
+  echo "pre-commit: 'node' not found. Install Node or add it to PATH." >&2
+  exit 1
+fi
+
 fail=0
 node .apm/hooks/scripts/back-button-check.js || fail=1
 node scripts/build-index.mjs --check || { echo "Run: node scripts/build-index.mjs && git add index.html"; fail=1; }

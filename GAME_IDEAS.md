@@ -9,8 +9,8 @@ DONE - pirates! old amiga game, modern ish version - https://www.crazygames.com/
 DONE - Dino Park Tycoon: build a dinosaur park (pens, paths, food stalls), keep visitors happy, tap to recapture escaped dinos
 DONE - Summer Olympics button bash, like the amiga game i had
 DONE - Firefighter Training: Aim a water hose to put out cartoon campfires and rescue stranded kittens from trees
+DONE - paint wars - dual stick control. you move your character with the left and pain direction with the right, goal is to get the most paint coloured, or seomthing like that
 
-IN PROGRESS - paint wars - dual stick control. you move your character with the left and pain direction with the right, goal is to get the most paint coloured, or seomthing like that
 
 - infinite falling / zooming game
 - drone game
