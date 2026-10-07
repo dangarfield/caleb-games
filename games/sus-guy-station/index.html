@@ -108,6 +108,11 @@ canvas#c{position:fixed;inset:0;display:block;width:100%;height:100%}
 .ftile.on{background:#FFFBF2;border:3px solid #1F6F78;color:#1E1E1E;cursor:pointer}
 .ftile.on.cur{background:#F3B33D;border-color:#1E1E1E;box-shadow:0 4px 0 #1E1E1E}
 .ftile.off{border:3px dashed #C9BBA2;color:#8C7B66;font-size:28px}
+/* "safe spot" note: shows once when you reach Platform 5 */
+#safeNote{position:fixed;left:50%;top:84px;transform:translate(-50%,-12px);background:#F3B33D;color:#1E1E1E;border:4px solid #1E1E1E;border-radius:22px;padding:12px 30px 14px;text-align:center;pointer-events:none;opacity:0;transition:opacity .5s ease-out,transform .5s ease-out;z-index:30}
+#safeNote.show{opacity:1;transform:translate(-50%,0)}
+#safeNote b{display:block;font-size:30px;font-weight:900;line-height:1.1}
+#safeNote span{display:block;font-size:21px;font-weight:800;line-height:1.25;margin-top:2px}
 @keyframes fadeUp{from{opacity:0}to{opacity:1}}
 .fadeUp{animation:fadeUp .35s ease-out}
 #dbgCount{display:grid;grid-template-columns:repeat(11,1fr);gap:4px}
@@ -272,6 +277,7 @@ canvas#c{position:fixed;inset:0;display:block;width:100%;height:100%}
     </section>
   </div>
 
+  <div id="safeNote" aria-live="polite"><b>Platform 5 is a safe spot!</b><span>Get one wrong now and you only go back to 5.</span></div>
   <div id="hint" class="hidden">
     <div><span class="wIc"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 9h-5v9H9v-9H4z" fill="#1E1E1E"/></svg></span>Hold to walk</div>
     <div><span style="font-size:26px">← ● →</span>Slide to look</div>

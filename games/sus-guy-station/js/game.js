@@ -80,9 +80,12 @@ function setM2() {
   if (M2) disposeGroup(M2);
   M2 = buildLap(planFwd.id, planFwd.exit, false); M2.position.set(UX + Ls + R, 0, UZ - R); scene.add(M2);
 }
+// Platform 5 is a safe spot: once you've reached it, a wrong call only sends you back to 5, not 0 (for the rest of this run)
+const SAFE = 5;
+const backTo = n => n >= SAFE ? SAFE : 0;
 function plan() {
   if (lapMode === 'exit') planBack = planFwd = { id: null, streak: 0 };
-  else { planBack = planNext(lapA ? count + 1 : 0); planFwd = planNext(lapA ? 0 : count + 1); }
+  else { planBack = planNext(lapA ? count + 1 : backTo(count)); planFwd = planNext(lapA ? backTo(count) : count + 1); }
   setM2(); if (visitedM && lapMode === 'lap') setMP(planBack.id, planBack.exit, true);
   compileAll();
 }
@@ -124,6 +127,7 @@ function decide(turnedBack) {
   let yay = null;
   if (correct) {
     count++; SFX.pass();
+    if (count === SAFE && !safeShown) { safeShown = true; safeDue = true; }   // shown once the level-pass card (if any) is out of the way
     if (sel && !playedOnce()) { save.players[sel.id].played = true; persist(); }   // reached Platform 1: no more automatic How to play
     if (turnedBack && had && sel) {
       const s = save.players[sel.id]; s.found = s.found || {};
@@ -131,12 +135,19 @@ function decide(turnedBack) {
     }
   } else {
     const reached = count, img = had ? snapshot(had) : '';
-    count = 0; SFX.fail().then(d => setTimeout(() => glitch(500), Math.max(0, d - 0.75) * 1000));   // glitch where level-fail's static builds (1.8-2.5 s)
+    count = backTo(count); SFX.fail().then(d => setTimeout(() => glitch(500), Math.max(0, d - 0.75) * 1000));   // glitch where level-fail's static builds (1.8-2.5 s)
     showOops(had, reached, img);
   }
   committed = { pl }; setSign(Math.min(count, GOAL)); updateDebug();
-  if (yay) showYay(had, yay.img, yay.n);
+  if (yay) showYay(had, yay.img, yay.n); else if (safeDue) setTimeout(safeNote, 700);
 }
+// the "safe spot" note: once per run, when you first reach Platform 5. Small, clear words; fades away by itself.
+let safeShown = false, safeDue = false, safeT = 0;
+function safeNote() {
+  safeDue = false; const n = $('safeNote'); clearTimeout(safeT);
+  n.classList.add('show'); safeT = setTimeout(() => n.classList.remove('show'), 5500);
+}
+function safeNoteOff() { safeDue = false; clearTimeout(safeT); $('safeNote').classList.remove('show'); }
 // geometry swap, out of sight: fold in the sign passage (turned back) or slide back one lap (kept going)
 function swap(back) {
   const c = committed; committed = null;
@@ -156,7 +167,7 @@ function showYay(id, img, n) {
   show('yay', '');
   const y = $('yay'); y.classList.remove('fadeUp'); void y.offsetWidth; y.classList.add('fadeUp');   // same quick fade-in as Oops (no glitch)
 }
-$('yayBtn').addEventListener('click', () => { overlay = null; show(null); });
+$('yayBtn').addEventListener('click', () => { overlay = null; show(null); if (safeDue) setTimeout(safeNote, 400); });
 // the first lap, before you've reached the main passage: either way you go, it's still level 0
 const atStart = () => lapMode === 'lap' && count === 0 && !lapA && !visitedM && !committed;
 function transitions() {
@@ -300,7 +311,7 @@ $('cards').addEventListener('click', e => {
 function goHome() {
   nightTime();
   mode = 'home'; overlay = null; show('home', 'home'); renderHome();
-  $('hud').classList.add('hidden'); $('pauseBtn').classList.add('hidden'); walkHide(); $('hint').classList.add('hidden'); $('debug').classList.add('hidden');
+  $('hud').classList.add('hidden'); $('pauseBtn').classList.add('hidden'); walkHide(); safeNoteOff(); $('hint').classList.add('hidden'); $('debug').classList.add('hidden');
   toggleDbg(false);
   count = 0; lapMode = 'lap'; lapA = null; visitedM = false; committed = null; rebuildM(); plan(); setSign(0);
   p.x = Ls + R; p.z = -R - 1.5; p.yaw = 0; p.pitch = 0;
@@ -309,6 +320,7 @@ function startRun() {
   nightTime();
   save.last = sel.id; persist();
   $('hudAv').textContent = sel.name[0]; $('hudAv').style.background = sel.col; $('hudName').textContent = sel.name;
+  safeShown = false; safeNoteOff();
   count = 0; lapMode = 'lap'; used.clear(); normalStreak = 1; lapA = null; visitedM = false; committed = null;
   rebuildM(); setMP(null, false, true); plan(); setSign(0); updateDebug();
   Object.assign(p, { x: 1.5, z: 0, yaw: -Math.PI / 2, pitch: 0, prevX: 1.5, prevZ: 0, turn: 0 });
@@ -471,14 +483,15 @@ musVol.addEventListener('input', () => { const v = musVol.value / 100; paint(mus
   arm();
 })();
 function showOops(had, reached, img) {
-  overlay = 'oops'; ptrs.clear();
+  overlay = 'oops'; ptrs.clear(); safeNoteOff();
   const a = ANOMALIES.find(x => x.id === had), hd = $('oopsHd');
   hd.style.background = a ? C.orange : C.teal; hd.style.color = a ? C.ink : C.cream;
   $('oopsImg').classList.toggle('hidden', !(a && img)); if (a && img) $('oopsImg').src = img;
   $('oopsCard').style.gridTemplateColumns = a && img ? '324px 460px' : '620px';
   $('oopsLead').classList.toggle('hidden', !a); $('oopsLead').textContent = 'You missed it!';
   $('oopsBig').textContent = a ? a.say : 'Nothing was different.';
-  const got = reached > 0 ? `You got to Platform ${reached}. ` : '';
+  $('oopsHd').textContent = `Oops! Back to ${count}`;
+  const got = count === SAFE ? `You were on Platform ${reached}. Platform 5 is a safe spot! ` : reached > 0 ? `You got to Platform ${reached}. ` : '';
   $('oopsSmall').textContent = a ? `${got}Have another go!` : `It was all the same, so keep going next time. ${got}`;
   show('oops', '');
   glitch(260);                                   // a glitch the moment it appears (another comes near the end of the fail sound)
@@ -493,7 +506,7 @@ function win() {
     ? `<div style="display:flex;align-items:center;gap:14px"><div style="font-size:68px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums">${fmt(timer)}</div><div style="background:#F3B33D;font-size:22px;font-weight:900;padding:6px 16px;border-radius:999px;border:3px solid #1E1E1E">Your best ever!</div></div>`
     : `<div style="display:grid;grid-template-columns:auto auto;justify-content:start;column-gap:40px"><div style="font-size:20px;font-weight:800">Your time</div><div style="font-size:20px;font-weight:800">Your best</div><div style="font-size:60px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums">${fmt(timer)}</div><div style="font-size:60px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;color:#F6EEDC">${fmt(s.best)}</div></div>`;
   $('winLine').textContent = `${sel.name} has finished ${s.done} time${s.done === 1 ? '' : 's'}.`;
-  $('hud').classList.add('hidden'); $('pauseBtn').classList.add('hidden'); walkHide(); $('hint').classList.add('hidden');
+  $('hud').classList.add('hidden'); $('pauseBtn').classList.add('hidden'); walkHide(); safeNoteOff(); $('hint').classList.add('hidden');
   show('win', 'clear');
 }
 $('winAgain').addEventListener('click', startRun);

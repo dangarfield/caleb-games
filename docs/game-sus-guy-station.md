@@ -1,6 +1,6 @@
 # Sus Guy Station (`games/sus-guy-station/`)
 
-An "Exit 8"-style spot-the-difference walk through a tiled London Underground passage, in three.js with an HTML HUD. You walk the same passage again and again. Sometimes one thing in it is different (an anomaly). If something is different, turn back. If everything is the same, keep going. Get the platform sign up to **Platform 10** and you're out into daylight. A wrong call sends you back to 0.
+An "Exit 8"-style spot-the-difference walk through a tiled London Underground passage, in three.js with an HTML HUD. You walk the same passage again and again. Sometimes one thing in it is different (an anomaly). If something is different, turn back. If everything is the same, keep going. Get the platform sign up to **Platform 10** and you're out into daylight. A wrong call sends you back to 0, or back to 5 once you've reached Platform 5 (a safe spot for the rest of that run). Reaching 5 shows a small note: "Platform 5 is a safe spot! Get one wrong now and you only go back to 5."
 
 ## Play
 - **Players:** Caleb or Ezra, picked on the home poster. Each keeps their own count of anomalies found and their best (fastest) time out.
