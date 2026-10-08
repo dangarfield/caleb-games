@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="250" height="170" viewBox="0 0 250 170">
+  <!-- Portal Lab card art: the two portal rings from the design doc's home-page card (section 13), at the
+       same pixel positions from the card's top-right corner. card.json shows it with "art": true (no tilt). -->
+  <defs>
+    <radialGradient id="fa"><stop offset="45%" stop-color="#061215"/><stop offset="75%" stop-color="#0e2340"/></radialGradient>
+    <radialGradient id="fb"><stop offset="45%" stop-color="#061215"/><stop offset="75%" stop-color="#3a1434"/></radialGradient>
+    <filter id="glow" x="-100%" y="-60%" width="300%" height="220%"><feGaussianBlur stdDeviation="8"/></filter>
+    <filter id="in" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4.5"/></filter>
+    <clipPath id="ca"><ellipse cx="167" cy="59" rx="14" ry="34"/></clipPath>
+    <clipPath id="cb"><ellipse cx="215" cy="73" rx="14" ry="34"/></clipPath>
+  </defs>
+  <ellipse cx="167" cy="59" rx="17" ry="37" fill="#3B8CFF" fill-opacity="0.75" filter="url(#glow)"/>
+  <ellipse cx="167" cy="59" rx="14" ry="34" fill="url(#fa)"/>
+  <ellipse cx="167" cy="59" rx="14" ry="34" fill="none" stroke="#3B8CFF" stroke-opacity="0.5" stroke-width="9" filter="url(#in)" clip-path="url(#ca)"/>
+  <ellipse cx="167" cy="59" rx="15.5" ry="35.5" fill="none" stroke="#3B8CFF" stroke-width="3"/>
+  <ellipse cx="215" cy="73" rx="17" ry="37" fill="#FF4FC8" fill-opacity="0.75" filter="url(#glow)"/>
+  <ellipse cx="215" cy="73" rx="14" ry="34" fill="url(#fb)"/>
+  <ellipse cx="215" cy="73" rx="14" ry="34" fill="none" stroke="#FF4FC8" stroke-opacity="0.5" stroke-width="9" filter="url(#in)" clip-path="url(#cb)"/>
+  <ellipse cx="215" cy="73" rx="15.5" ry="35.5" fill="none" stroke="#FF4FC8" stroke-width="3"/>
+</svg>

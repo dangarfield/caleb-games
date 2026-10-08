@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Portal Lab - Garfield Boys' Arcade</title>
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Sharp:opsz,wght,FILL,GRAD@20..48,300..600,0..1,0&display=block" rel="stylesheet">
+<style>html,body{margin:0;height:100%;background:#02080A;overflow:hidden;overscroll-behavior:none}body{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none}img,a,canvas{-webkit-user-drag:none}*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}a{color:#2BF0D6;text-decoration:none}a:hover{color:#D7F4F1}button{font-family:inherit}@keyframes bl-pop{0%{transform:scale(0.2);opacity:0;filter:brightness(2.4)}60%{opacity:1}100%{transform:scale(1);opacity:1;filter:brightness(1)}}@keyframes bl-tag{0%{opacity:0;transform:translateX(-100%) translateY(6px)}8%{opacity:1}85%{opacity:1}100%{opacity:0}}@keyframes bl-tagc{0%{opacity:0;transform:translateX(-50%) translateY(6px)}8%{opacity:1;transform:translateX(-50%)}85%{opacity:1;transform:translateX(-50%)}100%{opacity:0;transform:translateX(-50%)}}@keyframes bl-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}*{scrollbar-width:thin;scrollbar-color:#17444A transparent}*::-webkit-scrollbar{width:8px;height:8px}*::-webkit-scrollbar-track{background:transparent}*::-webkit-scrollbar-thumb{background:#17444A;border:2px solid transparent;background-clip:padding-box}*::-webkit-scrollbar-thumb:hover{background:#2BF0D6;background-clip:padding-box}*::-webkit-scrollbar-corner{background:transparent}</style>
+<style>html,body{touch-action:none}#ui{display:contents}</style>
+<script>document.addEventListener('contextmenu', function (e) { e.preventDefault(); });</script>
+<script data-arcade-back>
+/* arcade-back v1 (knowledge/arcade-back.md). "← Games" = the browser's back button.
+   Any link whose href is exactly ../../index.html goes BACK in history when this page was opened
+   from the arcade home, so home comes back as it was left (scroll position, no reload).
+   Opened any other way (bookmark, direct URL, dev tool), the link just navigates as normal. */
+(function () {
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!a || a.getAttribute('href') !== '../../index.html') return;
+    var home = new URL(a.href), ref;
+    try { ref = new URL(document.referrer); } catch (err) { return; }
+    var dir = home.pathname.replace(/index\.html$/, '');
+    if (ref.origin !== home.origin || (ref.pathname !== home.pathname && ref.pathname !== dir) || history.length < 2) return;
+    e.preventDefault();
+    var go = function () { location.href = home.href; };
+    // Still on this page after going back (an in-game history entry) or nothing happened: go home directly.
+    addEventListener('popstate', go, { once: true });
+    var t = setTimeout(go, 2500);
+    addEventListener('pagehide', function () { clearTimeout(t); }, { once: true });
+    history.back();
+  });
+})();
+</script>
+</head>
+<body>
+<div id="ui"></div>
+<noscript><a href="../../index.html" style="position:absolute;left:16px;top:16px;color:#2BF0D6;font-family:'Chakra Petch',sans-serif">&larr; Games</a></noscript>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

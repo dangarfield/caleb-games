@@ -24,7 +24,7 @@ Every game ships a `games/<slug>/card.json`. `scripts/build-index.mjs` turns all
 | `blurb` | ✓ | Says what *you do*: second person, present tense, fun. It must fit on **2 lines** of the card with no ellipsis, which in practice is about 65 characters. `build-index.mjs` measures it (Bricolage Grotesque 14px, 242px wide at 1333×690) and rejects the card if it would wrap to 3 lines; when that happens, **reword** it shorter, never truncate it. No "A game where…". |
 | `added` | ✓ | `YYYY-MM-DD`, the day it first ships. Sets the sort order and the NEW badge. **Set it once and never change it.** |
 | `updated` | | `YYYY-MM-DD`, bumped whenever the card changes. |
-| `icon` | ✓ | `{ "emoji": "🦖" }` or `{ "image": "card-icon.png" }` (square, transparent, ≥ 256px, inside the game folder). |
+| `icon` | ✓ | `{ "emoji": "🦖" }` or `{ "image": "card-icon.png" }` (square, transparent, ≥ 256px, inside the game folder). Add `"art": true` to an image to show it untilted, without the shadow and at its own size, pinned top-right: for card art copied from a design (Blink Lab's portal rings). |
 | `wordmark` | | A logo image that replaces the text title. Only use it if the game already has a logo. |
 | `title` | | Omit for the default arcade style. Otherwise `{ font, weight, size, color, letterSpacing, transform, style, shadow }` (`style: "italic"` when the game's logo is italic; the font link then asks for the italic cut). |
 | `blurbStyle` | | `{ color, shadow }`. Needed on light backgrounds (dark text, `"shadow": "none"`). |

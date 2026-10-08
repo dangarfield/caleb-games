@@ -1,0 +1,46 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "portal-lab",
+  "name": "Portal Lab",
+  "blurb": "Two portals. One way out.",
+  "added": "2026-10-08",
+  "icon": {
+    "image": "card-icon.svg",
+    "art": true
+  },
+  "title": {
+    "font": "Chakra Petch",
+    "weight": 700,
+    "size": 35,
+    "color": "#D7F4F1",
+    "letterSpacing": ".02em",
+    "transform": "uppercase",
+    "shadow": "none"
+  },
+  "blurbStyle": {
+    "color": "#B4D9D5",
+    "shadow": "none"
+  },
+  "background": {
+    "gradient": [
+      "#02080A",
+      "#061215"
+    ],
+    "css": "linear-gradient(0deg, rgba(6,18,21,.92) 0 28px, rgba(6,18,21,0) 62px), linear-gradient(rgba(43,240,214,.07) 1px, transparent 1px) 0 0/16px 16px, linear-gradient(90deg, rgba(43,240,214,.07) 1px, transparent 1px) 0 0/16px 16px, #02080A"
+  },
+  "source": {
+    "files": [
+      "games/portal-lab/research/Blink Lab tablet design/Blink Lab Design Doc v3.dc.html"
+    ],
+    "refreshed": "2026-10-08",
+    "notes": "Copied from the design doc's home-page card (section 13): abyss #02080A with the 16px cyan holo grid, the bottom fade, Chakra Petch 700 30px #D7F4F1 title, #B4D9D5 blurb, and the blue and pink portal rings as card-icon.svg (250×170, shown with icon.art so they sit exactly where the design puts them from the top-right corner). Locked so /refresh-card leaves it as designed."
+  },
+  "updated": "2026-10-08",
+  "locked": [
+    "blurb",
+    "icon",
+    "title",
+    "blurbStyle",
+    "background"
+  ]
+}

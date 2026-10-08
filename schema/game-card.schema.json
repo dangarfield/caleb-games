@@ -21,7 +21,8 @@
       "oneOf": [{ "required": ["emoji"] }, { "required": ["image"] }],
       "properties": {
         "emoji": { "type": "string", "maxLength": 16 },
-        "image": { "type": "string", "description": "Path relative to the game folder. Square transparent PNG/SVG, ≥ 256px." }
+        "image": { "type": "string", "description": "Path relative to the game folder. Square transparent PNG/SVG, ≥ 256px." },
+        "art": { "type": "boolean", "description": "With image: show it untilted, unshadowed and at its own size, pinned to the card's top-right corner. For card art copied from a design (e.g. a wide SVG with width/height set)." }
       },
       "additionalProperties": false
     },

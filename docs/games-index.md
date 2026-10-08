@@ -1,6 +1,6 @@
 # Games Index
 
-All 86 games in Garfield Boys' Arcade, plus Librarian (WIP, hidden) — 87 game folders under `games/` (plus `games/_shared/`, assets used by more than one game). The home page is built from each game's `card.json`; a card with `"hidden": true` isn't shown or counted.
+All 87 games in Garfield Boys' Arcade, plus Librarian (WIP, hidden) — 88 game folders under `games/` (plus `games/_shared/`, assets used by more than one game). The home page is built from each game's `card.json`; a card with `"hidden": true` isn't shown or counted.
 
 | Game | Directory | Description |
 |------|-----------|-------------|
@@ -91,6 +91,7 @@ All 86 games in Garfield Boys' Arcade, plus Librarian (WIP, hidden) — 87 game 
 | Kaiju Pothole | games/kaiju-pothole/ | Hole.io-style swallow-and-grow in three.js with an HTML HUD (from a Claude Design handoff): steer a pothole round an Ember Bay town, Rapier physics tips things into the hole, people and animals always jump clear. Gobble Rush, Rival Holes (3 bots, Easy/Normal/Hard), 12 Shopping List levels (town lists, Hazard Sweep, House Call rooms) and Zen; 8 hole shapes; Caleb/Ezra saves; four themes, Sounds + Music sliders; meshoptimizer LODs |
 | The Wind & The Wall | games/the-wind-and-the-wall/ | Narrated story climb in three.js (from a Claude Design build): Wren runs up the Earth Giant's hill and becomes the shapes carved in his walls (poses, items, spells on a Hush wheel) to free the trapped Wind; 7 chapters / 29 stages, illustrated opening, feather memories, per-chapter music, 195 voiced lines, Big Run endless mode |
 | Splat Attack! | games/splat-attack/ | Dual-stick paint-em-up in three.js with an HTML HUD (from a Claude Design build): cover the grey map in your colour against AI bots. Cover the Floor (4 teams of 2), Last Splat Standing (8 solo, shrinking ring), Bucket Brigade (4 v 4) and Grey Goo Attack (co-op waves + Goo King) across 6 maps, 8 power-ups; Caleb/Ezra colours, hats and bests per mode × level; menu + per-map music, Sounds + Music sliders |
+| Portal Lab | games/portal-lab/ | First-person portal puzzler in three.js with an HTML HUD (from a Claude Design build): fire blue and pink portals to escape 66 test chambers (Tutorial, Clearance Blue, Clearance Pink) with boxes, pads, doors, glass, sentry robots, moving platforms and flings; Caleb/Ezra progress, best times and fewest portals; theme music, Sounds + Music sliders, performance mode |
 
 ## Naming quirks worth knowing
 

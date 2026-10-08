@@ -57,6 +57,7 @@ function validateCard(c, dir, fileExists) {
   const icon = c.icon || {};
   if (!icon.emoji && !icon.image) e.push(`${at}: "icon" needs "emoji" or "image"`);
   if (icon.image && !fileExists(icon.image)) e.push(`${at}: icon image games/${dir}/${icon.image} not found`);
+  if (icon.art && !icon.image) e.push(`${at}: icon "art" needs an "image"`);
   if (c.wordmark && !fileExists(c.wordmark)) e.push(`${at}: wordmark games/${dir}/${c.wordmark} not found`);
   const g = c.background && c.background.gradient;
   if (!Array.isArray(g) || g.length < 2 || g.length > 3 || !g.every(x => HEX_RE.test(x))) e.push(`${at}: "background.gradient" must be 2–3 hex colours`);
@@ -75,11 +76,12 @@ function renderCard(c) {
   const base = `games/${c.slug}/`;
   const href = c.entry || base;
   const icon = c.icon.image ? `<img src="${esc(base + c.icon.image)}" alt="">` : esc(c.icon.emoji);
+  const iconClass = c.icon.art ? 'gc-icon gc-art' : 'gc-icon';
   const title = c.wordmark ? `<img class="gc-wordmark" src="${esc(base + c.wordmark)}" alt="${esc(c.name)}">` : esc(c.name);
   const titleStyle = `font-family:'${cssv(t.font)}',sans-serif;font-weight:${Number(t.weight)};font-style:${t.style === 'italic' ? 'italic' : 'normal'};font-size:${Number(t.size)}px;color:${cssv(t.color)};letter-spacing:${cssv(t.letterSpacing)};text-transform:${cssv(t.transform)};text-shadow:${cssv(t.shadow)}`;
   return [
     `    <a href="${esc(href)}" class="gc" data-slug="${esc(c.slug)}" data-added="${esc(c.added)}" style="--bg:${cssv(bg)};--glow:${withAlpha(glow, 0.4)};--glow-hover:${withAlpha(glow, 0.6)}">`,
-    `      <span class="gc-icon" aria-hidden="true">${icon}</span>`,
+    `      <span class="${iconClass}" aria-hidden="true">${icon}</span>`,
     `      <span class="gc-new" hidden>NEW</span>`,
     `      <span class="gc-title" style="${titleStyle}">${title}</span>`,
     `      <span class="gc-blurb" style="color:${cssv(b.color)};text-shadow:${cssv(b.shadow)}">${esc(c.blurb)}</span>`,
