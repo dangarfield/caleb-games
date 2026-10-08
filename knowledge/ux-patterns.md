@@ -74,3 +74,45 @@ document.addEventListener('contextmenu', e => e.preventDefault());
 - Links count too: the `<- Games` back link must not offer "Open in new tab" on a hold.
 - Do not rely on `touch-action: none` for this — it stops panning and zoom, not the callout or the menu.
 - Check it: hold the mouse down on a button for 2s and right-click the canvas — nothing should appear.
+
+## Pause menu
+
+Every game has one (pause button top-right). It always carries the **Sound** and **Music** sliders
+(recipe in `knowledge/audio-patterns.md` → *Volume sliders*) as well as the game's own options, and — in a
+Three.js game with a Fast mode — the Fast mode row that doubles as the performance monitor's hold target.
+
+## Performance monitor (Three.js games)
+
+A hidden debug overlay: three.js Stats (FPS / ms / MB — tap it to switch panel) plus a line of renderer
+numbers, top-left directly under "← Games". **P** toggles it; on the tablet, **hold the Fast mode row in the
+pause menu for ~0.6s** (the hold must not also flip Fast mode). Remembered in the settings.
+
+```js
+import Stats from 'three/addons/libs/stats.module.js';
+const stats = new Stats();
+stats.dom.style.cssText = 'position:fixed;top:64px;left:12px;z-index:9998;cursor:pointer;opacity:.9;display:none';
+const monInfo = document.createElement('div');
+monInfo.style.cssText = 'position:fixed;top:118px;left:12px;z-index:9998;padding:3px 6px;background:rgba(0,0,16,.75);color:#0ff;font:600 11px/1.35 monospace;white-space:pre;pointer-events:none;display:none';
+document.body.append(stats.dom, monInfo);
+let monOn = false, monHeld = false, draws = 0, monT = 0;
+const showMon = v => { monOn = !!v; stats.dom.style.display = monInfo.style.display = monOn ? 'block' : 'none'; };
+const toggleMon = () => { settings.mon = !monOn; showMon(settings.mon); save(); };
+addEventListener('keydown', e => { if ((e.key === 'p' || e.key === 'P') && !e.repeat) toggleMon(); });
+{ // hold the Fast mode row; its buttons ignore the click that ends a hold:  if (monHeld) { monHeld = false; return; }
+  const row = fastModeRow; let t = 0; const cancel = () => clearTimeout(t);
+  row.addEventListener('pointerdown', () => { cancel(); monHeld = false; t = setTimeout(() => { monHeld = true; toggleMon(); }, 600); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => row.addEventListener(ev, cancel));
+}
+// at the end of every animation frame (drew = whether renderer.render ran this frame):
+function monTick(now, drew) {
+  if (!monOn) return;
+  stats.update(); if (drew) draws++;
+  if (now - monT >= 1000) {
+    const r = renderer.info.render, c = renderer.domElement;
+    monInfo.textContent = `redraws ${draws}/s\n${r.calls} calls · ${Math.round(r.triangles / 1000)}k tris\n${c.width}×${c.height}`;
+    draws = 0; monT = now;
+  }
+}
+```
+
+Worked example: `games/pocket-pros/index.html` (search `performance monitor`).

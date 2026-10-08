@@ -125,11 +125,11 @@ function music() {
   a desktop mouse.
 - **Never `el.load()` before `el.play()`.** The load aborts the play that follows
   it and the promise rejects.
-- **No mute button, no volume slider, no "music: on" setting.** One tune, quiet,
-  looping. The tab being in front of you is the only control.
-  The one exception is the arcade home page: it has a single mute button in the
-  header (next to the games count), remembered in `localStorage` as
-  `arcadeHomeMuted`. Games themselves still get no audio controls.
+- **No mute button and no audio controls in the HUD — the levels live in the pause menu.** Every game's pause
+  menu has a **Sound** slider and a **Music** slider (`arcade-build.instructions.md` → *Pause menu*), and that
+  is the only place audio is adjusted. The file is still encoded quiet, so the default of 80 is background level.
+  The arcade home page keeps its single mute button in the header (next to the games count), remembered in
+  `localStorage` as `arcadeHomeMuted`.
 - **No fade-in.** The file is already at background level. If the track opens
   loud, fix the encode.
 - **`loop` on the element**, not an `ended` handler.
@@ -172,5 +172,32 @@ SFX files when he hands them over. Generated Web Audio SFX (above) are still the
 - **SFX play through Web Audio, not `<audio>` elements:** fetch and `decodeAudioData` each file once (after the
   first gesture), then play `AudioBufferSourceNode`s through one **sounds** gain node. That gives exact timing,
   lets a sound overlap itself, and works on iPad, where `el.volume` is ignored.
-- **Volume:** if the game has volume controls, recorded SFX share the **Sounds** level (with narration and
-  generated SFX) and music has its own **Music** level. Without controls, follow the quiet-by-default rules above.
+- **Volume:** recorded SFX share the **Sound** level (with narration and generated SFX) and music has its own
+  **Music** level — the two pause-menu sliders. See *Volume sliders* below.
+
+## Volume sliders (pause menu — every game)
+
+Two sliders in the pause menu, **Sound** and **Music**, 0–100, default 80. One AudioContext, two gain nodes
+(buses); every SFX goes through `sounds`, the theme through `music`. Routing the theme through Web Audio
+(`createMediaElementSource`) is what makes the Music slider work on iPad, where `el.volume` is ignored.
+
+```js
+const level = v => (v / 100) ** 2;                    // squared: the slider feels even, 0 is silent
+let ctx, sounds, music;
+function ensureAudio() {                              // call from a gesture (Play, first tap)
+  if (!ctx) {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    sounds = ctx.createGain(); sounds.gain.value = level(settings.sfx ?? 80); sounds.connect(ctx.destination);
+    music  = ctx.createGain(); music.gain.value  = level(settings.mus ?? 80); music.connect(ctx.destination);
+    ctx.createMediaElementSource(themeEl).connect(music);   // the <audio> theme, once
+  }
+  if (ctx.state === 'suspended') ctx.resume();
+  return ctx;
+}
+// every SFX: …connect(sounds) instead of ctx.destination
+soundSl.oninput = e => { settings.sfx = +e.target.value; ensureAudio(); sounds.gain.value = level(settings.sfx); blip(); };
+musicSl.oninput = e => { settings.mus = +e.target.value; ensureAudio(); music.gain.value = level(settings.mus); };
+// show "Off" at 0; save settings on 'change'
+```
+
+Worked example: `games/pocket-pros/index.html` (`applySfx` / `applyVol`, `master` and `musicBus`).

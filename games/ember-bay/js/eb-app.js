@@ -12,6 +12,7 @@ import { music } from './theme-music.js';
 import { createCrew } from './home-crew.js';
 import { view } from './eb-view.js';
 import { createDom } from './eb-dom.js';
+import { createFps } from './fps-meter.js';
 
 // setState(patch | fn, cb) merges at once and re-renders once per microtask; callbacks run after it.
 class Screens {
@@ -73,6 +74,7 @@ export class EmberBay extends Screens {
     const players = [0, 1].map(i => ({ ...this.blank(), ...((d.players || [])[i] || {}) })), crew = d.crew || 0;
     await new Promise(r => this.setState({ players, crew, ...players[crew], set: { ...this.state.set, ...(d.set || {}) }, stored: true }, r));
     setVolume(this.state.set.vol / 100); setMusicVolume(this.state.set.mus / 100);
+    this.fps = createFps(() => this.c3 && this.c3.renderer); this.fps.show(!!this.state.set.fps);
     this.load();
     // Chief Ember's story portrait (Cowboy_Male, head and shoulders), loaded up front so it's ready on Play.
     this.chiefP = createCrew(() => [this.chiefCv], ['person_cowboy_male'], { bust: true }).then(v => { this.chiefV = v; v.setActive(this.state.screen === 'story'); }).catch(e => console.warn('chief', e));
@@ -84,7 +86,7 @@ export class EmberBay extends Screens {
       setVolume(this.state.set.vol / 100); setMusicVolume(this.state.set.mus / 100);
       const data = await gen.loadGenData(); this.city = gen.generate(1333, data); this.GAMES = gen.GAMES;
       while (!this.cityEl) await new Promise(r => setTimeout(r, 50));
-      this.c3 = await createCity3D(this.cityEl, { hud: false });
+      this.c3 = await createCity3D(this.cityEl, { hud: false, fast: !!this.state.set.fast });
       this.c3.build(this.city, gen); this.c3.view('overview'); this.c3.setChase(this.state.set.far ? 24 : 16); this.c3.setFast(this.state.set.fast);
       await new Promise(r => setTimeout(r, 600));
       this.map = this.c3.snapshotTop(this.city, 1400);
@@ -105,6 +107,8 @@ export class EmberBay extends Screens {
   chief(i) {
     Promise.resolve(this.chiefP).then(() => { const v = this.chiefV; if (!v) return; v.setActive(true); clearTimeout(this.chiefT); v.setSel(0); if (i < 2) this.chiefT = setTimeout(() => v.setSel(-1), 1200); });
   }
+  // Frame-rate counter: P on a keyboard, or hold the Fast mode row in Settings. Remembered in settings.
+  toggleFps() { const set = { ...this.state.set, fps: !this.state.set.fps }; this.upd({ set }); this.fps && this.fps.show(set.fps); }
   pickCrew(i) { const S = this.state; if (i === S.crew) return; const players = S.players.slice(); players[S.crew] = this.me(); this.upd({ players, crew: i, ...players[i] }); this.crewV && this.crewV.setSel(i); setTimeout(() => this.syncPins()); }
   upd(patch) { this.setState(patch, () => this.save()); }
 
@@ -134,7 +138,7 @@ export class EmberBay extends Screens {
     const me = this.c3.engineCity(); if (!me) return;
     const t = this.targetEv();
     let nav = null;
-    if (t) { const dx = t.x - me.x, dz = t.z - me.z, rel = Math.atan2(dx, dz) - me.h; nav = { gid: t.gid, rot: Math.round(-rel * 180 / Math.PI / 5) * 5, dist: Math.round(Math.hypot(dx, dz) / 10) * 10 }; }
+    if (t) { const dx = t.x - me.x, dz = t.z - me.z, rel = Math.atan2(dx, dz) - me.h; nav = { gid: t.gid, rot: Math.round(-rel * 180 / Math.PI / 10) * 10, dist: Math.round(Math.hypot(dx, dz) / 10) * 10 }; }
     let near = null;
     for (const e of this.visibleEvents()) { const d = Math.hypot(e.x - me.x, e.z - me.z); if (d < 16 && (!near || d < near.d)) near = { gid: e.gid, k: e.k, d, call: e.call }; }
     if (this.leftCall) { const e = this.city.events.find(e => e.call === this.leftCall); if (!e || Math.hypot(e.x - me.x, e.z - me.z) > 22) this.leftCall = null; else if (near && near.call === this.leftCall) near = null; }
@@ -213,6 +217,7 @@ export class EmberBay extends Screens {
   key(e) {
     const s = this.state;
     if (e.code === 'KeyD') { this.toggleDebug(); return; }
+    if (e.code === 'KeyP') { this.toggleFps(); return; }
     if (e.code === 'Escape') { if (s.debug) return this.toggleDebug(false); if (s.paused) return this.resume(); if (s.screen === 'town' || s.screen === 'game') return this.pauseOpen(s.screen); }
     if (s.screen === 'game' && !s.paused && e.code === 'KeyW') this.win();
     if (s.screen === 'game' && !s.paused && e.code === 'KeyF') this.fail();
@@ -320,7 +325,9 @@ export class EmberBay extends Screens {
       steerLBg: S.set.steerRight ? 'transparent' : HV, steerLFg: S.set.steerRight ? '#f2f1ec' : '#1c1d1f', steerRBg: S.set.steerRight ? HV : 'transparent', steerRFg: S.set.steerRight ? '#1c1d1f' : '#f2f1ec',
       camClose: () => setS({ far: false }), camFar: () => setS({ far: true }),
       camCBg: S.set.far ? 'transparent' : HV, camCFg: S.set.far ? '#f2f1ec' : '#1c1d1f', camFBg: S.set.far ? HV : 'transparent', camFFg: S.set.far ? '#1c1d1f' : '#f2f1ec',
-      togglePerf: () => setS({ fast: !this.state.set.fast }), perfBg: S.set.fast ? HV : 'transparent', perfIcon: S.set.fast ? 'check' : '',
+      togglePerf: () => { if (this.perfHeld) { this.perfHeld = false; return; } setS({ fast: !this.state.set.fast }); },
+      perfDown: () => { this.perfHeld = false; clearTimeout(this.perfT); this.perfT = setTimeout(() => { this.perfHeld = true; this.S.tap(); this.toggleFps(); }, 800); },
+      perfUp: () => clearTimeout(this.perfT), perfBg: S.set.fast ? HV : 'transparent', perfIcon: S.set.fast ? 'check' : '',
       resetBg: S.resetting ? RED : 'transparent',
       resetDown: () => { this.setState({ resetting: true }); this.resetT = setTimeout(() => { this.upd({ lv: {}, target: null, seenStory: false, resetting: false }); this.syncPins(); this.S && this.S.bad(); }, 3000); },
       resetUp: () => { clearTimeout(this.resetT); if (this.state.resetting) this.setState({ resetting: false }); },

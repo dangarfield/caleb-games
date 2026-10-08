@@ -10,7 +10,7 @@ import { sfx } from './sfx.js';
 const ENGINE_FLIP = false;
 const EVCOL = { fire: '#d8362d', rescue: '#e5e043', water: '#2f88c4', safety: '#f2f1ec', drive: '#3b3c3f' };
 
-export async function createCity3D(host, { onSelect, hud: showHud = true } = {}) {
+export async function createCity3D(host, { onSelect, hud: showHud = true, fast: fast0 = false } = {}) {
   let paused = false, fast = false, chaseD = 24, cityBounds = null, story = null;
   // Draw distance while driving (m): the far plane culls whole tiles; fog fades them out before the edge.
   const TILE = 96, RANGE = 480, RANGE_FAST = 260, range = () => (fast ? RANGE_FAST : RANGE);
@@ -18,8 +18,8 @@ export async function createCity3D(host, { onSelect, hud: showHud = true } = {})
   function applyRange() {
     if (!scene.fog) return;
     const near = mode === 'drive' && !(mg && !mg.drive);
-    if (near) { const r = range(); scene.fog.near = r * 0.55; scene.fog.far = r * 0.95; camera.far = r; }
-    else if (!mg) { scene.fog.near = FOG_FAR.near; scene.fog.far = FOG_FAR.far; camera.far = FOG_FAR.cam; }
+    if (near) { const r = range(); scene.fog.near = r * 0.55; scene.fog.far = r * 0.95; camera.near = 1; camera.far = r; }
+    else if (!mg) { scene.fog.near = FOG_FAR.near; scene.fog.far = FOG_FAR.far; camera.near = 4; camera.far = FOG_FAR.cam; }
     camera.updateProjectionMatrix();
   }
   const lib = await loadCityAssets();
@@ -29,7 +29,11 @@ export async function createCity3D(host, { onSelect, hud: showHud = true } = {})
   const AX = { x: new THREE.Vector3(1, 0, 0), y: new THREE.Vector3(0, 1, 0), z: new THREE.Vector3(0, 0, 1) }, rm = new THREE.Matrix4(), tm = new THREE.Matrix4();
   // deck height on a bridge seg: 24 m ramps up to a 4 m deck
   const deckY = (x, z) => { for (const b of bridges) if (x > b.x && x < b.x + b.w && z > b.z && z < b.z + b.d) return Math.min(4, Math.min(z - b.z, b.z + b.d - z) / 24 * 4); return 0; };
-  const renderer = new THREE.WebGLRenderer({ logarithmicDepthBuffer: true, antialias: true });
+  // No logarithmic depth buffer: it writes gl_FragDepth in every shader, which switches off the GPU's early depth
+  // test, so on tablet GPUs every hidden pixel of every building still gets shaded. The flat layers use polygon
+  // offset instead, and the near/far planes are kept tight per view (applyRange). Fast mode also skips MSAA
+  // (chosen when the renderer is made, so a Fast mode change applies fully next time the game opens).
+  const renderer = new THREE.WebGLRenderer({ antialias: !fast0, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap; renderer.shadowMap.autoUpdate = false;
@@ -364,7 +368,7 @@ export async function createCity3D(host, { onSelect, hud: showHud = true } = {})
       const o = W(x, z); o.y = deckY(x, z); const sc = sun.shadow.camera;
       mg = { drive: drv, hook: null, hidden: [], peds: [], o, r, s: { cp: camera.position.clone(), cq: camera.quaternion.clone(), near: camera.near, far: camera.far, fov: camera.fov, mode, ep: engine && engine.position.clone(), eh: drive.h, ev: engine ? engine.visible : true, sp: sun.position.clone(), st: sun.target.position.clone(), sb: [sc.left, sc.right, sc.top, sc.bottom, sc.near, sc.far], hi: hemi.intensity, si: sun.intensity } };
       beacons.forEach(b => { b.userData._mv = b.visible; b.visible = false; });
-      camera.near = 0.25; camera.far = 1200; camera.updateProjectionMatrix(); controls.enabled = false; drive.keys = {}; drive.v = 0;
+      camera.near = 0.3; camera.far = 600; camera.updateProjectionMatrix(); controls.enabled = false; drive.keys = {}; drive.v = 0;
       if (drv) { mode = 'drive'; if (engine) drive.h = engine.rotation.y; applyRange(); }
       else { mode = 'mg'; sun.target.position.copy(o); sun.position.copy(o).add(new THREE.Vector3(-30, 56, 26)); Object.assign(sc, { left: -r * 1.5, right: r * 1.5, top: r * 1.5, bottom: -r * 1.5, near: 1, far: 260 }); sc.updateProjectionMatrix(); sun.shadow.autoUpdate = true; }
       if (peds) for (const p of peds.peds) { const q = p.o || p.obj || p.root; if (q && q.visible && q.position.distanceTo(o) < r + 15) { q.visible = false; mg.peds.push(q); } }

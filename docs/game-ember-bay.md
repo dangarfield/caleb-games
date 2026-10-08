@@ -95,3 +95,4 @@ The design's old `localStorage['blaze-emberbay-save-v1']` is migrated once into 
 - 2026-10-03: Chief Ember's story portrait is now a live 3D character (Cowboy_Male, head and shoulders).
 - 2026-10-03: Default levels are now Music 80, Sound 20 (players with a save keep their own settings).
 - 2026-10-06: `assets/` and `audio/sfx/` moved to `games/_shared/` (shared with Kaiju Pothole); every `'./assets/'` / `'audio/sfx/'` path now points at `../_shared/`. `audio/ember-bay-theme.webm` stays here.
+- 2026-10-08: Tablet GPU pass: dropped the logarithmic depth buffer (it disabled early-Z, so hidden pixels were all shaded), tight near/far per view instead; Fast mode also turns off MSAA (applies on next open); nav arrow re-renders in 10° steps; press P (keyboard) or hold the Settings Fast mode row to toggle an fps / draw-call counter (`js/fps-meter.js`, saved as `set.fps`).

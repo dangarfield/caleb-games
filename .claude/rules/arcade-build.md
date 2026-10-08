@@ -24,6 +24,16 @@ the *how-to-think* detail (boilerplate, audio recipes, UX patterns) lives in
 - **Target device: a low-performance tablet at 1333×690.** This is the primary way these games are played — design and budget for it, not a desktop. Keep the frame cheap enough to hold up on weak hardware, and make tap targets comfortable at that size.
 - **When you test or verify in a browser, use 1333×690 by default.** Landscape is the norm, but some games are portrait — flip to 690×1333 for those. Match the emulated viewport to how the game is actually meant to be held before trusting what you see.
 
+## Pause menu (every game — the default for new games)
+- Every game has a pause menu, opened from a pause button (top-right, never top-left). It MUST have a **Sound** slider and a **Music** slider, in addition to whatever else the game needs there.
+- **Sound** sets every sound effect (generated and recorded, plus narration) through one sounds gain node; **Music** sets the theme tune through its own gain node. Both 0–100, default 80, applied squared (`gain = (v/100)²`), shown as "Off" at 0, saved with the game's settings. Moving Sound plays a short sample so you can hear the level.
+- Both go through Web Audio gain nodes, never `el.volume` (iPad ignores it). Recipe: `knowledge/audio-patterns.md` → *Volume sliders*.
+
+## Performance monitor (Three.js / WebGL games)
+- Every Three.js game ships the three.js **Stats** monitor (`three/addons/libs/stats.module.js`) as a hidden debug overlay, top-left **directly under the "← Games" link** (left 12px, top 64px) — the one thing allowed in that corner besides the back button — with a line of renderer numbers under it (redraws/s, draw calls, triangles, canvas size, quality mode).
+- Toggled by the **P** key, and on the tablet by **holding the performance control (the Fast mode row) in the pause menu for ~0.6s**; the hold must not also flip the setting. A game with no Fast mode control puts the hold on its pause menu title instead. Off by default, remembered in the settings.
+- Snippet: `knowledge/ux-patterns.md` → *Performance monitor*.
+
 ## The back button (most-repeated bug — get it right)
 - Every game MUST have a back button whose href is exactly `../../index.html`.
 - NOT `../../`, NOT `/`. GitHub Pages 404s the trailing-slash form in production even though it works on localhost.

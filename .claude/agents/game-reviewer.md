@@ -20,6 +20,7 @@ defect list.
 
 ## Rubric
 - **Conventions:** single-file (or justified multi-file), Canvas 2D, dark-theme palette, `touch-action:none`, back-button href is exactly `../../index.html` and the `data-arcade-back` snippet is present unchanged, UI layer matches the renderer (Three.js/WebGL game: every HUD, menu, overlay and game-over is HTML/CSS over the canvas, none drawn in WebGL or on a 2D canvas; Canvas 2D game: canvas HUD pill and canvas game-over), a localStorage key that STARTS with `calebArcadeData` (a new game owns its own item, `calebArcadeData:<gameName>`; an existing game still inside the legacy shared `calebArcadeData` object is fine and must NOT be migrated).
+- **Pause menu & monitor:** the pause menu has a **Sound** slider and a **Music** slider (0–100, default 80, applied through Web Audio gain nodes, saved) as well as the game's own options. A Three.js game also has the three.js Stats monitor top-left under "← Games", toggled by **P** and by holding the Fast mode row (or the pause title) for ~0.6s without flipping the setting.
 - **Runtime:** plays with no JS console errors; start overlay present; controls work by touch.
 - **Fit:** age-appropriate difficulty for ~7+; clear and forgiving.
 - **Card:** the reviewer checklist in `.apm/specs/game-card.spec.md` passes, and `node scripts/build-index.mjs --check` is green (root `index.html` regenerated, never hand-edited).

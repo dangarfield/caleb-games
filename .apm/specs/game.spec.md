@@ -22,6 +22,8 @@ The single loop that makes it fun, in 2–3 sentences.
 - [ ] Back button href = ../../index.html, plus the data-arcade-back snippet (knowledge/arcade-back.md)
 - [ ] UI layer: Three.js/WebGL game → all HUD, menus, overlays and game-over in HTML/CSS over the canvas; Canvas 2D game → canvas HUD pill + canvas game-over
 - [ ] Own save item keyed calebArcadeData:<gameName>
+- [ ] Pause menu with Sound + Music sliders (0–100, default 80, saved) plus the game's own options
+- [ ] Three.js game → Stats performance monitor under "← Games", toggled by P and by holding the Fast mode row
 
 ## Home-page card
 - Name on title screen:

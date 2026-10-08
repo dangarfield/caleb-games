@@ -264,7 +264,8 @@ h2{font-size:clamp(38px,7vw,60px);margin-top:10px}
       <button id="resumeBtn" class="go">Play on</button>
       <button id="restartBtn" class="ghost">Start again</button>
       <button id="quitBtn" class="ghost">Back to menu</button>
-      <div class="row" style="margin-top:6px"><div class="lab">Music</div><div style="display:flex;align-items:center;gap:12px;min-height:44px"><input id="volSl" type="range" min="0" max="100" step="5" value="80" style="flex:1;min-width:0;height:44px;accent-color:#f7cf2e;cursor:pointer"><span id="volVal" style="font:700 18px/1 'Barlow Condensed',sans-serif;min-width:4ch;text-align:right;color:#fff">80</span></div></div>
+      <div class="row" style="margin-top:6px"><div class="lab">Sound</div><div style="display:flex;align-items:center;gap:12px;min-height:44px"><input id="sfxSl" type="range" min="0" max="100" step="5" value="80" style="flex:1;min-width:0;height:44px;accent-color:#f7cf2e;cursor:pointer"><span id="sfxVal" style="font:700 18px/1 'Barlow Condensed',sans-serif;min-width:4ch;text-align:right;color:#fff">80</span></div></div>
+      <div class="row"><div class="lab">Music</div><div style="display:flex;align-items:center;gap:12px;min-height:44px"><input id="volSl" type="range" min="0" max="100" step="5" value="80" style="flex:1;min-width:0;height:44px;accent-color:#f7cf2e;cursor:pointer"><span id="volVal" style="font:700 18px/1 'Barlow Condensed',sans-serif;min-width:4ch;text-align:right;color:#fff">80</span></div></div>
       <div class="row"><div class="lab">Fast mode</div><div id="segPerf" class="seg"><button data-v="off">Off</button><button data-v="on">On</button></div></div>
       <div class="foot">Turn this on if the game is slow.</div>
       <div class="lab" style="margin-top:6px">Rules</div>
@@ -306,7 +307,10 @@ h2{font-size:clamp(38px,7vw,60px);margin-top:10px}
 <script type="module">
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import Stats from 'three/addons/libs/stats.module.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 // ---------- table + physics (metres, y up; x = length, z = width) ----------
+// @worker-a  (pure table geometry + physics: also run inside the AI worker, so no DOM/THREE here)
 const GAMES = {
   uk: { id: 'uk', label: 'English pool', kick: 'English pool · 7ft table', HL: 0.9145, HW: 0.457, RB: 0.0254, RC: 0.0238, cueM: 0.87,
     CW: 0.045, RW: 0.12, CH: 0.042, CG: 0.074, MG: 0.052, cOff: 0.022, cR: 0.062, cCap: 0.05, mOff: 0.05, mR: 0.056, mCap: 0.042,
@@ -477,12 +481,15 @@ function clampD(x, z) {
 }
 const freeAt = (bs, x, z) => bs.every(b => !b.on || b.t === 'C' || Math.hypot(b.x - x, b.z - z) > b.r + RC + 0.001);
 // ---------- three.js scene ----------
+// @worker-a-end
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.8;
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.autoUpdate = false;   // recomputed only when a ball or the cue moves (see loop)
+let needRender = true, perfScale = 1, fastMode = false;   // fast mode state (see applyPerf)
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0b0c0f);
 scene.fog = new THREE.Fog(0x0b0c0f, 4.5, 10);
@@ -490,7 +497,7 @@ const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 const camera = new THREE.PerspectiveCamera(40, 1, 0.03, 30);
 
-scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x101014, 0.35));
+const hemi = new THREE.HemisphereLight(0xdfe8ff, 0x101014, 0.35); scene.add(hemi);
 const key = new THREE.DirectionalLight(0xffffff, 1.3);
 key.position.set(0.25, 4, 0.7); key.castShadow = true; key.shadow.mapSize.set(2048, 2048);
 Object.assign(key.shadow.camera, { left: -1.4, right: 1.4, top: 0.95, bottom: -0.95, near: 1, far: 7 });
@@ -555,6 +562,35 @@ const table = new THREE.Group(); scene.add(table);
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x17191d, roughness: 0.9 }));
   floor.position.y = -0.86; floor.receiveShadow = true; scene.add(floor);
 }
+// The table never moves once built: merge its ~45 meshes into one per material (and shadow setting),
+// so it costs a handful of draw calls instead of dozens. If anything won't merge, the separate meshes stay.
+function mergeTable() {
+  const groups = new Map(), made = [];
+  try {
+    for (const m of table.children) {
+      if (!m.isMesh) continue;
+      m.updateMatrix();
+      const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
+      g.applyMatrix4(m.matrix); made.push(g);
+      for (const a of Object.keys(g.attributes)) if (a !== 'position' && a !== 'normal' && a !== 'uv') g.deleteAttribute(a);
+      if (!g.attributes.normal) g.computeVertexNormals();
+      if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+      g.clearGroups();
+      const k = m.material.uuid + (m.castShadow ? 'c' : '') + (m.receiveShadow ? 'r' : '');
+      if (!groups.has(k)) groups.set(k, { m, list: [] });
+      groups.get(k).list.push(g);
+    }
+    const out = [];
+    for (const { m, list } of groups.values()) {
+      const geo = list.length > 1 ? mergeGeometries(list, false) : list[0];
+      if (!geo) throw new Error('merge failed');
+      const mesh = new THREE.Mesh(geo, m.material); mesh.castShadow = m.castShadow; mesh.receiveShadow = m.receiveShadow; out.push(mesh);
+    }
+    const seen = new Set(); table.children.forEach(o => { if (o.geometry && !seen.has(o.geometry)) { seen.add(o.geometry); o.geometry.dispose(); } });
+    made.forEach(g => { if (!out.some(o => o.geometry === g)) g.dispose(); });
+    table.clear(); out.forEach(o => table.add(o));
+  } catch (e) { made.forEach(g => g.dispose()); console.warn('table merge skipped', e); }
+}
 function buildTable() {
   TA = HL + CW; TB = HW + CW;
   table.traverse(o => { if (o.geometry) o.geometry.dispose(); }); table.clear();
@@ -603,6 +639,7 @@ function buildTable() {
     const ring = new THREE.Mesh(new THREE.RingGeometry(p.r + 0.002, p.r + 0.02, 40, 1, -phi - span, span * 2).rotateX(-Math.PI / 2), G.wood ? leatherMat : chromeMat);
     ring.position.set(p.x, CH + 0.0012, p.z); table.add(ring);
   }
+  mergeTable();
   const E = TA + RW + 0.2, F = TB + RW + 0.2;
   Object.assign(key.shadow.camera, { left: -E, right: E, top: F, bottom: -F }); key.shadow.camera.updateProjectionMatrix();
   scene.fog.near = 4.5 * G.camK; scene.fog.far = 10 * G.camK;
@@ -651,7 +688,7 @@ for (let i = 0; i < 22; i++) {
   m.quaternion.setFromEuler(new THREE.Euler(Math.random() * 6, Math.random() * 6, 0));
   scene.add(m); meshes.push(m);
 }
-function bindMeshes(bs) { meshes.forEach((m, i) => { const b = bs[i]; m.visible = !!b; if (b) { m.material = ballMat(b.t); m.scale.setScalar(b.r); } }); }
+function bindMeshes(bs) { meshes.forEach((m, i) => { const b = bs[i]; m.visible = !!b; if (b) { m.material = ballMat(b.t); m.scale.setScalar(b.r); } }); if (fastMode) liteMats(true); needRender = true; }
 const _q = new THREE.Quaternion(), _ax = new THREE.Vector3();
 const P_TOP = -0.03, P_BOT = -0.2;
 function dropStep(b, D, h) {
@@ -833,7 +870,7 @@ function resize() {
   const w = innerWidth, h = innerHeight;
   renderer.setSize(w, h, false); camera.aspect = w / h; camera.fov = w / h < 0.9 ? 52 : 40; camera.updateProjectionMatrix();
 }
-addEventListener('resize', resize); resize();
+addEventListener('resize', () => { resize(); needRender = true; }); resize();
 const _ray = new THREE.Raycaster(), _ndc = new THREE.Vector2(), _pl = new THREE.Plane(new THREE.Vector3(0, 1, 0), -RB), _hit = new THREE.Vector3();
 function tablePoint(cx, cy) {
   const r = canvas.getBoundingClientRect();
@@ -841,6 +878,7 @@ function tablePoint(cx, cy) {
   _ray.setFromCamera(_ndc, camera);
   return _ray.ray.intersectPlane(_pl, _hit) ? { x: _hit.x, z: _hit.z } : null;
 }
+// @worker-b  (game state, rules, computer player: also run inside the AI worker; top level must stay DOM-free)
 // ---------- game state, rules, computer player ----------
 let balls = makeRack();
 const NAMES = { R: 'reds', Y: 'yellows', B: 'the black' };
@@ -1116,7 +1154,7 @@ function scoreSim(r) {
   const next = shotCands(r.balls, rules().nextTargets(j, r.balls));
   return 10 + (j.pts || 0) * 0.6 + (next.length ? next[0].score * 8 : -2);
 }
-function aiPlan() {
+function* aiPlanGen() {   // yields after each simulated shot so the planning can be spread over frames
   const L = LEVELS[S.level], c = balls[0], tg = rules().targets(balls);
   if (S.isBreak && G.id !== 'snk') return { a: Math.atan2(balls[1].z - c.z, balls[1].x - c.x) + (Math.random() - 0.5) * 0.004, p: 1, sx: 0, sy: 0.1 };
   const plans = [];
@@ -1124,7 +1162,7 @@ function aiPlan() {
     for (const k of [0.85, 1.25, 1.7]) {
       const p = Math.max(0.12, Math.min(0.95, 0.14 + cd.dist * 0.2 * k));
       for (const sy of L.spin ? [0, -0.5] : [0]) {
-        const shot = { a: cd.a, p, sx: 0, sy }; shot.v = scoreSim(simulate(balls, shot)); plans.push(shot);
+        const shot = { a: cd.a, p, sx: 0, sy }; shot.v = scoreSim(simulate(balls, shot)); plans.push(shot); yield;
       }
     }
   }
@@ -1134,7 +1172,7 @@ function aiPlan() {
   const safe = [];
   for (const t of tg) {
     const a = Math.atan2(t.z - c.z, t.x - c.x);
-    for (const p of [0.3, 0.5]) { const s = { a, p, sx: 0, sy: 0 }; s.v = scoreSim(simulate(balls, s)); safe.push(s); }
+    for (const p of [0.3, 0.5]) { const s = { a, p, sx: 0, sy: 0 }; s.v = scoreSim(simulate(balls, s)); safe.push(s); yield; }
   }
   safe.sort((a, b) => b.v - a.v);
   return safe[0] || plans[0] || { a: S.aim, p: 0.5, sx: 0, sy: 0 };
@@ -1150,14 +1188,60 @@ function aiPlace() {
   }
   if (best) { c.x = best[0]; c.z = best[1]; }
 }
-function aiTurn() {
-  S.phase = 'ai'; renderHud();
-  setTimeout(() => {
-    if (S.phase !== 'ai') return;
+// @worker-b-tail
+function aiPlan() { const g = aiPlanGen(); let r; do r = g.next(); while (!r.done); return r.value; }
+// @worker-b-end
+// The worker is built from this script's own text between the @worker markers, so it always matches the game.
+let aiW = null, aiReq = 0;
+function aiWorker() {
+  if (aiW !== null) return aiW;
+  try {
+    const src = document.querySelector('script[type="module"]').textContent;
+    const cut = (a, b) => src.slice(src.indexOf(a), src.indexOf(b));
+    const code = cut('// @worker-a ', '// @worker-a-end') + cut('// @worker-b ', '// @worker-b-end') + `
+self.onmessage = e => {
+  const d = e.data;
+  try {
+    setGeom(GAMES[d.g]); REDS = d.reds; Object.assign(S, d.S); balls = d.balls;
     if (S.inHand) aiPlace();
-    const plan = aiPlan(), L = LEVELS[S.level], gs = () => (Math.random() + Math.random() + Math.random() - 1.5) / 0.5;
+    const plan = aiPlan();
+    self.postMessage({ id: d.id, plan, cue: { x: balls[0].x, z: balls[0].z } });
+  } catch (err) { self.postMessage({ id: d.id, error: String(err && err.stack || err) }); }
+};`;
+    aiW = new Worker(URL.createObjectURL(new Blob([code], { type: 'text/javascript' })));
+    aiW.onerror = e => { console.warn('AI worker failed', e.message); aiW = false; };
+  } catch (e) { aiW = false; }
+  return aiW;
+}
+function aiTurn() {
+  S.phase = 'ai'; S.ai = null; renderHud();
+  const t0 = performance.now(), tok = {}; S.aiTok = tok; let gen = null, plan = null, asked = false;
+  // Think in ~6ms slices between frames (the game keeps drawing), and take at least 700ms, as before.
+  const step = () => {
+    if (S.phase !== 'ai' || S.aiTok !== tok) return;
+    if (S.paused) return setTimeout(step, 100);
+    if (!gen && !asked) {
+      const W = fastMode && aiWorker();
+      if (W) {   // fast mode: the whole plan is worked out off the main thread
+        asked = true; const id = ++aiReq;
+        W.onmessage = e => {
+          const d = e.data; if (d.id !== id || S.aiTok !== tok) return;
+          if (d.error) { console.warn('AI worker:', d.error); aiW = false; asked = false; return; }   // fall back to slices
+          if (d.cue && S.inHand) { balls[0].x = d.cue.x; balls[0].z = d.cue.z; }
+          plan = d.plan;
+        };
+        W.postMessage({ id, g: G.id, reds: REDS, S: JSON.parse(JSON.stringify(S, (k, v) => k === 'ev' || k === 'ai' || k === 'aiTok' ? undefined : v)), balls: JSON.parse(JSON.stringify(balls)) });
+        return requestAnimationFrame(step);
+      }
+      if (S.inHand) aiPlace(); gen = aiPlanGen(); return requestAnimationFrame(step);
+    }
+    if (asked && !plan) return requestAnimationFrame(step);
+    if (!plan) { const end = performance.now() + 6; let r; do r = gen.next(); while (!r.done && performance.now() < end); if (r.done) plan = r.value; }
+    if (!plan || performance.now() - t0 < 700) return requestAnimationFrame(step);
+    const L = LEVELS[S.level], gs = () => (Math.random() + Math.random() + Math.random() - 1.5) / 0.5;
     S.ai = { from: S.aim, to: plan.a + gs() * L.noise * (S.aiScale || 1), p: Math.max(0.08, Math.min(1, plan.p * (1 + gs() * L.pow * (S.aiScale || 1)))), sx: plan.sx || 0, sy: plan.sy || 0, t: 0 };
-  }, 700);
+  };
+  requestAnimationFrame(step);
 }
 const angDiff = (a, b) => ((b - a + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
 function aiTick(dt) {
@@ -1172,13 +1256,14 @@ function aiTick(dt) {
 // Themes are files (encoded 6dB down, knowledge/audio-patterns.md), routed through Web Audio
 // because iPad Safari ignores el.volume; switching game on the menu cross-fades between them.
 const $ = id => document.getElementById(id);
-const SFX_LEVEL = 0.64, MUSIC_LEVEL = 0.5, XFADE = 1.6;
+const MUSIC_LEVEL = 0.5, XFADE = 1.6;
+let sfxLevel = 0.64;                               // Sound slider (80 by default), squared
 let actx = null, master = null, musicBus = null, vol = 0.8;
 function setVol(v) { vol = v; if (musicBus) musicBus.gain.value = v * v; }
 function ensureAudio() {
   if (!actx) { try {
     actx = new (window.AudioContext || window.webkitAudioContext)();
-    master = actx.createGain(); master.gain.value = SFX_LEVEL; master.connect(actx.destination);
+    master = actx.createGain(); master.gain.value = sfxLevel; master.connect(actx.destination);
     musicBus = actx.createGain(); musicBus.connect(actx.destination); setVol(vol); loadSamples();
   } catch (e) { return null; } }
   if (actx.state === 'suspended') actx.resume();
@@ -1309,7 +1394,7 @@ function applause() { for (let i = 0; i < 70; i++) { const t = Math.random() * 2
 const Store = window.ArcadeStore ? ArcadeStore('pocket-pros') : null;
 const SID = Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
 let gen = 0, rec = { wins: {}, h2h: { Caleb: 0, Ezra: 0 }, ai: { Caleb: [0, 0], Ezra: [0, 0] }, champ: {}, titles: {}, tutDone: false, tutSeen: {}, settings: null };
-const setup = { game: 'uk', reds: 15, mode: 'ai', player: 'Caleb', level: 'easy', race: 3, guide: 'long', perf: 'off', vol: 80 };
+const setup = { game: 'uk', reds: 15, mode: 'ai', player: 'Caleb', level: 'easy', race: 3, guide: 'long', perf: 'off', vol: 80, sfx: 80, mon: false };
 function saveRec() {
   if (!Store || (Store.conflict && Store.conflict())) return;
   gen += 1; Store.set(null, Object.assign({}, rec, { gen, sid: SID }), { guard: true });
@@ -1325,7 +1410,7 @@ function recordMatch(w) {
 if (Store) Store.ready(() => {
   const d = Store.get();
   if (d) { gen = d.gen || 0; rec = Object.assign(rec, d); if (d.settings) Object.assign(setup, d.settings, { game: 'uk', mode: 'ai', level: 'easy', reds: 15 }); delete setup.tutorial; rec.tutSeen = rec.tutSeen || {}; if (rec.tutDone === true) rec.tutSeen.uk = true; }
-  applyGame(setup.game); applyPerf(); applyVol(); fitOpts();
+  applyGame(setup.game); applyPerf(); applyVol(); applySfx(); showMon(setup.mon); fitOpts();
 });
 
 // ---------- setup / screens ----------
@@ -1373,9 +1458,83 @@ function fitOpts() {
 }
 addEventListener('resize', fitOpts);
 if (document.fonts) document.fonts.ready.then(fitOpts);
+// ---------- performance monitor (debug) ----------
+// three.js Stats (FPS / ms / MB, tap it to switch) plus a line of renderer numbers, top left under "← Games".
+// Toggled with P, or by holding the Fast mode row in the pause menu for ~0.6s. Remembered in the settings.
+const stats = new Stats();
+stats.dom.style.cssText = 'position:fixed;top:64px;left:12px;z-index:9998;cursor:pointer;opacity:.9;display:none';
+const monInfo = document.createElement('div');
+monInfo.style.cssText = 'position:fixed;top:118px;left:12px;z-index:9998;padding:3px 6px;background:rgba(0,0,16,.75);color:#0ff;font:600 11px/1.35 monospace;white-space:pre;pointer-events:none;display:none';
+document.body.append(stats.dom, monInfo);
+let monOn = false, monHeld = false, monDraws = 0, monT = 0;
+function showMon(v) { monOn = !!v; stats.dom.style.display = monInfo.style.display = monOn ? 'block' : 'none'; }
+function toggleMon() { setup.mon = !monOn; showMon(setup.mon); rec.settings = Object.assign({}, setup); saveRec(); }
+function monTick(now, drew) {
+  if (!monOn) return;
+  stats.update(); if (drew) monDraws++;
+  if (now - monT >= 1000) {
+    const r = renderer.info.render, c = renderer.domElement;
+    monInfo.textContent = `redraws ${monDraws}/s\n${r.calls} calls · ${Math.round(r.triangles / 1000)}k tris\n${c.width}×${c.height} · ${fastMode ? 'fast ' + Math.round(perfScale * 100) + '%' : 'normal'}${renderer.shadowMap.enabled ? ' · shadows' : ''}`;
+    monDraws = 0; monT = now;
+  }
+}
+{ // hold the Fast mode row
+  const row = $('segPerf').closest('.row'); let t = 0;
+  const cancel = () => clearTimeout(t);
+  row.addEventListener('pointerdown', () => { cancel(); monHeld = false; t = setTimeout(() => { monHeld = true; toggleMon(); }, 600); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => row.addEventListener(ev, cancel));
+}
+
+// ---------- performance ----------
+// Fast mode: no shadows, no spotlight, no clearcoat/sheen layers, low-poly balls, cheap cloth filtering,
+// and a render scale that drops (to 0.6) when frames take too long and climbs back when there's headroom.
+const ballGeoLo = new THREE.SphereGeometry(1, 22, 16);
+// Fast mode has no shadow map, so each ball gets a soft dark spot on the cloth instead: one instanced draw.
+const blobs = (() => {
+  const cv = document.createElement('canvas'); cv.width = cv.height = 64;
+  const g = cv.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(0,0,0,0.62)'); gr.addColorStop(0.45, 'rgba(0,0,0,0.38)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  const tex = new THREE.CanvasTexture(cv);
+  const im = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }), 24);
+  im.count = 0; im.visible = false; im.frustumCulled = false; im.renderOrder = 1; scene.add(im); return im;
+})();
+const _bm = new THREE.Matrix4();
+function syncBlobs(bs) {
+  if (!fastMode) { blobs.visible = false; return; }
+  let n = 0;
+  for (const b of bs) {
+    if (!b.on || b.drop || n >= 24) continue;
+    const k = b.r * 2.7; _bm.makeScale(k, 1, k); _bm.setPosition(b.x + b.r * 0.12, 0.0006, b.z + b.r * 0.22);   // nudged away from the key light
+    blobs.setMatrixAt(n++, _bm);
+  }
+  blobs.count = n; blobs.visible = n > 0; blobs.instanceMatrix.needsUpdate = true;
+}
+function liteMats(fast) {
+  scene.traverse(o => {
+    if (!o.material) return;
+    [].concat(o.material).forEach(m => {
+      const u = m.userData; let ch = false;
+      if (m.isMeshPhysicalMaterial) {
+        if (u.cc == null) u.cc = [m.clearcoat, m.sheen];
+        const cc = fast ? 0 : u.cc[0], sh = fast ? 0 : u.cc[1];
+        if (m.clearcoat !== cc || m.sheen !== sh) { m.clearcoat = cc; m.sheen = sh; ch = true; }
+      }
+      const t = m.map;
+      if (t) { if (t.userData.an == null) t.userData.an = t.anisotropy; const an = fast ? Math.min(2, t.userData.an) : t.userData.an; if (t.anisotropy !== an) { t.anisotropy = an; t.needsUpdate = true; } }
+      if (ch) m.needsUpdate = true;
+    });
+  });
+}
+function setScale() { renderer.setPixelRatio(setup.perf === 'on' ? perfScale : Math.min(devicePixelRatio, 2)); resize(); needRender = true; }
 function applyPerf() {
-  const fast = setup.perf === 'on';
-  renderer.setPixelRatio(fast ? 1 : Math.min(devicePixelRatio, 2)); key.castShadow = !fast; resize();
+  const fast = fastMode = setup.perf === 'on';
+  perfScale = 1;
+  if (renderer.shadowMap.enabled === fast) { renderer.shadowMap.enabled = !fast; scene.traverse(o => o.material && [].concat(o.material).forEach(m => m.needsUpdate = true)); }
+  key.castShadow = !fast; spot.visible = !fast; key.intensity = fast ? 2.5 : 1.3; hemi.intensity = fast ? 0.6 : 0.35;   // make up for the spotlight
+  meshes.forEach(m => { m.geometry = fast ? ballGeoLo : ballGeo; });
+  liteMats(fast); setScale();
   $('segPerf').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === setup.perf));
 }
 function applyGame(id) {
@@ -1388,7 +1547,10 @@ function applyGame(id) {
 function applyVol() { const v = setup.vol ?? 80; $('volSl').value = v; $('volVal').textContent = v ? v : 'Off'; setVol(v / 100); }
 $('volSl').oninput = e => { setup.vol = +e.target.value; applyVol(); ensureAudio(); };
 $('volSl').onchange = () => { rec.settings = Object.assign({}, setup); saveRec(); };
-$('segPerf').querySelectorAll('button').forEach(b => b.onclick = () => { setup.perf = b.dataset.v; applyPerf(); rec.settings = Object.assign({}, setup); saveRec(); });
+function applySfx() { const v = setup.sfx ?? 80; $('sfxSl').value = v; $('sfxVal').textContent = v ? v : 'Off'; sfxLevel = (v / 100) ** 2; if (master) master.gain.value = sfxLevel; }
+$('sfxSl').oninput = e => { setup.sfx = +e.target.value; applySfx(); ensureAudio(); if (!play('ball-hit-hard', 0.6)) tone(2400, 0.04, 'sine', 0.3); };
+$('sfxSl').onchange = () => { rec.settings = Object.assign({}, setup); saveRec(); };
+$('segPerf').querySelectorAll('button').forEach(b => b.onclick = () => { if (monHeld) { monHeld = false; return; } setup.perf = b.dataset.v; applyPerf(); rec.settings = Object.assign({}, setup); saveRec(); });
 $('champReset').onclick = () => { const c = rec.champ[setup.player]; if (c) delete c[ck(setup.game, setup.level)]; saveRec(); renderSetup(); };
 SETUP_SEGS.forEach(([id, k]) =>
   $(id).querySelectorAll('button').forEach(b => b.onclick = () => { setup[k] = k === 'race' || k === 'reds' ? +b.dataset.v : b.dataset.v; if (k === 'game') setup.race = setup.game === 'snk' ? 1 : 3; if (k === 'game' || k === 'reds') applyGame(setup.game); renderSetup(); }));
@@ -1717,6 +1879,7 @@ $('spinDone').onclick = closeSpin;
 $('spinReset').onclick = () => { S.sx = S.sy = 0; renderSpin(); };
 
 addEventListener('keydown', e => {
+  if ((e.key === 'p' || e.key === 'P') && !e.repeat) { toggleMon(); return; }
   if (e.key === 'Escape') { if (!$('pause').classList.contains('hidden')) $('resumeBtn').click(); else $('menuBtn').click(); return; }
   if (!canAim()) return;
   if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { S.aim += (e.key === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 0.0015 : 0.01); e.preventDefault(); }
@@ -1727,10 +1890,10 @@ addEventListener('keyup', e => { if (e.key === ' ' && S.charging) { S.charging =
 document.addEventListener('contextmenu', e => e.preventDefault());
 
 // ---------- loop ----------
-let last = performance.now(), booted = false;
+let last = performance.now(), booted = false, lastSS = '', lastCS = '', lastDraw = 0, frameAvg = 16, frameN = 0;
 function loop(now) {
   requestAnimationFrame(loop);
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const rawDt = now - last, dt = Math.min(0.05, rawDt / 1000); last = now;
   if (!S.paused) {
     if (S.phase === 'moving') {
       const n = Math.max(1, Math.round(dt / 0.001));
@@ -1743,14 +1906,34 @@ function loop(now) {
     if (S.charging && S.phase === 'aim') S.power = Math.min(1, S.power + dt * 0.6);
   }
   const ph = S.phase, aiming = ph === 'aim' || ph === 'ai' || ph === 'strike';
-  const pull = ph === 'strike' ? S.shotPow * 0.22 * Math.max(0, 1 - S.strikeT / 0.07) : S.power * 0.22;
-  syncBalls(balls, dt);
+  // While the computer thinks, its cue does slow practice strokes back and forth.
+  const pull = ph === 'strike' ? S.shotPow * 0.22 * Math.max(0, 1 - S.strikeT / 0.07) : ph === 'ai' && !S.ai ? 0.045 + 0.04 * Math.sin(now * 0.0055) : S.power * 0.22;
+  syncBalls(balls, dt); syncBlobs(balls);
   placeCue(balls[0], S.aim, pull, S.sx, S.sy, aiming);
   drawAim(balls, S.aim, aiming && ph !== 'strike', S.guide, S.inHand && aiming);
   const mode = ph === 'menu' ? 'orbit' : aiming ? S.view : S.view === 'top' ? 'top' : 'tv';
   updateCamera(mode, balls[0], S.aim, dt, camFreeze);
   renderPower();
-  renderer.render(scene, camera);
+  let drew = false;
+  // Draw only when something changed: the balls/cue/aim (which also re-casts the shadows) or the camera.
+  let ss = S.phase + (S.inHand || '') + S.guide + S.aim.toFixed(4) + pull.toFixed(4) + S.sx + S.sy;
+  for (const b of balls) ss += b.drop && !b.drop.rest ? 'd' + now : b.on ? b.x.toFixed(4) + b.z.toFixed(4) : 'x';
+  const cs = camera.position.x.toFixed(4) + camera.position.y.toFixed(4) + camera.position.z.toFixed(4) + camera.quaternion.x.toFixed(4) + camera.quaternion.y.toFixed(4) + camera.quaternion.z.toFixed(4);
+  const capped = fastMode && !needRender && now - lastDraw < 30;      // fast mode: draw at most ~30 times a second
+  if (!capped && (needRender || ss !== lastSS || cs !== lastCS || now - lastDraw > 1000)) {
+    if (needRender || ss !== lastSS) renderer.shadowMap.needsUpdate = true;
+    renderer.render(scene, camera);
+    if (fastMode && now - lastDraw < 100) {                          // drawing steadily: track how long a frame takes
+      frameAvg += (rawDt - frameAvg) * 0.05;
+      if (++frameN > 45) {
+        frameN = 0;
+        if (frameAvg > 24 && perfScale > 0.6) { perfScale = Math.round((perfScale - 0.1) * 10) / 10; setScale(); }
+        else if (frameAvg < 18 && perfScale < 1) { perfScale = Math.round((perfScale + 0.1) * 10) / 10; setScale(); }
+      }
+    }
+    lastSS = ss; lastCS = cs; lastDraw = now; needRender = false; drew = true;
+  }
+  monTick(now, drew);
   try { tutTick(); } catch (e) { console.error(e); }
   if (!booted) { booted = true; const l = $('loading'); l.style.opacity = 0; setTimeout(() => l.remove(), 450); }
 }
