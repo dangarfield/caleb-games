@@ -1,6 +1,6 @@
 # Games Index
 
-All 87 games in Garfield Boys' Arcade, plus Librarian (WIP, hidden) — 88 game folders under `games/` (plus `games/_shared/`, assets used by more than one game). The home page is built from each game's `card.json`; a card with `"hidden": true` isn't shown or counted.
+All 88 games in Garfield Boys' Arcade, plus Librarian (WIP, hidden) — 89 game folders under `games/` (plus `games/_shared/`, assets used by more than one game). The home page is built from each game's `card.json`; a card with `"hidden": true` isn't shown or counted.
 
 | Game | Directory | Description |
 |------|-----------|-------------|
@@ -92,9 +92,11 @@ All 87 games in Garfield Boys' Arcade, plus Librarian (WIP, hidden) — 88 game 
 | The Wind & The Wall | games/the-wind-and-the-wall/ | Narrated story climb in three.js (from a Claude Design build): Wren runs up the Earth Giant's hill and becomes the shapes carved in his walls (poses, items, spells on a Hush wheel) to free the trapped Wind; 7 chapters / 29 stages, illustrated opening, feather memories, per-chapter music, 195 voiced lines, Big Run endless mode |
 | Splat Attack! | games/splat-attack/ | Dual-stick paint-em-up in three.js with an HTML HUD (from a Claude Design build): cover the grey map in your colour against AI bots. Cover the Floor (4 teams of 2), Last Splat Standing (8 solo, shrinking ring), Bucket Brigade (4 v 4) and Grey Goo Attack (co-op waves + Goo King) across 6 maps, 8 power-ups; Caleb/Ezra colours, hats and bests per mode × level; menu + per-map music, Sounds + Music sliders |
 | Portal Lab | games/portal-lab/ | First-person portal puzzler in three.js with an HTML HUD (from a Claude Design build): fire blue and pink portals to escape 66 test chambers (Tutorial, Clearance Blue, Clearance Pink) with boxes, pads, doors, glass, sentry robots, moving platforms and flings; Caleb/Ezra progress, best times and fewest portals; theme music, Sounds + Music sliders, performance mode |
+| Pin Pals | games/pin-pals/ | Ten-pin bowling in three.js + cannon-es with an HTML HUD (from a Claude Design build): line up, pull back, hold for Ready, flick up, then swipe to steer the spin. Classic (10 frames) or Quick (5); Caleb and Ezra pass-and-play or vs 1–3 AI (Rusty, Penny, Duke); pins earned buy 8 balls with their own physics; three lanes (Maple Alley, Neon Galaxy, Riff Arena) each with its own theme, fonts and music; recorded SFX, Sound + Music sliders, Fast mode |
 
 ## Naming quirks worth knowing
 
+- **Pin Pals / pinfall** — folder and doc are `pin-pals`, but the save keys keep the working name `calebArcadeData:pinfall`. Don't rename them.
 - **Speed Racer / DR1V3N WILD** — folder is still `driven-wild/`, but the user-facing title was renamed to "Speed Racer". Don't rename the folder; do reflect the new name in any user-facing text.
 - **Archers** — the folder is `games/archers-3d/` but the game is just "Archers" on the home page. Keep the path. The old 2D version was removed on 2026-09-28.
 - **Resin Animals ↔ resincritters** — historical name mismatch: doc is `game-resin-animals.md`, folder is `games/resincritters/`. Both names appear in the codebase; the home page card title is "Resin Animals".

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pin Pals · Sound lab</title>
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--ink:#f6efe4;--mut:rgba(246,239,228,.68);--line:rgba(246,239,228,.14);--brass:#d4a24c;--panel:#2a2019}
+body{background:#1e1712;color:var(--ink);font-family:'Bricolage Grotesque',system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding:28px clamp(16px,4vw,48px) 80px}
+a{color:var(--ink)}a:hover{color:var(--brass)}
+h1{font-size:44px;font-weight:800;letter-spacing:-.03em;line-height:1}
+.sub{color:var(--mut);font-size:15px;margin-top:8px;max-width:60em}
+.wrap{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px 22px;display:flex;flex-direction:column;gap:14px}
+.card h2{font-size:13px;font-weight:800;letter-spacing:.16em;color:var(--brass)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px 28px}
+.ctl{display:grid;grid-template-columns:120px 1fr 64px;align-items:center;gap:12px;font-size:14px;font-weight:600}
+.ctl output{font:600 12px/1 'JetBrains Mono',monospace;color:var(--mut);text-align:right}
+input[type=range]{width:100%;accent-color:var(--brass);height:28px}
+button{font:inherit;color:inherit;background:none;border:1px solid rgba(246,239,228,.22);border-radius:10px;padding:9px 14px;font-weight:700;cursor:pointer;min-height:40px;display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+button:hover{border-color:var(--brass)}
+button.pri{background:var(--brass);color:#1e1712;border-color:var(--brass)}
+button.sm{padding:6px 10px;min-height:34px;font-size:13px}
+.row{display:grid;grid-template-columns:minmax(150px,1.1fr) auto minmax(150px,1.4fr) minmax(150px,1.4fr) auto;gap:16px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}
+.row:first-of-type{border-top:none}
+.row b{display:block;font-size:15px;font-weight:800}
+.row small{display:block;font-size:12.5px;color:var(--mut);margin-top:3px}
+.row .ctl{grid-template-columns:44px 1fr 52px}
+.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.note{font-size:13px;color:var(--mut)}
+.row small.src{font:600 11px/1.4 'JetBrains Mono',monospace;color:var(--brass);margin-top:5px}
+.row small.src.gen{color:var(--mut)}
+.grp{font-size:12px;font-weight:800;letter-spacing:.16em;color:var(--mut);margin:14px 0 2px}
+#lanes button.on{background:var(--brass);color:#1e1712;border-color:var(--brass)}
+.pill{font:600 11px/1.4 'JetBrains Mono',monospace;white-space:nowrap;display:inline-block;padding:5px 8px;border-radius:999px;background:rgba(212,162,76,.16);color:var(--brass)}
+@media (max-width:820px){.row{grid-template-columns:1fr auto}.row .ctl{grid-column:1/-1}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap">
+    <div><h1>Sound lab</h1><p class="sub">Exactly what the game plays: the three lane tracks and every effect, grouped by where you hear it. Each effect shows the file it plays (leading silence is trimmed automatically). Adjust levels, pitch spread (each play picks a random pitch within ±N semitones, so repeats don't sound identical) and the mix, then press <b>Save to game</b>. The game reads these settings when it starts.</p></div>
+    <div class="bar"><a href="index.html" style="white-space:nowrap">Open the game</a></div>
+  </div>
+
+  <div class="card">
+    <h2>MIX</h2>
+    <div class="grid">
+      <label class="ctl"><span>Effects level</span><input type="range" id="mSfx" min="0" max="100" value="80"><output id="mSfxO"></output></label>
+      <label class="ctl"><span>Music level</span><input type="range" id="mMus" min="0" max="100" value="80"><output id="mMusO"></output></label>
+      <label class="ctl"><span>Crossfade</span><input type="range" id="mBal" min="-100" max="100" value="0"><output id="mBalO"></output></label>
+    </div>
+    <p class="note">Effects and Music level are the boys' own volume sliders in Pause (shown here for testing only, not saved). <b>Crossfade</b> leans the whole mix toward music (left) or effects (right).</p>
+  </div>
+
+  <div class="card">
+    <h2>LANE MUSIC</h2>
+    <div class="bar" id="lanes"></div>
+    <p class="note">Same files and the same 1.5 s crossfade as the game's lane picker. Each track goes through the music bus, so the crossfade above applies.</p>
+  </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <h2>EFFECTS</h2>
+      <div class="bar"><button id="demo" class="sm">Play a whole throw</button></div>
+    </div>
+    <div id="rows"></div>
+  </div>
+
+  <div class="bar">
+    <button class="pri" id="save">Save to game</button>
+    <button id="reset">Reset all</button>
+    <button id="copy">Copy settings (JSON)</button>
+    <span class="note" id="status"></span>
+  </div>
+</div>
+
+<script src="js/arcade-store.js"></script>
+<script src="js/pinfall-sfx.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const Store = ArcadeStore('pinfall-sound');
+let ctx, sfxBus, musBus, FX, cfg = PinfallSFX.defaults(), track = null, trackSrc = null;
+const level = v => (v / 100) ** 2;
+function audio() {
+  if (!ctx) {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    sfxBus = ctx.createGain(); musBus = ctx.createGain(); sfxBus.connect(ctx.destination); musBus.connect(ctx.destination);
+    FX = PinfallSFX.create(ctx, sfxBus, musBus, cfg); applyLevels();
+  }
+  if (ctx.state === 'suspended') ctx.resume();
+  return FX;
+}
+function applyLevels() { if (!ctx) return; sfxBus.gain.value = level(+$('mSfx').value); musBus.gain.value = level(+$('mMus').value); FX.setCfg(cfg); }
+
+const LOOPS = {
+  roll: () => { const f = audio(); f.startRoll(); let t = 0; const iv = setInterval(() => { t += 0.05; f.updateRoll(8 - t * 2.4, t > 1.2, true); if (t > 2.6) { clearInterval(iv); f.stopRoll(); } }, 50); },
+  tension: () => { const f = audio(); let t = 0; const iv = setInterval(() => { t += 0.05; f.setTension(Math.min(1, t)); if (t > 1.8) { clearInterval(iv); f.setTension(0); } }, 50); },
+};
+function play(id) {
+  const f = audio();
+  if (LOOPS[id]) return LOOPS[id]();
+  if (id === 'pinRepeat') return [0, 90, 170, 260, 380].forEach((d, i) => setTimeout(() => f.pinRepeat(3 - i * 0.4), d));
+  if (id === 'swipe') return f.swipe(Math.random() < 0.5 ? -1 : 1);
+  f[id]();
+}
+function renderRows() {
+  $('rows').innerHTML = PinfallSFX.GROUPS.map(g => `<div class="grp">${g.toUpperCase()}</div>` + PinfallSFX.LIST.filter(e => e.group === g).map(e => {
+    const c = cfg.fx[e.id];
+    return `<div class="row" data-id="${e.id}">
+      <div><b>${e.name}</b><small>${e.desc}</small><small class="src ${e.files ? '' : 'gen'}">${e.files ? (e.files.length > 1 ? e.files.length + ' variants · ' : '') + e.files.join(', ') : 'generated (no file)'}</small></div>
+      <button class="sm" data-play>▶ Play</button>
+      <label class="ctl"><span>Level</span><input type="range" data-k="gain" min="0" max="200" value="${Math.round(c.gain * 100)}"><output>${Math.round(c.gain * 100)}%</output></label>
+      <label class="ctl"><span>Pitch ±</span><input type="range" data-k="pitch" min="0" max="6" step="0.5" value="${Math.abs(c.pitch)}"><output>±${Math.abs(c.pitch)} st</output></label>
+      <button class="sm" data-reset>Reset</button>
+    </div>`;
+  }).join('')).join('');
+}
+$('rows').addEventListener('click', e => {
+  const row = e.target.closest('.row'); if (!row) return; const id = row.dataset.id;
+  if (e.target.closest('[data-play]')) play(id);
+  if (e.target.closest('[data-reset]')) { cfg.fx[id] = Object.assign({}, PinfallSFX.defaults().fx[id]); renderRows(); applyLevels(); }
+});
+$('rows').addEventListener('input', e => {
+  const k = e.target.dataset.k; if (!k) return; const row = e.target.closest('.row'), id = row.dataset.id, v = +e.target.value;
+  cfg.fx[id][k] = k === 'gain' ? v / 100 : v;
+  e.target.nextElementSibling.textContent = k === 'gain' ? v + '%' : '±' + v + ' st';
+  applyLevels();
+});
+$('rows').addEventListener('change', e => { const row = e.target.closest('.row'); if (row && e.target.dataset.k) play(row.dataset.id); });
+
+function syncMix() {
+  $('mSfxO').textContent = $('mSfx').value; $('mMusO').textContent = $('mMus').value;
+  const b = +$('mBal').value; $('mBalO').textContent = b === 0 ? 'even' : b < 0 ? 'music ' + -b : 'fx ' + b;
+  cfg.mix.balance = b / 100; applyLevels();
+}
+['mSfx', 'mMus', 'mBal'].forEach(id => $(id).addEventListener('input', syncMix));
+
+const tracks = {}; let laneOn = null;
+function laneButtons() {
+  $('lanes').innerHTML = PinfallSFX.MUSIC.map(m => `<button class="sm ${laneOn === m.id ? 'on' : ''}" data-lane="${m.id}">▶ ${m.name}</button>`).join('') + '<button class="sm" data-lane="">■ Stop</button><span class="note" id="laneNote"></span>';
+}
+function loadTrack(m) {
+  if (tracks[m.id]) return tracks[m.id].ready;
+  const T = tracks[m.id] = { gain: ctx.createGain(), src: null, buf: null };
+  T.gain.gain.value = 0; T.gain.connect(FX.musicInput);
+  T.ready = fetch(m.file).then(r => r.ok ? r.arrayBuffer() : Promise.reject()).then(b => ctx.decodeAudioData(b)).then(buf => { T.buf = buf; return T; }).catch(() => { $('laneNote').textContent = 'Could not load ' + m.file; return null; });
+  return T.ready;
+}
+function playLane(id) {
+  audio(); laneOn = id || null; laneButtons();
+  const t = ctx.currentTime;
+  Object.entries(tracks).forEach(([k, T]) => { if (k !== id) { T.gain.gain.cancelScheduledValues(t); T.gain.gain.setTargetAtTime(0, t, 0.5); } });
+  const m = PinfallSFX.MUSIC.find(x => x.id === id); if (!m) return;
+  loadTrack(m).then(T => {
+    if (!T || !T.buf || laneOn !== id) return;
+    if (!T.src) { T.src = ctx.createBufferSource(); T.src.buffer = T.buf; T.src.loop = true; T.src.connect(T.gain); T.src.start(); }
+    const n = ctx.currentTime; T.gain.gain.cancelScheduledValues(n); T.gain.gain.setTargetAtTime(1, n, 0.5);
+  });
+}
+$('lanes').addEventListener('click', e => { const b = e.target.closest('[data-lane]'); if (b) playLane(b.dataset.lane); });
+laneButtons();
+$('demo').addEventListener('click', () => {
+  const f = audio(), at = (ms, fn) => setTimeout(fn, ms);
+  [0, 90, 180].forEach(d => at(d, () => f.tick()));
+  at(500, () => f.tock()); at(1100, () => f.swipe(1)); at(1000, () => LOOPS.roll());
+  at(1500, () => f.swipe(-1));
+  at(3500, () => f.pinFirst()); [3650, 3760, 3880, 4020].forEach((d, i) => at(d, () => f.pinRepeat(2.5 - i * 0.4)));
+  at(4300, () => f.strike());
+});
+$('save').addEventListener('click', () => { Store.set(null, cfg); Store.flush && Store.flush(); $('status').textContent = 'Saved. Reload the game to hear it.'; });
+$('reset').addEventListener('click', () => { cfg = PinfallSFX.defaults(); $('mBal').value = 0; renderRows(); syncMix(); $('status').textContent = 'Reset (not saved yet).'; });
+$('copy').addEventListener('click', async () => { try { await navigator.clipboard.writeText(JSON.stringify(cfg, null, 2)); $('status').textContent = 'Copied.'; } catch (e) { $('status').textContent = JSON.stringify(cfg); } });
+
+Store.ready(() => {
+  const saved = Store.get();
+  if (saved) { cfg = PinfallSFX.defaults(); if (saved.mix) Object.assign(cfg.mix, saved.mix); if (saved.fx) Object.keys(saved.fx).forEach(k => cfg.fx[k] = Object.assign({ gain: 1, pitch: 0 }, saved.fx[k])); }
+  $('mBal').value = Math.round(cfg.mix.balance * 100);
+  renderRows(); syncMix();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "pin-pals",
+  "name": "Pin Pals",
+  "blurb": "Pull back, hold, flick. Three alleys, ten pins, one thumb.",
+  "added": "2026-10-09",
+  "icon": {
+    "emoji": "🎳"
+  },
+  "title": {
+    "font": "Bricolage Grotesque",
+    "weight": 800,
+    "size": 40,
+    "color": "#F6EFE4",
+    "letterSpacing": "-.02em",
+    "shadow": "0 3px 12px rgba(0,0,0,.55)"
+  },
+  "blurbStyle": {
+    "color": "#F6EFE4",
+    "shadow": "0 1px 3px rgba(30,23,18,.9)"
+  },
+  "background": {
+    "gradient": [
+      "#1E1712",
+      "#C4955F",
+      "#D4A24C"
+    ],
+    "css": "linear-gradient(0deg, rgba(30,23,18,.94) 0 30px, rgba(30,23,18,0) 70px), radial-gradient(ellipse at 78% 18%, rgba(212,162,76,.35), transparent 50%), repeating-linear-gradient(90deg, rgba(0,0,0,.10) 0 1px, transparent 1px 13px), linear-gradient(180deg, #3a2b20 0%, #8a6440 55%, #C4955F 100%)"
+  },
+  "source": {
+    "files": [
+      "games/pin-pals/index.html",
+      "games/pin-pals/research/Pinfall bowling game design/games/pinfall/card.json"
+    ],
+    "refreshed": "2026-10-09",
+    "notes": "From the Claude Design draft card: Maple Alley's Bricolage Grotesque title on the dark alley #1E1712, maple lane boards #C4955F and the brass accent #D4A24C. Board stripes fade up from the lane into the dark room, with a brass glow top-right behind the pin."
+  }
+}
