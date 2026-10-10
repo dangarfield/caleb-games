@@ -11,7 +11,7 @@ const Store = ArcadeStore('kaiju-pothole');
 
 // Two players, each with their own scores, wins, shapes and settings. Performance mode is shared.
 const USERS = [{ id: 'ezra', name: 'Ezra' }, { id: 'caleb', name: 'Caleb' }];
-const fresh = () => ({ stars: { list: {}, zen: 0 }, wins: { easy: 0, normal: 0, hard: 0 }, best: {}, zenBest: 0, skin: 'black', shake: true, difficulty: 'easy', vol: { fx: 80, music: 80 }, eaten: {}, rims: ['black'] });
+const fresh = () => ({ stars: { list: {}, zen: 0 }, wins: { easy: 0, normal: 0, hard: 0 }, best: {}, zenBest: 0, zenRun: null, skin: 'black', shake: true, difficulty: 'easy', vol: { fx: 80, music: 80 }, eaten: {}, rims: ['black'] });
 let root = { v: 3, user: 'ezra', users: {}, perf: false }, save = fresh();
 // Hole shapes are won by eating things across every game (a long-running shopping list),
 // or by finishing a Shopping level (one placeholder shape per level for now).
@@ -67,6 +67,7 @@ const hooks = {
   float(name, o) { const [x, y] = game.toScreen(o); const d = document.createElement('div'); d.className = 'float'; d.textContent = '+ ' + name; d.style.left = x + 'px'; d.style.top = y + 'px'; document.body.appendChild(d); setTimeout(() => d.remove(), 1000); },
   joy() {},
   pause() {
+    if (zenSave()) persist();
     if ($('pause').classList.contains('on')) return resume();
     game.paused = true; const zen = game.cfg.mode === 'zen';
     $('finishBtn').style.display = zen ? '' : 'none'; $('menuBtn').style.display = zen ? 'none' : '';
@@ -87,7 +88,9 @@ function refreshMenus() {
   $('modesTitle').textContent = 'Pick a game, ' + userName();
   const cur = SKINS.find(s => s.id === save.skin) || SKINS[0]; drawSkin($('curSkin'), cur.id); $('curSkinName').textContent = cur.name;
   $('st-rush').innerHTML = icon('trophy') + '&nbsp;High score: ' + (save.best.rush || 0).toLocaleString();
-  $('st-zen').innerHTML = starStr(save.stars.zen) + '&nbsp;&nbsp;Best: ' + (save.zenBest || 0) + '%';
+  const run = save.zenRun;
+  $('zen-desc').textContent = run ? `Carry on! ${Math.round(run.pct * 100)}% of your town is gone.` : 'No clock. Eat the whole town!';
+  $('st-zen').innerHTML = starStr(save.stars.zen) + '&nbsp;&nbsp;Best: ' + (save.zenBest || 0) + '%' + (run ? `<span class="clr" data-clear="zen" role="button">${icon('arrow-counter-clockwise')}New town</span>` : '');
   for (const d of ['easy', 'normal', 'hard']) $('w-' + d).textContent = save.wins[d] || 0;
   $('st-list').innerHTML = icon('star') + '&nbsp;' + LIST_LEVELS.reduce((a, _, i) => a + listStars(i), 0) + ' / ' + LIST_LEVELS.reduce((a, _, i) => a + listMax(i), 0);
   for (const b of $('diff').children) b.classList.toggle('on', b.dataset.d === save.difficulty);
@@ -121,7 +124,8 @@ function toggles() {
 }
 
 async function play(cfg) {
-  lastCfg = cfg; sfx.unlock(); sfx.enter(); sfx.music({ rush: 'gobble', rivals: 'battle', list: 'shopping', zen: 'zen' }[cfg.mode] || 'gobble');
+  lastCfg = cfg;
+  if (cfg.mode === 'zen' && save.zenRun) cfg = { ...cfg, resume: save.zenRun }; // pick up the saved town sfx.unlock(); sfx.enter(); sfx.music({ rush: 'gobble', rivals: 'battle', list: 'shopping', zen: 'zen' }[cfg.mode] || 'gobble');
   show('loading'); $('loadMsg').textContent = cfg.mode === 'list' && LIST_LEVELS[cfg.level].room != null ? 'Knocking on the door…' : 'Digging in…'; $('bar').firstElementChild.style.width = '100%';
   await new Promise(r => setTimeout(r, 90)); // let the click sound and loading screen start before the heavy town build
   await game.start({ ...cfg, skin: devSkin || save.skin, difficulty: save.difficulty });
@@ -132,6 +136,7 @@ function toMenu() { game.showcase(); show('modes'); sfx.music('gobble'); }
 function results(res) {
   const m = res.mode;
   const zenPct = Math.round((res.pct || 0) * 100), zenWas = save.zenBest || 0;
+  if (m === 'zen') save.zenRun = null; // a finished Zen run starts a fresh town next time
   if (m === 'zen') { save.stars.zen = Math.max(save.stars.zen || 0, res.stars); save.zenBest = Math.max(zenWas, zenPct); } // Zen card: best % of the town eaten
   if (m === 'rivals' && res.place === 1) save.wins[save.difficulty] = (save.wins[save.difficulty] || 0) + 1;
   if (m === 'list') {
@@ -163,6 +168,13 @@ document.addEventListener('click', e => {
   if (t.dataset.d || !(t.dataset.mode || t.dataset.level || ['replayBtn', 'nextBtn', 'restartBtn'].includes(t.id))) { sfx.unlock(); sfx.tap(); }
 }, true);
 document.addEventListener('click', e => {
+  // Zen card's "New town": tap twice (it asks "Sure?") so a stray tap can't throw a town away
+  const clr = e.target.closest('[data-clear]');
+  if (clr) {
+    if (clr.dataset.sure) { save.zenRun = null; persist(); refreshMenus(); return; }
+    clr.dataset.sure = '1'; clr.innerHTML = icon('warning') + 'Sure? Tap again'; setTimeout(() => { if (clr.isConnected) refreshMenus(); }, 3000);
+    return;
+  }
   const b = e.target.closest('button,[data-go],[data-mode]'); if (!b) return;
   if (b.dataset.user) { useUser(b.dataset.user); persist(); sfx.unlock(); show('modes'); return; }
   if (b.dataset.go) { sfx.unlock(); show(b.dataset.go); }
@@ -177,11 +189,14 @@ $('volFx').oninput = e => { save.vol.fx = +e.target.value; sfx.setVolume('fx', s
 $('volFx').onchange = () => { sfx.tap(); persist(); };
 $('volMusic').oninput = e => { save.vol.music = +e.target.value; sfx.unlock(); sfx.setVolume('music', save.vol.music / 100); };
 $('volMusic').onchange = () => persist(); // save once the slider is let go, not on every tick
-addEventListener('pagehide', () => { if (Store.isReady() && persist()) Store.flush(); }); // keep this game's eaten counts when leaving mid-game
+addEventListener('pagehide', () => { if (Store.isReady()) { zenSave(); if (persist()) Store.flush(); } }); // keep this game's eaten counts when leaving mid-game
 $('pauseBtn').onclick = () => hooks.pause();
 $('resumeBtn').onclick = resume;
 $('finishBtn').onclick = () => { game.paused = false; show(null); game.end(); };
-$('restartBtn').onclick = () => play(lastCfg);
+$('restartBtn').onclick = () => { if (lastCfg && lastCfg.mode === 'zen') save.zenRun = null; play(lastCfg); }; // restarting Zen = a new town
+// Zen progress survives a reload / restart: snapshot the town every few seconds and whenever the page goes away
+function zenSave() { if (game && game.running && !game.done && game.cfg && game.cfg.mode === 'zen') { save.zenRun = game.snapshot(); return true; } return false; }
+setInterval(() => { if (zenSave()) persist(); }, 5000);
 $('menuBtn').onclick = $('resMenuBtn').onclick = toMenu;
 $('replayBtn').onclick = () => play(lastCfg);
 $('nextBtn').onclick = () => play({ mode: 'list', level: lastCfg.level + 1 });

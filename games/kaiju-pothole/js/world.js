@@ -39,8 +39,11 @@ export class World {
   }
   // queues cycle through every model of a kind so the whole library gets used
   queues() {
-    const q = {}; for (const m of Object.values(this.models)) (q[kindOf(m)] ||= []).push(m);
-    for (const k in q) q[k].sort(() => R() - 0.5);
+    // Same seed → same town, every time: the models are put in id order first (the packs load in whatever order the
+    // network delivers them) and shuffled with a seeded Fisher–Yates (a random sort comparator isn't reproducible).
+    // Zen's saved run depends on this.
+    const q = {}; for (const m of Object.values(this.models).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) (q[kindOf(m)] ||= []).push(m);
+    for (const k of Object.keys(q).sort()) { const l = q[k]; for (let i = l.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [l[i], l[j]] = [l[j], l[i]]; } }
     const at = {}; this.take = k => { const l = q[k]; if (!l || !l.length) return null; at[k] = ((at[k] ?? -1) + 1) % l.length; return l[at[k]]; };
     this.q = q;
   }
@@ -125,7 +128,7 @@ export class World {
     for (let i = 0; i < 6; i++) { const z = -H + 20 + R() * (plan.shore(0) - H - 30 + H), x = plan.riverX(z); const m = this.take('boat'); if (m && Math.max(m.w, m.d) < plan.RIVW * 0.8) this.add(m, x, z, Math.atan2(plan.riverX(z + 1) - x, 1)); }
     // anything that never got placed (a kind with no lot) goes in a park or shopping lot so the whole library shows up
     const used = new Set(this.objs.map(o => o.id)), hosts = plan.lots.filter(l => l.type === 'park' || l.type === 'shops');
-    for (const m of Object.values(this.models)) if (!used.has(m.id) && !m.hazard && kindOf(m) !== 'station') this.fill(pick(hosts), [kindOf(m)], 3);
+    for (const m of Object.values(this.models).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) if (!used.has(m.id) && !m.hazard && kindOf(m) !== 'station') this.fill(pick(hosts), [kindOf(m)], 3);
     // border trees on the three land sides (not edible): the edge of the map
     for (let a = -H - 6; a < H + 6; a += 5) for (const [x, z] of [[a, -H - 5], [-H - 5, a], [H + 5, a]]) { if (plan.inSea(x, z, 2)) continue; const m = this.take('tree'); this.add(m, x + R() * 2, z + R() * 2, R() * 6, 1.4, { eatable: false }); }
     extra && extra(this, R);

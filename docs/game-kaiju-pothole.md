@@ -9,7 +9,7 @@ Steer a hungry pothole round town and swallow the lot. Ages 8–10, touch-first 
   - 1–6: town lists.
   - 7–9: **Hazard Sweep**, find Ember Bay's fire hazards spread around town.
   - 10–12: **House Call**, a cut-away room is the arena and the hole is toy-sized. Each visit moves on to another room, so all 9 rooms get used.
-- **Zen:** no clock. The "% of town eaten" meter fills, and it finishes at 98%. Stars: 15% ★, 40% ★★, 70% ★★★. The Zen card shows the stars and the best % (`zenBest`, per player).
+- **Zen:** no clock. The "% of town eaten" meter fills, and it finishes at 98%. Stars: 15% ★, 40% ★★, 70% ★★★. The Zen card shows the stars and the best % (`zenBest`, per player). A Zen town is saved as you go (`zenRun`: the town seed, the indices of every eaten object, the hole's size, spot, score and counts) every 5 s, on pause and when the page goes away, so a reload or restart carries on in the same town; the card then says how much is gone and has a **New town** chip (tap twice) to throw it away. Finishing, or Restart from the pause menu, also starts a fresh town.
 
 Hole shapes are won by eating things across every game (a long-running list per shape) or by finishing a Shopping level. Two players (Ezra, Caleb), each with their own stars, wins, shapes and Sounds/Music levels.
 
@@ -79,3 +79,5 @@ Real rigid-body physics ([Rapier](https://rapier.rs) 0.14, `@dimforge/rapier3d-c
 - 2026-10-06: The zoom stretch made the title flyover draw ~670k triangles (its camera is only 62 m up, so it counted as zoomed in). The flyover now uses the plain distances (`lodPass(..., wide)`): ~260k.
 - 2026-10-06: Zen stars now 15 / 40 / 70% (were 50 / 75 / 98%). Gobble, Shopping and Zen cards show their score / stars in a centred bottom band matching Rivals' difficulty strip.
 - 2026-10-06: Picking a hole shape while scrolled down made the list jump (the whole grid was rebuilt on every pick). It now restyles the cards in place (`markSkin`).
+- 2026-10-10: Zen progress survives a reload (`zenRun` in the save; `Game.snapshot()` / `restore()`, same seed → same `world.objs` order). New town chip on the Zen card.
+- 2026-10-10: Towns weren't reproducible from a seed: the model queues were built in pack-load order and shuffled with a random sort comparator. Now id-ordered and shuffled with a seeded Fisher–Yates (needed for the Zen save).

@@ -53,6 +53,7 @@ h2{font-family:Bungee;font-weight:400;font-size:clamp(22px,4vw,32px);line-height
 .mode{display:flex;flex-direction:column;gap:6px;text-align:left;border:3px solid var(--ink);border-radius:20px;padding:var(--pad);--pad:16px;cursor:pointer;box-shadow:0 5px 0 var(--ink);font-family:Nunito;color:var(--ink)}
 .mode:active{transform:translateY(4px);box-shadow:0 1px 0 var(--ink)}
 .mode b{font-family:Bungee;font-weight:400;font-size:22px}.mode span{font-size:15px;font-weight:700;line-height:1.35}.mode .st{font-weight:900;font-size:14px;display:flex;align-items:center;justify-content:center;gap:2px;align-self:stretch;margin:auto calc(var(--pad) * -1) calc(var(--pad) * -1);min-height:54px;padding:4px 8px;box-sizing:border-box;border-top:3px solid var(--ink);text-align:center} /* score / stars sit in a bottom band the same height as Rivals' difficulty strip */
+.mode .st .clr{display:inline-flex;align-items:center;gap:4px;margin-left:10px;padding:6px 10px;min-height:36px;box-sizing:border-box;border:2px solid var(--ink);border-radius:99px;background:#fff;font-size:13px;cursor:pointer}
 .mode .mh{display:flex;align-items:center;gap:10px}.mode .mi{font-size:38px;line-height:1}
 .mode .diff{display:grid;grid-template-columns:repeat(3,1fr);align-self:stretch;margin:auto calc(var(--pad) * -1) calc(var(--pad) * -1);border:0;border-top:3px solid var(--ink);border-radius:0 0 17px 17px;overflow:hidden}
 .mode .diff button+button{border-left:3px solid var(--ink)}.mode .diff button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;padding:4px 2px;font-size:14px;min-height:54px;line-height:1.15}
@@ -201,7 +202,7 @@ h2{font-family:Bungee;font-weight:400;font-size:clamp(22px,4vw,32px);line-height
         <div class="seg diff" id="diff"><button data-d="easy">Easy<em class="ico"><i class="ph-fill ph-trophy"></i><span id="w-easy">0</span></em></button><button data-d="normal">Normal<em class="ico"><i class="ph-fill ph-trophy"></i><span id="w-normal">0</span></em></button><button data-d="hard">Hard<em class="ico"><i class="ph-fill ph-trophy"></i><span id="w-hard">0</span></em></button></div>
       </div>
       <button class="mode" style="background:#A9E3F7" data-go="levels"><span class="mh"><i class="mi ph-fill ph-list-checks"></i><b>Shopping</b></span><span>Eat the things on your list.</span><span class="st" id="st-list"></span></button>
-      <button class="mode" style="background:#C4F0A8" data-mode="zen"><span class="mh"><i class="mi ph-fill ph-flower-lotus"></i><b>Zen</b></span><span>No clock. Eat the whole town!</span><span class="st" id="st-zen"></span></button>
+      <button class="mode" style="background:#C4F0A8" data-mode="zen"><span class="mh"><i class="mi ph-fill ph-flower-lotus"></i><b>Zen</b></span><span id="zen-desc">No clock. Eat the whole town!</span><span class="st" id="st-zen"></span></button>
     </div>
   </div>
 </div>

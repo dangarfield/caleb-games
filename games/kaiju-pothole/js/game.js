@@ -89,7 +89,9 @@ export class Game {
       this.scene.fog.color.set('#2b2162'); this.scene.background.set('#2b2162');
     } else {
       const hz = lvl && lvl.hazards ? Object.values(this.A.hazards).slice(0, lvl.hazards) : [];
-      this.world.buildTown(cfg.mode === 'list' ? 20 + cfg.level : 7 + Math.floor(Math.random() * 1000), (w, R) => {
+      // Zen keeps its seed so a saved run (cfg.resume) rebuilds exactly the same town
+      this.seed = cfg.mode === 'list' ? 20 + cfg.level : cfg.resume ? cfg.resume.seed : 7 + Math.floor(Math.random() * 1000);
+      this.world.buildTown(this.seed, (w, R) => {
         const spots = w.blocks.filter(b => b.type !== 'harbour' && b.type !== 'stadium' && b.type !== 'plaza');
         hz.forEach(m => { const b = spots[Math.floor(R() * spots.length)], [x, z] = w.edgePoint(b, 1.2, R); w.add(m, x, z, R() * 6, 1); });
       });
@@ -105,9 +107,23 @@ export class Game {
     this.spawnCritters();
     this.timeLeft = cfg.mode === 'zen' ? Infinity : lvl ? 600 : 120;
     this.counts = {}; this.score = 0; this.tier = this.capTier(me); this.lastTick = 99; this.done = false;
+    if (cfg.resume) this.restore(cfg.resume);
     this.goals = lvl ? lvl.items.map(([k, n]) => ({ k, n: Math.min(n, W.remaining(o => (o.m.hazard ? 'hazard' : kindOf(o.m)) === k)), got: 0, label: KIND_LABEL[k] })).filter(g => g.n > 0) : null;
     this.camPos.set(me.x, 20, me.z + 20); this.zoom = 1; this.idle = false;
     this.running = true; this.hud(); sfx.start(); if (this.indoor) this.hooks.toast('House Call: ' + this.roomName);
+  }
+  // Zen save: which objects are gone (their index in world.objs: the same seed builds the same list), plus the hole.
+  snapshot() {
+    const W = this.world, me = this.me, gone = [];
+    W.objs.forEach((o, i) => { if (o.state === 3) gone.push(i); });
+    return { v: 1, seed: this.seed, gone, eaten: me.eaten, score: this.score, counts: { ...this.counts }, x: +me.x.toFixed(2), z: +me.z.toFixed(2), pct: W.eatenArea / (W.totalArea || 1) };
+  }
+  restore(s) {
+    const W = this.world, me = this.me;
+    for (const i of s.gone || []) { const o = W.objs[i]; if (!o || o.state === 3) continue; o.state = 3; if (o.eatable) W.eatenArea += o.area; W.unbucket(o); W.write(o); }
+    me.eaten = s.eaten || 0; me.r = this.radiusFor(me);
+    if (Number.isFinite(s.x) && Number.isFinite(s.z)) { me.x = s.x; me.z = s.z; }
+    this.score = s.score || 0; this.counts = { ...(s.counts || {}) }; this.tier = this.capTier(me);
   }
   addHole(slot, skin, solid, x, z) {
     const h = new Hole(this.scene, slot, skin || 'black', solid); h.x = x; h.z = z; h.eaten = 0; h.r = this.r0; h.vx = 0; h.vz = 0; h.inv = 0; h.dead = 0;
