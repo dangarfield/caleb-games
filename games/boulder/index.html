@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Boulder - Garfield Boys' Arcade</title>
+<script>
+// Directory URL guard: /games/boulder -> /games/boulder/ so js/, sfx/ and assets/ resolve.
+if (!/\/$|\.html$/.test(location.pathname)) location.replace(location.pathname + '/' + location.search + location.hash);
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,600,1,0&display=block" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2314100d'/%3E%3Cellipse cx='32' cy='30' rx='16' ry='11' fill='%23f08a2c'/%3E%3Cellipse cx='32' cy='27' rx='9' ry='4' fill='%23ffd32a'/%3E%3C/svg%3E">
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#14100d;color:#f5f1e8;font-family:'Segoe UI',system-ui,sans-serif;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none;-webkit-tap-highlight-color:transparent;overscroll-behavior:none;touch-action:none}
+input,textarea{-webkit-user-select:text;user-select:text}
+button{touch-action:manipulation}
+img,a,canvas{-webkit-user-drag:none}
+#app{position:fixed;inset:0}
+a{color:#f5f1e8;text-decoration:none}a:hover{color:#ffd32a}
+</style>
+<script data-arcade-back>
+/* arcade-back v1 (knowledge/arcade-back.md). "← Games" = the browser's back button.
+   Any link whose href is exactly ../../index.html goes BACK in history when this page was opened
+   from the arcade home, so home comes back as it was left (scroll position, no reload).
+   Opened any other way (bookmark, direct URL, dev tool), the link just navigates as normal. */
+(function () {
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!a || a.getAttribute('href') !== '../../index.html') return;
+    var home = new URL(a.href), ref;
+    try { ref = new URL(document.referrer); } catch (err) { return; }
+    var dir = home.pathname.replace(/index\.html$/, '');
+    if (ref.origin !== home.origin || (ref.pathname !== home.pathname && ref.pathname !== dir) || history.length < 2) return;
+    e.preventDefault();
+    var go = function () { location.href = home.href; };
+    // Still on this page after going back (an in-game history entry) or nothing happened: go home directly.
+    addEventListener('popstate', go, { once: true });
+    var t = setTimeout(go, 2500);
+    addEventListener('pagehide', function () { clearTimeout(t); }, { once: true });
+    history.back();
+  });
+})();
+</script>
+</head>
+<body>
+<div id="app"></div>
+<!-- No controls, on purpose: started by the first tap, levels live in Settings / Pause. -->
+<audio id="theme" src="music/boulder-theme.webm" loop preload="none" aria-hidden="true"></audio>
+
+<!-- The UI, from the Claude Design Boulder.dc.html <x-dc> template (kept as designed). -->
+<template id="view">
+<div data-screen-label="Boulder" style="position:fixed;inset:0;overflow:hidden;background:#14100d;color:#f5f1e8">
+
+  <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+    <div data-screen-label="Home" style="position:absolute;inset:0;overflow:hidden">
+      <x-import component-from-global-scope="boulder-wall" from="./boulder-wall.js" overhang="12" route="1" offset="-0.2" fast="{{ fastStr }}" character="{{ char }}" look="{{ charLook }}" style="position:absolute;inset:0" hint-size="100%,100%"></x-import>
+      <div style="position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(20,16,13,.94) 0%,rgba(20,16,13,.72) 27%,rgba(20,16,13,0) 41%,rgba(20,16,13,0) 61%,rgba(20,16,13,.7) 70%,rgba(20,16,13,.9) 100%)"></div>
+      <button onClick="{{ openSettings }}" aria-label="Settings" style="position:absolute;top:12px;right:12px;z-index:30;width:52px;height:52px;padding:0;border-radius:50%;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.18);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)"><span style="font-family:'Material Symbols Rounded';font-size:28px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">settings</span></button>
+      <div style="position:absolute;left:clamp(32px,5.5vw,72px);top:0;bottom:0;display:flex;flex-direction:column;justify-content:center">
+        <div style="align-self:flex-start;transform:rotate(-3deg);background:#f08a2c;color:#14100d;font:800 14px/1 'Segoe UI',system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;padding:8px 12px 7px;box-shadow:0 2px 0 rgba(0,0,0,.3);margin-bottom:16px">V0 – V8 · 45 climbs</div>
+        <h1 style="margin:0;font:400 clamp(72px,16vh,112px)/0.9 'Lilita One',sans-serif;letter-spacing:.01em;color:#f5f1e8;text-shadow:0 6px 0 rgba(0,0,0,.35)">BOULDER</h1>
+        <div style="margin-top:14px;font:600 22px/1.3 'Segoe UI',system-ui,sans-serif;color:#d9d2c4;max-width:380px;text-wrap:pretty">Plan your route. Mind your grip. Reach the top.</div>
+        <div style="display:flex;gap:12px;margin-top:clamp(20px,5vh,36px)">
+          <button onClick="{{ openProblems }}" style="height:68px;padding:0 30px;border:none;border-radius:16px;background:#f08a2c;color:#14100d;font:400 32px/1 'Lilita One',sans-serif;white-space:nowrap;cursor:pointer;display:flex;align-items:center;gap:8px;box-shadow:0 6px 0 #a3530f,0 14px 30px rgba(240,138,44,.3)"><span style="font-family:'Material Symbols Rounded';font-size:34px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">play_arrow</span>Climb</button>
+          <button onClick="{{ openEditor }}" style="height:68px;padding:0 22px;border-radius:16px;background:rgba(20,16,13,.6);border:2px solid rgba(245,241,232,.35);color:#f5f1e8;font:700 18px/1 'Segoe UI',system-ui,sans-serif;white-space:nowrap;cursor:pointer;display:flex;align-items:center;gap:8px"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;">construction</span>Route editor</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;margin-top:26px"><div style="display:flex;align-items:center;gap:7px;font:800 14px/1 'Segoe UI',system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;padding:8px 12px 7px;box-shadow:0 2px 0 rgba(0,0,0,.3);transform:rotate(2deg);background:#ffd32a;color:#14100d"><span style="font-family:'Material Symbols Rounded';line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;font-size:18px">star</span>{{ walletText }}</div><sc-if value="{{ hasNextUp }}"><div style="display:flex;align-items:center;gap:7px;font:800 14px/1 'Segoe UI',system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;padding:8px 12px 7px;box-shadow:0 2px 0 rgba(0,0,0,.3);transform:rotate(-2deg);background:#f5f1e8;color:#14100d"><span style="color:#8a7d6b">Next up</span><span style="padding:3px 6px 2px;background:{{ nextUpCol }};color:{{ nextUpFg }};letter-spacing:.04em">{{ nextUpGrade }}</span>{{ nextUpName }}</div></sc-if></div>
+      </div>
+      <div style="position:absolute;right:clamp(16px,2.7vw,36px);top:50%;transform:translateY(-50%);width:384px;box-sizing:border-box;padding:22px;border-radius:22px;background:rgba(20,16,13,.82);border:1px solid rgba(245,241,232,.14);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;flex-direction:column;gap:14px">
+        <div style="font:400 28px/1 'Lilita One',sans-serif">Who's climbing?</div>
+        <div style="position:relative;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div style="position:absolute;left:0;right:0;top:0;height:clamp(140px,26vh,190px);border-radius:16px 16px 0 0;overflow:hidden;-webkit-mask:linear-gradient(#000,#000) left/calc(50% - 6px) 100% no-repeat,linear-gradient(#000,#000) right/calc(50% - 6px) 100% no-repeat;mask:linear-gradient(#000,#000) left/calc(50% - 6px) 100% no-repeat,linear-gradient(#000,#000) right/calc(50% - 6px) 100% no-repeat">
+            <x-import component-from-global-scope="boulder-duo" from="./boulder-wall.js" look-a="{{ lookA }}" look-b="{{ lookB }}" wave="{{ waveKey }}" fast="{{ fastStr }}" style="position:absolute;inset:0" hint-size="100%,100%"></x-import>
+          </div>
+          <sc-for list="{{ climbers }}" as="c" hint-placeholder-count="2">
+            <button onClick="{{ c.pick }}" style="position:relative;display:flex;flex-direction:column;padding:0;border-radius:16px;overflow:hidden;background:transparent;border:3px solid {{ c.border }};cursor:pointer;text-align:left;color:#f5f1e8">
+              <div style="height:clamp(134px,calc(26vh - 6px),184px);width:100%"></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 13px;background:#14100d">
+                <div style="font:400 24px/1 'Lilita One',sans-serif">{{ c.name }}</div>
+                <div style="font:800 11px/1 'Segoe UI',system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;padding:5px 7px;transform:rotate(-3deg);background:{{ c.tagBg }};color:#14100d">{{ c.tag }}</div>
+              </div>
+            </button>
+          </sc-for>
+        </div>
+        <button onClick="{{ openLocker }}" style="display:flex;align-items:center;justify-content:center;gap:10px;height:54px;border-radius:14px;border:2px solid rgba(245,241,232,.35);background:transparent;color:#f5f1e8;font:700 17px/1 'Segoe UI',system-ui,sans-serif;cursor:pointer;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">apparel</span>Locker · change your look</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isLocker }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Locker" style="position:absolute;inset:0;display:grid;grid-template-columns:minmax(0,40%) minmax(0,1fr)">
+      <div style="position:relative">
+        <x-import component-from-global-scope="boulder-climber" from="./boulder-wall.js" mode="stand" fast="{{ fastStr }}" character="{{ char }}" look="{{ lockerLook }}" view="{{ lockerView }}" style="position:absolute;inset:0" hint-size="100%,100%"></x-import>
+
+        <div style="position:absolute;top:12px;right:12px;display:flex;gap:4px;padding:4px;border-radius:14px;background:rgba(20,16,13,.82);border:1px solid rgba(245,241,232,.14)">
+          <sc-for list="{{ viewBtns }}" as="v" hint-placeholder-count="2">
+            <button onClick="{{ v.pick }}" style="height:44px;padding:0 14px;display:flex;align-items:center;gap:6px;border:none;border-radius:10px;background:{{ v.bg }};color:{{ v.fg }};font:700 15px/1 'Segoe UI',system-ui,sans-serif;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">{{ v.icon }}</span>{{ v.label }}</button>
+          </sc-for>
+        </div>
+        <div style="position:absolute;left:50%;bottom:20px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;height:50px;padding:0 20px 0 16px;border-radius:16px;background:rgba(20,16,13,.82);border:1px solid rgba(245,241,232,.14);font:400 22px/1 'Lilita One',sans-serif;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;color:#f08a2c">apparel</span>{{ lockerTitle }}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px;padding:22px 30px 20px;background:#1a1511;border-left:1px solid rgba(245,241,232,.08);min-width:0;overflow-x:hidden;overflow-y:auto">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+          <div style="font:400 44px/1 'Lilita One',sans-serif">Locker</div>
+          <div style="display:flex;align-items:center;gap:6px;height:42px;padding:0 16px 0 12px;border-radius:21px;background:rgba(255,211,42,.14);color:#ffd32a;font:800 18px/1 'Segoe UI',system-ui,sans-serif;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">star</span>{{ wallet }}<span style="font:700 14px/1 'Segoe UI',system-ui,sans-serif;color:#d9c47a">to spend</span></div>
+        </div>
+        <div style="display:flex;gap:6px;padding:5px;border-radius:14px;background:rgba(245,241,232,.06)">
+          <sc-for list="{{ lockerSections }}" as="t" hint-placeholder-count="2">
+            <button onClick="{{ t.pick }}" style="flex:1;height:46px;display:flex;align-items:center;justify-content:center;gap:8px;border:none;border-radius:10px;background:{{ t.bg }};color:{{ t.fg }};font:400 22px/1 'Lilita One',sans-serif;white-space:nowrap;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">{{ t.icon }}</span>{{ t.label }}</button>
+          </sc-for>
+        </div>
+        <sc-if value="{{ tabClimber }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="font:700 12px/1 'Segoe UI',system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#a69c8c">Hair</div>
+              <div style="display:flex;flex-wrap:wrap;gap:8px">
+                <sc-for list="{{ hairStyles }}" as="h" hint-placeholder-count="3">
+                  <button onClick="{{ h.pick }}" style="height:46px;padding:0 18px;display:flex;align-items:center;gap:8px;border-radius:12px;border:2px solid {{ h.ring }};background:rgba(245,241,232,.04);color:#f5f1e8;font:700 16px/1 'Segoe UI',system-ui,sans-serif;cursor:pointer">{{ h.label }}<span style="display:{{ h.tagShow }};align-items:center;gap:1px;font:800 11px/1 'Segoe UI',system-ui,sans-serif;padding:2px 5px 2px 3px;border-radius:5px;background:#14100d;color:#ffd32a;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:12px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">star</span>{{ h.cost }}</span></button>
+                </sc-for>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 26px">
+              <sc-for list="{{ climberSwatches }}" as="sec" hint-placeholder-count="5">
+                <div style="display:flex;flex-direction:column;gap:10px">
+                  <div style="font:700 12px/1 'Segoe UI',system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#a69c8c">{{ sec.title }}</div>
+                  <div style="display:flex;flex-wrap:wrap;gap:8px;padding-bottom:6px">
+                    <sc-for list="{{ sec.items }}" as="sw" hint-placeholder-count="5"><button onClick="{{ sw.pick }}" aria-label="{{ sw.label }}" style="position:relative;width:44px;height:44px;border-radius:50%;padding:0;border:3px solid {{ sw.ring }};background:{{ sw.fill }};box-shadow:inset 0 0 0 3px #1a1511;cursor:pointer"><span style="display:{{ sw.tagShow }};align-items:center;gap:1px;font:800 11px/1 'Segoe UI',system-ui,sans-serif;padding:2px 5px 2px 3px;border-radius:5px;background:#14100d;color:#ffd32a;white-space:nowrap;position:absolute;left:50%;bottom:-9px;transform:translateX(-50%)"><span style="font-family:'Material Symbols Rounded';font-size:12px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">star</span>{{ sw.cost }}</span></button></sc-for>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ tabTee }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 26px">
+              <sc-for list="{{ teeSwatches }}" as="sec" hint-placeholder-count="2">
+                <div style="display:flex;flex-direction:column;gap:10px">
+                  <div style="font:700 12px/1 'Segoe UI',system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#a69c8c">{{ sec.title }}</div>
+                  <div style="display:flex;flex-wrap:wrap;gap:8px;padding-bottom:6px">
+                    <sc-for list="{{ sec.items }}" as="sw" hint-placeholder-count="5"><button onClick="{{ sw.pick }}" aria-label="{{ sw.label }}" style="position:relative;width:44px;height:44px;border-radius:50%;padding:0;border:3px solid {{ sw.ring }};background:{{ sw.fill }};box-shadow:inset 0 0 0 3px #1a1511;cursor:pointer"><span style="display:{{ sw.tagShow }};align-items:center;gap:1px;font:800 11px/1 'Segoe UI',system-ui,sans-serif;padding:2px 5px 2px 3px;border-radius:5px;background:#14100d;color:#ffd32a;white-space:nowrap;position:absolute;left:50%;bottom:-9px;transform:translateX(-50%)"><span style="font-family:'Material Symbols Rounded';font-size:12px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">star</span>{{ sw.cost }}</span></button></sc-for>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="font:700 12px/1 'Segoe UI',system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#a69c8c">Pattern</div>
+              <div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px">
+                <sc-for list="{{ patterns }}" as="p" hint-placeholder-count="6">
+                  <button onClick="{{ p.pick }}" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:7px 6px;border-radius:12px;border:2px solid {{ p.ring }};background:rgba(245,241,232,.04);color:#f5f1e8;cursor:pointer;min-width:0">
+                    <div style="width:100%;height:38px;border-radius:8px;background:{{ p.bg }};border:1px solid rgba(245,241,232,.12)"></div>
+                    <div style="display:flex;align-items:center;gap:4px;font:700 12px/1 'Segoe UI',system-ui,sans-serif;white-space:nowrap">{{ p.label }}<span style="display:{{ p.tagShow }};align-items:center;gap:1px;font:800 11px/1 'Segoe UI',system-ui,sans-serif;padding:2px 5px 2px 3px;border-radius:5px;background:#14100d;color:#ffd32a;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:12px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">star</span>{{ p.cost }}</span></div>
+                  </button>
+                </sc-for>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="font:700 12px/1 'Segoe UI',system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#a69c8c">Back print</div>
+              <div style="display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:8px">
+                <sc-for list="{{ prints }}" as="p" hint-placeholder-count="8">
+                  <button onClick="{{ p.pick }}" aria-label="{{ p.label }}" title="{{ p.label }}" style="position:relative;height:52px;padding:0;border-radius:12px;border:2px solid {{ p.ring }};background:rgba(245,241,232,.04);color:#f5f1e8;display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:28px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">{{ p.icon }}</span><span style="display:{{ p.tagShow }};align-items:center;gap:1px;font:800 11px/1 'Segoe UI',system-ui,sans-serif;padding:2px 5px 2px 3px;border-radius:5px;background:#14100d;color:#ffd32a;white-space:nowrap;position:absolute;right:3px;bottom:3px"><span style="font-family:'Material Symbols Rounded';font-size:12px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">star</span>{{ p.cost }}</span></button>
+                </sc-for>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="font:700 12px/1 'Segoe UI',system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#a69c8c">Name on the back</div>
+              <div style="display:flex;align-items:center;gap:10px">
+                <input value="{{ teeName }}" onChange="{{ onName }}" maxLength="8" placeholder="TYPE A NAME" style="flex:1;min-width:0;height:46px;box-sizing:border-box;padding:0 14px;border-radius:12px;background:rgba(245,241,232,.08);border:2px solid rgba(245,241,232,.18);color:#f5f1e8;font:400 22px/1 'Lilita One',sans-serif;letter-spacing:.06em;text-transform:uppercase;outline:none;-webkit-user-select:text;user-select:text">
+                <sc-if value="{{ nameLocked }}" hint-placeholder-val="{{ true }}"><div style="display:flex;align-items:center;gap:4px;height:46px;padding:0 12px;border-radius:12px;background:rgba(255,211,42,.12);color:#ffd32a;font:800 15px/1 'Segoe UI',system-ui,sans-serif;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">lock</span><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">star</span>2</div></sc-if>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+        <div style="margin-top:auto">
+          <sc-if value="{{ previewing }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 12px 12px 18px;border-radius:18px;background:rgba(255,211,42,.08);border:2px solid #ffd32a">
+              <div style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:0">
+                <div style="font:800 11px/1 'Segoe UI',system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#ffd32a">Trying it on</div>
+                <div style="font:400 22px/1.05 'Lilita One',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ pvLabel }}</div>
+              </div>
+              <button onClick="{{ cancelPreview }}" style="height:54px;padding:0 16px;border-radius:14px;background:transparent;border:2px solid rgba(245,241,232,.3);color:#f5f1e8;font:700 16px/1 'Segoe UI',system-ui,sans-serif;cursor:pointer;white-space:nowrap">Not now</button>
+              <button onClick="{{ buy }}" style="height:54px;padding:0 20px;display:flex;align-items:center;gap:6px;border:none;border-radius:14px;background:{{ buyBg }};color:{{ buyFg }};font:400 22px/1 'Lilita One',sans-serif;cursor:pointer;white-space:nowrap;box-shadow:{{ buyShadow }}">{{ buyLabel }}<span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">star</span>{{ pvCost }}</button>
+            </div>
+          </sc-if>
+          <sc-if value="{{ notPreviewing }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;gap:12px;align-items:center">
+              <button onClick="{{ goHome }}" style="height:58px;padding:0 34px;display:flex;align-items:center;gap:8px;border:none;border-radius:16px;background:#f08a2c;color:#14100d;font:400 28px/1 'Lilita One',sans-serif;box-shadow:0 6px 0 #a3530f;white-space:nowrap;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:28px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">check</span>Done</button>
+              <button onClick="{{ resetLook }}" style="height:54px;padding:0 18px;display:flex;align-items:center;gap:6px;border-radius:16px;background:transparent;border:2px solid rgba(245,241,232,.3);color:#f5f1e8;font:700 16px/1 'Segoe UI',system-ui,sans-serif;cursor:pointer;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">replay</span>Reset</button>
+              <div style="font:500 13px/1.4 'Segoe UI',system-ui,sans-serif;color:#a69c8c;text-wrap:pretty">Tap anything with a star price to try it on. Win stars by climbing.</div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isProblems }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Problems" style="position:absolute;inset:0;overflow:hidden">
+      <div style="position:absolute;inset:-20px;background:url('assets/wall.png') center/cover;filter:blur(10px) brightness(.35)"></div>
+
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;gap:clamp(12px,2.6vh,22px);padding:clamp(76px,11vh,84px) clamp(20px,3.5vw,48px) clamp(16px,3vh,28px)">
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px">
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="font:400 clamp(40px,8vh,56px)/1 'Lilita One',sans-serif;text-shadow:0 5px 0 rgba(0,0,0,.4)">Pick a climb</div>
+            <div style="font:600 15px/1.3 'Segoe UI',system-ui,sans-serif;color:#d9d2c4;white-space:nowrap">Send a climb to open the next 3.</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px"><button onClick="{{ goHome }}" style="height:44px;padding:0 16px 0 12px;display:flex;align-items:center;gap:6px;border-radius:22px;background:rgba(20,16,13,.8);border:1px solid rgba(245,241,232,.18);color:#f5f1e8;font:700 15px/1 'Segoe UI',system-ui,sans-serif;white-space:nowrap;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;">home</span>Home</button><div style="display:flex;align-items:center;gap:8px;height:44px;padding:0 16px 0 12px;border-radius:22px;background:rgba(20,16,13,.8);font:800 18px/1 'Segoe UI',system-ui,sans-serif;color:#ffd32a;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">star</span>{{ starTotal }} / 135</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(9,minmax(0,1fr)) minmax(0,1.15fr);gap:8px">
+          <sc-for list="{{ gradeTabs }}" as="g" hint-placeholder-count="9">
+            <button onClick="{{ g.go }}" style="display:flex;flex-direction:column;align-items:center;gap:7px;padding:10px 0 9px;border-radius:14px;cursor:pointer;background:{{ g.bg }};border:2px solid {{ g.border }};opacity:{{ g.op }};color:#f5f1e8;min-width:0">
+              <div style="font:400 22px/1 'Lilita One',sans-serif;padding:6px 9px 5px;transform:rotate({{ g.rot }});background:{{ g.color }};color:{{ g.fg }}">{{ g.label }}</div>
+              <div style="display:flex;align-items:center;gap:3px;font:700 12px/1 'Segoe UI',system-ui,sans-serif;color:#d9d2c4;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:14px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;color:{{ g.iconCol }}">{{ g.icon }}</span>{{ g.note }}</div>
+            </button>
+          </sc-for>
+          <button onClick="{{ mineTab.go }}" style="display:flex;flex-direction:column;align-items:center;gap:7px;padding:10px 0 9px;border-radius:14px;cursor:pointer;background:{{ mineTab.bg }};border:2px solid {{ mineTab.border }};color:#f5f1e8;min-width:0">
+            <div style="display:flex;align-items:center;gap:4px;font:400 20px/1 'Lilita One',sans-serif;padding:6px 9px 5px;transform:rotate(-2deg);background:#f5f1e8;color:#14100d;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;">construction</span>Mine</div>
+            <div style="font:700 12px/1 'Segoe UI',system-ui,sans-serif;color:#d9d2c4;white-space:nowrap">{{ mineTab.note }}</div>
+          </button>
+        </div>
+        <sc-if value="{{ showMine }}" hint-placeholder-val="{{ false }}">
+          <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;flex:1;min-height:0;align-content:start">
+            <sc-for list="{{ mineCards }}" as="c" hint-placeholder-count="2">
+              <div style="display:flex;flex-direction:column;border-radius:18px;overflow:hidden;background:#1a1511;border:2px solid rgba(245,241,232,.08)">
+                <div style="height:8px;background:{{ c.color }}"></div>
+                <div style="display:flex;flex-direction:column;gap:10px;padding:14px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                    <div style="font:400 15px/1 'Lilita One',sans-serif;padding:4px 6px 3px;background:{{ c.gradeCol }};color:{{ c.gradeFg }};white-space:nowrap">{{ c.grade }}</div>
+                    <div style="font:700 12px/1 'Segoe UI',system-ui,sans-serif;color:#a69c8c;white-space:nowrap">{{ c.holds }} holds</div>
+                  </div>
+                  <div style="font:400 24px/1.05 'Lilita One',sans-serif;text-wrap:balance">{{ c.name }}</div>
+                  <div style="display:flex;gap:8px;margin-top:6px">
+                    <button onClick="{{ c.play }}" style="flex:1;height:50px;display:flex;align-items:center;justify-content:center;gap:6px;border:none;border-radius:14px;background:#f08a2c;color:#14100d;font:400 22px/1 'Lilita One',sans-serif;cursor:pointer;box-shadow:0 5px 0 #a3530f;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;">play_arrow</span>Climb</button>
+                    <button onClick="{{ c.edit }}" aria-label="Edit" style="width:50px;height:50px;padding:0;border-radius:14px;border:2px solid rgba(245,241,232,.3);background:transparent;color:#f5f1e8;display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;">edit</span></button>
+                  </div>
+                </div>
+              </div>
+            </sc-for>
+            <button onClick="{{ newRoute }}" style="min-height:170px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;border-radius:18px;border:2px dashed rgba(245,241,232,.3);background:rgba(20,16,13,.5);color:#f5f1e8;font:400 22px/1 'Lilita One',sans-serif;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:40px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;color:#f08a2c">add_circle</span>Make a route</button>
+          </div>
+        </sc-if>
+        <sc-if value="{{ showGrades }}" hint-placeholder-val="{{ true }}">
+        <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;flex:1;min-height:0">
+          <sc-for list="{{ cards }}" as="c" hint-placeholder-count="5">
+            <div style="position:relative;display:flex;flex-direction:column;border-radius:18px;overflow:hidden;background:#1a1511;border:2px solid {{ c.border }};opacity:{{ c.op }};min-height:0">
+              <div style="height:8px;background:{{ c.color }}"></div>
+              <div style="display:flex;flex-direction:column;gap:10px;padding:14px 14px 14px;flex:1;min-height:0">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                  <div style="font:700 12px/1 'Segoe UI',system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#a69c8c;white-space:nowrap">{{ c.code }}</div>
+                  <div style="display:flex;align-items:center;gap:3px;font:800 10px/1 'Segoe UI',system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;padding:4px 6px;border-radius:5px;background:{{ c.tagBg }};color:#14100d;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:12px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">{{ c.tagIcon }}</span>{{ c.tag }}</div>
+                </div>
+                <div style="font:400 clamp(22px,4vh,28px)/1.05 'Lilita One',sans-serif;text-wrap:balance">{{ c.name }}</div>
+                <div style="display:flex;flex-wrap:wrap;gap:5px">
+                  <sc-for list="{{ c.moves }}" as="m" hint-placeholder-count="1"><div style="display:flex;align-items:center;gap:4px;font:700 12px/1 'Segoe UI',system-ui,sans-serif;padding:5px 7px;border-radius:7px;background:rgba(245,241,232,.08);color:#d9d2c4;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:15px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;color:#ffd32a">{{ m.icon }}</span>{{ m.label }}</div></sc-for>
+                </div>
+                <div style="display:flex;align-items:center;gap:2px;margin-top:auto">
+                  <sc-for list="{{ c.stars }}" as="s" hint-placeholder-count="3"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;color:{{ s }}">star</span></sc-for>
+                  <div style="margin-left:auto;font:700 13px/1 'Segoe UI',system-ui,sans-serif;color:#a69c8c;font-variant-numeric:tabular-nums;white-space:nowrap">{{ c.best }}</div>
+                </div>
+                <button onClick="{{ c.play }}" style="height:52px;display:flex;align-items:center;justify-content:center;gap:6px;border:none;border-radius:14px;cursor:pointer;font:400 22px/1 'Lilita One',sans-serif;white-space:nowrap;background:{{ c.btnBg }};color:{{ c.btnFg }};box-shadow:{{ c.btnShadow }}"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">{{ c.btnIcon }}</span>{{ c.btn }}</button>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        </sc-if>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isClimb }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Climb" style="position:absolute;inset:0;overflow:hidden">
+      <x-import component-from-global-scope="boulder-climb" from="./boulder-climb.js" problem="{{ climbIdx }}" overhang="8" difficulty="1" reach="{{ reachStr }}" fast="{{ fastStr }}" perf="{{ perfStr }}" character="{{ char }}" look="{{ charLook }}" infinite="{{ infiniteStr }}" custom="{{ customJson }}" style="position:absolute;inset:0" hint-size="100%,100%"></x-import>
+
+
+      <div style="position:absolute;top:12px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;z-index:10">
+        <div style="display:flex;align-items:center;gap:14px;height:54px;padding:0 18px 0 14px;border-radius:14px;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)">
+          <div style="background:{{ color }};color:{{ gradeFg }};font:400 18px/1 'Lilita One',sans-serif;padding:6px 8px 5px;transform:rotate(-3deg);white-space:nowrap">{{ gradeCode }}</div>
+          <div style="font:700 15px/1 'Segoe UI',system-ui,sans-serif;color:rgba(255,255,255,.75);white-space:nowrap">{{ name }}</div>
+          <div style="width:1px;height:24px;background:rgba(255,255,255,.15)"></div>
+          <div style="font:700 22px/1 'Segoe UI',system-ui,sans-serif;font-variant-numeric:tabular-nums;color:#fff;min-width:48px;text-align:center">{{ timeStr }}</div>
+          <div style="width:1px;height:24px;background:rgba(255,255,255,.15)"></div>
+          <div style="display:flex;align-items:baseline;gap:5px;white-space:nowrap"><span style="font:700 22px/1 'Segoe UI',system-ui,sans-serif;font-variant-numeric:tabular-nums;color:#fff">{{ moves }}</span><span style="font:700 13px/1 'Segoe UI',system-ui,sans-serif;color:rgba(255,255,255,.6)">moves</span></div>
+        </div>
+        <sc-if value="{{ showGoals }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;gap:6px;opacity:.2">
+            <sc-for list="{{ goals }}" as="g" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:4px;height:28px;padding:0 10px 0 7px;border-radius:14px;background:rgba(0,0,0,.45);font:700 13px/1 'Segoe UI',system-ui,sans-serif;white-space:nowrap;color:{{ g.color }};text-decoration:{{ g.deco }}"><span style="font-family:'Material Symbols Rounded';font-size:17px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">star</span>{{ g.label }}</div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ practice }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;align-items:center;gap:6px;height:28px;padding:0 12px 0 8px;border-radius:14px;background:#3f8ff0;color:#14100d;font:800 13px/1 'Segoe UI',system-ui,sans-serif;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">all_inclusive</span>Never-tired climb · no stars</div>
+        </sc-if>
+      </div>
+
+      <div style="position:absolute;top:12px;right:12px;z-index:10;display:flex;gap:10px">
+        <button onClick="{{ openHelp }}" aria-label="How to climb" style="width:52px;height:52px;padding:0;border-radius:50%;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.18);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)"><span style="font-family:'Material Symbols Rounded';font-size:28px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">info</span></button>
+        <button onClick="{{ toggleInf }}" aria-label="Never-tired mode" style="width:52px;height:52px;padding:0;border-radius:50%;background:{{ infBg }};border:1px solid {{ infBorder }};color:{{ infFg }};display:flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)"><span style="font-family:'Material Symbols Rounded';font-size:30px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">all_inclusive</span></button>
+        <button onClick="{{ pause }}" aria-label="Pause" style="width:52px;height:52px;padding:0;border-radius:50%;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.18);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)"><span style="font-family:'Material Symbols Rounded';font-size:30px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">pause</span></button>
+      </div>
+
+      <sc-if value="{{ showHint }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;left:50%;top:112px;transform:translateX(-50%);z-index:9;pointer-events:none;max-width:calc(100% - 48px);white-space:nowrap;padding:12px 20px;border-radius:14px;background:rgba(20,16,13,.78);border:1px solid rgba(245,241,232,.18);font:700 17px/1.35 'Segoe UI',system-ui,sans-serif;color:#f5f1e8;text-align:center">{{ hintText }}</div>
+      </sc-if>
+      <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;left:50%;top:166px;transform:translateX(-50%);z-index:11;pointer-events:none;padding:10px 18px;border-radius:12px;background:{{ toastBg }};color:#14100d;font:400 22px/1 'Lilita One',sans-serif;letter-spacing:.02em;box-shadow:0 8px 24px rgba(0,0,0,.35);white-space:nowrap">{{ toast }}</div>
+      </sc-if>
+
+      <sc-if value="{{ introOpen }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;inset:0;z-index:24;background:rgba(10,8,6,.7);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:24px">
+          <div style="width:520px;max-width:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:14px;padding:32px 36px 28px;border-radius:24px;background:#1a1511;border:2px solid #ffd32a;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.5)">
+            <div style="font:800 13px/1 'Segoe UI',system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#ffd32a;white-space:nowrap">New move · {{ gradeCode }}</div>
+            <div style="width:88px;height:88px;border-radius:24px;background:rgba(255,211,42,.14);color:#ffd32a;display:flex;align-items:center;justify-content:center"><span style="font-family:'Material Symbols Rounded';font-size:56px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">{{ introIcon }}</span></div>
+            <div style="font:400 44px/1 'Lilita One',sans-serif">{{ introName }}</div>
+            <div style="font:600 19px/1.45 'Segoe UI',system-ui,sans-serif;color:#f5f1e8;text-wrap:pretty">{{ introText }}</div>
+            <button onClick="{{ closeIntro }}" style="margin-top:6px;height:60px;padding:0 38px;display:flex;align-items:center;gap:8px;border:none;border-radius:16px;background:#f08a2c;color:#14100d;font:400 28px/1 'Lilita One',sans-serif;cursor:pointer;box-shadow:0 6px 0 #a3530f;white-space:nowrap">Got it!<span style="font-family:'Material Symbols Rounded';font-size:30px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">play_arrow</span></button>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ help }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;inset:0;z-index:25;background:rgba(10,8,6,.72);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:24px">
+          <div style="position:relative;width:880px;max-width:100%;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);border-radius:24px;overflow:hidden;background:#1a1511;border:1px solid rgba(245,241,232,.14);box-shadow:0 30px 80px rgba(0,0,0,.5)">
+            <div style="position:relative;min-height:min(420px,70vh);overflow:hidden;background:#14100d">
+              <div style="position:absolute;width:200%;height:200%;left:{{ hs.x }};top:{{ hs.y }};background-image:{{ helpBg }};background-size:100% auto;background-repeat:no-repeat"></div>
+              <div style="position:absolute;left:{{ ptrX }};top:{{ ptrY }};transform:translate(-30%,-10%);transition:left 1s ease-in-out,top 1s ease-in-out;color:#fff;filter:drop-shadow(0 3px 4px rgba(0,0,0,.6))"><span style="font-family:'Material Symbols Rounded';font-size:56px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">{{ hs.ptr }}</span></div>
+              <div style="position:absolute;left:16px;top:16px;width:48px;height:48px;border-radius:50%;background:#f08a2c;color:#14100d;display:flex;align-items:center;justify-content:center;font:400 28px/1 'Lilita One',sans-serif">{{ hs.n }}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:14px;padding:30px 30px 26px">
+              <div style="display:flex;gap:6px;padding-right:48px">
+                <sc-for list="{{ stepBars }}" as="sb" hint-placeholder-count="4"><div style="flex:1;height:6px;border-radius:3px;background:{{ sb }}"></div></sc-for>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;margin-top:6px;flex:none">
+                <div style="width:52px;height:52px;flex:none;border-radius:14px;background:rgba(240,138,44,.16);color:#f08a2c;display:flex;align-items:center;justify-content:center"><span style="font-family:'Material Symbols Rounded';font-size:32px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">{{ hs.icon }}</span></div>
+                <div style="font:400 clamp(24px,4.4vh,32px)/1.05 'Lilita One',sans-serif;white-space:nowrap">{{ hs.title }}</div>
+              </div>
+              <div style="flex:none;font:600 18px/1.45 'Segoe UI',system-ui,sans-serif;color:#f5f1e8;text-wrap:pretty">{{ hs.body }}</div>
+              <sc-if value="{{ hs.tip }}" hint-placeholder-val="{{ false }}">
+                <div style="flex:none;display:flex;gap:10px;align-items:flex-start;padding:11px 13px;border-radius:12px;background:rgba(245,241,232,.06);font:600 14px/1.4 'Segoe UI',system-ui,sans-serif;color:#d9d2c4;text-wrap:pretty"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;color:#ffd32a">{{ hs.tipIcon }}</span>{{ hs.tip }}</div>
+              </sc-if>
+              <div style="flex:none;display:flex;gap:10px;margin-top:auto">
+                <sc-if value="{{ notFirstStep }}" hint-placeholder-val="{{ false }}">
+                  <button onClick="{{ prevStep }}" aria-label="Back" style="width:58px;height:58px;padding:0;border-radius:16px;background:transparent;border:2px solid rgba(245,241,232,.3);color:#f5f1e8;display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:28px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">arrow_back</span></button>
+                </sc-if>
+                <button onClick="{{ nextStep }}" style="flex:1;height:58px;display:flex;align-items:center;justify-content:center;gap:8px;border:none;border-radius:16px;background:#f08a2c;color:#14100d;font:400 26px/1 'Lilita One',sans-serif;cursor:pointer;box-shadow:0 6px 0 #a3530f;white-space:nowrap">{{ nextLabel2 }}<span style="font-family:'Material Symbols Rounded';font-size:28px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">{{ nextIcon }}</span></button>
+              </div>
+            </div>
+            <button onClick="{{ closeHelp }}" aria-label="Close" style="position:absolute;top:18px;right:18px;width:44px;height:44px;padding:0;border-radius:50%;background:rgba(245,241,232,.08);border:none;color:#f5f1e8;display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:26px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">close</span></button>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isPaused }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;inset:0;z-index:20;background:rgba(10,8,6,.66);display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)">
+          <div style="width:760px;max-width:100%;box-sizing:border-box;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:28px;padding:28px 30px;border-radius:24px;background:rgba(20,16,13,.95);border:1px solid rgba(245,241,232,.14)">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="font:400 50px/1 'Lilita One',sans-serif;margin-bottom:8px">Paused</div>
+              <button onClick="{{ resume }}" style="height:60px;display:flex;align-items:center;justify-content:center;gap:8px;border:none;border-radius:16px;background:#f08a2c;color:#14100d;font:400 26px/1 'Lilita One',sans-serif;cursor:pointer;box-shadow:0 6px 0 #a3530f;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:30px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">play_arrow</span>Keep climbing</button>
+              <button onClick="{{ retry }}" style="height:52px;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:14px;background:transparent;border:2px solid rgba(245,241,232,.3);color:#f5f1e8;font:700 16px/1 'Segoe UI',system-ui,sans-serif;cursor:pointer;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">replay</span>Start again</button>
+              <button onClick="{{ helpFromPause }}" style="height:52px;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:14px;background:transparent;border:2px solid rgba(245,241,232,.3);color:#f5f1e8;font:700 16px/1 'Segoe UI',system-ui,sans-serif;cursor:pointer;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">info</span>How to climb</button>
+              <button onClick="{{ toProblems }}" style="height:52px;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:14px;background:transparent;border:2px solid rgba(245,241,232,.3);color:#f5f1e8;font:700 16px/1 'Segoe UI',system-ui,sans-serif;cursor:pointer;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">grid_view</span>{{ backLabel }}</button>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px;justify-content:center">
+              <div style="display:flex;align-items:center;gap:14px;height:52px"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;color:#d9d2c4">volume_up</span><div style="width:64px;font:700 16px/1 'Segoe UI',system-ui,sans-serif">Sound</div><input type="range" min="0" max="100" value="{{ soundPct }}" onChange="{{ onSound }}" aria-label="Sound volume" style="flex:1;min-width:0;accent-color:#f08a2c;height:30px"><div style="width:34px;text-align:right;font:700 14px/1 'Segoe UI',system-ui,sans-serif;color:#d9d2c4;font-variant-numeric:tabular-nums">{{ soundLabel }}</div></div>
+              <div style="display:flex;align-items:center;gap:14px;height:52px"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;color:#d9d2c4">music_note</span><div style="width:64px;font:700 16px/1 'Segoe UI',system-ui,sans-serif">Music</div><input type="range" min="0" max="100" value="{{ musicPct }}" onChange="{{ onMusic }}" aria-label="Music volume" style="flex:1;min-width:0;accent-color:#f08a2c;height:30px"><div style="width:34px;text-align:right;font:700 14px/1 'Segoe UI',system-ui,sans-serif;color:#d9d2c4;font-variant-numeric:tabular-nums">{{ musicLabel }}</div></div>
+              <div style="height:1px;background:rgba(245,241,232,.1);margin:6px 0"></div>
+              <button onClick="{{ toggleReach }}" style="display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:54px;padding:0;background:transparent;border:none;color:#f5f1e8;cursor:pointer;text-align:left"><div style="display:flex;flex-direction:column;gap:4px"><div style="font:700 16px/1 'Segoe UI',system-ui,sans-serif">Reach circles</div><div style="font:500 13px/1.3 'Segoe UI',system-ui,sans-serif;color:#a69c8c">Show which holds a limb can reach</div></div><div style="position:relative;flex:none;width:58px;height:34px;border-radius:17px;background:{{ reachTrack }}"><div style="position:absolute;top:3px;left:{{ reachKnob }};width:28px;height:28px;border-radius:50%;background:#f5f1e8;transition:left .15s"></div></div></button>
+              <button onPointerDown="{{ fastDown }}" onPointerUp="{{ fastUp }}" onPointerLeave="{{ fastCancel }}" style="display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:54px;padding:0;background:transparent;border:none;color:#f5f1e8;cursor:pointer;text-align:left;touch-action:none"><div style="display:flex;flex-direction:column;gap:4px"><div style="font:700 16px/1 'Segoe UI',system-ui,sans-serif">Fast mode</div><div style="font:500 13px/1.3 'Segoe UI',system-ui,sans-serif;color:#a69c8c">Simpler shadows for older tablets</div></div><div style="position:relative;flex:none;width:58px;height:34px;border-radius:17px;background:{{ fastTrack }}"><div style="position:absolute;top:3px;left:{{ fastKnob }};width:28px;height:28px;border-radius:50%;background:#f5f1e8;transition:left .15s"></div></div></button>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isFallen }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;inset:0;z-index:20;background:linear-gradient(0deg,rgba(10,8,6,.85),rgba(10,8,6,.55));display:flex;align-items:center;justify-content:center">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;padding:0 24px">
+            <div style="font:400 clamp(60px,13vh,96px)/0.95 'Lilita One',sans-serif;color:#f5f1e8;white-space:nowrap;text-shadow:0 6px 0 rgba(0,0,0,.4)">Off the wall!</div>
+            <div style="font:600 20px/1.4 'Segoe UI',system-ui,sans-serif;color:#d9d2c4;max-width:480px;text-wrap:pretty">{{ fallText }}</div>
+            <div style="display:flex;gap:14px;margin-top:20px">
+              <button onClick="{{ retry }}" style="height:64px;padding:0 34px;display:flex;align-items:center;gap:10px;border:none;border-radius:16px;background:#f08a2c;color:#14100d;font:400 30px/1 'Lilita One',sans-serif;white-space:nowrap;cursor:pointer;box-shadow:0 6px 0 #a3530f"><span style="font-family:'Material Symbols Rounded';font-size:32px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">replay</span>Try again</button>
+              <button onClick="{{ toProblems }}" style="height:64px;padding:0 24px;display:flex;align-items:center;gap:8px;border-radius:16px;background:rgba(20,16,13,.6);border:2px solid rgba(245,241,232,.35);color:#f5f1e8;font:700 18px/1 'Segoe UI',system-ui,sans-serif;white-space:nowrap;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">grid_view</span>All climbs</button>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isTop }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;inset:0;z-index:20;background:radial-gradient(circle at 50% 40%,rgba(20,16,13,.6),rgba(10,8,6,.9));display:flex;align-items:center;justify-content:center">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:clamp(8px,2vh,14px);text-align:center;padding:0 24px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <div style="background:{{ color }};color:{{ gradeFg }};font:400 22px/1 'Lilita One',sans-serif;padding:7px 10px 6px;transform:rotate(-3deg);white-space:nowrap">{{ gradeCode }}</div>
+              <div style="font:700 18px/1 'Segoe UI',system-ui,sans-serif;color:#d9d2c4;white-space:nowrap">{{ name }}</div>
+              <sc-if value="{{ flash }}" hint-placeholder-val="{{ false }}"><div style="font:800 13px/1 'Segoe UI',system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase;padding:7px 10px;border-radius:20px;background:#ffd32a;color:#14100d">Flash</div></sc-if>
+            </div>
+            <div style="font:400 clamp(72px,16vh,124px)/0.9 'Lilita One',sans-serif;color:#ffd32a;white-space:nowrap;text-shadow:0 6px 0 rgba(0,0,0,.4),0 0 40px rgba(255,211,42,.45)">Sent!</div>
+            <sc-if value="{{ practice }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:20px;background:#3f8ff0;color:#14100d;font:800 15px/1 'Segoe UI',system-ui,sans-serif;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">all_inclusive</span>Never-tired climb. Turn it off to win stars and open new climbs!</div>
+            </sc-if>
+            <div style="display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;justify-content:center">
+              <sc-for list="{{ resultTiles }}" as="r" hint-placeholder-count="3">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:8px;width:170px;padding:14px 10px;border-radius:16px;background:rgba(20,16,13,.85);border:2px solid {{ r.border }}">
+                  <span style="font-family:'Material Symbols Rounded';font-size:32px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;color:{{ r.star }}">star</span>
+                  <div style="font:700 24px/1 'Segoe UI',system-ui,sans-serif;font-variant-numeric:tabular-nums;color:#f5f1e8">{{ r.value }}</div>
+                  <div style="font:700 13px/1.3 'Segoe UI',system-ui,sans-serif;color:#a69c8c;white-space:nowrap">{{ r.label }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <sc-if value="{{ showEarned }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;align-items:center;gap:8px;padding:9px 16px;border-radius:22px;background:rgba(255,211,42,.14);color:#ffd32a;font:800 16px/1 'Segoe UI',system-ui,sans-serif;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">star</span>{{ earnedText }}</div>
+            </sc-if>
+            <div style="display:flex;gap:14px;margin-top:14px">
+              <button onClick="{{ next }}" style="height:62px;padding:0 30px;display:flex;align-items:center;gap:8px;border:none;border-radius:16px;background:#f08a2c;color:#14100d;font:400 28px/1 'Lilita One',sans-serif;white-space:nowrap;cursor:pointer;box-shadow:0 6px 0 #a3530f">{{ nextLabel }}<span style="font-family:'Material Symbols Rounded';font-size:30px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">arrow_forward</span></button>
+              <button onClick="{{ retry }}" style="height:62px;padding:0 22px;display:flex;align-items:center;gap:8px;border-radius:16px;background:rgba(20,16,13,.6);border:2px solid rgba(245,241,232,.35);color:#f5f1e8;font:700 17px/1 'Segoe UI',system-ui,sans-serif;white-space:nowrap;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">replay</span>Climb again</button>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </sc-if>
+
+
+  <sc-if value="{{ isEditor }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Route editor" style="position:absolute;inset:0;display:grid;grid-template-columns:96px minmax(0,1fr) 330px;background:#14100d">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:76px 0 12px;background:#1a1511;border-right:1px solid rgba(245,241,232,.08);overflow-y:auto">
+        <button onClick="{{ goHome }}" aria-label="Home" style="width:76px;height:52px;padding:0;display:flex;align-items:center;justify-content:center;gap:4px;border-radius:26px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.18);color:#fff;font:700 13px/1 'Segoe UI',system-ui,sans-serif;cursor:pointer;margin-bottom:6px"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;">arrow_back</span>Home</button>
+        <sc-for list="{{ edTools }}" as="t" hint-placeholder-count="6">
+          <button onClick="{{ t.pick }}" style="width:76px;height:58px;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border-radius:14px;border:2px solid {{ t.ring }};background:{{ t.bg }};color:#f5f1e8;font:700 12px/1 'Segoe UI',system-ui,sans-serif;cursor:pointer;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;">{{ t.icon }}</span>{{ t.label }}</button>
+        </sc-for>
+        <div style="flex:1;min-height:6px"></div>
+        <button onClick="{{ edUp }}" aria-label="Scroll up" style="width:76px;height:42px;padding:0;border-radius:12px;border:none;background:rgba(245,241,232,.08);color:#f5f1e8;display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:28px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;">keyboard_arrow_up</span></button>
+        <button onClick="{{ edDown }}" aria-label="Scroll down" style="width:76px;height:42px;padding:0;border-radius:12px;border:none;background:rgba(245,241,232,.08);color:#f5f1e8;display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:28px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;">keyboard_arrow_down</span></button>
+      </div>
+      <div style="display:flex;flex-direction:column;min-width:0;min-height:0">
+        <div style="position:relative;flex:1;min-height:0">
+        <x-import component-from-global-scope="boulder-editor" from="./boulder-editor.js" fast="{{ fastStr }}" route="{{ edRouteInit }}" style="position:absolute;inset:0" hint-size="100%,100%"></x-import>
+        <div style="position:absolute;left:12px;right:12px;top:72px;display:flex;justify-content:center;pointer-events:none"><div style="display:flex;align-items:center;gap:8px;max-width:100%;box-sizing:border-box;padding:10px 16px;border-radius:14px;background:rgba(20,16,13,.82);border:1px solid rgba(245,241,232,.14);font:700 15px/1.3 'Segoe UI',system-ui,sans-serif;text-wrap:balance"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;color:#f08a2c;flex:none">{{ toolIcon }}</span>{{ toolHint }}</div></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;padding:12px 14px;background:#1a1511;border-top:1px solid rgba(245,241,232,.08)">
+          <div style="display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:6px">
+            <sc-for list="{{ edTypes }}" as="h" hint-placeholder-count="9">
+              <button onClick="{{ h.pick }}" style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:7px 0 6px;border-radius:12px;border:2px solid {{ h.ring }};background:{{ h.bg }};color:#d9d2c4;font:700 11px/1 'Segoe UI',system-ui,sans-serif;cursor:pointer;min-width:0;white-space:nowrap">
+                <div style="height:36px;display:flex;align-items:center;justify-content:center"><div style="{{ h.shape }}"></div></div>{{ h.label }}
+              </button>
+            </sc-for>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="flex:none;font:700 11px/1 'Segoe UI',system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#a69c8c;margin-right:4px">Colour</div>
+            <sc-for list="{{ edColors }}" as="c" hint-placeholder-count="8"><button onClick="{{ c.pick }}" aria-label="{{ c.hex }}" style="flex:none;width:30px;height:30px;padding:0;border-radius:50%;background:{{ c.hex }};border:3px solid {{ c.ring }};box-shadow:inset 0 0 0 2px #14100d;cursor:pointer"></button></sc-for>
+            <div style="flex:1"></div>
+            <div style="min-width:0;font:600 12px/1.3 'Segoe UI',system-ui,sans-serif;color:#a69c8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Drag the empty wall to look around</div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;padding:18px 20px;background:#1a1511;border-left:1px solid rgba(245,241,232,.08);min-width:0;overflow-x:hidden;overflow-y:auto">
+        <div style="font:400 32px/1 'Lilita One',sans-serif">Route editor</div>
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="font:700 11px/1 'Segoe UI',system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#a69c8c">Name</div>
+          <input value="{{ edName }}" onChange="{{ onEdName }}" maxLength="18" placeholder="My route" style="height:44px;box-sizing:border-box;padding:0 12px;border-radius:12px;background:rgba(245,241,232,.08);border:2px solid rgba(245,241,232,.18);color:#f5f1e8;font:700 16px/1 'Segoe UI',system-ui,sans-serif;outline:none;-webkit-user-select:text;user-select:text"></div>
+        <div style="display:flex;flex-direction:column;gap:8px;padding:12px 14px;border-radius:14px;background:{{ chkBg }};border:1px solid {{ chkBorder }}">
+          <div style="display:flex;align-items:center;gap:8px"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;color:{{ chkCol }}">{{ chkIcon }}</span><div style="font:400 20px/1 'Lilita One',sans-serif;color:{{ chkCol }};white-space:nowrap">{{ chkTitle }}</div>
+            <sc-if value="{{ chkHasGrade }}" hint-placeholder-val="{{ false }}"><div style="margin-left:auto;font:400 17px/1 'Lilita One',sans-serif;padding:5px 7px 4px;transform:rotate(-3deg);background:{{ chkGradeCol }};color:{{ chkGradeFg }}">{{ chkGrade }}</div></sc-if>
+          </div>
+          <div style="font:600 13px/1.4 'Segoe UI',system-ui,sans-serif;color:#d9d2c4;text-wrap:pretty">{{ chkMsg }}</div>
+          <sc-if value="{{ chkHasNeeds }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-wrap:wrap;gap:5px"><sc-for list="{{ chkNeeds }}" as="m" hint-placeholder-count="1"><div style="display:flex;align-items:center;gap:4px;font:700 12px/1 'Segoe UI',system-ui,sans-serif;padding:5px 7px;border-radius:7px;background:rgba(255,211,42,.14);color:#ffd32a;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:15px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;">{{ m.icon }}</span>{{ m.label }}</div></sc-for></div>
+          </sc-if>
+        </div>
+        <button onClick="{{ testClimb }}" style="height:56px;display:flex;align-items:center;justify-content:center;gap:8px;border:none;border-radius:16px;background:{{ testBg }};color:{{ testFg }};font:400 24px/1 'Lilita One',sans-serif;cursor:pointer;box-shadow:{{ testShadow }};white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:28px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;">play_arrow</span>Test climb</button>
+        <button onClick="{{ saveRoute }}" style="height:46px;width:100%;display:flex;align-items:center;justify-content:center;gap:6px;border-radius:12px;background:transparent;border:2px solid rgba(245,241,232,.3);color:#f5f1e8;font:700 14px/1 'Segoe UI',system-ui,sans-serif;cursor:pointer;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;">bookmark_add</span>Save to My routes</button>
+        <sc-if value="{{ hasMyRoutes }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:6px"><div style="font:700 11px/1 'Segoe UI',system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#a69c8c">My routes</div>
+            <sc-for list="{{ myRouteList }}" as="m" hint-placeholder-count="2">
+              <div style="display:flex;align-items:center;gap:8px;padding:6px 6px 6px 10px;border-radius:12px;background:rgba(245,241,232,.05)">
+                <div style="font:400 14px/1 'Lilita One',sans-serif;padding:4px 6px 3px;background:{{ m.col }};color:{{ m.fg }};white-space:nowrap">{{ m.grade }}</div>
+                <div style="flex:1;min-width:0;font:700 14px/1.2 'Segoe UI',system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ m.name }}</div>
+                <button onClick="{{ m.load }}" aria-label="Open" style="width:36px;height:36px;padding:0;border-radius:10px;border:none;background:rgba(245,241,232,.1);color:#f5f1e8;display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;">edit</span></button>
+                <button onClick="{{ m.del }}" aria-label="Delete" style="width:36px;height:36px;padding:0;border-radius:10px;border:none;background:rgba(245,241,232,.06);color:#d9d2c4;display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;">delete</span></button>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <button onClick="{{ clearRoute }}" style="margin-top:auto;height:40px;display:flex;align-items:center;justify-content:center;gap:6px;border-radius:12px;background:transparent;border:none;color:#a69c8c;font:700 13px/1 'Segoe UI',system-ui,sans-serif;cursor:pointer;white-space:nowrap"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;">delete_sweep</span>Clear the wall</button>
+      </div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ settingsOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:40;background:rgba(10,8,6,.66);display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)">
+      <div style="width:460px;max-width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:4px;padding:26px 30px 24px;border-radius:24px;background:rgba(20,16,13,.96);border:1px solid rgba(245,241,232,.14)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font:400 40px/1 'Lilita One',sans-serif">Settings</div><button onClick="{{ closeSettings }}" aria-label="Close" style="width:44px;height:44px;padding:0;border-radius:50%;background:rgba(245,241,232,.08);border:none;color:#f5f1e8;display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:26px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal">close</span></button></div>
+        <div style="display:flex;align-items:center;gap:14px;height:52px"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;color:#d9d2c4">volume_up</span><div style="width:64px;font:700 16px/1 'Segoe UI',system-ui,sans-serif">Sound</div><input type="range" min="0" max="100" value="{{ soundPct }}" onChange="{{ onSound }}" aria-label="Sound volume" style="flex:1;min-width:0;accent-color:#f08a2c;height:30px"><div style="width:34px;text-align:right;font:700 14px/1 'Segoe UI',system-ui,sans-serif;color:#d9d2c4;font-variant-numeric:tabular-nums">{{ soundLabel }}</div></div>
+        <div style="display:flex;align-items:center;gap:14px;height:52px"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;color:#d9d2c4">music_note</span><div style="width:64px;font:700 16px/1 'Segoe UI',system-ui,sans-serif">Music</div><input type="range" min="0" max="100" value="{{ musicPct }}" onChange="{{ onMusic }}" aria-label="Music volume" style="flex:1;min-width:0;accent-color:#f08a2c;height:30px"><div style="width:34px;text-align:right;font:700 14px/1 'Segoe UI',system-ui,sans-serif;color:#d9d2c4;font-variant-numeric:tabular-nums">{{ musicLabel }}</div></div>
+        <div style="height:1px;background:rgba(245,241,232,.1);margin:6px 0"></div>
+        <button onClick="{{ toggleReach }}" style="display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:54px;padding:0;background:transparent;border:none;color:#f5f1e8;cursor:pointer;text-align:left"><div style="display:flex;flex-direction:column;gap:4px"><div style="font:700 16px/1 'Segoe UI',system-ui,sans-serif">Reach circles</div><div style="font:500 13px/1.3 'Segoe UI',system-ui,sans-serif;color:#a69c8c">Show which holds a limb can reach</div></div><div style="position:relative;flex:none;width:58px;height:34px;border-radius:17px;background:{{ reachTrack }}"><div style="position:absolute;top:3px;left:{{ reachKnob }};width:28px;height:28px;border-radius:50%;background:#f5f1e8;transition:left .15s"></div></div></button>
+        <button onPointerDown="{{ fastDown }}" onPointerUp="{{ fastUp }}" onPointerLeave="{{ fastCancel }}" style="display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:54px;padding:0;background:transparent;border:none;color:#f5f1e8;cursor:pointer;text-align:left;touch-action:none"><div style="display:flex;flex-direction:column;gap:4px"><div style="font:700 16px/1 'Segoe UI',system-ui,sans-serif">Fast mode</div><div style="font:500 13px/1.3 'Segoe UI',system-ui,sans-serif;color:#a69c8c">Simpler shadows for older tablets</div></div><div style="position:relative;flex:none;width:58px;height:34px;border-radius:17px;background:{{ fastTrack }}"><div style="position:absolute;top:3px;left:{{ fastKnob }};width:28px;height:28px;border-radius:50%;background:#f5f1e8;transition:left .15s"></div></div></button>
+        <div style="margin-top:10px;font:500 12px/1.3 'Segoe UI',system-ui,sans-serif;color:#a69c8c">Music: Boulder theme, made with Suno</div>
+      </div>
+    </div>
+  </sc-if>
+
+  <a href="../../index.html" aria-label="Back to Games" style="position:absolute;top:12px;left:12px;z-index:60;display:flex;align-items:center;gap:6px;height:52px;box-sizing:border-box;padding:0 20px 0 14px;border-radius:26px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.18);color:#fff;font:700 16px/1 'Segoe UI',system-ui,sans-serif;white-space:nowrap;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)" style-hover="background:rgba(0,0,0,.75);color:#fff"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-weight:600;letter-spacing:normal;text-transform:none;white-space:nowrap;font-style:normal;">arrow_back</span>Games</a>
+  <sc-if value="{{ perfOn }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;top:118px;left:12px;z-index:60;pointer-events:none;min-width:150px;padding:8px 11px;border-radius:10px;background:rgba(0,0,0,.78);border:1px solid rgba(95,211,138,.4);color:#5fd38a;font:700 12px/1.45 ui-monospace,Menlo,Consolas,monospace;white-space:pre">{{ perfText }}</div>
+  </sc-if>
+  <sc-if value="{{ globalToast }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:50%;bottom:28px;transform:translateX(-50%);z-index:50;pointer-events:none;padding:12px 20px;border-radius:14px;background:#f5f1e8;color:#14100d;font:700 16px/1.2 'Segoe UI',system-ui,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.4);white-space:nowrap">{{ globalToast }}</div>
+  </sc-if>
+</div>
+</template>
+
+<script src="js/arcade-store.js"></script>
+<script src="js/boulder-wall.js"></script>
+<script src="js/boulder-climb.js"></script>
+<script src="js/boulder-editor.js"></script>
+<script type="module">
+// Boulder — climbing wall for Caleb and Ezra. Three.js views are custom elements in js/
+// (boulder-wall/-climber/-duo, boulder-climb, boulder-editor); the UI here is plain HTML/CSS.
+
+document.addEventListener('contextmenu', e => e.preventDefault());
+const Store = ArcadeStore('boulder');                 // calebArcadeData:boulder (IndexedDB)
+const SID = Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
+// pointerdown/touchstart don't grant activation on a touch screen; these do (plus pointerdown for mice).
+const AUDIO_EVENTS = ['pointerdown', 'pointerup', 'click', 'touchend', 'keydown'];
+
+// three.js Stats, top-left under "← Games"; the design's numbers sit under it.
+// Loaded on its own so a failed fetch can never stop the game from starting.
+let STATS = null, statsOn = false;
+import('https://unpkg.com/three@0.160.0/examples/jsm/libs/stats.module.js').then(m => {
+  STATS = new m.default();
+  STATS.dom.style.cssText = 'position:fixed;top:64px;left:12px;z-index:61;cursor:pointer;opacity:.9;display:none';
+  document.body.appendChild(STATS.dom); showStats(statsOn);
+}).catch(() => {});
+function showStats(on) { statsOn = !!on; if (STATS) STATS.dom.style.display = on ? 'block' : 'none'; }
+
+// ---------------------------------------------------------------------------
+// Tiny view renderer — replaces the Claude Design runtime (support.js + React).
+// The design's <x-dc> template is kept verbatim in <template id="view">. It is
+// compiled once into functions; each render builds the UI as an HTML string and
+// *morphs* it into the live DOM (attributes/text patched in place).
+//   {{ path }}          value lookup (sc-for item first, then render values)
+//   <sc-if value>       keyed display:contents wrapper, always emitted, so a
+//                       screen's DOM is created once and its 3D view lives on
+//   <sc-for list as>    repeat children per item
+//   <x-import ...>      the custom element itself (<boulder-climb> etc.) inside a
+//                       wrapper carrying the positional style; the morph only
+//                       ever ADDS/updates its attributes and never touches its
+//                       children (the element owns its canvas and overlays)
+//   onClick/onChange/onPointerDown/Up/Leave   delegated (onChange = input event)
+//   style-hover         a generated :hover rule
+// ---------------------------------------------------------------------------
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const VOID = new Set(['input', 'br', 'img', 'hr', 'meta', 'link', 'source', 'wbr']);
+const EVENTS = { onclick: 'click', onchange: 'change', onpointerdown: 'pointerdown', onpointerup: 'pointerup', onpointerleave: 'pointerleave' };
+let hoverN = 0;
+const hoverCss = [];
+
+function lookup(scope, path) {
+  path = path.trim();
+  let o = scope;
+  for (const k of path.split('.')) { if (o == null) return undefined; o = o[k]; }
+  return o;
+}
+function compileText(raw) {
+  if (!raw.includes('{{')) { const t = esc(raw); return () => t; }
+  const parts = raw.split(/\{\{([\s\S]+?)\}\}/g);
+  return sc => parts.map((p, i) => i & 1 ? esc(lookup(sc, p)) : esc(p)).join('');
+}
+function compileAttrVal(raw) {
+  const whole = raw.match(/^\s*\{\{([\s\S]+?)\}\}\s*$/);
+  if (whole) return sc => lookup(sc, whole[1]);
+  if (raw.includes('{{')) { const parts = raw.split(/\{\{([\s\S]+?)\}\}/g); return sc => parts.map((p, i) => i & 1 ? (lookup(sc, p) ?? '') : p).join(''); }
+  return () => raw;
+}
+let keyN = 0;
+function compileChildren(node) {
+  const fns = Array.from(node.childNodes).map(compileNode).filter(Boolean);
+  return (sc, R) => { let s = ''; for (const f of fns) s += f(sc, R); return s; };
+}
+function compileNode(n) {
+  if (n.nodeType === 3) return compileText(n.nodeValue);
+  if (n.nodeType !== 1) return null;
+  const tag = n.localName;
+  if (tag === 'sc-if') {
+    const cond = compileAttrVal(n.getAttribute('value') || ''), kids = compileChildren(n), k = 'if' + (keyN++);
+    return (sc, R) => `<div style="display:contents" data-k="${k}">${cond(sc) ? kids(sc, R) : ''}</div>`;
+  }
+  if (tag === 'sc-for') {
+    const list = compileAttrVal(n.getAttribute('list') || ''), as = n.getAttribute('as') || 'item', kids = compileChildren(n);
+    return (sc, R) => { const l = list(sc) || []; let s = ''; for (const it of l) { const s2 = Object.create(sc); s2[as] = it; s += kids(s2, R); } return s; };
+  }
+  if (tag === 'x-import') {
+    const el = n.getAttribute('component-from-global-scope'), wrapStyle = n.getAttribute('style') || '', k = 'xi' + (keyN++);
+    const attrs = Array.from(n.attributes).filter(a => !['component-from-global-scope', 'from', 'style', 'hint-size'].includes(a.name)).map(a => [a.name, compileAttrVal(a.value)]);
+    return sc => `<div style="${esc(wrapStyle)}" data-k="${k}"><${el}${attrs.map(([nm, f]) => { const v = f(sc); return v == null ? '' : ` ${nm}="${esc(v)}"`; }).join('')}></${el}></div>`;
+  }
+  const attrs = [];
+  let hoverCls = '';
+  for (const a of Array.from(n.attributes)) {
+    if (a.name.startsWith('hint-')) continue;
+    if (a.name === 'style-hover') { hoverCls = 'dch' + (hoverN++); hoverCss.push(`.${hoverCls}:hover{${a.value.replace(/;?\s*$/, '').split(';').map(d => d + ' !important').join(';')}}`); continue; }
+    if (EVENTS[a.name]) { const f = compileAttrVal(a.value), ev = EVENTS[a.name]; attrs.push((sc, R) => { const fn = f(sc); return typeof fn === 'function' ? ` data-on-${ev}="${R.push(fn) - 1}"` : ''; }); continue; }
+    const f = compileAttrVal(a.value), nm = a.name;
+    attrs.push(sc => { const v = f(sc); return v == null || v === false ? '' : ` ${nm}="${esc(v)}"`; });
+  }
+  if (hoverCls) { const c = n.getAttribute('class'); if (c == null) attrs.push(() => ` class="${hoverCls}"`); }
+  const kids = VOID.has(tag) ? null : compileChildren(n);
+  return (sc, R) => {
+    let s = '<' + tag; for (const a of attrs) s += a(sc, R); s += '>';
+    if (kids) s += kids(sc, R) + '</' + tag + '>';
+    return s;
+  };
+}
+const isCE = n => n.nodeType === 1 && n.nodeName.includes('-');
+function morphChildren(a, b) {
+  const o = Array.from(a.childNodes), n = Array.from(b.childNodes);
+  for (let i = 0; i < n.length; i++) { if (i >= o.length) a.appendChild(n[i]); else patchNode(o[i], n[i]); }
+  for (let i = n.length; i < o.length; i++) a.removeChild(o[i]);
+}
+function patchNode(a, b) {
+  if (a.nodeType !== b.nodeType || a.nodeName !== b.nodeName || (a.nodeType === 1 && a.getAttribute('data-k') !== b.getAttribute('data-k'))) { a.replaceWith(b); return; }
+  if (a.nodeType !== 1) { if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; return; }
+  for (const at of Array.from(b.attributes)) if (a.getAttribute(at.name) !== at.value) a.setAttribute(at.name, at.value);
+  if (isCE(a)) return;                                   // owns its own style + children
+  for (const at of Array.from(a.attributes)) if (!b.hasAttribute(at.name)) a.removeAttribute(at.name);
+  if (a.nodeName === 'INPUT') { const v = b.getAttribute('value'); if (v != null && a.value !== v) a.value = v; }
+  morphChildren(a, b);
+}
+
+// React-ish base the design's Component extends (it was DCLogic).
+class DCBase {
+  constructor(host, tpl) {
+    this.host = host; this.handlers = [];
+    this.viewFn = compileChildren(tpl.content);
+    if (hoverCss.length) { const st = document.createElement('style'); st.textContent = hoverCss.join('\n'); document.head.appendChild(st); }
+    const H = ev => e => {
+      const b = e.target.closest && e.target.closest(`[data-on-${ev}]`); if (!b || !host.contains(b)) return;
+      const fn = this.handlers[+b.getAttribute(`data-on-${ev}`)]; if (typeof fn === 'function') fn(e);
+    };
+    host.addEventListener('click', H('click'));
+    host.addEventListener('input', H('change'));
+    host.addEventListener('pointerdown', H('pointerdown'));
+    host.addEventListener('pointerup', H('pointerup'));
+    // pointerleave doesn't bubble: catch it on the way down and only for the element itself.
+    host.addEventListener('pointerleave', e => { const t = e.target; if (!t.getAttribute || !t.hasAttribute('data-on-pointerleave')) return; const fn = this.handlers[+t.getAttribute('data-on-pointerleave')]; if (fn) fn(e); }, true);
+    host.addEventListener('pointercancel', e => { const t = e.target.closest && e.target.closest('[data-on-pointerleave]'); if (!t) return; const fn = this.handlers[+t.getAttribute('data-on-pointerleave')]; if (fn) fn(e); }, true);
+  }
+  start() { this.renderNow(); this.componentDidMount && this.componentDidMount(); }
+  setState(patch, cb) {
+    Object.assign(this.state, typeof patch === 'function' ? patch(this.state) : patch);
+    if (!this._queued) { this._queued = true; queueMicrotask(() => { this._queued = false; this.renderNow(); }); }
+    cb && cb();
+  }
+  renderNow() {
+    const R = [], html = this.viewFn(this.renderVals(), R);
+    this.handlers = R;
+    if (html === this._html) return;
+    this._html = html;
+    const t = document.createElement('template'); t.innerHTML = html;
+    morphChildren(this.host, t.content);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Component — the design's <script type="text/x-dc"> logic, kept line for line
+// apart from saves (ArcadeStore), audio (Web Audio buses) and the Stats hook.
+// ---------------------------------------------------------------------------
+class Component extends DCBase {
+  KEY = 'calebArcadeData:boulder';
+  GCOL = ['#5fcf7a', '#f2d23c', '#3f8ff0', '#f08a2c', '#e5484d', '#9b6bf0', '#f06fb4', '#f5f1e8', '#2a2522'];
+  GNAME = ['green', 'yellow', 'blue', 'orange', 'red', 'purple', 'pink', 'white', 'black'];
+  TECHI = { reach: ['open_in_full', 'Big reach'], side: ['back_hand', 'Side pulls'], high: ['stairs', 'High step'], dyno: ['keyboard_double_arrow_up', 'Jump'], cross: ['swap_horiz', 'Cross'] };
+  BASE = {
+    caleb: { skin: '#b98260', hair: '#3b2417', hairStyle: 'short', tee: '#27324d', legs: '#3a3330', shoes: '#d2452f', bag: '#f08a2c', band: '#f5f1e8', hat: '#e5484d', teePattern: 'plain', teeAccent: '#f08a2c', teePrint: 'landscape', teeName: '' },
+    ezra: { skin: '#b98260', hair: '#e0c27a', hairStyle: 'curly', tee: '#2e6f73', legs: '#2b2f3a', shoes: '#3f8ff0', bag: '#f2d23c', band: 'none', hat: '#3f8ff0', teePattern: 'stripes', teeAccent: '#f2d23c', teePrint: 'none', teeName: '' }
+  };
+  SHOP = {
+    hairStyle: [['short', 0, 'Short'], ['curly', 0, 'Curly'], ['beanie', 4, 'Beanie']],
+    hair: [['#1f1410', 0], ['#3b2417', 0], ['#7a4a2a', 0], ['#c48a4a', 0], ['#e0c27a', 0], ['#f1e3b5', 5]],
+    skin: [['#f0c8a0', 0], ['#d9a07a', 0], ['#b98260', 0], ['#8a5a3c', 0], ['#5e3b26', 0]],
+    shoes: [['#d2452f', 0], ['#3f8ff0', 0], ['#2a2522', 0], ['#5fcf7a', 0], ['#f06fb4', 4], ['#ff7a1a', 6]],
+    bag: [['#f08a2c', 0], ['#f2d23c', 0], ['#3f8ff0', 0], ['#e5484d', 0], ['#9b6bf0', 3], ['#5fcf7a', 4]],
+    band: [['none', 0], ['#f5f1e8', 0], ['#e5484d', 0], ['#3f8ff0', 0], ['#ffd32a', 6]],
+    hat: [['#e5484d', 0], ['#3f8ff0', 0], ['#f2d23c', 0], ['#2a2522', 0], ['#f06fb4', 4]],
+    tee: [['#27324d', 0], ['#2e6f73', 0], ['#c2452d', 0], ['#f5f1e8', 0], ['#6b4fa0', 3], ['#e8b33c', 5]],
+    teeAccent: [['#f5f1e8', 0], ['#f08a2c', 0], ['#f2d23c', 0], ['#3f8ff0', 0], ['#f06fb4', 3], ['#5fcf7a', 3]],
+    teePattern: [['plain', 0, 'Plain'], ['stripes', 0, 'Stripes'], ['half', 3, 'Halves'], ['dots', 4, 'Dots'], ['zigzag', 5, 'Zigzag'], ['splat', 6, 'Splat']],
+    teePrint: [['none', 0, 'No print', 'block'], ['landscape', 0, 'Mountain', 'landscape'], ['favorite', 2, 'Heart', 'favorite'], ['bolt', 3, 'Lightning', 'bolt'], ['pets', 4, 'Paw', 'pets'], ['local_fire_department', 5, 'Flame', 'local_fire_department'], ['rocket_launch', 6, 'Rocket', 'rocket_launch'], ['emoji_events', 8, 'Trophy', 'emoji_events']]
+  };
+  LABEL = { hair: 'Hair colour', skin: 'Skin', shoes: 'Shoes', bag: 'Chalk bag', band: 'Headband', hat: 'Beanie colour', tee: 'T-shirt colour', teeAccent: 'Pattern colour', teePattern: 'pattern', teePrint: 'print', hairStyle: 'Hair' };
+  NAME_COST = 2;
+  STEPS = [
+    { n: 1, icon: 'pan_tool', ptr: 'touch_app', title: 'Grab and drag', body: 'Press on a hand or foot ring. Drag it to a new hold, then let go. Dotted circles show where it can reach.', img: 'assets/drag.png', x: '-50%', y: '-22%', a: ['60%', '54%'], b: ['64%', '26%'] },
+    { n: 2, icon: 'battery_3_bar', ptr: 'touch_app', title: 'Arms get tired', body: 'The rings show how strong each hand and foot is. Green is great. Yellow is tired. Red means it\'s about to let go!', img: 'assets/climb-rings.png', x: '-50%', y: '-22%', a: ['58%', '40%'], b: ['58%', '34%'], tip: 'Almost empty? The last bit lasts much longer, so you still have time to save it.', tipIcon: 'favorite' },
+    { n: 3, icon: 'self_improvement', ptr: 'pan_tool', title: 'Take a break', body: 'Tired hand? Drag it off the hold and let go in the air. It shakes out and gets strong again. Big chunky holds let you rest too, when both feet are on.', img: 'assets/climb-rings.png', x: '-50%', y: '-22%', a: ['60%', '40%'], b: ['76%', '58%'], tip: 'Only one hand at a time. Let go with both and you fall off!', tipIcon: 'warning' },
+    { n: 4, icon: 'sports_score', ptr: 'touch_app', title: 'Both hands on TOP', body: 'Climb up to the big gold TOP hold. Get both hands on it to win!', img: 'assets/match.png', x: '-50%', y: '-8%', a: ['52%', '30%'], b: ['52%', '24%'], tip: 'Win stars for using fewer moves, being quick and using fewer holds. Spend them in the Locker!', tipIcon: 'star' }
+  ];
+  SFX = { tap: 'sfx/tap.webm', fall: 'sfx/fall.webm', low: 'sfx/low-grip.webm', win: 'sfx/win.webm' };
+  state = this.initState();
+  initState() {
+    const st = Store.get() || {}; this.gen = st.gen || 0;
+    const lk = st.looks || {};
+    if (lk.ezra && lk.ezra.hair === '#7a4a2a' && !st.ezraBlonde) lk.ezra.hair = '#e0c27a'; // Ezra is blonde now
+    return {
+      screen: 'home', char: st.char || 'caleb', looks: { caleb: { ...this.BASE.caleb, ...(lk.caleb || {}) }, ezra: { ...this.BASE.ezra, ...(lk.ezra || {}) } },
+      wallet: st.wallet ?? 0, owned: st.owned || [], best: st.best || {}, sent: st.sent || [], times: st.times || {},
+      settings: Object.assign({ sound: .8, music: .8, fast: false, reach: true, perf: false }, st.settings || {}),
+      cat: [], grade: null, climbIdx: 0, settingsOpen: false, globalToast: null,
+      tab: 'climber', view: 'front', preview: null,
+      pi: 0, name: '', gradeNum: 0, color: '#5fcf7a', colorName: 'green', time: 0, moves: 0, holds: 0, par: { moves: 0, time: 0, holds: 0 },
+      status: 'climb', paused: false, toast: null, toastBg: '#ff5a4e', hint: 0, result: null, slipName: null, infinite: false, practice: false,
+      help: false, step: 0, auto: true, tick: false, earned: 0, intro: null, introOpen: false,
+      myRoutes: (st.myRoutes || []).filter(m => m && m.route), edDraft: st.edDraft || null, edName: st.edName || '', edTool: 'place', edType: 'jug', edColor: (st.edDraft && st.edDraft.color) || '#f08a2c',
+      edCheck: { status: 'empty' }, custom: null
+    };
+  }
+  persist() {
+    const s = this.state, out = { char: s.char, looks: s.looks, wallet: s.wallet, owned: s.owned, best: s.best, sent: s.sent, times: s.times, settings: s.settings, ezraBlonde: true, myRoutes: s.myRoutes, edDraft: s.edDraft, edName: s.edName };
+    if (Store.conflict && Store.conflict()) return; // an older tab: stop writing
+    this.gen = (this.gen || 0) + 1; out.gen = this.gen; out.sid = SID;
+    Store.set(null, out, { guard: true });
+  }
+  save(upd, cb) { this.setState(upd, () => { this.persist(); cb && cb(); }); }
+
+  componentDidMount() {
+    const base = document.baseURI;
+    Promise.all([import(new URL('js/boulder-core.js', base).href), import(new URL('js/boulder-routes.js', base).href)]).then(([C, R]) => {
+      const cat = C.catalog().map(c => { const p = R.WALLS[c.wall].problems[c.slot]; return { ...c, par: p.par, report: p.report }; });
+      this.core = C; this.setState({ cat });
+      if (this.state.edDraft) this.validateSoon(this.state.edDraft, 0);
+    });
+    this.onEd = e => { const r = e.detail.route; this.save({ edDraft: r }); this.validateSoon(r); };
+    this.onEdMsg = e => this.showGlobal(e.detail.msg);
+    document.addEventListener('editor', this.onEd); document.addEventListener('editor-msg', this.onEdMsg);
+    this.onEv = e => this.handle(e.detail); document.addEventListener('boulder', this.onEv);
+    this.onFirst = () => this.initAudio(); AUDIO_EVENTS.forEach(ev => document.addEventListener(ev, this.onFirst, true));
+    this.onClick = e => { const b = e.target.closest && e.target.closest('button, a'); if (b) this.sfx('tap', .6); }; document.addEventListener('click', this.onClick, true);
+    this.onVis = () => { if (!this.musicPlaying) return; if (document.hidden) this.music.pause(); else if (this.state.settings.music > 0) this.music.play().catch(() => {}); };
+    document.addEventListener('visibilitychange', this.onVis);
+    this.onKey = e => { if ((e.key === 'p' || e.key === 'P') && !/input|textarea/i.test((e.target && e.target.tagName) || '')) this.togglePerf(); };
+    document.addEventListener('keydown', this.onKey);
+    showStats(this.state.settings.perf); this.perfLoop();
+    this.n = 0;
+    this.iv = setInterval(() => {
+      const s = this.state; if (!s.help) return;
+      this.n++; const upd = { tick: !s.tick };
+      if (s.auto && this.n % 4 === 0) { if (s.step < this.STEPS.length - 1) upd.step = s.step + 1; else upd.auto = false; }
+      this.setState(upd);
+    }, 1100);
+  }
+  componentWillUnmount() {
+    document.removeEventListener('boulder', this.onEv); AUDIO_EVENTS.forEach(ev => document.removeEventListener(ev, this.onFirst, true));
+    document.removeEventListener('click', this.onClick, true); document.removeEventListener('visibilitychange', this.onVis);
+    document.removeEventListener('keydown', this.onKey); cancelAnimationFrame(this.praf);
+    document.removeEventListener('editor', this.onEd); document.removeEventListener('editor-msg', this.onEdMsg); clearTimeout(this.vt);
+    clearInterval(this.iv); clearTimeout(this.tt); clearTimeout(this.gt); if (this.music) this.music.pause();
+  }
+
+  // ---------- audio ----------
+  // One AudioContext, two buses (arcade rule): every SFX through `sounds`, the
+  // theme through `music` via createMediaElementSource, so both sliders work on
+  // iPad (el.volume is ignored there). Levels are applied squared.
+  initAudio() {
+    if (!this.ac) {
+      try {
+        const ac = this.ac = new (window.AudioContext || window.webkitAudioContext)();
+        this.sounds = ac.createGain(); this.sounds.connect(ac.destination);
+        this.musicBus = ac.createGain(); this.musicBus.connect(ac.destination);
+        this.music = document.getElementById('theme');
+        ac.createMediaElementSource(this.music).connect(this.musicBus);
+        this.buf = {};
+        Object.entries(this.SFX).forEach(([k, url]) => fetch(url).then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => ac.decodeAudioData(b, ok, no))).then(d => { this.buf[k] = d; }).catch(() => {}));
+        this.audioReady = true;
+      } catch (e) { return; }
+    }
+    if (this.ac.state === 'suspended') this.ac.resume();
+    this.applyVolumes();
+  }
+  level(v) { return v * v; }
+  applyVolumes() {
+    if (!this.ac) return;
+    const s = this.state.settings;
+    this.sounds.gain.value = this.level(s.sound); this.musicBus.gain.value = this.level(s.music);
+    const el = this.music;
+    if (s.music > 0 && !document.hidden) {
+      if (this.musicPlaying) { if (el.paused) el.play().catch(() => {}); return; }
+      let p; try { p = el.play(); } catch (e) { return; }   // never el.load() first: it aborts the play
+      const ok = () => { this.musicPlaying = true; AUDIO_EVENTS.forEach(ev => document.removeEventListener(ev, this.onFirst, true)); };
+      if (p && p.then) p.then(ok, () => {}); else ok();
+    } else if (!el.paused) el.pause();
+  }
+  sfx(name, vol = 1) {
+    const ac = this.ac, b = this.buf && this.buf[name]; if (!ac || !b || !this.state.settings.sound) return;
+    const src = ac.createBufferSource(), g = ac.createGain(); src.buffer = b; g.gain.value = vol;
+    src.connect(g).connect(this.sounds); src.start();
+  }
+  blip(freq, dur = .07, vol = .25) {
+    const ac = this.ac; if (!ac || !this.state.settings.sound) return;
+    const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime;
+    o.type = 'triangle'; o.frequency.setValueAtTime(freq, t); o.frequency.exponentialRampToValueAtTime(freq * .6, t + dur);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(g).connect(this.sounds); o.start(t); o.stop(t + dur + .02);
+  }
+  setSetting(k, v) { this.save(s => ({ settings: { ...s.settings, [k]: v } }), () => { if (k === 'music' || k === 'sound') this.applyVolumes(); if (k === 'perf') showStats(v); }); }
+
+  // ---------- performance monitor (P key, or hold Fast mode) ----------
+  togglePerf() { const on = !this.state.settings.perf; this.setSetting('perf', on); this.showGlobal(on ? 'Performance monitor on (press P to hide)' : 'Performance monitor off'); }
+  perfLoop() {
+    let last = performance.now(), acc = 0, n = 0, worst = 0, t0 = last;
+    const tick = now => {
+      this.praf = requestAnimationFrame(tick);
+      const dt = now - last; last = now;
+      if (!this.state.settings.perf) { t0 = now; acc = n = worst = 0; return; }
+      if (STATS) STATS.update();
+      acc += dt; n++; worst = Math.max(worst, dt);
+      if (now - t0 < 500) return;
+      let draws = 0, tris = 0, views = 0, geos = 0, tex = 0;
+      document.querySelectorAll('boulder-climb, boulder-wall, boulder-climber, boulder-duo, boulder-editor').forEach(el => { const r = el.r || el._r; if (!r || !r.info) return; views++; draws += r.info.render.calls; tris += r.info.render.triangles; geos += r.info.memory.geometries; tex += r.info.memory.textures; });
+      const mem = performance.memory ? (performance.memory.usedJSHeapSize / 1048576).toFixed(0) + ' MB' : 'n/a';
+      const fps = 1000 / (acc / n);
+      this.setState({ perfText: `${fps.toFixed(0)} fps · worst ${worst.toFixed(0)} ms\n${views} 3D view${views === 1 ? '' : 's'} · ${draws} draws\n${(tris / 1000).toFixed(0)}k tris · ${geos} geo · ${tex} tex\nheap ${mem} · dpr ${(+devicePixelRatio).toFixed(2)}${this.state.settings.fast ? ' · FAST' : ''}` });
+      t0 = now; acc = n = worst = 0;
+    };
+    this.praf = requestAnimationFrame(tick);
+  }
+
+  // ---------- helpers ----------
+  el() { return document.querySelector('boulder-climb'); }
+  call(fn, ...a) { const e = this.el(); if (e && e[fn]) e[fn](...a); }
+  maxSent() { return this.state.sent.length ? Math.max(...this.state.sent) : -1; }
+  isOpen(i) { return i <= this.maxSent() + 3; }
+  nextUp() { const s = this.state; return s.cat.find(c => !s.sent.includes(c.index) && this.isOpen(c.index)) || s.cat[0]; }
+  starCount(i) { const b = this.state.best[i] || {}; return (b.moves ? 1 : 0) + (b.time ? 1 : 0) + (b.holds ? 1 : 0); }
+  fmt(s) { s = Math.floor(s || 0); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+  showToast(t, bg = '#ff5a4e') { clearTimeout(this.tt); this.setState({ toast: t, toastBg: bg }); this.tt = setTimeout(() => this.setState({ toast: null }), 2000); }
+  showGlobal(t) { clearTimeout(this.gt); this.setState({ globalToast: t }); this.gt = setTimeout(() => this.setState({ globalToast: null }), 2200); }
+  startClimb(i) {
+    if (!this.isOpen(i)) return;
+    this.setState({ screen: 'climb', climbIdx: i, status: 'climb', result: null, paused: false, help: false, introOpen: false, toast: null, hint: 0 });
+  }
+  openHelp() { this.n = 0; this.call('setPaused', true); this.setState({ help: true, step: 0, auto: true }); }
+  closeHelp() { this.setState({ help: false }); if (!this.state.paused && !this.state.introOpen) this.call('setPaused', false); }
+
+  handle(d) {
+    switch (d.type) {
+      case 'start':
+        this.setState({ pi: d.problem, climbIdx: d.problem, name: d.name, gradeNum: d.grade, color: d.color, colorName: d.colorName, par: d.par, time: 0, moves: 0, holds: 0, status: 'climb', paused: false, result: null, toast: null, practice: this.state.infinite, earned: 0, intro: d.intro, introOpen: !!d.intro && d.grade > 1 });
+        if (this.state.custom) { this.setState({ help: false, introOpen: false }); this.call('setPaused', false); }
+        else if (d.grade <= 1) this.openHelp(); else { this.setState({ help: false }); this.call('setPaused', !!d.intro); }
+        break;
+      case 'tick': this.setState({ time: d.time, moves: d.moves, holds: d.holds }); break;
+      case 'grab': this.blip(520, .06, .18); if (this.state.hint === 0) this.setState({ hint: 1 }); break;
+      case 'move': this.blip(300, .09, .28); this.setState({ moves: d.moves, holds: d.holds, hint: d.moves >= 3 ? 2 : Math.max(1, this.state.hint) }); break;
+      case 'jump': this.blip(700, .18, .3); this.showToast(d.feetCut ? 'Great jump! Now find your feet' : 'Great jump!', '#ffd32a'); break;
+      case 'lowgrip': this.sfx('low', .8); break;
+      case 'slip': this.sfx('fall', .45); this.setState({ slipName: d.name }); this.showToast(d.name + ' let go! Grab a hold'); break;
+      case 'falling': this.sfx('fall', 1); break;
+      case 'fall': this.setState({ status: 'fallen' }); break;
+      case 'top': {
+        this.sfx('win', 1);
+        const i = d.problem; let earned = 0;
+        if (!d.practice && !this.state.custom) {
+          const s = this.state, old = s.best[i] || {};
+          const nu = { moves: !!(old.moves || d.stars.moves), time: !!(old.time || d.stars.time), holds: !!(old.holds || d.stars.holds) };
+          const cnt = o => (o.moves ? 1 : 0) + (o.time ? 1 : 0) + (o.holds ? 1 : 0);
+          earned = cnt(nu) - cnt(old);
+          const times = { ...s.times }; times[i] = Math.min(times[i] ?? Infinity, d.time);
+          this.save({ best: { ...s.best, [i]: nu }, sent: s.sent.includes(i) ? s.sent : [...s.sent, i], wallet: s.wallet + earned, times });
+        }
+        this.setState({ status: 'top', result: d, time: d.time, moves: d.moves, earned });
+        break;
+      }
+    }
+  }
+
+  // ---------- locker ----------
+  owns(id, cost) { return !cost || this.state.owned.includes(id); }
+  choose(key, value, cost, label) {
+    if (this.owns(key + ':' + value, cost)) this.save(s => ({ preview: null, looks: { ...s.looks, [s.char]: { ...s.looks[s.char], [key]: value } } }));
+    else this.setState({ preview: { key, value, cost, id: key + ':' + value, label } });
+  }
+  buy() {
+    const p = this.state.preview; if (!p || this.state.wallet < p.cost) return;
+    this.sfx('win', .5);
+    this.save(s => ({ wallet: s.wallet - p.cost, owned: [...s.owned, p.id], preview: null, looks: { ...s.looks, [s.char]: { ...s.looks[s.char], [p.key]: p.value } } }));
+  }
+  patternBg(p, B, A) {
+    return {
+      plain: B,
+      stripes: `repeating-linear-gradient(0deg,${B} 0 7px,${A} 7px 12px)`,
+      half: `linear-gradient(90deg,${B} 50%,${A} 50%)`,
+      dots: `radial-gradient(${A} 3.5px,transparent 4.5px) 0 0/14px 14px,${B}`,
+      zigzag: `linear-gradient(135deg,${A} 25%,transparent 25%) -7px 0/14px 14px,linear-gradient(225deg,${A} 25%,transparent 25%) -7px 0/14px 14px,linear-gradient(315deg,${A} 25%,transparent 25%) 0 0/14px 14px,linear-gradient(45deg,${A} 25%,${B} 25%) 0 0/14px 14px`,
+      splat: `radial-gradient(circle at 30% 35%,${A} 0 7px,transparent 8px),radial-gradient(circle at 72% 62%,${A} 0 10px,transparent 11px),radial-gradient(circle at 80% 18%,${A} 0 4px,transparent 5px),radial-gradient(circle at 18% 80%,${A} 0 3px,transparent 4px),${B}`
+    }[p];
+  }
+  lockerVals() {
+    const s = this.state, look = s.looks[s.char], pv = s.preview, disp = pv ? { ...look, [pv.key]: pv.value } : look;
+    const ring = on => on ? '#f5f1e8' : 'rgba(245,241,232,.12)';
+    const sec = key => ({ title: this.LABEL[key], items: this.SHOP[key].map(([v, cost]) => ({ label: v, cost, fill: v === 'none' ? 'repeating-linear-gradient(45deg,#3a302a 0 6px,#1a1511 6px 12px)' : v, ring: ring(disp[key] === v), tagShow: this.owns(key + ':' + v, cost) ? 'none' : 'flex', pick: () => this.choose(key, v, cost, 'New ' + this.LABEL[key].toLowerCase()) })) });
+    const tile = (key, extra) => this.SHOP[key].map(([v, cost, label, icon]) => ({ label, icon, cost, ring: disp[key] === v ? '#f5f1e8' : 'transparent', tagShow: this.owns(key + ':' + v, cost) ? 'none' : 'flex', pick: () => this.choose(key, v, cost, label + (key === 'hairStyle' ? '' : ' ' + this.LABEL[key])), ...(extra ? extra(v) : {}) }));
+    const nameOwned = this.owns('teeName:unlocked', this.NAME_COST), afford = pv && s.wallet >= pv.cost;
+    const tabBtn = (id, label, icon) => ({ label, icon, bg: s.tab === id ? '#f5f1e8' : 'transparent', fg: s.tab === id ? '#14100d' : '#f5f1e8', pick: () => this.setState({ tab: id, view: id === 'tee' ? 'back' : 'front', preview: null }) });
+    return {
+      lockerLook: JSON.stringify(disp), lockerView: s.view,
+      viewBtns: [['front', 'Front', 'person'], ['back', 'Back', 'autorenew']].map(([v, label, icon]) => ({ label, icon, bg: s.view === v ? '#f5f1e8' : 'transparent', fg: s.view === v ? '#14100d' : '#f5f1e8', pick: () => this.setState({ view: v }) })),
+      lockerSections: [tabBtn('climber', 'Climber', 'face'), tabBtn('tee', 'T-shirt', 'apparel')],
+      tabClimber: s.tab === 'climber', tabTee: s.tab === 'tee',
+      hairStyles: tile('hairStyle'),
+      climberSwatches: ['hair', 'skin', 'shoes', 'bag', disp.hairStyle === 'beanie' ? 'hat' : 'band'].map(sec),
+      teeSwatches: ['tee', 'teeAccent'].map(sec),
+      patterns: tile('teePattern', v => ({ bg: this.patternBg(v, disp.tee, disp.teeAccent) })),
+      prints: tile('teePrint'),
+      teeName: disp.teeName || '', nameLocked: !nameOwned,
+      onName: e => { const v = String(e.target.value || '').toUpperCase().replace(/[^A-Z0-9 ]/g, '').slice(0, 8); if (nameOwned) this.save(st => ({ looks: { ...st.looks, [st.char]: { ...st.looks[st.char], teeName: v } } })); else this.setState({ preview: { key: 'teeName', value: v, cost: this.NAME_COST, id: 'teeName:unlocked', label: 'Name on the back' } }); },
+      previewing: !!pv, notPreviewing: !pv, pvLabel: pv ? pv.label : '', pvCost: pv ? pv.cost : 0,
+      buyLabel: afford ? 'Buy for' : 'Need', buyBg: afford ? '#f08a2c' : 'rgba(245,241,232,.1)', buyFg: afford ? '#14100d' : '#a69c8c', buyShadow: afford ? '0 5px 0 #a3530f' : 'none',
+      buy: () => this.buy(), cancelPreview: () => this.setState({ preview: null }),
+      resetLook: () => this.save(st => ({ preview: null, looks: { ...st.looks, [st.char]: { ...this.BASE[st.char] } } }))
+    };
+  }
+
+  // ---------- problems ----------
+  problemVals() {
+    const s = this.state, cat = s.cat, nu = this.nextUp(), g = s.grade ?? (nu ? nu.grade : 0);
+    const gold = '#ffd32a', dim = 'rgba(245,241,232,.2)';
+    const gradeTabs = this.GCOL.map((color, gr) => {
+      const list = cat.filter(c => c.grade === gr), stars = list.reduce((a, c) => a + this.starCount(c.index), 0), open = list.some(c => this.isOpen(c.index)), on = gr === g;
+      return { label: 'V' + gr, color, fg: gr === 8 ? '#f5f1e8' : '#14100d', rot: (gr % 2 ? 2 : -2) + 'deg', bg: on ? 'rgba(245,241,232,.14)' : 'rgba(20,16,13,.72)', border: on ? '#f5f1e8' : 'transparent', op: open ? 1 : .45, icon: open ? 'star' : 'lock', iconCol: open ? gold : '#a69c8c', note: open ? stars + '/' + list.length * 3 : 'Locked', go: () => this.setState({ grade: gr }) };
+    });
+    const cards = cat.filter(c => c.grade === g).map(c => {
+      const open = this.isOpen(c.index), sent = s.sent.includes(c.index), b = s.best[c.index] || {}, req = (c.report && c.report.required) || [];
+      const moves = req.length ? req.map(t => ({ icon: this.TECHI[t][0], label: this.TECHI[t][1] })) : [{ icon: c.grade === 3 ? 'open_in_full' : 'favorite', label: c.grade === 3 ? 'Big reach' : 'No tricks' }];
+      return {
+        code: 'V' + c.grade + ' · ' + c.k, name: c.name, color: this.GCOL[c.grade], moves,
+        tag: sent ? 'Sent' : open ? 'Open' : 'Locked', tagIcon: sent ? 'check' : open ? 'lock_open' : 'lock', tagBg: sent ? '#5fd38a' : open ? '#ffd32a' : 'rgba(245,241,232,.5)',
+        stars: [b.moves, b.time, b.holds].map(x => x ? gold : dim), best: s.times[c.index] != null ? 'Best ' + this.fmt(s.times[c.index]) : c.par.moves + ' moves',
+        border: c.index === (nu && nu.index) ? '#f08a2c' : 'rgba(245,241,232,.08)', op: open ? 1 : .5,
+        btn: open ? (sent ? 'Again' : 'Climb') : 'Locked', btnIcon: open ? (sent ? 'replay' : 'play_arrow') : 'lock',
+        btnBg: open ? (sent ? 'rgba(245,241,232,.1)' : '#f08a2c') : 'rgba(245,241,232,.06)', btnFg: open ? (sent ? '#f5f1e8' : '#14100d') : '#a69c8c', btnShadow: open && !sent ? '0 5px 0 #a3530f' : 'none',
+        play: () => { if (open) this.startClimb(c.index); else this.showGlobal('Send ' + (cat[this.maxSent() + 1] ? cat[this.maxSent() + 1].name : 'the next climb') + ' to open this one'); }
+      };
+    });
+    const mine = s.grade === 'mine';
+    return {
+      gradeTabs: gradeTabs.map(t => mine ? { ...t, bg: 'rgba(20,16,13,.72)', border: 'transparent' } : t), cards, showGrades: !mine, showMine: mine,
+      mineTab: { bg: mine ? 'rgba(245,241,232,.14)' : 'rgba(20,16,13,.72)', border: mine ? '#f5f1e8' : 'transparent', note: s.myRoutes.length ? s.myRoutes.length + ' saved' : 'Make one!', go: () => this.setState({ grade: 'mine' }) },
+      mineCards: s.myRoutes.map(m => ({ name: m.name, color: m.route.color, holds: m.route.holds.length, grade: m.grade == null ? 'V?' : 'V' + m.grade, gradeCol: m.grade == null ? 'rgba(245,241,232,.25)' : this.GCOL[m.grade], gradeFg: m.grade === 8 ? '#f5f1e8' : '#14100d',
+        play: () => this.playMine(m), edit: () => { this.save({ edDraft: m.route, edName: m.name, edColor: m.route.color, screen: 'editor', edTool: 'place' }); this.validateSoon(m.route, 0); } })),
+      newRoute: () => { this.save({ edDraft: { holds: [], color: '#f08a2c' }, edName: '', screen: 'editor', edTool: 'place', edCheck: { status: 'empty' } }); },
+      starTotal: Object.keys(s.best).reduce((a, k) => a + this.starCount(k), 0)
+    };
+  }
+
+  // ---------- climb ----------
+  climbVals() {
+    const s = this.state, par = s.par || {}, gold = '#ffd32a', lost = 'rgba(245,241,232,.75)';
+    const goal = (ok, label) => ({ label, color: ok ? gold : lost, deco: ok ? 'none' : 'line-through' });
+    const r = s.result, st = (r && r.stars) || {};
+    const tile = (ok, value, label) => ({ value, label, star: ok ? gold : 'rgba(245,241,232,.25)', border: ok ? gold : 'rgba(245,241,232,.12)' });
+    const cat = s.cat, nextI = s.pi + 1, hasNext = nextI < cat.length && this.isOpen(nextI);
+    const hs = this.STEPS[s.step], lastStep = s.step === this.STEPS.length - 1, pt = s.tick ? hs.b : hs.a;
+    return {
+      climbIdx: String(s.climbIdx), infiniteStr: String(s.infinite),
+      infBg: s.infinite ? '#3f8ff0' : 'rgba(0,0,0,.55)', infFg: s.infinite ? '#14100d' : '#fff', infBorder: s.infinite ? '#3f8ff0' : 'rgba(255,255,255,.18)',
+      customJson: s.custom ? JSON.stringify(s.custom) : '', backLabel: s.custom && s.customFrom === 'editor' ? 'Back to editor' : 'All climbs',
+      name: s.name, gradeCode: 'V' + s.gradeNum + (s.custom ? ' · mine' : cat[s.pi] ? '-' + cat[s.pi].k : ''), gradeFg: s.gradeNum === 8 ? '#f5f1e8' : '#14100d', color: s.color, moves: s.moves, timeStr: this.fmt(s.time),
+      practice: s.practice, showGoals: !s.practice,
+      goals: [goal(s.moves <= par.moves, par.moves + ' moves'), goal(s.time <= par.time, this.fmt(par.time)), goal(s.holds <= par.holds, par.holds + ' holds')],
+      showHint: s.hint < 2 && s.status === 'climb' && !s.paused && !s.help && !s.introOpen,
+      hintText: s.hint === 0 ? `Drag a ring onto a glowing ${s.colorName} hold` : `Only ${s.colorName} holds count. Get both hands on the gold TOP!`,
+      toast: s.status === 'climb' && !s.help ? s.toast : null, toastBg: s.toastBg,
+      introOpen: !!(s.introOpen && s.intro) && !s.help, introIcon: s.intro ? s.intro.icon : '', introName: s.intro ? s.intro.name : '', introText: s.intro ? s.intro.text : '',
+      closeIntro: () => { this.setState({ introOpen: false }); if (!this.state.paused) this.call('setPaused', false); },
+      help: s.help, hs, helpBg: `url("${hs.img}")`, ptrX: pt[0], ptrY: pt[1],
+      stepBars: this.STEPS.map((_, i) => i <= s.step ? '#f08a2c' : 'rgba(245,241,232,.15)'),
+      notFirstStep: s.step > 0, nextLabel2: lastStep ? "Let's climb!" : 'Next', nextIcon: lastStep ? 'play_arrow' : 'arrow_forward',
+      nextStep: () => lastStep ? this.closeHelp() : this.setState({ step: s.step + 1, auto: false }),
+      prevStep: () => this.setState({ step: Math.max(0, s.step - 1), auto: false }),
+      openHelp: () => this.openHelp(), closeHelp: () => this.closeHelp(),
+      helpFromPause: () => { this.setState({ paused: false }); this.openHelp(); },
+      toggleInf: () => { const on = !s.infinite; this.setState({ infinite: on, practice: s.practice || on }); this.showToast(on ? 'Never-tired mode ON · no stars this climb' : 'Never-tired mode OFF', on ? '#3f8ff0' : '#f5f1e8'); },
+      isPaused: s.paused && s.status === 'climb' && !s.help, isFallen: s.status === 'fallen', isTop: s.status === 'top',
+      fallText: s.slipName ? `Your ${s.slipName.toLowerCase()} got too tired and let go. Shake out tired hands and keep your feet on!` : 'Keep at least one hand on the wall!',
+      flash: !!(r && r.flash),
+      resultTiles: r ? [tile(st.moves, r.moves, `moves · goal ${par.moves}`), tile(st.time, this.fmt(r.time), `time · goal ${this.fmt(par.time)}`), tile(st.holds, r.holds, `holds · goal ${par.holds}`)] : [],
+      showEarned: s.earned > 0, earnedText: `+${s.earned} new star${s.earned === 1 ? '' : 's'} · ${s.wallet} to spend in the Locker`,
+      nextLabel: s.custom ? (s.customFrom === 'editor' ? 'Back to editor' : 'My routes') : hasNext ? 'Next climb' : 'All climbs',
+      pause: () => { this.call('setPaused', true); this.setState({ paused: true }); },
+      resume: () => { this.call('setPaused', false); this.setState({ paused: false }); },
+      retry: () => { this.setState({ paused: false }); this.call('retry'); },
+      next: () => { if (s.custom) this.setState(s.customFrom === 'editor' ? { screen: 'editor', custom: null } : { screen: 'problems', grade: 'mine', custom: null }); else if (hasNext) this.call('load', nextI); else this.setState({ screen: 'problems', grade: null }); },
+      toProblems: () => s.custom ? this.setState(s.customFrom === 'editor' ? { screen: 'editor', custom: null, paused: false, help: false } : { screen: 'problems', grade: 'mine', custom: null, paused: false, help: false }) : this.setState({ screen: 'problems', grade: null, paused: false, help: false })
+    };
+  }
+
+  // ---------- route editor ----------
+  ED_TYPES = ['jug', 'crimp', 'sloper', 'pinch', 'pocket', 'volume', 'ledge', 'foot', 'top'];
+  ED_DIRS = [null, 'left', 'right', 'under'];
+  ED_COLS = ['#5fcf7a', '#f2d23c', '#3f8ff0', '#f08a2c', '#e5484d', '#9b6bf0', '#f06fb4', '#f5f1e8'];
+  edCall(fn, ...a) { const e = document.querySelector('boulder-editor'); if (e && e[fn]) return e[fn](...a); }
+  toProblem(route, name) {
+    const C = this.core, H = route.holds, ti = H.findIndex(h => h.type === 'top');
+    const order = H.map((_, i) => i).filter(i => i !== ti).concat(ti >= 0 ? [ti] : []);
+    const rows = order.map(i => { const h = H[i], row = [h.type, h.x, h.y]; if (h.dir || h.jump) row.push(h.dir || null); if (h.jump) row.push('J'); return row; });
+    const st = order.map((oi, ni) => ({ h: H[oi], ni })).filter(o => o.h.start).sort((a, b) => b.h.y - a.h.y);
+    const hands = st.filter(o => C.HOLD[o.h.type].hand).slice(0, 2).sort((a, b) => a.h.x - b.h.x);
+    const feet = st.filter(o => !hands.includes(o) && C.HOLD[o.h.type].foot && o.h.dir !== 'under').sort((a, b) => a.h.x - b.h.x);
+    if (!hands.length) return null;
+    const start = { LH: hands[0].ni, RH: (hands[1] || hands[0]).ni, LF: feet[0] ? feet[0].ni : null, RF: feet[1] ? feet[1].ni : feet[0] ? feet[0].ni : null };
+    return { grade: 0, name: name || 'My route', cx: 0, color: route.color, start, holds: rows };
+  }
+  playMine(m) {
+    const C = this.core; if (!C) return;
+    const p = this.toProblem(m.route, m.name); if (!p) { this.showGlobal('This route needs fixing in the editor first'); return; }
+    const L = C.buildLayout(0, [{ problems: [p] }], false), pr = L.problems[0];
+    if (!C.validState(pr.start, L.holds, {})) { this.showGlobal('This route needs fixing in the editor first'); return; }
+    const r = C.search(L, 0); if (!r.ok) { this.showGlobal('No way to the top yet. Fix it in the editor'); return; }
+    const used = new Set(); r.path.forEach(s => ['LH', 'RH', 'LF', 'RF'].forEach(l => { if (s[l] != null && !pr.startIds.includes(s[l])) used.add(s[l]); }));
+    const grade = m.grade ?? 0;
+    this.setState({ custom: { ...p, grade, par: C.parFor(r.moves, used.size) }, customFrom: 'problems', screen: 'climb', climbIdx: 0, status: 'climb', result: null, paused: false, help: false, introOpen: false, toast: null, hint: 0 });
+  }
+  validateSoon(route, wait = 450) { clearTimeout(this.vt); this.setState({ edCheck: { status: 'working' } }); this.vt = setTimeout(() => this.validate(route), wait); }
+  validate(route) {
+    const C = this.core; if (!C) return;
+    const H = route.holds, name = this.state.edName || 'My route';
+    const out = c => this.setState({ edCheck: c });
+    if (!H.length) return out({ status: 'empty' });
+    if (!H.some(h => h.type === 'top')) return out({ status: 'bad', msg: 'Add a gold TOP hold. Pick Top below, then tap where the route ends.' });
+    if (H.filter(h => h.start).length < 2) return out({ status: 'bad', msg: 'Use the Start tool to mark 2 to 4 holds where the climber begins.' });
+    const p = this.toProblem(route, name); if (!p) return out({ status: 'bad', msg: 'At least one start hold needs to be a hand hold.' });
+    const L = C.buildLayout(0, [{ problems: [p] }], false), pr = L.problems[0];
+    if (!C.validState(pr.start, L.holds, {})) return out({ status: 'bad', msg: 'The climber can\'t reach all the start holds at once. Move them closer together.' });
+    const g = C.gradeRoute(L, 0);
+    if (!g.ok) return out({ status: 'bad', msg: 'No way to the top yet. Add holds where the climber would get stuck.' });
+    const used = new Set(); g.path.forEach(s => ['LH', 'RH', 'LF', 'RF'].forEach(l => { if (s[l] != null && !pr.startIds.includes(s[l])) used.add(s[l]); }));
+    const grade = C.suggestGrade(g, L, 0);
+    out({ status: 'ok', grade, moves: g.moves, required: g.required, problem: { ...p, grade, par: C.parFor(g.moves, used.size) } });
+  }
+  editorVals() {
+    const s = this.state, chk = s.edCheck || { status: 'empty' }, tool = s.edTool;
+    const TOOLS = [['place', 'Place', 'add_circle', 'Tap the wall to place a hold. Routes can go sideways too!'], ['move', 'Move', 'open_with', 'Drag a hold to move it'], ['delete', 'Delete', 'delete', 'Tap a hold to take it off'],
+      ['start', 'Start', 'flag', 'Tap 2 to 4 holds where the climber starts'], ['turn', 'Turn', 'rotate_right', 'Tap a hold to turn it sideways or upside down'], ['jump', 'Jump', 'keyboard_double_arrow_up', 'Tap a hand hold to make it a jump hold']];
+    const col = s.edColor, sh = {
+      jug: `width:40px;height:26px;border-radius:50% 50% 45% 45%;background:${col}`, crimp: `width:44px;height:10px;border-radius:5px;background:${col}`,
+      sloper: `width:44px;height:22px;border-radius:22px 22px 6px 6px;background:${col}`, pinch: `width:14px;height:34px;border-radius:7px;background:${col}`,
+      pocket: `width:30px;height:30px;border-radius:50%;background:#14100d;box-shadow:inset 0 0 0 8px ${col}`, volume: `width:44px;height:34px;background:${col};clip-path:polygon(50% 0,100% 100%,0 100%)`,
+      ledge: 'width:50px;height:11px;border-radius:3px;background:#e6dccb', foot: `width:14px;height:9px;border-radius:50%;background:${col}`, top: 'width:42px;height:26px;border-radius:50% 50% 45% 45%;background:#ffd32a;box-shadow:0 0 0 4px rgba(255,211,42,.35)'
+    };
+    const LBL = { jug: 'Jug', crimp: 'Crimp', sloper: 'Sloper', pinch: 'Pinch', pocket: 'Pocket', volume: 'Volume', ledge: 'Ledge', foot: 'Foot chip', top: 'Top' };
+    const ok = chk.status === 'ok', bad = chk.status === 'bad', work = chk.status === 'working';
+    const t = TOOLS.find(x => x[0] === tool);
+    return {
+      edRouteInit: JSON.stringify(s.edDraft || { holds: [], color: s.edColor }),
+      edTools: TOOLS.map(([id, label, icon]) => ({ label, icon, ring: tool === id ? '#f5f1e8' : 'transparent', bg: tool === id ? 'rgba(245,241,232,.14)' : 'transparent', pick: () => { this.setState({ edTool: id }); this.edCall('setTool', id); } })),
+      toolHint: t[3], toolIcon: t[2],
+      edTypes: this.ED_TYPES.map(id => ({ label: LBL[id], shape: sh[id], ring: s.edType === id ? '#f5f1e8' : 'transparent', bg: s.edType === id ? 'rgba(245,241,232,.1)' : 'rgba(245,241,232,.03)', pick: () => { this.setState({ edType: id, edTool: 'place' }); this.edCall('setType', id); this.edCall('setTool', 'place'); } })),
+      edColors: this.ED_COLS.map(hex => ({ hex, ring: s.edColor === hex ? '#f5f1e8' : 'transparent', pick: () => { this.setState({ edColor: hex }); this.edCall('setColor', hex); } })),
+      edUp: () => this.edCall('scrollBy', 1.2), edDown: () => this.edCall('scrollBy', -1.2),
+      edName: s.edName, onEdName: e => { this.save({ edName: String(e.target.value).slice(0, 18) }); if (s.edDraft) this.validateSoon(s.edDraft, 600); },
+      chkBg: ok ? 'rgba(95,211,138,.12)' : bad ? 'rgba(247,194,60,.1)' : 'rgba(245,241,232,.05)', chkBorder: ok ? 'rgba(95,211,138,.5)' : bad ? 'rgba(247,194,60,.45)' : 'rgba(245,241,232,.12)',
+      chkCol: ok ? '#5fd38a' : bad ? '#f7c23c' : '#d9d2c4', chkIcon: ok ? 'check_circle' : bad ? 'error' : work ? 'hourglass_top' : 'construction',
+      chkTitle: ok ? 'Can be topped!' : bad ? 'Not climbable yet' : work ? 'Checking…' : 'Build a route',
+      chkMsg: ok ? `Best way up: ${chk.moves} moves. The grader says this is a V${chk.grade}.` : bad ? chk.msg : work ? 'The solver is trying every hand and foot position.' : 'Place holds, mark the start, and add a gold TOP. The solver checks it can be climbed.',
+      chkHasGrade: ok, chkGrade: ok ? 'V' + chk.grade : '', chkGradeCol: ok ? this.GCOL[chk.grade] : '#000', chkGradeFg: ok && chk.grade === 8 ? '#f5f1e8' : '#14100d',
+      chkHasNeeds: ok && chk.required.length > 0, chkNeeds: ok ? chk.required.map(x => ({ icon: this.TECHI[x][0], label: this.TECHI[x][1] })) : [],
+      testBg: ok ? '#f08a2c' : 'rgba(245,241,232,.08)', testFg: ok ? '#14100d' : '#a69c8c', testShadow: ok ? '0 6px 0 #a3530f' : 'none',
+      testClimb: () => { if (!ok) { this.showGlobal(bad ? chk.msg : 'Build a route first'); return; } this.setState({ custom: chk.problem, customFrom: 'editor', screen: 'climb', climbIdx: 0, status: 'climb', result: null, paused: false, help: false, introOpen: false, toast: null, hint: 0 }); },
+      saveRoute: () => { if (!s.edDraft || !s.edDraft.holds.length) { this.showGlobal('Place some holds first'); return; } const name = s.edName || 'My route'; const list = [{ name, route: s.edDraft, grade: ok ? chk.grade : null }, ...s.myRoutes.filter(m => m.name !== name)].slice(0, 10); this.save({ myRoutes: list }); this.showGlobal('Saved to My routes on this device'); },
+      hasMyRoutes: s.myRoutes.length > 0,
+      myRouteList: s.myRoutes.map((m, i) => ({ name: m.name, grade: m.grade == null ? '?' : 'V' + m.grade, col: m.grade == null ? 'rgba(245,241,232,.2)' : this.GCOL[m.grade], fg: m.grade === 8 ? '#f5f1e8' : '#14100d',
+        load: () => { this.save({ edDraft: m.route, edName: m.name, edColor: m.route.color }); this.edCall('setRoute', m.route); this.validateSoon(m.route, 0); },
+        del: () => this.save({ myRoutes: s.myRoutes.filter((_, k) => k !== i) }) })),
+      clearRoute: () => { this.edCall('clear'); }
+    };
+  }
+
+  renderVals() {
+    const s = this.state, set = s.settings, nu = this.nextUp();
+    const toggle = on => ({ track: on ? '#f08a2c' : 'rgba(245,241,232,.18)', knob: on ? '27px' : '3px' });
+    const rT = toggle(set.reach), fT = toggle(set.fast);
+    return {
+      ...(s.screen === 'locker' ? this.lockerVals() : {}), ...(s.screen === 'problems' ? this.problemVals() : {}), ...(s.screen === 'climb' ? this.climbVals() : {}), ...(s.screen === 'editor' ? this.editorVals() : {}),
+      perfOn: !!set.perf, perfText: s.perfText || 'measuring…',
+      isEditor: s.screen === 'editor', openEditor: () => this.setState({ screen: 'editor', edTool: 'place' }),
+      isHome: s.screen === 'home', isLocker: s.screen === 'locker', isProblems: s.screen === 'problems', isClimb: s.screen === 'climb',
+      char: s.char, charName: s.char === 'ezra' ? 'Ezra' : 'Caleb', lockerTitle: (s.char === 'ezra' ? 'Ezra' : 'Caleb') + "'s locker", charLook: JSON.stringify(s.looks[s.char]), wallet: s.wallet,
+      nextUpText: nu ? `Next up: V${nu.grade}-${nu.k} · ${nu.name}` : 'Loading climbs…',
+      walletText: s.wallet === 1 ? '1 star to spend' : s.wallet + ' stars to spend', hasNextUp: !!nu,
+      nextUpGrade: nu ? `V${nu.grade}-${nu.k}` : '', nextUpName: nu ? nu.name : '', nextUpCol: nu ? this.GCOL[nu.grade] : '#000', nextUpFg: nu && nu.grade === 8 ? '#f5f1e8' : '#14100d',
+      lookA: JSON.stringify(s.looks.caleb), lookB: JSON.stringify(s.looks.ezra), waveKey: s.char === 'ezra' ? 'b' : 'a',
+      climbers: ['caleb', 'ezra'].map(id => { const on = s.char === id; return { id, name: id === 'caleb' ? 'Caleb' : 'Ezra', look: JSON.stringify(s.looks[id]), wave: String(on), border: on ? '#f08a2c' : 'rgba(245,241,232,.1)', tag: on ? 'Ready!' : 'Pick', tagBg: on ? '#f08a2c' : 'rgba(245,241,232,.55)', pick: () => this.save({ char: id, preview: null }) }; }),
+      openProblems: () => this.setState({ screen: 'problems', grade: null }),
+      openLocker: () => this.setState({ screen: 'locker', tab: 'climber', view: 'front', preview: null }),
+      goHome: () => this.setState({ screen: 'home', preview: null }),
+      editorSoon: () => this.showGlobal('The route editor is coming soon!'),
+      settingsOpen: s.settingsOpen, openSettings: () => this.setState({ settingsOpen: true }), closeSettings: () => this.setState({ settingsOpen: false }),
+      globalToast: s.globalToast,
+      soundPct: Math.round(set.sound * 100), musicPct: Math.round(set.music * 100),
+      soundLabel: set.sound > 0 ? Math.round(set.sound * 100) : 'Off', musicLabel: set.music > 0 ? Math.round(set.music * 100) : 'Off',
+      onSound: e => { this.setSetting('sound', +e.target.value / 100); this.initAudio(); clearTimeout(this.st); this.st = setTimeout(() => this.blip(520, .08, .3), 60); }, onMusic: e => { this.setSetting('music', +e.target.value / 100); this.initAudio(); },
+      reachTrack: rT.track, reachKnob: rT.knob, fastTrack: fT.track, fastKnob: fT.knob,
+      reachStr: String(set.reach), fastStr: String(set.fast), perfStr: String(set.perf),
+      toggleReach: () => this.setSetting('reach', !set.reach),
+      fastDown: () => { clearTimeout(this.ht); this.held = false; this.ht = setTimeout(() => { this.held = true; this.togglePerf(); }, 600); },
+      fastUp: () => { clearTimeout(this.ht); if (!this.held) this.setSetting('fast', !this.state.settings.fast); this.held = true; },
+      fastCancel: () => { clearTimeout(this.ht); this.held = true; }
+    };
+  }
+}
+
+Store.ready(() => {
+  const app = new Component(document.getElementById('app'), document.getElementById('view'));
+  window.__boulder = app;
+  app.start();
+});
+</script>
+</body>
+</html>

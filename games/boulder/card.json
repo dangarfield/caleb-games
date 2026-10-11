@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "boulder",
+  "name": "Boulder",
+  "blurb": "Drag hands and feet up the wall, mind your grip and top out!",
+  "added": "2026-10-11",
+  "icon": {
+    "emoji": "🧗"
+  },
+  "title": {
+    "font": "Lilita One",
+    "weight": 400,
+    "size": 44,
+    "color": "#F5F1E8",
+    "letterSpacing": ".01em",
+    "transform": "uppercase",
+    "shadow": "0 3px 0 rgba(0,0,0,.4)"
+  },
+  "blurbStyle": {
+    "color": "#F5F1E8",
+    "shadow": "0 1px 3px rgba(20,16,13,.9)"
+  },
+  "background": {
+    "gradient": [
+      "#14100D",
+      "#C9995F",
+      "#F08A2C"
+    ],
+    "css": "linear-gradient(100deg, rgba(20,16,13,.95) 0%, rgba(20,16,13,.72) 45%, rgba(20,16,13,0) 80%), radial-gradient(ellipse 22px 14px at 74% 30%, #5FCF7A 0 98%, transparent), radial-gradient(ellipse 16px 11px at 58% 18%, #F2D23C 0 98%, transparent), radial-gradient(ellipse 26px 17px at 82% 12%, #FFD32A 0 98%, transparent), radial-gradient(circle, rgba(20,16,13,.35) 1.4px, transparent 2px) 0 0/14px 14px, linear-gradient(160deg, #d8ab72 0%, #C9995F 55%, #a77a46 100%)"
+  },
+  "source": {
+    "files": [
+      "games/boulder/index.html",
+      "games/boulder/research/Boulder climbing game design/Boulder Card.dc.html"
+    ],
+    "refreshed": "2026-10-11",
+    "notes": "From the Claude Design card (Boulder Card.dc.html): BOULDER in Lilita One on chalk #F5F1E8 with the design's dark-to-clear ink overlay. Blurb reworded by Dan's request (was the design's \"Reach the top.\"). The design used a screenshot of the wall; url() isn't allowed on cards, so the plywood pegboard and a few route holds (green, yellow, gold TOP) are drawn in CSS instead."
+  },
+  "updated": "2026-10-11"
+}
