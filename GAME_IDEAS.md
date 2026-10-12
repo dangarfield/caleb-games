@@ -11,6 +11,7 @@ DONE - Summer Olympics button bash, like the amiga game i had
 DONE - Firefighter Training: Aim a water hose to put out cartoon campfires and rescue stranded kittens from trees
 DONE - paint wars - dual stick control. you move your character with the left and pain direction with the right, goal is to get the most paint coloured, or seomthing like that
 
+IN PROGRESS - Dragon Rider. Fly a dragon over a fantasy continent, learning to glide, flap and dive-bomb. Discover: castles, dragon eggs, hidden valleys, other dragon species. Action: aerial jousts with knights on griffins, and fire breathing.
 
 - infinite falling / zooming game
 - drone game
@@ -29,6 +30,8 @@ DONE - paint wars - dual stick control. you move your character with the left an
 - Fireworks Night. Design a fireworks show on a timeline: shell types, colours and launch positions. The crowd rates the show for variety, timing and a big finale. Beat each town’s target score. It’s creative, with a goal.
 - Hotel Haunt. You’re the ghosts. Place spooks around a hotel (rattling pipes, a floating head, cold spots) to scare out the guests. Each guest is afraid of different things. Empty the hotel by dawn.
 - Marble Mania. Build a marble run from tracks, funnels, loops and spinners, then race a field of named marbles down it. Back a marble and watch the commentary. Marble League energy.
+- Dino Valley. Drive a ranger jeep through a hidden prehistoric valley: jungle, swamp, volcano and plains. Discover: dinosaurs to photograph for the dino log, nests, fossils, the valley’s secret. Action: T-rex chases and stampede escapes.
+
 
 Games to revisit because they look / play badly:
 - Tetris

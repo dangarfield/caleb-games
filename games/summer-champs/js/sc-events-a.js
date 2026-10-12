@@ -16,6 +16,8 @@ export const TUNE_DEFAULT = {
   lift:{ effort:0.35, rate:0.35, liftTime:8, wobble:1, steadyPresses:10, outTime:0.5 },
   fence:{ reactMax:0.95, reactMin:0.45, lunge:1 },
 };
+// Discus spin (dial + body spin animation) runs at half speed so the boys can time the release. Power still comes from the L/R wind-up.
+const DISCUS_SPIN_SCALE = 0.5;
 export const TUNE = JSON.parse(JSON.stringify(TUNE_DEFAULT));
 export const DBG = { delta:'—' };
 const V3 = THREE.Vector3, PI = Math.PI, clamp = (x,a,b) => Math.max(a, Math.min(b, x)), lerp = (a,b,t) => a+(b-a)*t;
@@ -198,8 +200,8 @@ function throwEvent(cfg){
             if (S.phase==='run') S.wag.update(dt);
             if (disc){
               if (S.phase==='aim'){ S.ang = Math.min(PI/2, S.ang + dt*T().angleRate*PI/180); hud.angle(S.ang); }
-              else S.spin += dt*(0.3 + S.wag.p*T().spinRate);
-              a.pivot.rotation.y = PI + S.spin*2*PI; if (a.curName==='Discus_Spin' && a.cur) a.cur.timeScale = S.phase==='aim' ? 0 : clamp((0.3 + S.wag.p*T().spinRate)*2*a.cur.getClip().duration, 0.25, 3); hud.dial((((0.75 - S.spin)%1)+1)%1, [0.25 - T().gold/(720*T().aimGain), 0.25 + T().gold/(720*T().aimGain)], S.phase==='aim' ? 'LOCKED' : 'SPIN', [0.25 - T().sector/(720*T().aimGain), 0.25 + T().sector/(720*T().aimGain)]);
+              else S.spin += dt*DISCUS_SPIN_SCALE*(0.3 + S.wag.p*T().spinRate);
+              a.pivot.rotation.y = PI + S.spin*2*PI; if (a.curName==='Discus_Spin' && a.cur) a.cur.timeScale = S.phase==='aim' ? 0 : clamp(DISCUS_SPIN_SCALE*(0.3 + S.wag.p*T().spinRate)*2*a.cur.getClip().duration, 0.125, 1.5); hud.dial((((0.75 - S.spin)%1)+1)%1, [0.25 - T().gold/(720*T().aimGain), 0.25 + T().gold/(720*T().aimGain)], S.phase==='aim' ? 'LOCKED' : 'SPIN', [0.25 - T().sector/(720*T().aimGain), 0.25 + T().sector/(720*T().aimGain)]);
               hud.action(S.phase==='aim' ? 'hot' : 'ready', 'THROW', S.phase==='aim' ? 'LET GO IN THE GOLD' : 'HOLD WHEN ARROW IS GOLD'); hud.gaugeFocus(S.phase==='aim' ? 'angle' : 'dial');
               if (S.phase==='run' && S.t > 9){ S.phase='done'; hud.action('off'); S.cb(null); } }
             else {
