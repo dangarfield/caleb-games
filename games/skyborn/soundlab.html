@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Skyborn · Sound Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Nunito:wght@600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400..700,0..1,0&display=block">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--ink:#fff6e8;--dim:rgba(255,246,232,.66);--line:rgba(255,255,255,.14);--card:rgba(20,12,24,.55);--acc:oklch(0.72 0.16 50);--acc2:oklch(0.62 0.12 235);--ok:oklch(0.62 0.12 150)}
+html,body{min-height:100%}
+body{font-family:Nunito,system-ui,sans-serif;color:var(--ink);background:linear-gradient(180deg,oklch(0.27 0.06 300) 0%,oklch(0.33 0.08 330) 45%,oklch(0.26 0.05 40) 100%) fixed;padding:20px 24px 60px}
+a{color:oklch(0.82 0.13 70)}a:hover{color:oklch(0.9 0.12 80)}
+button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer}
+input[type=range]{accent-color:var(--acc);width:100%}
+.ms{font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-variation-settings:'FILL' 1;vertical-align:middle}
+header{display:flex;align-items:center;gap:12px 14px;flex-wrap:wrap;margin-bottom:16px}
+h1{font:900 34px/1 'Cinzel Decorative',serif;letter-spacing:.02em}
+.sub{font:700 14px/1.4 Nunito;color:var(--dim);max-width:520px}
+.grow{flex:1}
+.pill{height:40px;padding:0 16px 0 12px;border-radius:20px;background:rgba(0,0,0,.35);border:1px solid var(--line);display:inline-flex;align-items:center;gap:6px;font:800 14px/1 Nunito;white-space:nowrap}
+.pill:hover{background:rgba(255,255,255,.08)}.pill.orange{background:var(--acc);border-color:transparent;color:#fff}.pill.on{background:var(--ink);color:#2a1a20}
+.master{display:flex;gap:16px;align-items:center;padding:8px 16px;border-radius:20px;background:rgba(0,0,0,.3);border:1px solid var(--line)}
+.master label{display:flex;align-items:center;gap:8px;font:800 13px/1 Nunito;width:190px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;padding:5px;border-radius:26px;background:rgba(0,0,0,.35);width:max-content;max-width:100%;margin-bottom:16px}
+.tabs button{height:42px;padding:0 18px 0 14px;border-radius:21px;display:flex;align-items:center;gap:8px;font:900 15px/1 Nunito;white-space:nowrap}
+.tabs button.on{background:var(--ink);color:#2a1a20}
+.tabs .n{font:800 12px/1 Nunito;padding:3px 7px;border-radius:999px;background:rgba(255,255,255,.14)}.tabs button.on .n{background:rgba(42,26,32,.12)}
+.panel{border-radius:20px;background:var(--card);border:1px solid var(--line);backdrop-filter:blur(8px);padding:16px}
+.grid{display:grid;gap:12px}
+.row{display:grid;grid-template-columns:minmax(200px,1.1fr) minmax(0,2fr) 170px 170px;gap:16px;align-items:center;padding:14px 16px;border-radius:16px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);transition:background .15s}
+.row.drag{background:rgba(255,200,120,.16);border-color:var(--acc)}
+.row h3{font:900 17px/1.15 Nunito}.row p{font:700 13px/1.35 Nunito;color:var(--dim);margin-top:3px;text-wrap:pretty}
+.chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 9px;border-radius:12px;font:800 12px/1 Nunito;background:rgba(255,255,255,.1);margin-top:6px}
+.chip.user{background:color-mix(in oklch,var(--ok) 70%,transparent)}
+.vars{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.var{display:inline-flex;align-items:center;gap:2px;height:32px;padding:0 4px 0 10px;border-radius:16px;background:rgba(0,0,0,.35);border:1px solid var(--line);font:700 13px/1 Nunito;max-width:240px}
+.var span.nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
+.var button{width:26px;height:26px;border-radius:13px;display:flex;align-items:center;justify-content:center}.var button:hover{background:rgba(255,255,255,.12)}
+.var .ms{font-size:18px}
+.add{height:32px;padding:0 12px 0 8px;border-radius:16px;border:1.5px dashed rgba(255,255,255,.4);display:inline-flex;align-items:center;gap:4px;font:800 13px/1 Nunito;color:var(--dim)}
+.add:hover{border-color:var(--ink);color:var(--ink)}
+.ctl{display:flex;flex-direction:column;gap:4px;font:800 12px/1 Nunito;color:var(--dim)}
+.ctl b{color:var(--ink);font:900 13px/1 'JetBrains Mono',monospace}
+.ctl .lab{display:flex;justify-content:space-between}
+.play{display:flex;gap:6px;margin-top:8px}
+.btn{height:36px;padding:0 14px 0 10px;border-radius:18px;background:var(--acc);color:#fff;display:inline-flex;align-items:center;gap:4px;font:900 14px/1 Nunito}
+.btn.ghost{background:rgba(255,255,255,.08);color:var(--ink);border:1px solid var(--line)}.btn.ghost:hover{background:rgba(255,255,255,.14)}
+.btn.fight{background:oklch(0.55 0.18 25)}.btn.on{box-shadow:0 0 0 3px var(--ink)}
+.mrow{display:grid;grid-template-columns:minmax(180px,1fr) minmax(0,1.3fr) minmax(0,1.3fr) 160px 230px;gap:14px;align-items:center;padding:14px 16px;border-radius:16px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
+.mrow.live{border-color:var(--acc);background:rgba(255,200,120,.1)}
+.slot{min-height:54px;border-radius:14px;border:1.5px dashed rgba(255,255,255,.3);display:flex;align-items:center;gap:8px;padding:8px 10px;font:700 13px/1.3 Nunito;color:var(--dim);cursor:pointer;position:relative}
+.slot:hover,.slot.drag{border-color:var(--ink);color:var(--ink);background:rgba(255,255,255,.05)}
+.slot.full{border-style:solid;border-color:rgba(255,255,255,.18);background:rgba(0,0,0,.25);color:var(--ink)}
+.slot .k{font:900 11px/1 Nunito;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);display:block;margin-bottom:3px}
+.slot .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;max-width:100%}
+.slot .x{margin-left:auto;width:28px;height:28px;border-radius:14px;display:flex;align-items:center;justify-content:center;flex:none}.slot .x:hover{background:rgba(255,255,255,.12)}
+.slot.na{border-style:solid;opacity:.4;cursor:default}
+.mhead{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.now{flex:1;display:flex;align-items:center;gap:10px;padding:10px 16px;border-radius:16px;background:rgba(0,0,0,.35);border:1px solid var(--line);font:800 14px/1.2 Nunito;min-width:300px}
+.now .eq{display:flex;gap:2px;align-items:flex-end;height:18px}.now .eq i{width:4px;background:var(--acc);border-radius:2px;animation:eq .8s ease-in-out infinite alternate}
+.now .eq i:nth-child(2){animation-delay:.2s}.now .eq i:nth-child(3){animation-delay:.4s}.now.off .eq i{animation:none;height:3px!important;background:rgba(255,255,255,.3)}
+@keyframes eq{from{height:3px}to{height:18px}}
+.fade{display:flex;align-items:center;gap:10px;font:800 13px/1 Nunito;width:320px}
+.hint{font:700 13px/1.5 Nunito;color:var(--dim);margin:2px 0 12px}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);padding:12px 20px;border-radius:999px;background:rgba(20,12,24,.85);font:800 15px/1 Nunito;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+@media (max-width:1100px){.row{grid-template-columns:1fr 1fr}.mrow{grid-template-columns:1fr 1fr}}
+.vars.proj{margin-top:6px;align-items:center}.projv{background:oklch(0.5 0.12 160 / .35)!important;border-color:oklch(0.7 0.12 160 / .5)!important}.projnote{font:700 12px/1.3 Nunito;opacity:.65}
+.grid{gap:8px}
+.row{grid-template-columns:minmax(170px,1fr) minmax(0,2.2fr) 84px 150px 150px!important;gap:14px!important;padding:10px 14px!important;align-items:center!important}
+.row .nm1{min-width:0}.row .nm1 h3{font:900 16px/1.15 Nunito}.row .nm1 p{margin-top:2px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.srcs{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0}
+.tag{display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 11px 0 8px;border-radius:14px;font:900 12px/1 Nunito;white-space:nowrap}.tag .ms{font-size:16px}
+.tag.builtin{background:rgba(255,255,255,.1);color:var(--dim)}
+.tag.added{background:color-mix(in oklch,var(--ok) 80%,transparent);color:#fff}
+.row:has(.tag.added){border-color:color-mix(in oklch,var(--ok) 55%,transparent)!important;background:color-mix(in oklch,var(--ok) 9%,rgba(255,255,255,.04))!important}
+.var{height:28px!important;max-width:none!important;flex:none}.var span.nm{max-width:200px!important;overflow:visible!important}.var .ms{font-size:16px}
+.projv{background:oklch(0.5 0.1 190 / .35)!important;border-color:oklch(0.72 0.11 190 / .55)!important}.projv>.ms{color:oklch(0.85 0.1 190);margin-right:3px}
+.play{margin-top:0!important;gap:6px!important;justify-content:flex-end}
+.ib{width:36px;height:36px;border-radius:18px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.08);border:1px solid var(--line)}.ib:hover{background:rgba(255,255,255,.16)}
+.ib.main{background:var(--acc);border-color:transparent;color:#fff}
+@media (max-width:1000px){.row{grid-template-columns:1fr auto!important}.srcs{grid-column:1/-1}}
+.ib:disabled{opacity:.3;cursor:not-allowed;filter:grayscale(1)}.ib:disabled:hover{background:rgba(255,255,255,.08)}.ib.main:disabled:hover{background:var(--acc)}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Sound Lab</h1><div class="sub">Drop in your own music and sound effects. Everything saves on this device and the game uses it straight away. Anything left empty uses Skyborn's built-in sounds.</div></div>
+  <div class="grow"></div>
+  <div class="master"><label><span class="ms">volume_up</span>SFX<input id="mSfx" type="range" min="0" max="100" step="5"><b id="mSfxB" style="font:800 12px/1 Nunito;min-width:36px"></b></label><label><span class="ms">music_note</span>Music<input id="mMus" type="range" min="0" max="100" step="5"><b id="mMusB" style="font:800 12px/1 Nunito;min-width:36px"></b></label><label title="Overall voice level (0–100%)"><span class="ms">record_voice_over</span>Voice<input id="mVox" type="range" min="0" max="100" step="5"><b id="mVoxB" style="font:800 12px/1 Nunito;min-width:36px"></b></label></div>
+  <button class="pill" id="stopAll"><span class="ms">stop_circle</span>Stop all</button>
+  <button class="pill" id="copyJson"><span class="ms">content_copy</span>Copy JSON</button>
+  <a class="pill orange" href="tablet.html" style="text-decoration:none"><span class="ms">flight</span>Play Skyborn</a>
+</header>
+<nav class="tabs" id="tabs"></nav>
+<main id="main"></main>
+<input type="file" id="picker" accept="audio/*" multiple hidden>
+<div class="toast" id="toast"></div>
+<script src="js/arcade-store.js"></script>
+<script type="module">
+import { MUSIC_SLOTS, SFX_TABS, SFX, loadConfig, saveConfig, putFile, delFile, sfxCfg, trackCfg } from './js/soundbank.js';
+import { VOICE_LINES, playVoiceFile } from './js/voice.js';
+import { ensureAudio, setLevels, settings, synth, playSynth, playSample, reloadBank, setMusic, setMusicHome, musicNow, getBank } from './js/ui.js';
+const $ = id => document.getElementById(id);
+let cfg = await loadConfig(), tab = 'music', bank = null, liveSlot = null, liveFight = false;
+setMusic('__off', false); // nothing plays until you press a ▶ (the game would start the title track on first tap)
+const toast = t => { const el = $('toast'); el.textContent = t; el.classList.add('show'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 2200); };
+const audio = () => { ensureAudio(); return true; };
+let saveT = 0; const persist = (reload = true) => { clearTimeout(saveT); saveT = setTimeout(async () => { await saveConfig(cfg); if (reload) { audio(); bank = await reloadBank(); render(); } }, 150); };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const names = () => (getBank() && getBank().names) || {};
+// Master levels (shared with the game's pause menu settings for this session)
+$('mSfx').value = settings.sfx; $('mMus').value = settings.mus;
+const pct = id => { $(id + 'B').textContent = $(id).value + '%'; }; pct('mSfx'); pct('mMus');
+$('mSfx').oninput = e => { settings.sfx = +e.target.value; pct('mSfx'); audio(); setLevels(); };
+$('mMus').oninput = e => { settings.mus = +e.target.value; pct('mMus'); audio(); setLevels(); };
+// Overall voice level: saved in the sound config (voice.level) and used by the game, on top of the pause-menu Voice slider.
+$('mVox').value = Math.min(100, cfg.voice?.level ?? 80); $('mVoxB').textContent = $('mVox').value + '%';
+$('mVox').oninput = e => { cfg.voice = { level: +e.target.value }; $('mVoxB').textContent = e.target.value + '%'; const b = getBank(); if (b) b.cfg.voice = cfg.voice; persist(false); };
+$('mVox').onchange = () => playLine('title-name');
+$('stopAll').onclick = () => { audio(); setMusic('__off', false); liveSlot = null; voices.forEach(v => { try { v.stop(); } catch (e) {} }); voices.length = 0; render(); };
+// Copy the current setup (levels, pitch, crossfade and which file sits in each slot) as readable JSON.
+$('copyJson').onclick = async () => { const n = names(), out = { music: { fade: cfg.music.fade ?? 2, tracks: {} }, sfx: {}, voice: { level: cfg.voice?.level ?? 80 } };
+  Object.entries(cfg.music.tracks).forEach(([k, t]) => { if (t.explore || t.fight) out.music.tracks[k] = { explore: t.explore ? n[t.explore] || t.explore : null, fight: t.fight ? n[t.fight] || t.fight : null, level: t.level ?? 100 }; });
+  SFX.forEach(x => { const c = cfg.sfx[x.key]; if (c) out.sfx[x.key] = { level: c.level ?? 100, pitch: c.pitch || 0, variants: (c.variants || []).map(v => n[v] || v) }; });
+  const txt = JSON.stringify(out, null, 2); try { await navigator.clipboard.writeText(txt); toast('Sound setup copied as JSON'); } catch (e) { const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); toast('Sound setup copied as JSON'); } };
+// File picking
+let pickCb = null;
+$('picker').onchange = async e => { const fs = [...e.target.files]; e.target.value = ''; if (pickCb && fs.length) await pickCb(fs); };
+const pick = (multi, cb) => { $('picker').multiple = multi; pickCb = cb; $('picker').click(); };
+const audioFiles = list => [...list].filter(f => f.type.startsWith('audio/') || /\.(mp3|ogg|wav|m4a|aac|flac|webm)$/i.test(f.name));
+const dropTarget = (el, cb) => { el.ondragover = e => { e.preventDefault(); el.classList.add('drag'); }; el.ondragleave = () => el.classList.remove('drag'); el.ondrop = e => { e.preventDefault(); el.classList.remove('drag'); const fs = audioFiles(e.dataTransfer.files); if (fs.length) cb(fs); else toast('Drop audio files (mp3, ogg, wav…)'); }; };
+// Voices for "Stop all" (SFX previews)
+const voices = [];
+const synthFor = key => { const c = cfg.sfx[key] || {}, k = key.startsWith('breath_') ? 'breath' : key; playSynth(k, key.split('_')[1], c.pitch || 0, c.level ?? 100); };
+// Orange ▶: your added file (random variant) if there is one, otherwise a project file. Never falls back to the built-in.
+function preview(key) { audio(); if ((cfg.sfx[key]?.variants || []).length && playSample(key)) return; const pj = PROJECT[key]; if (pj && pj.length) projPlay(key, pj[(Math.random() * pj.length) | 0]); }
+function previewVariant(key, id) { audio(); const b = getBank(); if (!b || !b.buf[id]) return; const c = cfg.sfx[key] || {}, ctx = b.cfg && ensureAudio(), s = ctx.createBufferSource(), g = ctx.createGain(); s.buffer = b.buf[id]; s.playbackRate.value = Math.pow(2, ((Math.random() * 2 - 1) * (c.pitch || 0)) / 12); g.gain.value = (c.level ?? 100) / 100 * Math.pow(settings.sfx / 100, 2); s.connect(g); g.connect(ctx.destination); s.start(); voices.push(s); }
+// ---------- Render ----------
+function renderTabs() {
+  const count = t => t === 'voice' ? Object.keys(VOICE_LINES).length : t === 'music' ? MUSIC_SLOTS.filter(m => { const c = cfg.music.tracks[m.id]; return c && (c.explore || c.fight); }).length : SFX.filter(s => s.tab === t && cfg.sfx[s.key] && cfg.sfx[s.key].variants.length).length;
+  const total = t => t === 'voice' ? Object.keys(VOICE_LINES).length : t === 'music' ? MUSIC_SLOTS.length : SFX.filter(s => s.tab === t).length;
+  $('tabs').innerHTML = [['music', 'Music', 'library_music'], ...SFX_TABS].map(([k, n, ic]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}"><span class="ms">${ic}</span>${n}<span class="n">${count(k)}/${total(k)}</span></button>`).join('');
+  $('tabs').querySelectorAll('button').forEach(b => b.onclick = () => { tab = b.dataset.t; render(); });
+}
+const PMUSIC = { hearthvale: { explore: 'hearthvale-normal', fight: 'hearthvale-battle' }, cinder: { explore: 'cinder-peaks-normal', fight: 'cinder-peaks-battle' }, frostfang: { explore: 'frostfang-normal', fight: 'frostfang-battle' }, stormcrown: { explore: 'stormcrown-normal', fight: 'stormcrown-battle' }, reach: { explore: 'sunken-reach-normal', fight: 'sunken-reach-battle' }, sky: { explore: 'sky-isles-normal', fight: 'sky-isles-battle' } };
+const pm = { el: null, key: null };
+function pmPlay(slot, mode) {
+  const f = (PMUSIC[slot] || {})[mode]; if (!f) return; const key = slot + '|' + mode, fade = (cfg.music.fade ?? 2) * 1000, lv = Math.min(1, ((cfg.music.tracks[slot] || {}).level ?? 100) / 100) * Math.pow((settings.mus ?? 80) / 100, 2);
+  const out = pm.el; if (out) { const v0 = out.volume, t0 = performance.now(); const step = () => { const k = Math.min(1, (performance.now() - t0) / fade); out.volume = v0 * (1 - k); if (k < 1) requestAnimationFrame(step); else out.pause(); }; step(); }
+  if (pm.key === key) { pm.el = null; pm.key = null; render(); return; }
+  const a = new Audio('music/' + f + '.webm'); a.loop = true; a.volume = 0; if (out && !isNaN(out.currentTime)) a.currentTime = out.currentTime; a.play();
+  const t1 = performance.now(); const up = () => { const k = Math.min(1, (performance.now() - t1) / fade); a.volume = lv * k; if (k < 1 && pm.el === a) requestAnimationFrame(up); }; up();
+  pm.el = a; pm.key = key; render();
+}
+const pmRow = id => { const p = PMUSIC[id]; if (!p) return ''; return `<div class="vars proj" style="grid-column:1/-1">${['explore', 'fight'].filter(m => p[m]).map(m => `<span class="var projv"><span class="ms">folder_special</span><span class="nm">${p[m]}</span><button data-pm="${id}|${m}" title="Play (lab only)"><span class="ms">${pm.key === id + '|' + m ? 'stop' : m === 'fight' ? 'swords' : 'play_arrow'}</span></button></span>`).join('')}<span class="projnote">Project tracks · lab only, crossfade between them</span></div>`; };
+document.addEventListener('click', e => { const b = e.target.closest('[data-pm]'); if (!b) return; const [sl, m] = b.dataset.pm.split('|'); audio(); pmPlay(sl, m); });
+function renderMusic() {
+  const now = musicNow();
+  const head = `<div class="mhead"><div class="now ${now ? '' : 'off'}"><span class="eq"><i></i><i></i><i></i></span><span>${now ? `Playing <b>${esc(MUSIC_SLOTS.find(m => m.id === now.slot)?.name || now.slot)}</b> · ${now.mode === 'fight' ? 'Fight' : 'Explore'}<br><small style="color:var(--dim)">${esc(now.name || '')}</small>` : 'Nothing playing. Press ▶ on a row, or Fight to crossfade.'}</span></div>
+    <label class="fade"><span class="ms">swap_horiz</span>Crossfade<input id="fade" type="range" min="0.2" max="8" step="0.1" value="${cfg.music.fade ?? 2}"><b style="font:900 13px 'JetBrains Mono';width:44px">${(cfg.music.fade ?? 2).toFixed(1)}s</b></label></div>
+    <p class="hint">Each region has an <b>Explore</b> track and an optional <b>Fight</b> variant. The game crossfades to Fight when enemies or a champion are near and during Ring Runs, and back again afterwards. The title screen plays Hearthvale’s Explore track. Use tracks of the same length and tempo and the crossfade stays in time. Moving between regions crossfades too. Click a slot or drop a file onto it. Tracks loop.</p>`;
+  const slot = (m, mode) => { if (mode === 'fight' && !m.fight) return `<div class="slot na"><span><span class="k">Fight</span>Not used</span></div>`; const id = (cfg.music.tracks[m.id] || {})[mode];
+    return `<div class="slot ${id ? 'full' : ''}" data-s="${m.id}" data-m="${mode}"><span class="ms">${id ? 'music_note' : 'add_circle'}</span><span style="min-width:0;flex:1"><span class="k">${mode === 'fight' ? 'Fight' : m.fight ? 'Explore' : 'Track'}</span><span class="nm">${id ? esc(names()[id] || 'Loading…') : 'Drop a track or click'}</span></span>${id ? `<button class="x" data-x="${m.id}|${mode}" title="Remove"><span class="ms">close</span></button>` : ''}</div>`; };
+  const rows = MUSIC_SLOTS.map(m => { const t = cfg.music.tracks[m.id] || {}, live = liveSlot === m.id;
+    return `<div class="mrow ${live ? 'live' : ''}"><div><h3 style="font:900 17px/1.15 Nunito">${m.name}</h3>${m.note ? `<p style="font:700 13px/1.35 Nunito;color:var(--dim);margin-top:3px">${m.note}</p>` : ''}</div>${slot(m, 'explore')}${slot(m, 'fight')}
+      <div class="ctl"><span class="lab">Level<b>${t.level ?? 100}%</b></span><input type="range" min="0" max="150" step="5" value="${t.level ?? 100}" data-lv="${m.id}"></div>
+      <div class="play"><button class="btn ${live && !liveFight ? 'on' : ''}" data-play="${m.id}"><span class="ms">play_arrow</span>Explore</button>${m.fight ? `<button class="btn fight ${live && liveFight ? 'on' : ''}" data-fight="${m.id}"><span class="ms">swords</span>Fight</button>` : ''}</div>${pmRow(m.id)}</div>`; }).join('');
+  $('main').innerHTML = `<div class="panel">${head}<div class="grid">${rows}</div></div>`;
+  $('fade').oninput = e => { cfg.music.fade = +e.target.value; e.target.nextElementSibling.textContent = cfg.music.fade.toFixed(1) + 's'; persist(false); getBank() && (getBank().cfg.music.fade = cfg.music.fade); };
+  $('main').querySelectorAll('.slot[data-s]').forEach(el => { const s = el.dataset.s, m = el.dataset.m, set = async fs => { const t = trackCfg(cfg, s); if (t[m]) await delFile(t[m]); t[m] = await putFile(fs[0]); toast('Added ' + fs[0].name); persist(); };
+    el.onclick = e => { if (e.target.closest('.x')) return; pick(false, set); }; dropTarget(el, set); });
+  $('main').querySelectorAll('[data-x]').forEach(b => b.onclick = async e => { e.stopPropagation(); const [s, m] = b.dataset.x.split('|'), t = trackCfg(cfg, s); if (t[m]) await delFile(t[m]); t[m] = null; persist(); });
+  $('main').querySelectorAll('[data-lv]').forEach(r => r.oninput = e => { trackCfg(cfg, r.dataset.lv).level = +e.target.value; r.previousElementSibling.querySelector('b').textContent = e.target.value + '%'; persist(); });
+  const go = (s, fight) => { audio(); liveSlot = s; liveFight = fight; setMusic(s, fight); setTimeout(render, 60); };
+  $('main').querySelectorAll('[data-play]').forEach(b => b.onclick = () => go(b.dataset.play, false));
+  $('main').querySelectorAll('[data-fight]').forEach(b => b.onclick = () => go(b.dataset.fight, !(liveSlot === b.dataset.fight && liveFight)));
+}
+// Project sounds: processed files in sfx/ (webm).
+// Lab only: they play here with this row's Level and Pitch ±, but aren't added to the game's sound bank.
+const PROJECT = { flap: ['wing-flap'], dodge: ['dodge'], wind: ['wind-rush'], splashIn: ['water-splash-enter'], splashOut: ['water-emerge'], underwater: ['underwater'], tap: ['ui-tap'], alarm: ['incoming'], roar: ['champion-appears'], hit: ['hit-an-enemy'], boom: ['big-impact'], unlock: ['big-unlock'], crack: ['egg-tap'], ching: ['gems'], light: ['tower-lit-beacon'], breath_Breeze: ['dragon-breath-all'], breath_Ember: ['dragon-breath-all'], breath_Frost: ['dragon-breath-all'], breath_Storm: ['dragon-breath-all'], breath_Tide: ['dragon-breath-all'], breath_Gold: ['dragon-breath-all'], bonk: ['bonk'], pop: ['enemy-defeated'], hurt: ['you-get-hit'], cleared: ['enemies-cleared'] };
+const projBuf = {}, projLoop = {};
+async function projPlay(key, f) {
+  const ac = ensureAudio(); if (!projBuf[f]) projBuf[f] = fetch('sfx/' + f + '.webm').then(r => r.arrayBuffer()).then(b => ac.decodeAudioData(b));
+  const buf = await projBuf[f], c = cfg.sfx[key] || {}, loop = SFX.find(x => x.key === key)?.loop;
+  if (loop && projLoop[f]) { projLoop[f].stop(); delete projLoop[f]; render(); return; }
+  const src = ac.createBufferSource(), g = ac.createGain(); src.buffer = buf; src.loop = !!loop;
+  src.playbackRate.value = Math.pow(2, ((Math.random() * 2 - 1) * (c.pitch || 0)) / 12); g.gain.value = ((c.level ?? 100) / 100) * Math.pow((settings.sfx ?? 80) / 100, 2);
+  src.connect(g); g.connect(ac.destination); src.start(); if (loop) { projLoop[f] = src; render(); }
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-proj]'); if (!b) return; const [k, f] = b.dataset.proj.split('|'); projPlay(k, f); });
+function renderSfx() {
+  const list = SFX.filter(s => s.tab === tab);
+  $('main').innerHTML = `<div class="panel"><p class="hint">Press ▶ as often as you like: sounds overlap, just like in the game. Add several variants and the game picks one at random each time. Pitch ± nudges each play up or down by a random amount, up to that many semitones, so repeats never sound identical. Drop audio files onto a row to add them. <span class="tag builtin" style="vertical-align:middle"><span class="ms">memory</span>Built-in</span> means the game uses its own sound; <span class="tag added" style="vertical-align:middle"><span class="ms">check_circle</span>Added</span> means your files replace it; teal chips are project files, which play here only.</p><div class="grid">${list.map(s => { const c = cfg.sfx[s.key] || { level: 100, pitch: 0, variants: [] }, n = c.variants.length;
+    const proj = PROJECT[s.key] || [];
+    const src = n ? `<span class="tag added"><span class="ms">check_circle</span>Added · ${n}</span>` : `<span class="tag builtin"><span class="ms">memory</span>Built-in</span>`;
+    const vars = c.variants.map((v, i) => `<span class="var"><span class="nm">${esc(names()[v] || 'Variant ' + (i + 1))}</span><button data-pv="${s.key}|${v}" title="Play this one"><span class="ms">play_arrow</span></button><button data-dv="${s.key}|${v}" title="Remove"><span class="ms">close</span></button></span>`).join('');
+    const pj = proj.map(f => `<span class="var projv" title="Project file · lab only, not in the game yet"><span class="ms">folder_special</span><span class="nm">${f}</span><button data-proj="${s.key}|${f}" title="Play (lab only)"><span class="ms">${projLoop[f] ? 'stop' : 'play_arrow'}</span></button></span>`).join('');
+    return `<div class="row" data-k="${s.key}">
+      <div class="nm1"><h3>${s.name}</h3><p title="${esc(s.note)}">${s.note}</p></div>
+      <div class="srcs">${src}${vars}${pj}</div>
+      <div class="play"><button class="ib main" data-p="${s.key}" ${n || proj.length ? '' : 'disabled'} title="${n ? 'Play your file' : proj.length ? 'Play the project file' : 'No file yet'}"><span class="ms">play_arrow</span></button><button class="ib" data-syn="${s.key}" ${synth[s.key.startsWith('breath_') ? 'breath' : s.key] ? '' : 'disabled'} title="Hear the built-in sound"><span class="ms">memory</span></button></div>
+      <div class="ctl"><span class="lab">Level<b>${c.level}%</b></span><input type="range" min="0" max="200" step="5" value="${c.level}" data-l="${s.key}"></div>
+      <div class="ctl"><span class="lab">Pitch ±<b>${(+c.pitch).toFixed(1)} st</b></span><input type="range" min="0" max="12" step="0.5" value="${c.pitch}" data-pt="${s.key}"></div></div>`; }).join('')}</div></div>`;
+  const M = $('main');
+  M.querySelectorAll('[data-p]').forEach(b => b.onclick = () => preview(b.dataset.p));
+  M.querySelectorAll('[data-syn]').forEach(b => b.onclick = () => { audio(); synthFor(b.dataset.syn); });
+  M.querySelectorAll('[data-pv]').forEach(b => b.onclick = () => { const [k, v] = b.dataset.pv.split('|'); previewVariant(k, v); });
+  M.querySelectorAll('[data-dv]').forEach(b => b.onclick = async () => { const [k, v] = b.dataset.dv.split('|'), c = sfxCfg(cfg, k); c.variants = c.variants.filter(x => x !== v); await delFile(v); persist(); });
+  const addTo = k => async fs => { const c = sfxCfg(cfg, k); for (const f of fs) c.variants.push(await putFile(f)); toast(`Added ${fs.length} file${fs.length > 1 ? 's' : ''}`); persist(); };
+  M.querySelectorAll('.row[data-k]').forEach(r => dropTarget(r, addTo(r.dataset.k)));
+  M.querySelectorAll('[data-l]').forEach(r => r.oninput = e => { sfxCfg(cfg, r.dataset.l).level = +e.target.value; r.previousElementSibling.querySelector('b').textContent = e.target.value + '%'; const b = getBank(); if (b) b.cfg.sfx[r.dataset.l] = cfg.sfx[r.dataset.l]; persist(false); });
+  M.querySelectorAll('[data-pt]').forEach(r => r.oninput = e => { sfxCfg(cfg, r.dataset.pt).pitch = +e.target.value; r.previousElementSibling.querySelector('b').textContent = (+e.target.value).toFixed(1) + ' st'; const b = getBank(); if (b) b.cfg.sfx[r.dataset.pt] = cfg.sfx[r.dataset.pt]; persist(false); });
+}
+// Prompts: notes to copy into a music generator. Edit the text here; it saves on this device.
+const PROMPTS = [
+  ['main', 'Main theme', 'instrumental theme song for skyborn a dragon adventure set in emberreach, very sparse with a simple strong melody and uplfting mid instruments representing fire and lava, mainly drums and guitar and brass bass'],
+  ['battle', 'Cover for battle', 'Enter immediately at full action intensity, then build through layered surges. instrumental battle fight cover straight into the action, follows melody and instrument choice. Instrumental cinematic orchestral fantasy battle score with urgent driving pulse.']
+];
+const promptText = (k, d) => localStorage.getItem('skyborn-prompt-' + k) ?? d;
+function renderPrompts() {
+  $('main').insertAdjacentHTML('beforeend', `<div class="panel" style="margin-top:16px"><h3 style="font:900 18px/1 Nunito;margin-bottom:6px;display:flex;align-items:center;gap:8px"><span class="ms">edit_note</span>Music prompts</h3><p class="hint">Notes for making music. Copy one into your music generator. You can edit the text, and it saves on this device.</p><div class="grid">${PROMPTS.map(([k, n, d]) => `<div class="row" style="grid-template-columns:200px minmax(0,1fr) 140px"><div><h3>${n}</h3></div><textarea data-pr="${k}" rows="3" style="width:100%;resize:vertical;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.3);color:var(--ink);font:700 15px/1.45 Nunito;padding:10px 12px">${esc(promptText(k, d))}</textarea><button class="btn" data-cp="${k}"><span class="ms">content_copy</span>Copy</button></div>`).join('')}</div></div>`);
+  $('main').querySelectorAll('[data-pr]').forEach(t => t.oninput = () => localStorage.setItem('skyborn-prompt-' + t.dataset.pr, t.value));
+  $('main').querySelectorAll('[data-cp]').forEach(b => b.onclick = async () => { const t = $('main').querySelector(`[data-pr="${b.dataset.cp}"]`); try { await navigator.clipboard.writeText(t.value); } catch (e) { t.select(); document.execCommand('copy'); } toast('Prompt copied'); });
+}
+// ---------- Voice tab: every line (and its takes), plus one overall level ----------
+const VGROUPS = { intro: 'Intro & story', title: 'Title', home: 'Home', region: 'Regions', find: 'Finding things', combat: 'Combat', champ: 'Champions', egg: 'Eggs', hatch: 'Hatching', hatchery: 'Hatching', nest: 'Egg Nest', tower: 'Towers', barrier: 'Barriers', ring: 'Ring Runs', wp: 'Waypoints', fav: 'Favours', fanfare: 'Fanfare & ending', ending: 'Fanfare & ending' };
+const vGroup = id => VGROUPS[id.split('-')[0].replace(/\d+$/, '')] || 'Other';
+let vOn = null;
+async function playLine(f) { audio(); if (vOn) { try { vOn.stop(); } catch (e) {} } vOn = await playVoiceFile(f); if (vOn) voices.push(vOn); }
+function renderVoice() {
+  const groups = {};
+  Object.entries(VOICE_LINES).forEach(([id, n]) => (groups[vGroup(id)] ||= []).push([id, n]));
+  $('main').innerHTML = `<div class="panel"><p class="hint">Every voiceover line in the game. Lines with several takes play one at random in the game; press a take to hear it. The overall Voice level is in the header, on top of the pause menu's Voice slider.</p></div>
+    ${Object.entries(groups).map(([g, ls]) => `<div class="panel" style="margin-top:16px"><h3 style="font:900 18px/1 Nunito;margin-bottom:10px">${g} <small style="color:var(--dim)">${ls.length}</small></h3><div class="srcs" style="display:flex;flex-wrap:wrap;gap:8px">${ls.map(([id, n]) => `<span class="var projv" title="${id}"><span class="nm">${id}</span>${Array.from({ length: n }, (_, i) => { const f = i ? id + '-v' + (i + 1) : id; return `<button data-vl="${f}" title="${f}" style="width:auto;min-width:26px;padding:0 5px;gap:1px"><span class="ms">play_arrow</span>${n > 1 ? `<small style="font:800 11px/1 Nunito">${i + 1}</small>` : ''}</button>`; }).join('')}</span>`).join('')}</div></div>`).join('')}`;
+  $('main').querySelectorAll('[data-vl]').forEach(b => b.onclick = () => playLine(b.dataset.vl));
+}
+function render() { renderTabs(); if (tab === 'music') { renderMusic(); renderPrompts(); } else if (tab === 'voice') renderVoice(); else renderSfx(); }
+render();
+// First interaction unlocks audio and loads the bank (names, decoded buffers)
+addEventListener('pointerdown', async () => { if (!bank) { audio(); bank = await reloadBank(); render(); } }, { once: true });
+setInterval(() => { if (tab === 'music') { const n = musicNow(), el = document.querySelector('.now'); if (el) el.classList.toggle('off', !n); } }, 1000);
+</script>
+</body>
+</html>

@@ -10,8 +10,7 @@ DONE - Dino Park Tycoon: build a dinosaur park (pens, paths, food stalls), keep 
 DONE - Summer Olympics button bash, like the amiga game i had
 DONE - Firefighter Training: Aim a water hose to put out cartoon campfires and rescue stranded kittens from trees
 DONE - paint wars - dual stick control. you move your character with the left and pain direction with the right, goal is to get the most paint coloured, or seomthing like that
-
-IN PROGRESS - Dragon Rider. Fly a dragon over a fantasy continent, learning to glide, flap and dive-bomb. Discover: castles, dragon eggs, hidden valleys, other dragon species. Action: aerial jousts with knights on griffins, and fire breathing.
+DONE - Dragon Rider. Fly a dragon over a fantasy continent, learning to glide, flap and dive-bomb. Discover: castles, dragon eggs, hidden valleys, other dragon species. Action: aerial jousts with knights on griffins, and fire breathing.
 
 - infinite falling / zooming game
 - drone game

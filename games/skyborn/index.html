@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Skyborn - Garfield Boys' Arcade</title>
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.184.0/build/three.module.js",
+    "three/addons/controls/OrbitControls.js": "https://unpkg.com/three@0.184.0/examples/jsm/controls/OrbitControls.js",
+    "three/addons/utils/BufferGeometryUtils.js": "https://unpkg.com/three@0.184.0/examples/jsm/utils/BufferGeometryUtils.js",
+    "three/addons/libs/stats.module.js": "https://unpkg.com/three@0.184.0/examples/jsm/libs/stats.module.js"
+  },
+  "integrity": {
+    "https://unpkg.com/three@0.184.0/build/three.module.js": "sha384-8FCZ1eVO6it4+pbec2aDtnTrwjWXZLJRC+MAGCIPDgsYnUrl/E0A2YlF8ioMKI/J",
+    "https://unpkg.com/three@0.184.0/build/three.core.js": "sha384-dw2ooPewaEIrAgl6oFDBmmBWCE9oW9LxRGcfwZ0hLvEprzo202wXl7vCYHRlSnOT",
+    "https://unpkg.com/three@0.184.0/examples/jsm/controls/OrbitControls.js": "sha384-4rziNxOBZKQ69i+w+f89KJ55TCYquwchVbByQwmaOeIOXdOU2PLDn3kOfXHwIJC9"
+  }
+}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Nunito:wght@700;800;900&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400..700,0..1,0&display=block">
+<link rel="stylesheet" href="css/skyborn.css?v=2026101302">
+<script data-arcade-back>
+/* arcade-back v1 (knowledge/arcade-back.md). "← Games" = the browser's back button.
+   Any link whose href is exactly ../../index.html goes BACK in history when this page was opened
+   from the arcade home, so home comes back as it was left (scroll position, no reload).
+   Opened any other way (bookmark, direct URL, dev tool), the link just navigates as normal. */
+(function () {
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!a || a.getAttribute('href') !== '../../index.html') return;
+    var home = new URL(a.href), ref;
+    try { ref = new URL(document.referrer); } catch (err) { return; }
+    var dir = home.pathname.replace(/index\.html$/, '');
+    if (ref.origin !== home.origin || (ref.pathname !== home.pathname && ref.pathname !== dir) || history.length < 2) return;
+    e.preventDefault();
+    var go = function () { location.href = home.href; };
+    // Still on this page after going back (an in-game history entry) or nothing happened: go home directly.
+    addEventListener('popstate', go, { once: true });
+    var t = setTimeout(go, 2500);
+    addEventListener('pagehide', function () { clearTimeout(t); }, { once: true });
+    history.back();
+  });
+})();
+</script>
+</head>
+<body>
+<a id="backBtn" href="../../index.html">&larr; Games</a>
+<div id="world"></div>
+<div id="ui">
+  <div id="uwOverlay"></div>
+  <div id="loading" class="screen center"><div class="big">Raising Emberreach…</div></div>
+
+  <div id="title" class="screen hidden">
+    <div class="titleShade"></div>
+    <div class="titlePanel">
+      <h1>Skyborn</h1>
+      <p class="story">Emberreach has slept under the clouds for a hundred years. Its Dragon Towers have gone cold, and sky raiders rule the winds. You and Breeze are the first riders to fly in an age.</p>
+      <div class="lbl">Who's flying?</div>
+      <div class="seg"><button id="pCaleb" class="on">Caleb</button><button id="pEzra">Ezra</button></div>
+      <div class="row">
+        <button id="btnContinue" class="primary"><span class="ms">play_arrow</span><span class="col"><b>Continue</b><small id="contSub"></small></span></button>
+        <button id="btnNew" class="ghost"><span class="ms">egg</span><b id="newLbl">New flight</b></button>
+      </div>
+    </div>
+  </div>
+
+  <div id="hud" class="hidden">
+    <div id="debugTag" class="hidden">DEBUG · nothing is saved</div>
+    <div id="compass"><div id="spdBox"><span class="ms">speed</span><b id="spd">0</b></div><div id="compassStrip"></div><div id="altBox"><span class="ms">height</span><b id="alt">0</b></div></div><div id="caret"></div>
+    <div id="bossBar"><div class="bossTop"><span id="bossName"></span><span id="bossPhase"></span></div><div class="bossTrack"><div id="bossFill"></div></div></div>
+    <div id="ringHud"><span class="ms">timer</span><b id="ringTime">0:00.0</b><i></i><span id="ringCount"></span><i></i><span class="rspd"><span class="ms">speed</span><b id="ringSpd">0</b></span></div>
+    <div id="gemPill"><span class="ms gem">diamond</span><b id="gems">0</b></div><div id="statPill"><button id="btnInf" title="Unlimited hearts"><span class="ms">all_inclusive</span></button><div id="hearts"></div></div>
+    <button id="btnMap" class="round"><span class="ms">map</span></button>
+    <button id="pauseBtn" class="round"><span class="ms">pause</span></button>
+    <div id="questTrack" class="hidden"><span class="bang">!</span><span class="col"><b id="qName"></b><small id="qText"></small></span></div>
+    <div id="ringTargets"></div>
+    <div id="regionName"></div>
+    <div id="edges"></div>
+    <div id="reticle" class="hidden"></div>
+    <div id="speedLines"></div>
+    <div id="msg"></div>
+    <div id="toast"></div>
+    <div id="swipe"></div>
+    <div id="stickZone"></div>
+    <div id="stick"><div id="knob"></div></div>
+    <button id="btnSoar" class="pill hidden"><span class="sring"></span><span class="ms sic"><span class="sp">flight</span><span class="su">north</span></span><b>SOAR</b></button>
+    <button id="btnAction" class="pill hidden"><span class="ms" id="actIcon">flight_land</span><b id="actLbl">LAND</b></button>
+    <button id="btnDodge" class="glass"><span class="ms">360</span><b>DODGE</b></button>
+    <button id="btnDive" class="glass"><span class="ms">keyboard_double_arrow_down</span><b>DIVE</b></button>
+    <button id="btnBreath"><span class="ms" id="breathIcon">local_fire_department</span><b>BREATH</b></button>
+    <div id="ring"><button id="btnFlap" class="glass"><span class="ms" id="flapIcon">keyboard_double_arrow_up</span><b id="flapLbl">FLAP</b></button></div>
+  </div>
+
+  <div id="atlas" class="screen hidden">
+    <canvas id="atlasCv" width="1333" height="690"></canvas>
+    
+    <div id="atlasMarks"></div>
+    <div id="atlasHead"><span id="atlasRing"></span><b id="atlasRegion"></b><span id="atlasPct"></span></div>
+    
+    <div id="atlasToast" class="hidden"></div>
+    <div id="atlasZoomHint"><span class="ms">pinch</span>Drag to move · pinch to zoom</div>
+    <button id="atlasKeyBtn"><span class="ms">help</span><b>Key</b></button>
+    <div id="atlasKey" class="hidden"></div>
+    <button id="atlasClose" class="pill orange"><span class="ms">flight</span><b>Fly</b></button>
+  </div>
+
+  <div id="aerie" class="screen hidden">
+    <div class="aerieHead"><b id="aerieTitle">The Aerie</b></div>
+    <div class="gemPill"><span class="ms gem">diamond</span><b id="aGems">0</b></div>
+    <button id="aerieClose" class="pill orange"><span class="ms">flight_takeoff</span><b>Fly</b></button>
+    <div class="panel p1"><h3>Hatchery</h3><div id="nestBox"><div id="aEgg"></div></div><div id="nestCap"></div></div>
+    <div class="panel p2"><h3>Dragons <small>Tap to ride</small></h3><div id="roster"></div></div>
+    <div class="panel p3"><div id="saddleTabs" class="seg2"></div><div id="ups"></div></div>
+  </div>
+
+  <div id="hatch" class="screen hidden">
+    <canvas id="hatchCv"></canvas><div class="bar top"></div><div class="bar bot"></div>
+    <div id="hatchCap"></div>
+    <button id="hatchEgg"><span class="half l"></span><span class="half r"></span></button>
+    <div id="hatchCard"><div class="kick"><i></i>A new dragon</div><div id="hName"></div><div id="hPower"></div><div class="chips"><span id="hBreath"></span><span id="hOpens"></span></div><button id="hFly" class="primary"><span class="ms">flight</span><b id="hFlyLbl">Fly</b></button></div>
+  </div>
+
+  <div id="dialog" class="screen hidden">
+    <div class="dlg"><div id="dlgPortrait"><img id="dlgImg" alt=""><span class="ms">person</span></div>
+      <div class="dlgBody"><div class="dlgName"><b id="dlgName"></b><small id="dlgAt"></small></div><p id="dlgText"></p><div class="reward"><span class="ms">redeem</span><span id="dlgReward"></span></div>
+        <div class="row"><button id="dlgYes" class="primary"><span class="ms">local_fire_department</span><b>I'll do it!</b></button><button id="dlgNo" class="ghost dark"><b>Not now</b></button></div></div></div>
+  </div>
+
+  <div id="pause" class="screen hidden">
+    <div class="card"><h2>Paused</h2>
+      <div class="row"><button id="pResume" class="primary wide"><span class="ms">play_arrow</span><b>Keep flying</b></button><button id="pAtlas" class="ghost"><span class="ms">map</span><b>Atlas</b></button><button id="pTitle" class="ghost"><span class="ms">home</span><b>Title</b></button></div>
+      <label class="slider"><span class="ms">volume_up</span><b>Sound</b><input id="sfx" type="range" min="0" max="100" step="5"><span id="sfxL"></span></label>
+      <label class="slider"><span class="ms">music_note</span><b>Music</b><input id="mus" type="range" min="0" max="100" step="5"><span id="musL"></span></label>
+      <label class="slider"><span class="ms">record_voice_over</span><b>Voice</b><input id="vox" type="range" min="0" max="100" step="5"><span id="voxL"></span></label>
+      <div id="todRow"><span class="ms">wb_twilight</span><b>Time</b><span id="todSeg"><button data-tod="golden">Golden</button><button data-tod="day">Midday</button><button data-tod="dusk">Dusk</button></span><button id="todLock" title="Lock this time of day"><span class="ms">lock_open</span></button></div>
+      <div id="fastRow"><span class="ms">speed</span><span class="col"><b>Fast mode</b><small>Smoother on older tablets</small></span><span id="fastSw"><i></i></span></div>
+    </div>
+  </div>
+
+  <div id="crash" class="screen hidden"><div class="center col"><div class="big">Bump!</div><p id="crashText"></p><div class="lossPill"><span class="ms gem">diamond</span><b id="crashLoss"></b></div><button id="crashGo" class="primary"><span class="ms">flight_takeoff</span><b>Fly again</b></button></div></div>
+
+  <div id="result" class="screen hidden"><div class="card wideCard"><div id="medal"><span class="ms">emoji_events</span></div><div class="col grow"><small id="rName"></small><div class="big" id="rMedal"></div><div id="rRows"></div><div class="row"><button id="rAgain" class="ghost"><span class="ms">replay</span><b>Try again</b></button><button id="rOn" class="primary"><span class="ms">flight</span><b>Fly on</b></button></div></div></div></div>
+
+  <div id="fanfare" class="screen hidden"><div class="cert"><div id="fRegion"></div><div class="pct">100%</div><div id="fList"></div><button id="fOk" class="primary"><b>Hooray!</b></button></div></div>
+
+  <div id="banner"></div>
+</div>
+<script src="js/arcade-store.js"></script>
+<script type="module" src="js/game.js?v=2026101308"></script>
+</body>
+</html>

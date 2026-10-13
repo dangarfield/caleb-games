@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "skyborn",
+  "name": "Skyborn",
+  "blurb": "Fly your dragon, light the towers and hatch new dragons!",
+  "added": "2026-10-13",
+  "icon": {
+    "emoji": "🐉"
+  },
+  "title": {
+    "font": "Cinzel Decorative",
+    "weight": 900,
+    "size": 30,
+    "color": "#fff6e8",
+    "shadow": "0 2px 0 rgba(42,26,32,.6)"
+  },
+  "blurbStyle": {
+    "color": "#fff6e8",
+    "shadow": "0 1px 3px rgba(42,26,40,.9)"
+  },
+  "background": {
+    "gradient": [
+      "#3b2a5c",
+      "#a8413a",
+      "#f2b35a"
+    ],
+    "css": "linear-gradient(180deg, #3b2a5c 0%, #6e3550 45%, #a8413a 72%, #f2b35a 100%)"
+  },
+  "source": {
+    "files": [
+      "games/skyborn/index.html",
+      "games/skyborn/css/skyborn.css"
+    ],
+    "refreshed": "2026-10-13",
+    "notes": "Title font is the game's Cinzel Decorative (title screen h1); dusk palette from the Claude Design build's card (1d dusk card): violet #3b2a5c, ember red #a8413a, gold #f2b35a, cream ink #fff6e8."
+  }
+}

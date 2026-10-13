@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Skyborn · Tablet preview (1333×690)</title>
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#1d1a24;font:700 13px/1 'Segoe UI',system-ui,sans-serif;color:#cfc8d8;-webkit-user-select:none;user-select:none}
+#wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+#tablet{position:relative;width:1333px;height:690px;flex:none;transform-origin:center center;border-radius:18px;box-shadow:0 0 0 14px #0c0a10,0 0 0 15px #3a3444,0 30px 80px rgba(0,0,0,.6);overflow:hidden;background:#2a1a28}
+#tablet iframe{width:1333px;height:690px;border:0;display:block}
+#bar{position:fixed;left:50%;bottom:10px;transform:translateX(-50%);display:flex;gap:10px;align-items:center;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.06)}
+#bar button{font:inherit;color:inherit;background:rgba(255,255,255,.1);border:0;border-radius:999px;padding:6px 12px;cursor:pointer}
+#bar button.on{background:#f2b35a;color:#2a1a20}
+</style>
+</head>
+<body>
+<div id="wrap"><div id="tablet"><iframe src="index.html" title="Skyborn" allow="autoplay"></iframe></div></div>
+<div id="bar"><span id="info"></span><button id="fit" class="on">Fit to window</button><button id="one">Actual size</button></div>
+<script>
+const t = document.getElementById('tablet'), info = document.getElementById('info'), fitB = document.getElementById('fit'), oneB = document.getElementById('one');
+let fit = true;
+function size() {
+  const s = fit ? Math.max(0.1, Math.min((innerWidth - 60) / 1333, (innerHeight - 90) / 690, 1.5)) : 1;
+  t.style.transform = `scale(${s})`;
+  info.textContent = `1333 × 690 · ${Math.round(s * 100)}%`;
+  fitB.classList.toggle('on', fit); oneB.classList.toggle('on', !fit);
+}
+fitB.onclick = () => { fit = true; size(); };
+oneB.onclick = () => { fit = false; size(); };
+addEventListener('resize', size); addEventListener('load', size); new ResizeObserver(size).observe(document.documentElement);
+size(); requestAnimationFrame(size);
+</script>
+</body>
+</html>
