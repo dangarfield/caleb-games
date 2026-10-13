@@ -26,6 +26,8 @@ export async function vo(id, pri = 2) {
 }
 // Sound Lab preview: one specific file (e.g. 'combat-ouch-v2'), at the current voice gain.
 export async function playVoiceFile(f) { const ac = ensureAudio(); if (!ac) return null; const buf = await load(ac, f); if (!buf) return null; const s = ac.createBufferSource(), g = ac.createGain(); s.buffer = buf; g.gain.value = voiceGain(); s.connect(g); g.connect(ac.destination); s.start(); return s; }
+// Play one line to the end (for the intro); resolves when it finishes or is stopped. Nothing else talks over it.
+export async function voLine(f) { stopVoice(); const s = await playVoiceFile(f); if (!s) return false; cur = s; curPri = 9; return new Promise(r => { s.onended = () => { if (cur === s) { cur = null; curPri = 0; } r(true); }; }); }
 export const stopVoice = () => { if (cur) { try { cur.stop(); } catch (e) {} cur = null; curPri = 0; duckMusic(false); } };
 export const favVoice = id => 'fav-' + id.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
 export const hasVoice = id => !!VARIANTS[id];

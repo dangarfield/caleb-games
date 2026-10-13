@@ -9,6 +9,9 @@ A dragon-flying adventure across Emberreach, for Caleb and Ezra (7+). Three.js w
 - **Land** near towers, roosts, vistas, the Aerie and towns. Perched: Take off, Breath lights tower braziers, roosts unlock fast travel and dragon swap, vistas clear the map, towns offer favours.
 - **Wind streams** (golden dotted lines on the Atlas) carry you fast.
 
+## Intro
+A **New flight** opens with the story: a dialog over the world at the Aerie, one narrated line per page (`intro-1`…`intro-5`). Each page auto-advances when its line ends; **Next** jumps ahead, **Skip** ends it, the last page's **Fly!** starts play. Continue skips the intro. No images, just the dialog.
+
 ## Loop
 Light the 3 Dragon Towers in a region → the champion appears at the Egg Nest → win → carry the egg to the Aerie (no breath, raiders chase) → hatch → new dragon opens the next region.
 - Start with Breeze. Hearthvale champion → egg hatches Ember (heat-proof) → Cinder Peaks

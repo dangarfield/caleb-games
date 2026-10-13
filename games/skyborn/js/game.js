@@ -4,7 +4,7 @@ import Stats from 'three/addons/libs/stats.module.js';
 import { mountWorld } from './skyborn-scene.js';
 import { PLACES, WIND, SKY_ISLES, RIVER, weights, height, toWorld, toUV, placeY, place } from './skyborn-worldgen.js';
 import { initCombat, BOSS, tagURL } from './combat.js';
-import { vo, favVoice, stopVoice } from './voice.js';
+import { vo, favVoice, stopVoice, voLine } from './voice.js';
 import { initDeco } from './deco.js';
 import { pillarMaterial } from './fx.js';
 import { initScreens, DR, ORDER, RNAME, regionPlaces, regionPct } from './screens.js';
@@ -164,7 +164,29 @@ function start(isNew, preset) {
   if (G._prevQuest && G._prevQuest !== G.quest) dropQuestMarker(G._prevQuest); G._prevQuest = G.quest;
   reveal(f.pos.x, f.pos.z, 1600); lastSafe.copy(f.pos); lastPos.copy(f.pos); Object.keys(pillars).forEach(k => { world.scene.remove(pillars[k]); delete pillars[k]; }); if (eggMesh) { world.scene.remove(eggMesh); eggMesh = null; } boss = null; bossHud(false); G.waypoint = s.waypoint ? place(s.waypoint) : null; G.persist();
   if (G.debug) setTimeout(() => banner('Debug flight', 'Everything unlocked. Nothing here is saved.', 4000), 600);
-  else if (isNew) setTimeout(() => banner('Emberreach', 'Fly anywhere. Find the Dragon Towers and light them!', 4500), 600);
+  else if (isNew) playIntro(() => setTimeout(() => banner('Emberreach', 'Fly anywhere. Find the Dragon Towers and light them!', 4500), 400));
+}
+// New flight: the story, one narrated line per page (intro-1…5). Auto-advances after each line; Next skips ahead, Skip ends it.
+const INTRO = [
+  'Long ago, dragons and riders flew together over Emberreach.',
+  'Then the clouds rolled in. The Dragon Towers went cold, and the dragons fell asleep.',
+  'Sky pirates took the winds, led by the Pirate King in his floating fortress.',
+  'But one egg stayed warm. A young wind dragon called Breeze has hatched, and she has chosen you.',
+  'Light the towers, wake the dragons, and set Emberreach free. Fly, rider!'
+];
+function playIntro(done) {
+  G.menu = 'intro'; show('hud', false); show('intro'); let i = -1, token = 0, t = 0;
+  const finish = () => { token++; clearTimeout(t); stopVoice(); show('intro', false); G.menu = null; show('hud'); done && done(); };
+  const step = () => {
+    i++; if (i >= INTRO.length) return finish();
+    const my = ++token, last = i === INTRO.length - 1, el = $('introText'); clearTimeout(t);
+    el.textContent = INTRO[i]; el.classList.remove('in'); void el.offsetWidth; el.classList.add('in');
+    $('introStep').textContent = `${i + 1} / ${INTRO.length}`; $('introLbl').textContent = last ? 'Fly!' : 'Next'; $('introIcon').textContent = last ? 'flight_takeoff' : 'arrow_forward'; show('introSkip', !last);
+    voLine('intro-' + (i + 1)).then(ok => { if (my !== token || last) return; t = setTimeout(() => { if (my === token) step(); }, ok ? 900 : 4500); });
+  };
+  $('introNext').onclick = () => { sfx.tap(); step(); };
+  $('introSkip').onclick = () => { sfx.tap(); finish(); };
+  step();
 }
 function applyDragon() { const s = G.save; $('breathIcon').textContent = DR[s.dragon].icon; world.fly.ceiling = s.open.includes('sky') ? 2900 : 2000; }
 G.applyDragon = applyDragon;
