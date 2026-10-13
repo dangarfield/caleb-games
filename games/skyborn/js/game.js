@@ -19,7 +19,7 @@ const fresh = () => ({ gems: 0, up: { wings: 0, armour: 0, breath: 0 }, dragons:
 
 // Favour portraits: add files to img/ and list them here, e.g. fav_bonfire: 'img/fav_bonfire.png'
 const PORTRAITS = {};
-const G = { portraits: PORTRAITS, GW, GH, menu: null, mode: 'title', boy: 'Caleb', data: null, save: null, region: 'hearthvale', hearts: 4, invuln: 0, rollT: 0, slowmo: 0, carrying: false, quest: null, ring: null, campFight: null, nextFight: 25, stam: 100 };
+const G = { portraits: PORTRAITS, GW, GH, menu: null, mode: 'loading', boy: 'Caleb', data: null, save: null, region: 'hearthvale', hearts: 4, invuln: 0, rollT: 0, slowmo: 0, carrying: false, quest: null, ring: null, campFight: null, nextFight: 25, stam: 100 };
 let world, combat, scr, dirty = false;
 
 // ---------- Places in world space ----------
@@ -87,7 +87,7 @@ const keys = {};
 const STEER = { r: 'up', arrowup: 'up', f: 'down', arrowdown: 'down', d: 'left', arrowleft: 'left', g: 'right', arrowright: 'right' };
 addEventListener('keydown', e => {
   const k = e.key.toLowerCase(); if (STEER[k] || k === ' ') e.preventDefault();
-  if (e.repeat) return; ensureAudio();
+  if (e.repeat || G.mode === 'loading') return; ensureAudio();
   if (STEER[k]) keys[STEER[k]] = true;
   if (G.mode !== 'play' || G.menu) return;
   if (k === 'k') { held.flap = true; $('btnFlap').classList.add('on'); onFlapPress(); }
@@ -119,6 +119,7 @@ function monTick(now) {
 
 // ---------- Title ----------
 // The Narrator reads the title story the first time you touch the title screen (audio can only start after a tap).
+// Title voiceover and music wait until the page has loaded (G.mode leaves 'loading' when the title screen shows).
 let titleTold = false;
 addEventListener('pointerdown', () => { if (titleTold || G.mode !== 'title') return; titleTold = true; ensureAudio(); setTimeout(() => { if (G.mode === 'title') vo('title-story', 3); }, 150); }, true);
 function toTitle() {
