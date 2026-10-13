@@ -66,6 +66,7 @@ const maxStam = () => 100 * (1 + 0.35 * G.up().wings);
   document.querySelectorAll('#todSeg button').forEach(b => b.onclick = () => { sfx.tap(); settings.todT = TOD_ORDER.indexOf(b.dataset.tod) * TOD_SEG; applyTOD(); G.persist(); });
   $('todLock').onclick = () => { sfx.tap(); settings.todLock = !settings.todLock; applyTOD(); G.persist(); };
   applyTOD(); show('loading', false); toTitle(); wireInput();
+  setTimeout(() => scr.preloadAtlas(), 1500);   // fetch the baked map pictures in the background
 })();
 
 // ---------- Performance monitor (P, or hold Fast mode in the pause menu) ----------

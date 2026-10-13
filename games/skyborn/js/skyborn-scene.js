@@ -305,8 +305,9 @@ export async function mountWorld(container, opts = {}) {
     if (uwNow !== uwState) { uwState = uwNow; if (uwNow) { fogSave = [scene.fog.color.getHex(), scene.fog.near, scene.fog.far]; scene.fog.color.setHex(0x1d6a7a); sky.visible = false; scene.background = new THREE.Color(0x1d6a7a); } else if (fogSave) { scene.fog.color.setHex(fogSave[0]); scene.fog.near = fogSave[1]; scene.fog.far = fogSave[2]; sky.visible = true; scene.background = null; } if (hooks.onUnderwater) hooks.onUnderwater(uwNow); }
     if (uwState) { scene.fog.near = 6; scene.fog.far = 260; }
     uw.update(dt, t, camera, ember ? ember.position : null, uwState, !!(fly && fly.swim));
-    renderer.render(scene, camera);
+    if (!paused) renderer.render(scene, camera);   // the full-screen Atlas covers the world: don't draw it underneath
   };
+  let paused = false;
   renderer.setAnimationLoop(frame);
   const setQuality = fast => {
     fastMode = fast; curPR = fast ? 0.7 : Qp.pr; renderer.setPixelRatio(curPR); renderer.shadowMap.enabled = !fast; sun.castShadow = !fast;
@@ -327,5 +328,5 @@ export async function mountWorld(container, opts = {}) {
     const el = L(a.el, b.el), az = L(a.az, b.az); sunDir.set(Math.cos(az) * Math.cos(el), Math.sin(el), Math.sin(az) * Math.cos(el)).normalize();
     sun.color.copy(lerpC(a.sun, b.sun, k)); sun.intensity = L(a.si, b.si); hemi.color.copy(lerpC(a.hs, b.hs, k)); hemi.groundColor.copy(lerpC(a.hg, b.hg, k)); hemi.intensity = L(a.hi, b.hi);
     const fc = lerpC(a.fog, b.fog, k).getHex(); if (uwState && fogSave) fogSave[0] = fc; else scene.fog.color.setHex(fc); };
-  return { setTOD, quality: Qp, goTo, postcards: Object.keys(POST), breathe, scene, camera, renderer, fly, hooks, setDragon, setQuality, get ember() { return ember; }, setMode: m => { mode = m; }, LM, props, groundAt };
+  return { setPaused: p => { paused = !!p; }, setTOD, quality: Qp, goTo, postcards: Object.keys(POST), breathe, scene, camera, renderer, fly, hooks, setDragon, setQuality, get ember() { return ember; }, setMode: m => { mode = m; }, LM, props, groundAt };
 }

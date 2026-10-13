@@ -53,3 +53,9 @@ Light the 3 Dragon Towers in a region → the champion appears at the Egg Nest �
 - **Voice** `voice/<id>.webm` from `research/voice/voiceover-wav` — mono Opus 40k, gently compressed and maximised to about −11 LUFS, peaks ≤ −1 dBTP. The Sound Lab has a Voice tab listing every line and take, with an overall Voice level (0–100%, saved in the sound config as `voice.level`) on top of the pause-menu Voice slider.
 - Credits: `<original>.credit.txt` beside each original; the Uppbeat SFX licence codes are still to be supplied.
 - A Sound Lab file always wins over the project file for the same slot.
+
+## Atlas map pictures (pre-baked)
+- The parchment map is shipped as images in `images/atlas/` (`world.webp` + one per region, 1333×690, about 1MB in all). Painting them live from the heightmap took seconds on the tablet and left the map stuck on "Unrolling the map…".
+- They are fetched in the background 1.5 s after the game loads, so the map opens straight away. If an image fails to load, the game falls back to painting it.
+- The 3D world stops drawing while the Atlas is open (`world.setPaused`), and starts again when it closes.
+- **If the world changes** (heightmap, rivers, landmarks), re-bake: open `research/bake-atlas.html` on the dev server, press Bake, save the downloads over `images/atlas/`, and bump `?v=` in `loadBaked` (`js/screens.js`).

@@ -58,8 +58,14 @@ export function initScreens(G) {
     c.globalCompositeOperation = 'source-over'; FOGIMG = cv;
   }
   const blitWorld = (c, img, B) => { const W = img.width, H = img.height; c.drawImage(img, (B.u0 + 1) / 2 * W, (B.v0 + 1) / 2 * H, (B.u1 - B.u0) / 2 * W, (B.v1 - B.v0) / 2 * H, 0, 0, VW, VH); };
+  // Pre-baked map pictures (images/atlas/*.webp, made by research/bake-atlas.html from the same heightmap). Painting them live
+  // took seconds on a tablet and left the map stuck on "Unrolling the map…". Painting stays as the fallback if an image fails.
+  const BAKED = {};
+  const loadBaked = k => BAKED[k] || (BAKED[k] = new Promise(res => { const im = new Image(); im.decoding = 'async';
+    im.onload = () => (im.decode ? im.decode().catch(() => {}) : Promise.resolve()).then(() => res(im)); im.onerror = () => res(null); im.src = 'images/atlas/' + k + '.webp?v=1'; }));
+  const preloadAtlas = () => ['world', ...Object.keys(REGION_BOUNDS)].forEach(loadBaked);
   let queued = null;
-  function needRegion(r) { if (cache[r] || queued) return; queued = r; setTimeout(() => { cache[r] = paintImg(REGION_BOUNDS[r]); queued = null; render(); }, 60); }
+  function needRegion(r) { if (cache[r] || queued) return; queued = r; loadBaked(r).then(im => setTimeout(() => { cache[r] = im || paintImg(REGION_BOUNDS[r]); queued = null; render(); }, im ? 0 : 60)); }
   function render() {
     raf = 0; const c = $('atlasCv').getContext('2d'), B = bounds(), { X, Y } = project(B, VW, VH);
     c.fillStyle = 'rgb(233,223,201)'; c.fillRect(0, 0, VW, VH);
@@ -160,14 +166,14 @@ export function initScreens(G) {
   }
   $('atlasKeyBtn').onclick = () => { sfx.tap(); if (!$('atlasKey').innerHTML) buildKey(); const on = $('atlasKey').classList.toggle('hidden') === false; $('atlasKeyBtn').classList.toggle('on', on); };
   function openAtlas() {
-    if (!$('atlasKey').innerHTML) buildKey(); show('atlasKey'); const hint = $('atlasZoomHint'); hint.classList.remove('fade'); clearTimeout(hint._t); hint._t = setTimeout(() => hint.classList.add('fade'), 5000); G.menu = 'atlas'; show('atlas'); show('hud', false); show('atlasToast', false);
+    if (!$('atlasKey').innerHTML) buildKey(); show('atlasKey'); const hint = $('atlasZoomHint'); hint.classList.remove('fade'); clearTimeout(hint._t); hint._t = setTimeout(() => hint.classList.add('fade'), 5000); G.menu = 'atlas'; show('atlas'); show('hud', false); show('atlasToast', false); G.world.setPaused(true);
     const r0 = G.region || 'hearthvale', r = G.save.open.includes(r0) ? r0 : 'hearthvale'; openView(r);
     paintFog(); buildMarks();
     if (!WORLDIMG || !cache[r]) { const c = $('atlasCv').getContext('2d'); c.fillStyle = '#e9dfc9'; c.fillRect(0, 0, VW, VH); c.fillStyle = '#5a4a3a'; c.font = "900 28px 'Cinzel Decorative'"; c.textAlign = 'center'; c.fillText('Unrolling the map…', VW / 2, VH / 2);
-      setTimeout(() => { if (!WORLDIMG) WORLDIMG = paintImg(null); if (!cache[r]) cache[r] = paintImg(REGION_BOUNDS[r]); render(); }, 40); }
+      Promise.all([loadBaked('world'), loadBaked(r)]).then(([w, ri]) => setTimeout(() => { if (G.menu !== 'atlas') return; if (!WORLDIMG) WORLDIMG = w || paintImg(null); if (!cache[r]) cache[r] = ri || paintImg(REGION_BOUNDS[r]); render(); }, 40)); }
     else render();
   }
-  function closeAtlas() { show('atlas', false); show('atlasToast', false); G.menu = null; show('hud'); }
+  function closeAtlas() { G.world.setPaused(false); show('atlas', false); show('atlasToast', false); G.menu = null; show('hud'); }
   $('atlasClose').onclick = () => { sfx.tap(); closeAtlas(); };
 
   // Aerie / roost roster
@@ -278,5 +284,5 @@ export function initScreens(G) {
     $('rAgain').onclick = () => { show('result', false); G.menu = null; onAgain(); }; $('rOn').onclick = () => { show('result', false); G.menu = null; onOn(); };
   }
   function fanfare(r, list) { G.menu = 'fanfare'; show('fanfare'); sfx.unlock(); vo('fanfare', 3); $('fRegion').textContent = RNAME[r]; $('fList').innerHTML = list.map(l => `<span><span class="ms">check_circle</span>${l}</span>`).join(''); $('fOk').onclick = () => { show('fanfare', false); G.menu = null; }; }
-  return { openAtlas, closeAtlas, openAerie, renderAerie, hatch, dialog, pause, crash, result, fanfare, syncPause };
+  return { preloadAtlas, openAtlas, closeAtlas, openAerie, renderAerie, hatch, dialog, pause, crash, result, fanfare, syncPause };
 }
