@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sound Lab - Moonbots</title>
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#22264a;color:#f1e7d0;font-family:'Pixelify Sans',system-ui,sans-serif;padding:64px 32px 80px;-webkit-user-select:none;user-select:none}
+a{color:#ffd23f}a:hover{color:#fff}
+#backBtn{position:fixed;top:12px;left:12px;z-index:9999;display:flex;align-items:center;gap:8px;background:#f1e7d0;color:#2b1d14;text-decoration:none;box-sizing:border-box;height:48px;padding:2px 14px 0;border:4px solid #2b1d14;border-radius:12px;font:11px/1 'Press Start 2P',monospace;transition:background .15s}
+#backBtn:hover{background:#ffd23f;color:#2b1d14}
+#backBtn .bk{width:0;height:0;border-top:7px solid transparent;border-bottom:7px solid transparent;border-right:10px solid #c42f4a;flex:none;margin-top:-2px}
+#backBtn{text-transform:uppercase;gap:10px}
+#backBtn:active{transform:translateY(2px)}
+h1{font:28px/1.3 'Press Start 2P',monospace;color:#ffd23f;text-shadow:0 3px 0 #000;margin-bottom:8px}
+.sub{font-size:18px;opacity:.85;max-width:900px;margin-bottom:22px}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:18px;margin-bottom:28px;font:11px 'Press Start 2P'}
+.bar input{width:240px;accent-color:#ffd23f}
+.btn{background:#ffd23f;color:#2b1d14;border:4px solid #000;border-radius:10px;padding:10px 14px;font:11px 'Press Start 2P';cursor:pointer;box-shadow:0 4px 0 #000}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 #000}
+h2{font:12px 'Press Start 2P';margin:26px 0 12px;color:#9fe8ff}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.snd{display:flex;flex-direction:column;align-items:flex-start;gap:6px;background:#f1e7d0;color:#2b1d14;border:4px solid #000;border-radius:12px;padding:12px 14px;cursor:pointer;box-shadow:0 5px 0 #000;text-align:left}
+.snd:active,.snd.hit{transform:translateY(3px);box-shadow:0 2px 0 #000;background:#ffd23f}
+.snd b{font:11px 'Press Start 2P'}
+.snd span{font:600 15px 'Pixelify Sans';color:#6b5a48}
+.snd code{font:11px ui-monospace,monospace;color:#8a7556}
+.note{font-size:16px;opacity:.8;margin-top:30px;max-width:900px}
+</style>
+<script data-arcade-back>
+/* arcade-back v1 (knowledge/arcade-back.md). "← Games" = the browser's back button.
+   Any link whose href is exactly ../../index.html goes BACK in history when this page was opened
+   from the arcade home, so home comes back as it was left (scroll position, no reload).
+   Opened any other way (bookmark, direct URL, dev tool), the link just navigates as normal. */
+(function () {
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!a || a.getAttribute('href') !== '../../index.html') return;
+    var home = new URL(a.href), ref;
+    try { ref = new URL(document.referrer); } catch (err) { return; }
+    var dir = home.pathname.replace(/index\.html$/, '');
+    if (ref.origin !== home.origin || (ref.pathname !== home.pathname && ref.pathname !== dir) || history.length < 2) return;
+    e.preventDefault();
+    var go = function () { location.href = home.href; };
+    // Still on this page after going back (an in-game history entry) or nothing happened: go home directly.
+    addEventListener('popstate', go, { once: true });
+    var t = setTimeout(go, 2500);
+    addEventListener('pagehide', function () { clearTimeout(t); }, { once: true });
+    history.back();
+  });
+})();
+</script>
+</head>
+<body>
+<a id="backBtn" href="../../index.html" aria-label="Back to Games"><span class="bk"></span>Games</a>
+<h1>SOUND LAB</h1>
+<div class="sub">Every sound effect in Moonbots, made in Web Audio from <code>js/sfx.js</code>. Tap one to hear it. Music is separate: <code>music/chapter-1|2|3.webm</code> loop per chapter and <code>chapter-end.webm</code> plays on finales. Sprites are in <a href="sprite-lab.html">sprite-lab.html</a>.</div>
+<div class="bar"><span>SOUND</span><input id="vol" type="range" min="0" max="100" value="80"><span id="vv">80</span><div class="btn" id="all">PLAY ALL</div></div>
+<div id="groups"></div>
+<div class="note">Volume uses the same squared curve as the in-game Sound slider. Each sound has a 60ms repeat guard, so a burst of production can't stack up into noise.</div>
+<script src="js/sfx.js"></script>
+<script>
+const G=[['Dragging & UI',['pick','drop','snap','tap','toast']],['Building',['build','expand','stage','fanfare','clamp','merge','upgrade']],
+ ['Chapter 1 · To the Moon',['belt','retract','warn','crack','fix','launch','landing']],
+ ['Chapter 2 · Moon City',['crateLand','crateOpen','harvest','powerOn','powerOff','order','coin','hot','cool','quake','bus','beep','signal','saucer']],
+ ['Chapter 3 · Home Again',['chirp','hungry','munch','wobble','hatch','trade','mix','warp','party']]];
+let ctx,gain; const lvl=v=>(v/100)**2;
+function ensure(){ if(!ctx){ ctx=new (window.AudioContext||window.webkitAudioContext)(); gain=ctx.createGain(); gain.gain.value=lvl(+vol.value); gain.connect(ctx.destination); SFX.bind(ctx,gain); } if(ctx.state==='suspended') ctx.resume(); }
+const ARG={beep:[0,1,2,3]};
+const used=new Set(G.flatMap(g=>g[1])); const rest=SFX.list.filter(n=>!used.has(n)); if(rest.length) G.push(['Other',rest]);
+document.getElementById('groups').innerHTML=G.map(([t,l])=>`<h2>${t.toUpperCase()}</h2><div class="grid">${l.flatMap(n=>(ARG[n]||[null]).map(a=>`<div class="snd" data-s="${n}"${a===null?'':` data-a="${a}"`}><b>${n.toUpperCase()}${a===null?'':' '+(a+1)}</b><span>${SFX.desc[n]||''}${a===null?'':' (button '+(a+1)+')'}</span><code>SFX.play('${n}'${a===null?'':','+a})</code></div>`)).join('')}</div>`).join('');
+document.addEventListener('pointerup',e=>{ const el=e.target.closest('[data-s]'); if(!el) return; ensure(); SFX.play(el.dataset.s,el.dataset.a!==undefined?+el.dataset.a:undefined); el.classList.add('hit'); setTimeout(()=>el.classList.remove('hit'),150); });
+vol.oninput=()=>{ vv.textContent=+vol.value?vol.value:'Off'; if(gain) gain.gain.value=lvl(+vol.value); };
+document.getElementById('all').onclick=()=>{ ensure(); SFX.list.forEach((n,i)=>setTimeout(()=>SFX.play(n),i*900)); };
+</script>
+</body>
+</html>

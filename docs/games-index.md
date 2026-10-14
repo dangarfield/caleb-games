@@ -1,6 +1,6 @@
 # Games Index
 
-All 90 games in Garfield Boys' Arcade, plus Librarian (WIP, hidden) — 91 game folders under `games/` (plus `games/_shared/`, assets used by more than one game). The home page is built from each game's `card.json`; a card with `"hidden": true` isn't shown or counted.
+All 91 games in Garfield Boys' Arcade, plus Librarian (WIP, hidden) — 92 game folders under `games/` (plus `games/_shared/`, assets used by more than one game). The home page is built from each game's `card.json`; a card with `"hidden": true` isn't shown or counted.
 
 | Game | Directory | Description |
 |------|-----------|-------------|
@@ -95,6 +95,7 @@ All 90 games in Garfield Boys' Arcade, plus Librarian (WIP, hidden) — 91 game 
 | Portal Lab | games/portal-lab/ | First-person portal puzzler in three.js with an HTML HUD (from a Claude Design build): fire blue and pink portals to escape 66 test chambers (Tutorial, Clearance Blue, Clearance Pink) with boxes, pads, doors, glass, sentry robots, moving platforms and flings; Caleb/Ezra progress, best times and fewest portals; theme music, Sounds + Music sliders, performance mode |
 | Pin Pals | games/pin-pals/ | Ten-pin bowling in three.js + cannon-es with an HTML HUD (from a Claude Design build): line up, pull back, hold for Ready, flick up, then swipe to steer the spin. Classic (10 frames) or Quick (5); Caleb and Ezra pass-and-play or vs 1–3 AI (Rusty, Penny, Duke); pins earned buy 8 balls with their own physics; three lanes (Maple Alley, Neon Galaxy, Riff Arena) each with its own theme, fonts and music; recorded SFX, Sound + Music sliders, Fast mode |
 | Boulder | games/boulder/ | Bouldering in three.js with an HTML HUD (from a Claude Design build): drag each hand and foot onto the holds, watch the grip rings, shake out tired hands and get both hands on the gold TOP. 45 routes V0–V8 on 15 walls (side pulls, high steps, jumps), every route solver-checked; 3 stars per route (moves, time, holds) spent in the Locker on climber looks and a T-shirt designer; Caleb/Ezra each with their own look; route editor with live solver/grader, test climb, share codes and My routes; never-tired practice mode; Sound + Music sliders |
+| Moonbots | games/moonbots/ | Drag-and-drop production game (from a Claude Design build, Ludum Dare 44-style cards): drag scrap bots into buildings, drag stacks into blueprints and build one part per level. 3 chapters × 10 levels, one new mechanic each: To the Moon (rocket + launch), Moon City (aliens beam you to Planet Zib), Home Again (teleporter home). interact.js drag (vendored), per-boy IndexedDB saves, music per chapter + finale, Web Audio SFX |
 
 ## Naming quirks worth knowing
 

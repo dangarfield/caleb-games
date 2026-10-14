@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tablet View - Moonbots</title>
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#1a1420;font:600 13px/1.4 system-ui,sans-serif;color:#cfc6b0}
+a{color:#ffd23f}a:hover{color:#fff}
+#wrap{position:absolute;left:50%;top:50%;width:1333px;height:690px;transform-origin:50% 50%}
+#dev{position:absolute;inset:-18px;border-radius:26px;background:#2b2530;box-shadow:0 0 0 2px #463d4c,0 20px 60px rgba(0,0,0,.6)}
+iframe{position:absolute;inset:0;width:1333px;height:690px;border:0;background:#000;display:block}
+#info{position:fixed;left:12px;bottom:10px;display:flex;gap:14px;align-items:center;z-index:5}
+#info b{color:#fff}
+#backBtn{position:fixed;top:12px;left:12px;z-index:9999;display:flex;align-items:center;gap:8px;background:#f1e7d0;color:#2b1d14;text-decoration:none;box-sizing:border-box;height:48px;padding:2px 14px 0;border:4px solid #2b1d14;border-radius:12px;font:11px/1 'Press Start 2P',monospace;transition:background .15s}
+#backBtn:hover{background:#ffd23f;color:#2b1d14}
+#backBtn .bk{width:0;height:0;border-top:7px solid transparent;border-bottom:7px solid transparent;border-right:10px solid #c42f4a;flex:none;margin-top:-2px}
+#backBtn{text-transform:uppercase;gap:10px}
+#backBtn:active{transform:translateY(2px)}
+</style>
+<script data-arcade-back>
+/* arcade-back v1 (knowledge/arcade-back.md). "← Games" = the browser's back button.
+   Any link whose href is exactly ../../index.html goes BACK in history when this page was opened
+   from the arcade home, so home comes back as it was left (scroll position, no reload).
+   Opened any other way (bookmark, direct URL, dev tool), the link just navigates as normal. */
+(function () {
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!a || a.getAttribute('href') !== '../../index.html') return;
+    var home = new URL(a.href), ref;
+    try { ref = new URL(document.referrer); } catch (err) { return; }
+    var dir = home.pathname.replace(/index\.html$/, '');
+    if (ref.origin !== home.origin || (ref.pathname !== home.pathname && ref.pathname !== dir) || history.length < 2) return;
+    e.preventDefault();
+    var go = function () { location.href = home.href; };
+    // Still on this page after going back (an in-game history entry) or nothing happened: go home directly.
+    addEventListener('popstate', go, { once: true });
+    var t = setTimeout(go, 2500);
+    addEventListener('pagehide', function () { clearTimeout(t); }, { once: true });
+    history.back();
+  });
+})();
+</script>
+</head>
+<body>
+<a id="backBtn" href="../../index.html" aria-label="Back to Games"><span class="bk"></span>Games</a>
+<div id="wrap"><div id="dev"></div><iframe id="f" src="index.html" title="Moonbots at 1333×690"></iframe></div>
+<div id="info"><span><b>1333 × 690</b> tablet view</span><span id="sc"></span><a href="index.html">open full screen</a><a href="#" id="rl">reload</a></div>
+<script>
+const W=1333,H=690,wrap=document.getElementById('wrap');
+function fit(){ const k=Math.min(1,(innerWidth-60)/W,(innerHeight-70)/H); wrap.style.transform=`translate(-50%,-50%) scale(${k})`; document.getElementById('sc').textContent=k<1?`shown at ${Math.round(k*100)}%`:'actual size'; }
+addEventListener('resize',fit); fit();
+document.getElementById('rl').onclick=e=>{ e.preventDefault(); document.getElementById('f').contentWindow.location.reload(); };
+</script>
+</body>
+</html>

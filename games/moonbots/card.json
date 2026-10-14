@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "moonbots",
+  "name": "Moonbots",
+  "blurb": "Send your bots to work, build a rocket and fly to the Moon!",
+  "added": "2026-10-13",
+  "icon": {
+    "emoji": "🚀"
+  },
+  "title": {
+    "font": "Press Start 2P",
+    "weight": 400,
+    "size": 22,
+    "color": "#d9541e",
+    "transform": "uppercase",
+    "shadow": "0 3px 0 #2b1d14"
+  },
+  "blurbStyle": {
+    "color": "#2b1d14"
+  },
+  "background": {
+    "gradient": [
+      "#9a9fb0",
+      "#7f8496"
+    ],
+    "css": "radial-gradient(circle, rgba(255,255,255,.14) 0 2.5px, transparent 3.5px) 13px 20px/44px 38px, #9a9fb0"
+  },
+  "source": {
+    "files": [
+      "games/moonbots/index.html"
+    ],
+    "refreshed": "2026-10-13",
+    "notes": "Wordmark card-wordmark.png is the home-screen title rendered as-is: Press Start 2P, MOON #d9541e + BOTS #1d8b7e, 0 5px 0 #2b1d14 shadow. Background is the game's Moon City level pattern (the small dots from pat-craters on #9a9fb0, js/art.js; big crater rings left out), kept plain so the title reads. Ink #2b1d14 blurb."
+  },
+  "wordmark": "card-wordmark.png"
+}

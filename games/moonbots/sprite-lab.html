@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sprite Lab - Moonbots</title>
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#efe8d8;color:#2b1d14;font-family:'Pixelify Sans',system-ui,sans-serif;padding:64px 32px 80px}
+a{color:#1d8b7e}a:hover{color:#d9541e}
+#backBtn{position:fixed;top:12px;left:12px;z-index:9999;display:flex;align-items:center;gap:8px;background:#f1e7d0;color:#2b1d14;text-decoration:none;box-sizing:border-box;height:48px;padding:2px 14px 0;border:4px solid #2b1d14;border-radius:12px;font:11px/1 'Press Start 2P',monospace;transition:background .15s}
+#backBtn:hover{background:#ffd23f;color:#2b1d14}
+#backBtn .bk{width:0;height:0;border-top:7px solid transparent;border-bottom:7px solid transparent;border-right:10px solid #c42f4a;flex:none;margin-top:-2px}
+#backBtn{text-transform:uppercase;gap:10px}
+#backBtn:active{transform:translateY(2px)}
+h1{font:28px/1.3 'Press Start 2P',monospace;color:#d9541e;text-shadow:0 3px 0 #2b1d14;margin-bottom:8px}
+.sub{font-size:18px;color:#6b5a48;max-width:900px;margin-bottom:28px}
+nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:36px}
+nav a{font:10px 'Press Start 2P';background:#f1e7d0;border:3px solid #2b1d14;border-radius:8px;padding:8px 10px;text-decoration:none;color:#2b1d14}
+section{margin-bottom:56px}
+h2{font:16px 'Press Start 2P';margin-bottom:6px}
+h3{font:11px 'Press Start 2P';margin:22px 0 10px;color:#6b4aa0}
+.note{font-size:16px;color:#6b5a48;margin-bottom:16px;max-width:900px}
+.grid{display:flex;flex-wrap:wrap;gap:12px}
+.tile{background:#f1e7d0;border:3px solid #2b1d14;border-radius:10px;padding:12px 10px 8px;display:flex;flex-direction:column;align-items:center;gap:8px;min-width:96px}
+.tile .lab{font:600 13px/1.2 'Pixelify Sans';text-align:center}
+.tile code{font:11px ui-monospace,monospace;color:#8a7556}
+.big>*{transform:scale(1.8);margin:14px}
+.bgt{width:200px;height:110px;border:3px solid #2b1d14;border-radius:10px;position:relative;overflow:hidden;display:flex;align-items:flex-end;padding:6px}
+.bgt span{font:700 13px 'Pixelify Sans';background:rgba(241,231,208,.92);border:2px solid #2b1d14;border-radius:5px;padding:1px 6px}
+.plotw{width:325px;height:105px;position:relative;overflow:hidden;border:3px solid #2b1d14;border-radius:10px}
+.plotw .in{position:absolute;left:0;top:0;width:650px;height:209px;transform:scale(.5);transform-origin:0 0}
+.finw{width:466px;height:242px;position:relative;overflow:hidden;border:3px solid #2b1d14;border-radius:10px;background:#000}
+.finw .in{position:absolute;left:0;top:0;width:1333px;height:690px;transform:scale(.35);transform-origin:0 0}
+.tbar{width:220px;height:30px;border:3px solid #2b1d14;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font:10px 'Press Start 2P';text-shadow:0 2px 0 #2b1d14}
+</style>
+<script data-arcade-back>
+/* arcade-back v1 (knowledge/arcade-back.md). "← Games" = the browser's back button.
+   Any link whose href is exactly ../../index.html goes BACK in history when this page was opened
+   from the arcade home, so home comes back as it was left (scroll position, no reload).
+   Opened any other way (bookmark, direct URL, dev tool), the link just navigates as normal. */
+(function () {
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!a || a.getAttribute('href') !== '../../index.html') return;
+    var home = new URL(a.href), ref;
+    try { ref = new URL(document.referrer); } catch (err) { return; }
+    var dir = home.pathname.replace(/index\.html$/, '');
+    if (ref.origin !== home.origin || (ref.pathname !== home.pathname && ref.pathname !== dir) || history.length < 2) return;
+    e.preventDefault();
+    var go = function () { location.href = home.href; };
+    // Still on this page after going back (an in-game history entry) or nothing happened: go home directly.
+    addEventListener('popstate', go, { once: true });
+    var t = setTimeout(go, 2500);
+    addEventListener('pagehide', function () { clearTimeout(t); }, { once: true });
+    history.back();
+  });
+})();
+</script>
+</head>
+<body>
+<a id="backBtn" href="../../index.html" aria-label="Back to Games"><span class="bk"></span>Games</a>
+<h1>SPRITE LAB</h1>
+<div class="sub">Every placeholder asset in Moonbots, drawn from <code>js/art.js</code>. When the real sprite sheet arrives, swap the art in that one file and this page shows what changed. Sounds are in <a href="sound-lab.html">sound-lab.html</a>, and the game itself is in <a href="index.html">index.html</a>.</div>
+<nav><a href="#res">ICONS</a><a href="#workers">WORKERS</a><a href="#doors">DOORS</a><a href="#cards">CARDS</a><a href="#bgs">BACKGROUNDS</a><a href="#plots">CENTRE BUILDS</a><a href="#fins">FINALES</a></nav>
+<section id="res"><h2>RESOURCE ICONS</h2><div class="note">A 12×12 pixel-art icon for each resource, drawn in <code>js/art.js</code> (TPL + SPRMAP) and shaded from one base colour. They are grouped by the chapter that first uses them.</div><div id="resG"></div></section>
+<section id="workers"><h2>WORKERS</h2><div class="note">Scrap bots: upgrades, merge levels, tourists and battery states. Aliens: the three colours, plus hungry.</div><div class="grid" id="workG"></div></section>
+<section id="doors"><h2>DOORS</h2><div class="note">Arch doors take bots. Round doors take aliens. A coloured ring only takes an alien of that colour.</div><div class="grid" id="doorG"></div></section>
+<section id="cards"><h2>CARD FAMILIES</h2><div class="note">Title bar colours by building family.</div><div class="grid" id="cardG"></div></section>
+<section id="bgs"><h2>LEVEL BACKGROUNDS</h2><div class="note">Each chapter has its own pattern, and every level has its own tint.</div><div id="bgG"></div></section>
+<section id="plots"><h2>CENTRE BUILDS</h2><div class="note">The centre plot after each level of a chapter. Built parts are solid; the part being built fills in from the bottom and glows.</div><div id="plotG"></div></section>
+<section id="fins"><h2>CHAPTER FINALES</h2><div class="note">The four frames of each end-of-chapter scene. The game animates between them.</div><div id="finG"></div></section>
+<script src="js/art.js"></script>
+<script>
+const A=ART, $=id=>document.getElementById(id);
+const CHRES=[
+ ['Chapter 1 · To the Moon',['scrap','bolt','plate','copper','wire','hull','oil','fuel','lithium','battery','titanium','alloy','nozzle','ore','molten','slag','sand','glass','beam','silicon','cell','lamp','chip','board','belt','clay','tile']],
+ ['Chapter 2 · Moon City',['rock','ice','water','brick','pipe','seed','veg','meal','gear','sapling','toy','coin']],
+ ['Chapter 3 · Home Again',['goo','crystal','padtile','spark','core','fruit','moss','bubble','ring','snack','lens','button','panel','rod','coil','stardust','starmap','pred','pblue','pyellow','ppurple','porange','pgreen','balloon','cake']]];
+$('resG').innerHTML=CHRES.map(([t,list])=>`<h3>${t}</h3><div class="grid">${list.map(r=>`<div class="tile">${A.ic(r,36)}<div class="lab">${A.nm(r)}</div><code>${r}</code></div>`).join('')}</div>`).join('');
+const W=[['Scrap Bot',{kind:'bot'}],['Drill arm',{kind:'bot',up:'drill'}],['Magnet hand',{kind:'bot',up:'magnet'}],['Wheels',{kind:'bot',up:'wheels'}],['Jet Boots',{kind:'bot',up:'jet'}],
+ ['Silver (Lv2)',{kind:'bot',lv:2}],['Gold (Lv3)',{kind:'bot',lv:3}],['Battery',{kind:'bot',bar:70}],['Flat battery',{kind:'bot',flat:true,bar:0}],['Tourist',{kind:'bot',tour:true,bar:60,barCol:'#3a8fd8'}],
+ ['Pink alien',{kind:'alien',col:'pink'}],['Green alien',{kind:'alien',col:'green'}],['Blue alien',{kind:'alien',col:'blue'}],['Hunger bar',{kind:'alien',col:'green',bar:40,barCol:'#ffb03a'}],['Hungry',{kind:'alien',col:'pink',hungry:true,bar:0}]];
+$('workG').innerHTML=W.map(([n,o])=>`<div class="tile" style="min-width:120px;padding-top:26px"><div style="transform:scale(1.8);height:60px;display:flex;align-items:center">${A.worker(Object.assign({cls:'st'},o))}</div><div class="lab" style="margin-top:6px">${n}</div></div>`).join('');
+const D=[['Arch (bots)','',''],['Round (aliens)',' rd',''],['Pink only',' rd cl','pink'],['Green only',' rd cl','green'],['Blue only',' rd cl','blue'],['Napping (wrong door)',' nap','']];
+$('doorG').innerHTML=D.map(([n,c,col])=>`<div class="tile"><div class="slot${c}" ${col?`style="--dc:${A.ACOL[col]}"`:''}>${n.includes('Arch')||n.includes('Napping')?A.botStatic():A.alienStatic({col:col||'green'})}</div><div class="lab">${n}</div></div>`).join('');
+$('cardG').innerHTML=[['Extractor','#d9541e'],['Converter','#1d8b7e'],['Special / factory','#6b4aa0'],['Goal','#c42f4a']].map(([n,c])=>`<div class="tile"><div class="tbar" style="background:${c}">${n.toUpperCase()}</div><code>${c}</code></div>`).join('');
+$('bgG').innerHTML=A.CHAPTERS.map(ch=>`<h3>${ch.title} · ${ch.pattern}</h3><div class="grid">${ch.levels.map((l,i)=>`<div class="bgt ${ch.pattern}" style="background-color:${l.bg}"><span>${i+1}. ${l.name}</span></div>`).join('')}</div>`).join('');
+$('plotG').innerHTML=A.CHAPTERS.map((ch,ci)=>{
+  let t='';
+  for(let k=0;k<=10;k++){ const done=ch.parts.map((_,j)=>j<k); const cur=k<10?k:-1;
+    t+=`<div class="tile" style="padding:8px"><div class="plotw" style="background:${ch.levels[Math.min(k,9)].bg}"><div class="in">${A.plot(ci,done,cur,.5)}</div></div><div class="lab">${k<10?`Level ${k+1}: building ${ch.parts[k].n}`:'Complete'}</div></div>`; }
+  return `<h3>${ch.title}</h3><div class="grid">${t}</div>`; }).join('');
+$('finG').innerHTML=A.CHAPTERS.map((ch,ci)=>`<h3>${ch.title}</h3><div class="grid">${[0,1,2,3].map(f=>{
+  const html=A.finale(ci,{bots:6,aliens:ci===2?4:0}).replace('class="fin fin'+ci+'"','class="fin fin'+ci+' static'+(f?' f'+f:'')+'"');
+  return `<div class="tile" style="padding:8px"><div class="finw"><div class="in">${html}</div></div><div class="lab">Frame ${f}</div></div>`; }).join('')}</div>`).join('');
+</script>
+</body>
+</html>
