@@ -217,12 +217,18 @@ function wireInput() {
   $('btnSoar').onclick = () => { sfx.tap(); if ($('btnSoar').classList.contains('ghost')) { (vo('find-soar', 1), flash)('Climb higher to Soar!', 1400); return; } world.fly.soar = !world.fly.soar; $('btnSoar').classList.toggle('on', world.fly.soar); };
   $('btnAction').onclick = () => { sfx.tap(); if (G.action) G.action(); };
   $('btnMap').onclick = () => { sfx.tap(); scr.openAtlas(); };
+  $('btnTurn').onpointerdown = e => { ensureAudio(); e.preventDefault(); doTurn(); };
   let lastDodge = 1; $('btnDodge').onpointerdown = e => { ensureAudio(); e.preventDefault(); const dir = stickS.x < -0.2 || keys.left ? -1 : stickS.x > 0.2 || keys.right ? 1 : (lastDodge = -lastDodge); doRoll(dir); };
   $('btnInf').onclick = () => { sfx.tap(); settings.inf = !settings.inf; if (settings.inf) G.hearts = maxHearts(); toast(settings.inf ? 'Unlimited hearts: nothing can hurt you!' : 'Unlimited hearts off'); G.persist(); drawHud(); };
 }
 const held = { flap: false, dive: false };
 let flapT = 0, breathCD = 0;
 function onFlapPress() { if (world.fly.perch) { takeOff(); return; } sfx.flap(); flapT = 0.45; }
+// TURN: a quick 180°. Goes the way you're already steering (stick/keys), else the way you're already banking, else alternates.
+let lastTurn = 1;
+function doTurn() { const f = world.fly; if (f.perch || G.menu || f.turnT > 0) return;
+  const dir = stickS.x < -0.15 || keys.left ? -1 : stickS.x > 0.15 || keys.right ? 1 : Math.abs(f.bank) > 0.05 ? Math.sign(f.bank) : (lastTurn = -lastTurn);
+  lastTurn = dir; f.turnT = 0.8; f.turnK = 0; f.turnDir = dir; f.idle = 0; $('btnTurn').classList.toggle('r', dir > 0); sfx.flap(); }
 function doRoll(dir) { const f = world.fly; if (f.perch || G.menu) return; f.rollT = 0.55; f.rollDir = dir; G.rollT = 0.55; G.dodged = false; sfx.dodge(); }
 function onBreath() {
   if (G.menu || G.mode !== 'play') return;
@@ -590,7 +596,7 @@ function frame(dt, t) {
   show('btnAction', !!act); if (act) { $('actIcon').textContent = act[0]; $('actLbl').textContent = act[1]; }
   $('flapIcon').textContent = f.perch ? 'flight_takeoff' : 'keyboard_double_arrow_up'; $('flapLbl').textContent = f.perch ? 'TAKE OFF' : 'FLAP';
   $('btnBreath').classList.toggle('off', G.carrying); $('btnBreath').classList.toggle('glow', !!(f.perch && G.perchAt && G.perchAt.p.kind === 'tower' && !s.lit[G.perchAt.p.id]));
-  ['stick', 'stickZone', 'btnDive', 'btnDodge'].forEach(id => $(id).classList.toggle('hidden', !!f.perch));
+  ['stick', 'stickZone', 'btnDive', 'btnDodge', 'btnTurn'].forEach(id => $(id).classList.toggle('hidden', !!f.perch));
   wind(f.perch ? 0 : f.speed); $('speedLines').style.opacity = f.soar ? 0.85 : held.dive || f.boost > 20 ? 0.7 : 0;
   hudT += dt; if (hudT > 0.1) { hudT = 0; drawHud(); }
   Object.keys(s.lit).forEach(addPillar);

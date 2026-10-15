@@ -243,7 +243,9 @@ export async function mountWorld(container, opts = {}) {
       if (f.stun > 0) { f.stun -= dt; sx *= 0.3; sy = 0.4; }
       if (view === 'flight' && f.idle > 3) { const ahead = groundAt(f.pos.x + Math.sin(f.yaw) * 300, f.pos.z + Math.cos(f.yaw) * 300); sy = THREE.MathUtils.clamp(((ahead + 260) - f.pos.y) / 150, -0.6, 0.8); sx = 0.2 + Math.sin(t * 0.11) * 0.3; }
       const [u, v] = toUV(f.pos.x, f.pos.z); if ((Math.abs(u) > 0.97 || Math.abs(v) > 0.97) && (u * Math.sin(f.yaw) + v * Math.cos(f.yaw) * 0.52) > 0) { const want = Math.atan2(-f.pos.x, -f.pos.z); let d = want - f.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); sx = THREE.MathUtils.clamp(-d, -1, 1); }
-      f.yaw -= sx * 0.95 * dt;
+      // Quick 180° turn (TURN button): eased over 0.8 s, banking into the turn; steering is ignored until it finishes.
+      if (f.turnT > 0) { const TT = 0.8; f.turnT = Math.max(0, f.turnT - dt); const k = 1 - f.turnT / TT, e = k * k * (3 - 2 * k); f.yaw -= f.turnDir * Math.PI * (e - (f.turnK || 0)); f.turnK = f.turnT ? e : 0; sx = f.turnDir; }
+      else f.yaw -= sx * 0.95 * dt;
       let assist = 0;
       if (!f.swim) { for (const tt of [0.5, 0.85, 1.2]) { const ahead = Math.max(8, f.speed * tt), ax = f.pos.x + Math.sin(f.yaw) * ahead, az = f.pos.z + Math.cos(f.yaw) * ahead, ay = f.pos.y + Math.sin(f.pitch) * ahead, need = floorAt(ax, az, f.pos.y) + 5 - ay; if (need > 0) assist = Math.max(assist, Math.min(0.8, need / ahead * 1.3 + 0.05)); } }
       // Dive really dives: steep nose-down, and only levels out (not climbs) in the last half-second before the ground.
@@ -275,7 +277,7 @@ export async function mountWorld(container, opts = {}) {
       if (f.rollT > 0) {
         if (f.rollT >= RD - 1e-4 || f.rollK == null) f.rollK = 0;
         f.rollT = Math.max(0, f.rollT - dt); const k = 1 - f.rollT / RD, e = ez(k), de = e - ez(f.rollK); f.rollK = k;
-        roll = e * Math.PI * 4 * (f.rollDir || 1);
+        roll = -e * Math.PI * 4 * (f.rollDir || 1);   // spin the way you're moving (flipped Oct 2026: it looked backwards)
         f.pos.x += -Math.cos(f.yaw) * 22 * de * (f.rollDir || 1); f.pos.z += Math.sin(f.yaw) * 22 * de * (f.rollDir || 1);
         if (f.rollT === 0) f.rollK = null;
       }
