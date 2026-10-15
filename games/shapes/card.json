@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schema/game-card.schema.json",
+  "slug": "shapes",
+  "name": "Shapes",
+  "blurb": "Build belts and machines to make the shapes the Hub orders!",
+  "added": "2026-10-15",
+  "icon": {
+    "image": "card-icon.png"
+  },
+  "title": {
+    "font": "Baloo 2",
+    "weight": 800,
+    "size": 46,
+    "color": "#23213A",
+    "shadow": "0 3px 0 #FFC56E"
+  },
+  "blurbStyle": {
+    "color": "#23213A",
+    "shadow": "none"
+  },
+  "background": {
+    "gradient": [
+      "#F4EFE3",
+      "#FFF4D6",
+      "#FFC56E"
+    ],
+    "css": "linear-gradient(#E6DDC8 1px,transparent 1px) 0 0/46px 46px, linear-gradient(90deg,#E6DDC8 1px,transparent 1px) 0 0/46px 46px, #F4EFE3"
+  },
+  "glow": "#FFC56E",
+  "source": {
+    "files": [
+      "games/shapes/index.html",
+      "games/shapes/js/shapes-kit.js"
+    ],
+    "refreshed": "2026-10-15",
+    "notes": "Matches the game's title screen: beige floor #F4EFE3 with the #E6DDC8 tile grid (measured on the title canvas: 1px lines every 46px), ink title with the orange #FFC56E drop shadow (Baloo 2). Icon = CrRgSbWy in the in-game sticker look, drawn by ShapesKit.drawShape at size 440 on a 512px canvas."
+  }
+}
