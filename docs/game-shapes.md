@@ -5,6 +5,7 @@ A Shapez-style factory game for Caleb and Ezra (7+). Mine shapes from patches, m
 ## Features
 - One save per builder (Caleb / Ezra), key `calebArcadeData:shapes`, through `js/arcade-store.js` (IndexedDB). Buildings (with filter rules and teleporter links), level, freeplay speeds and camera are saved. Items on belts are not.
 - Home → Who's building → factory are stacked on one floor; going forward scrolls down.
+- Turning Miners (sweep): drag across Miners / Link Miners and each one the drag crosses turns to the way the finger was moving as it left that tile (or entered it, for the tile the drag ends on); the last pass wins. Miner tool: a drag that touches an existing Miner becomes a sweep (from anywhere). Cursor: starts a sweep when the drag starts on a Miner, otherwise it pans. Belt tool: the belt path turns any Miners it crosses and lays belts on the empty tiles. Live preview; one undo step.
 - Touch: drag to draw belts (auto corners); touch-drag-drop to place other buildings, with a drop-to-cancel ✕; hold 0.5s to delete; two fingers pan and pinch-zoom; Cursor drag pans.
 - Tools: Cursor, Rotate (placement direction 0/90/180/270), Copy and paste (after level 11, grid-snapped ↻), Delete box. Undo/Redo, one step per action.
 - Upgrades switch on by themselves (items/s per area, 2 → 8 by level 20 in steps of 0.2–0.8, then freeplay +0.1 per order weighted to the slowest area, cap 12; 160 freeplay orders to max everything).
@@ -30,3 +31,4 @@ A Shapez-style factory game for Caleb and Ezra (7+). Mine shapes from patches, m
 
 ## Memory
 - 2026-10-15: integrated from the Claude Design build in `research/Shapes/`; placeholder store swapped for the real `arcade-store.js`; ← Games kept as the design's cream pill (top-left, `../../index.html` + arcade-back snippet).
+- 2026-10-15: sweep-to-turn Miners (Cursor, Miner and Belt tools); default levels Sound 70 / Music 60.

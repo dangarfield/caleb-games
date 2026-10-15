@@ -712,6 +712,21 @@
   function famVars(id) { for (var g = 0; g < FAM.length; g++) for (var i = 0; i < FAM[g].length; i++) if (FAM[g][i][0] === id) return FAM[g][i][1]; return [id]; }
   function placeType() { var v = famVars(selFam), t = v[famVar[selFam] || 0]; if (t === 'extractor' && unlocked('extractor2')) t = 'extractor2'; return t; }
   function ghostAt(t, wx, wy) { var dm = dims(t, noRot(t) ? 0 : placeRot); return [Math.floor(wx - dm[0] / 2 + 0.5), Math.floor(wy - dm[1] / 2 + 0.5)]; }
+  function isMiner(b) { return !!b && /^extractor/.test(b.t); }
+  // Sweep-to-turn: a drag walks a path of tiles; every Miner / Link Miner it crosses turns to the way the finger was going
+  // when it left that tile (or came into it, for the tile the drag ends on). Crossed twice, the last pass wins.
+  function stepPath(path, t) { // extend a tile path to t, one tile at a time, longer axis first; stepping back pops
+    var last = path[path.length - 1]; if (t.x === last.x && t.y === last.y) return false;
+    if (path.length > 1 && path[path.length - 2].x === t.x && path[path.length - 2].y === t.y) { path.pop(); return true; }
+    while (last.x !== t.x || last.y !== t.y) { var dx = t.x - last.x, dy = t.y - last.y, n = Math.abs(dx) >= Math.abs(dy) ? { x: last.x + Math.sign(dx), y: last.y } : { x: last.x, y: last.y + Math.sign(dy) }; path.push(n); last = n; if (path.length > 400) break; }
+    return true;
+  }
+  function minerTurns(path) {
+    var by = new Map(); if (path.length < 2) return [];
+    path.forEach(function (p, i) { var b = at(p.x, p.y); if (!isMiner(b)) return; by.set(b, i < path.length - 1 ? dirTo(p, path[i + 1]) : dirTo(path[i - 1], p)); });
+    var out = []; by.forEach(function (r, b) { if (r !== b.r) out.push({ b: b, r: r }); }); return out;
+  }
+  function turnCmd(turns) { return { rm: turns.map(function (q) { return snap(q.b); }), add: turns.map(function (q) { return { t: q.b.t, x: q.b.x, y: q.b.y, r: q.r, rule: q.b.rule }; }) }; }
   function minerFacing(x, y, wx, wy) {
     for (var d = 0; d < 4; d++) { var n = at(x + DX[d], y + DY[d]); if (n && n.items && n.inDir === d) return d; }
     var ox = wx - (x + 0.5), oy = wy - (y + 0.5);
@@ -729,15 +744,22 @@
   }
   function handlesOf(a) { var x0 = a.x0, y0 = a.y0, x1 = a.x1 + 1, y1 = a.y1 + 1, mx = (x0 + x1) / 2, my = (y0 + y1) / 2; return [[x0, y0, 'nw'], [mx, y0, 'n'], [x1, y0, 'ne'], [x1, my, 'e'], [x1, y1, 'se'], [mx, y1, 's'], [x0, y1, 'sw'], [x0, my, 'w']]; }
   function normArea(a) { return { x0: Math.min(a.x0, a.x1), y0: Math.min(a.y0, a.y1), x1: Math.max(a.x0, a.x1), y1: Math.max(a.y0, a.y1) }; }
+  function aimPreview(b, r) { // the Miner drawn turned to r, over itself
+    var T = cam.T, s = w2s(b.x, b.y); ctx.save(); ctx.fillStyle = K.WORLD.bg; ctx.fillRect(s[0], s[1], T, T);
+    K.drawBuilding(ctx, b.t, r, T, { x: s[0], y: s[1], item: patches.get(tk(b.x, b.y)) }); ctx.restore();
+    tileRect(b.x, b.y, 1, 1, 'rgba(108,92,231,.16)', PUR);
+  }
   function drawOverlay(now) {
     var T = cam.T;
     if (selB && tool === 'cursor') tileRect(selB.x, selB.y, selB.rw, selB.rh, 'rgba(108,92,231,.22)', PUR);
     if (clash) { if (now > clash.until) clash = null; else clash.tiles.forEach(function (p) { tileRect(p[0], p[1], 1, 1, 'rgba(231,76,60,.45)', '#E74C3C'); }); }
     if (gest && gest.kind === 'belt' && gest.path) {
       ctx.save(); ctx.globalAlpha = 0.55;
-      beltPlan(gest.path).forEach(function (p) { var s = w2s(p.x, p.y); K.drawBuilding(ctx, p.t, p.r, T, { x: s[0], y: s[1] }); });
+      beltPlan(gest.path).forEach(function (p) { var e = at(p.x, p.y); if (e && !e.items) return; var s = w2s(p.x, p.y); K.drawBuilding(ctx, p.t, p.r, T, { x: s[0], y: s[1] }); });
       ctx.restore();
+      minerTurns(gest.path).forEach(function (q) { aimPreview(q.b, q.r); });
     }
+    if (gest && gest.kind === 'sweep') minerTurns(gest.path).forEach(function (q) { aimPreview(q.b, q.r); });
     if (gest && gest.kind === 'ghost') {
       var t = placeType(), ar = autoRot(t, gest.gx, gest.gy), gr = ar >= 0 ? ar : noRot(t) ? 0 : placeRot, dm = dims(t, gr), ok = canPlace(t, gest.gx, gest.gy, gr);
       tileRect(gest.gx, gest.gy, dm[0], dm[1], ok ? 'rgba(108,92,231,.16)' : 'rgba(231,76,60,.28)', ok ? PUR : '#E74C3C', true);
@@ -871,11 +893,13 @@
     var t = tileOf(sx, sy), b = at(t.x, t.y), now = performance.now();
     lp = null;
     if ((tool === 'cursor' || tool === 'build') && b && b.t !== 'hub') lp = { sx: sx, sy: sy, t0: now, b: b };
+    if (tool === 'cursor' && b && isMiner(b)) { gest = { kind: 'sweep', path: [{ x: t.x, y: t.y }], moved: false, b: b }; return; } // drag from a Miner: sweep-turn instead of pan
     if (tool === 'cursor') { gest = { kind: 'pan', sx: sx, sy: sy, lx: sx, ly: sy, moved: false, b: b }; return; }
     if (tool === 'build') {
       var pt = placeType();
+      if (/^extractor/.test(pt) && b && isMiner(b)) { gest = { kind: 'sweep', path: [{ x: t.x, y: t.y }], moved: false, b: b }; return; } // Miner tool on a Miner: sweep-turn
       if (isBelt(pt)) { gest = { kind: 'belt', sx: sx, sy: sy, path: [{ x: t.x, y: t.y }], moved: false, b: b }; dragTick(1); }
-      else { var g = ghostAt(pt, t.wx, t.wy); gest = { kind: 'ghost', sx: sx, sy: sy, gx: g[0], gy: g[1], moved: false, b: b }; if (/^extractor/.test(pt)) { placeRot = minerFacing(g[0], g[1], t.wx, t.wy); buildBar(); } showCancel(true); }
+      else { var g = ghostAt(pt, t.wx, t.wy); gest = { kind: 'ghost', sx: sx, sy: sy, gx: g[0], gy: g[1], moved: false, b: b, path: [{ x: t.x, y: t.y }] }; if (/^extractor/.test(pt)) { placeRot = minerFacing(g[0], g[1], t.wx, t.wy); buildBar(); } showCancel(true); }
       return;
     }
     if (tool === 'copy' || tool === 'delete') {
@@ -902,6 +926,10 @@
   function moveGesture0(sx, sy) {
     var t = tileOf(sx, sy); gest.cx = sx; gest.cy = sy; // last finger position, for edge scrolling
     if (lp && Math.hypot(sx - lp.sx, sy - lp.sy) > 10) lp = null;
+    if (gest.kind === 'sweep') { if (stepPath(gest.path, t)) { gest.moved = true; var n = minerTurns(gest.path).length; if (n !== gest.n) { gest.n = n; dragTick(1); } } return; }
+    if (gest.kind === 'ghost' && /^extractor/.test(placeType()) && stepPath(gest.path, t) && gest.path.some(function (p) { return isMiner(at(p.x, p.y)); })) { // dragged onto a Miner: turn them instead of building
+      gest = { kind: 'sweep', path: gest.path, moved: true, b: null }; showCancel(false); dragTick(1); return;
+    }
     if (gest.kind === 'pan') { if (!gest.moved && Math.hypot(sx - gest.sx, sy - gest.sy) < 8) return; gest.moved = true; cam.x -= (sx - gest.lx) / cam.T; cam.y -= (sy - gest.ly) / cam.T; gest.lx = sx; gest.ly = sy; return; }
     if (gest.kind === 'belt') {
       var path = gest.path, last = path[path.length - 1];
@@ -927,6 +955,13 @@
   function endGesture(sx, sy, cancelled) {
     var g = gest; gest = null; var firedLP = lp && lp.fired; lp = null; showCancel(false);
     if (cancelled || firedLP) return;
+    if (g.kind === 'sweep') {
+      if (!g.moved) { if (tool === 'cursor') { selB = g.b; updateCard(); } return; }
+      var tw = minerTurns(g.path); if (!tw.length) return;
+      var c = turnCmd(tw); c.label = tw.length > 1 ? 'turn ' + tw.length + ' miners' : 'turn'; run(c); placeSound();
+      if (tool === 'cursor') { selB = at(tw[tw.length - 1].b.x, tw[tw.length - 1].b.y); updateCard(); }
+      return;
+    }
     if (g.kind === 'pan' && !g.moved) {
       selB = g.b && g.b.t !== 'hub' ? g.b : null;
       if (selB && selB.t === 'filter') openFilter(selB);
@@ -938,7 +973,8 @@
       var plan = beltPlan(g.path).filter(function (p) { var e = at(p.x, p.y); return !e || e.items; });
       var rm = [], add = [];
       plan.forEach(function (p) { var e = at(p.x, p.y); if (e) { if (e.t === p.t && e.r === p.r) return; rm.push(snap(e)); } add.push({ t: p.t, x: p.x, y: p.y, r: p.r }); });
-      if (add.length) { run({ rm: rm, add: add, label: add.length + ' belt' + (add.length > 1 ? 's' : '') }); placeSound(); }
+      var nb = add.length, tw = turnCmd(minerTurns(g.path)); rm = rm.concat(tw.rm); add = add.concat(tw.add);
+      if (add.length) { run({ rm: rm, add: add, label: nb ? nb + ' belt' + (nb > 1 ? 's' : '') + (tw.add.length ? ' + turn' : '') : 'turn' }); placeSound(); }
       return;
     }
     if (g.kind === 'ghost') {
