@@ -6,6 +6,14 @@ Review periodically — memory drifts. Newest at the top.
 
 ---
 
+## 2026-10-17 — The README games list is generated from `card.json`
+`scripts/build-index.mjs` now writes the root `README.md` games list (name + blurb, newest first like the home page, between the
+`games:start` / `games:end` markers) as well as `index.html`, so the README can't fall behind again (it had
+47 games and old names). The `cards-index` hook, the Stop hook and the pre-commit gate all cover it, since
+they run the same script. Never hand-edit that part of the README. `docs/games-index.md` stays hand-kept
+(it carries tech notes the cards don't), but the script warns when a visible game has no row there or the
+"All N games" count is wrong.
+
 ## 2026-10-06 — Assets used by more than one game live in `games/_shared/`
 Kaiju Pothole is built from Ember Bay's converted model library, so `games/ember-bay/assets/` and `audio/sfx/` moved to
 `games/_shared/assets/` and `games/_shared/audio/sfx/` and both games load them from `../_shared/`. One copy, ~40 MB, no

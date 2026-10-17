@@ -92,4 +92,4 @@ Every game ships a `games/<slug>/card.json`. `scripts/build-index.mjs` turns all
 - [ ] Name matches the title screen, and the blurb says what you do in 2 card lines, no ellipsis (the build checks this)
 - [ ] Font and colours can be traced to the game (or `source.notes` explains why not)
 - [ ] Contrast and fit rules above are met
-- [ ] `index.html` was regenerated, not hand-edited
+- [ ] `index.html` and the `README.md` games list were regenerated, not hand-edited

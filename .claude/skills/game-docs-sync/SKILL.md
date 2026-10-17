@@ -20,7 +20,7 @@ After a game ships or changes, make the docs reflect the new reality — the one
 2. For each, update its single `docs/game-<name>.md` node:
    - Features / file structure / design decisions if they changed.
    - Append any non-obvious bug fixed to its `## Memory` section (what it was, how fixed).
-3. If a new game: ensure `docs/games-index.md` has a row and the header count is bumped.
+3. If a new game: ensure `docs/games-index.md` has a row and the header count is bumped. (`node scripts/build-index.mjs` warns if either is missing. The root `README.md` games list is generated from the cards, so don't edit it.)
 4. If a cross-cutting decision was made (affects the whole arcade, not one game), add a dated entry to `docs/decisions.memory.md`.
 
 ## The one absolute rule
