@@ -191,7 +191,66 @@ const LEVELS3=[
   b:[crash,gooP,cave({goo:15}),sparkC,{id:'tele',name:'Teleporter',kind:'charge',cost:{spark:20,crystal:20}}],
   goal:[{spark:30},{_charge:30},{_allpad:1}]}
 ];
-const LV=[LEVELS1,LEVELS2,LEVELS3];
+// chapter 4: robo carnival
+const junk={id:'junk',name:'Junk Pile',pre:1,out:'scrap',tag:'wheels',exp:{scrap:20}};
+const printer=cost=>({id:'tprint',name:'Ticket Printer',cost,in:{scrap:2},out:'ticket',exp:{ticket:10}});
+const cornF=cost=>({id:'cornf',name:'Corn Field',cost,out:'corn',tag:'drill',exp:{scrap:20}});
+const popper=cost=>({id:'popper',name:'Popcorn Popper',cost,in:{corn:2},out:'popcorn',exp:{popcorn:10}});
+const sugarC=cost=>({id:'sugarc',name:'Sugar Cane',cost,out:'sugar',tag:'drill',exp:{scrap:20}});
+const flossM=cost=>({id:'floss',name:'Floss Spinner',cost,in:{sugar:2},out:'candy',tag:'wheels',exp:{candy:10}});
+const gate4=cost=>({id:'gate',name:'Ticket Gate',kind:'queue',cost,outs:['coin']});
+const carousel=cost=>({id:'carousel',name:'Carousel',cost,out:'coin',seats:3,full:1,cycle:2});
+const LEVELS4=[
+ {nw:'Visitors queue up! Give them tickets for coins.',bots:3,
+  b:[junk,bin({scrap:10},{scrap:15}),printer({scrap:15}),gate4({ticket:5}),press({scrap:20,bolt:10},{plate:10})],goal:[{coin:15},{coin:20,plate:15}]},
+ {nw:'Rides only go when EVERY seat is full!',bots:4,
+  b:[junk,bin({scrap:10},{scrap:15}),press({scrap:20,bolt:10},{plate:10}),carousel({plate:15,bolt:10})],goal:[{plate:20},{coin:30}]},
+ {nw:'The Prize Claw gives a surprise prize!',bots:5,
+  b:[junk,bin({scrap:10},{scrap:15}),carousel({scrap:20,bolt:10}),{id:'claw',name:'Prize Claw',cost:{coin:10},in:{coin:1},rand:['toy','balloon','teddy'],tag:'magnet'}],goal:[{teddy:6},{toy:8,balloon:8}]},
+ {nw:'Rain stops rides! Tap the clouds away.',bots:5,rain:1,
+  b:[junk,bin({scrap:10},{scrap:15}),cornF({scrap:15}),popper({corn:10}),printer({scrap:15}),gate4({ticket:5}),{id:'tent',name:'Big Top',kind:'shelter',cost:{popcorn:10,coin:10}}],goal:[{popcorn:20},{popcorn:15,coin:15}]},
+ {nw:'Spin the Lucky Wheel for a prize!',bots:5,
+  b:[junk,bin({scrap:10},{scrap:15}),cornF({scrap:15}),popper({corn:10}),{id:'wheel',name:'Lucky Wheel',kind:'wheel',cost:{popcorn:5}},press({scrap:20,bolt:10},{plate:10})],goal:[{popcorn:25},{plate:20,popcorn:10}]},
+ {nw:'Bumper cars bump bots out! Put them back.',bots:6,
+  b:[junk,bin({scrap:10},{scrap:15}),{id:'bumper',name:'Bumper Cars',cost:{scrap:20,bolt:10},out:'coin',bump:1,cycle:1.5},sugarC({scrap:15}),flossM({sugar:10})],goal:[{coin:30},{candy:20}]},
+ {nw:'Tap the drum when it flashes!',bots:5,
+  b:[junk,bin({scrap:10},{scrap:15}),{id:'band',name:'Band Stand',kind:'stage',cost:{scrap:15,bolt:10},outs:['coin']},sugarC({scrap:15}),flossM({sugar:10})],goal:[{coin:25},{candy:15,coin:15}]},
+ {nw:'Big rides need silver bots! Merge two bots.',bots:6,merge:1,
+  b:[junk,bin({scrap:10},{scrap:15}),press({scrap:20,bolt:10}),{id:'silver',name:'Silver Bot Maker',kind:'merger',pre:1,lvIn:1,cycle:5},
+     {id:'coaster',name:'Roller Coaster',cost:{plate:15,bolt:15},out:'coin',doors:['t','t'],cycle:1.5},{id:'bigwheel',name:'Big Wheel',cost:{coin:15,plate:10},out:'ticket',doors:['t','t','t'],cycle:2}],goal:[{coin:30},{ticket:20}]},
+ {nw:'Keep the crowd happy with treats!',bots:6,mood:1,
+  b:[junk,cornF({scrap:15}),popper({corn:10}),sugarC({scrap:15}),flossM({sugar:10}),{id:'crowd',name:'Happy Crowd',kind:'crowd',pre:1,treats:['popcorn','candy']}],goal:[{popcorn:20,candy:10},{candy:20,popcorn:10}]},
+ {nw:'Fill the rack with fireworks, then LAUNCH!',bots:6,
+  b:[junk,press({scrap:20},{plate:10}),copper({scrap:20},{plate:10}),spinner({copper:10},{wire:10}),{id:'fwshop',name:'Firework Shop',cost:{wire:10,plate:10},in:{wire:1,plate:1},out:'firework',tag:'magnet',exp:{firework:5}},
+     {id:'rack',name:'Launch Rack',kind:'rack',cost:{firework:3}}],goal:[{firework:10},{_shows:3}]}
+];
+// chapter 5: star race
+const rubberT=cost=>({id:'rubber',name:'Rubber Tree',cost,out:'rubber',tag:'drill',exp:{scrap:20}});
+const tyreS=cost=>({id:'tyres',name:'Tyre Shop',cost,in:{rubber:2},out:'tyre',tag:'wheels',exp:{tyre:10}});
+const packer=cost=>({id:'packer',name:'Cargo Packer',cost,in:{alloy:1,bolt:1},out:'cargo',tag:'magnet',exp:{cargo:10}});
+const LEVELS5=[
+ {nw:'Race the rival rocket! Build fast to win a star.',bots:4,race:1,
+  b:[heap(),bin({scrap:10},{scrap:15}),oil({scrap:20},{scrap:20}),refinery({oil:10},{fuel:10}),rubberT({scrap:15}),tyreS({rubber:10})],goal:[{fuel:20},{tyre:15,fuel:10}]},
+ {nw:'Drop fuel in the Booster: everything goes ×2!',bots:4,race:1,
+  b:[heap(),oil({scrap:20},{scrap:20}),refinery({oil:10},{fuel:10}),{id:'booster',name:'Booster',kind:'boost',cost:{fuel:5}},titan({scrap:20},{scrap:20}),smelter({titanium:15},{alloy:10})],goal:[{fuel:20},{alloy:25}]},
+ {nw:'Worn out buildings stop. Tap them to fix!',bots:5,race:1,wear:1,
+  b:[heap(),bin({scrap:10},{scrap:15}),rubberT({scrap:15}),tyreS({rubber:10}),oil({scrap:20},{scrap:20}),refinery({oil:10},{fuel:10})],goal:[{tyre:20},{fuel:25,tyre:10}]},
+ {nw:'Gremlins steal stuff! Tap them to shoo.',bots:5,race:1,grem:1,
+  b:[heap(),bin({scrap:10},{scrap:15}),titan({scrap:20},{scrap:20}),smelter({titanium:15},{alloy:10}),packer({alloy:10,bolt:10}),oil({scrap:20},{scrap:20}),refinery({oil:10},{fuel:10})],goal:[{alloy:25},{cargo:15}]},
+ {nw:'Comets zoom past! Tap them to catch stardust.',bots:5,race:1,comets:1,
+  b:[heap(),bin({scrap:10},{scrap:15}),titan({scrap:20},{scrap:20}),smelter({titanium:15},{alloy:10}),copper({scrap:20},{scrap:20}),spinner({copper:10},{wire:10})],goal:[{stardust:15,alloy:15},{wire:25,stardust:10}]},
+ {nw:'Load cargo on BOTH sides to keep it level!',bots:6,race:1,
+  b:[heap(),bin({scrap:10},{scrap:15}),titan({scrap:20},{scrap:20}),smelter({titanium:15},{alloy:10}),packer({alloy:10,bolt:10}),{id:'cargo',name:'Cargo Bay',kind:'cargo',cost:{cargo:4}}],goal:[{cargo:10},{_cargo:20}]},
+ {nw:'Tap GO when the line is in the green!',bots:5,race:1,
+  b:[heap(),bin({scrap:10},{scrap:15}),oil({scrap:20},{scrap:20}),refinery({oil:10},{fuel:10}),{id:'sling',name:'Gravity Slingshot',kind:'sling',cost:{fuel:10}},rubberT({scrap:15}),tyreS({rubber:10})],goal:[{fuel:20},{stardust:30}]},
+ {nw:'Solar wind makes one side work ×2!',bots:6,race:1,wind:1,
+  b:[heap(),bin({scrap:10},{scrap:15}),lith({scrap:20},{scrap:20}),battm({lithium:10,bolt:10},{lithium:1,bolt:1},{battery:5}),copper({scrap:20},{scrap:20}),spinner({copper:10},{wire:10}),titan({scrap:20}),smelter({titanium:15})],goal:[{battery:20},{wire:20,alloy:15}]},
+ {nw:'HOLD the turbo button, then let go!',bots:5,race:1,
+  b:[heap(),bin({scrap:10},{scrap:15}),lith({scrap:20},{scrap:20}),battm({lithium:10,bolt:10},{lithium:1,bolt:1},{battery:5}),{id:'turbo',name:'Turbo Button',kind:'turbo',cost:{battery:3}},oil({scrap:20},{scrap:20}),refinery({oil:10},{fuel:10})],goal:[{battery:15},{fuel:30}]},
+ {nw:'Hit each checkpoint before time runs out!',bots:6,race:1,
+  b:[heap(),bin({scrap:10},{scrap:15}),oil({scrap:20},{scrap:20}),refinery({oil:10},{fuel:10}),titan({scrap:20},{scrap:20}),smelter({titanium:15},{alloy:10}),rubberT({scrap:15}),{id:'gates',name:'Checkpoints',kind:'gate',cost:{fuel:5,alloy:5}}],goal:[{fuel:20,alloy:15},{_gates:3}]}
+];
+const LV=[LEVELS1,LEVELS2,LEVELS3,LEVELS4,LEVELS5];
 
 /* ================= save ================= */
 const Store=ArcadeStore('moonbots');
@@ -205,7 +264,8 @@ const doneP=(pk,ci,i)=>!!DATA.profiles[pk].done[dk(ci,i)];
 const isDone=(ci,i)=>doneP(DATA.player,ci,i);
 const doneArr=ci=>CH[ci].levels.map((_,i)=>isDone(ci,i));
 const chDone=ci=>doneArr(ci).every(Boolean);
-const chOpen=ci=>ci===0||chDone(ci-1);
+let UNLOCK_ALL=false; // debug: P on the home/map screens opens every chapter and level for this session (nothing is saved)
+const chOpen=ci=>UNLOCK_ALL||ci===0||chDone(ci-1);
 
 /* ================= audio ================= */
 const level=v=>(v/100)**2; let actx,sounds,music;
@@ -216,7 +276,7 @@ function ensureAudio(){ if(!actx){ actx=new (window.AudioContext||window.webkitA
 addEventListener('pointerup',()=>{ ensureAudio(); musicFor(); },{once:true});
 
 /* ================= music: one looping track per chapter, cross-faded ================= */
-const MUSIC_SRC=ci=>{ const n=ci==='end'?'chapter-end':`chapter-${ci+1}`; return [`music/${n}.webm`]; };
+const MUSIC_SRC=ci=>{ const n=ci==='end'?'chapter-end':`chapter-${ci+1}`; return ci>=3?[`music/${n}.webm`,`music/chapter-${ci-2}.webm`]:[`music/${n}.webm`]; };
 const FADE=1.6, MT={}; let musWant=null, musCur=null;
 function track(ci){
   if(MT[ci]) return MT[ci];
@@ -229,7 +289,7 @@ function track(ci){
 }
 function playMusic(ci){
   musWant=ci; if(!actx||ci==null) return;
-  let use=ci; if(track(use).bad) use=[0,1,2].find(c=>!track(c).bad); if(use==null||use===musCur) return;
+  let use=ci; if(track(use).bad) use=CH.map((_,i)=>i).find(c=>!track(c).bad); if(use==null||use===musCur) return;
   const now=actx.currentTime;
   if(musCur!=null){ const o=MT[musCur]; o.g.gain.cancelScheduledValues(now); o.g.gain.setValueAtTime(o.g.gain.value,now); o.g.gain.linearRampToValueAtTime(0,now+FADE);
     const oc=musCur; setTimeout(()=>{ if(musCur!==oc) o.el.pause(); },FADE*1000+100); }
@@ -242,11 +302,13 @@ document.addEventListener('visibilitychange',()=>{ if(musCur==null) return; cons
 /* ================= screens ================= */
 let SCREEN='home';
 function show(id){ ['home','map','intro','game','finale'].forEach(s=>$(s).classList.toggle('hidden',s!==id)); SCREEN=id; if(actx) musicFor(); }
-function pips(pk,col){ return '<div style="display:flex;flex-direction:column;gap:3px">'+[0,1,2].map(ci=>'<div style="display:flex;gap:3px">'+CH[ci].levels.map((_,i)=>`<div style="width:8px;height:8px;background:${doneP(pk,ci,i)?col:'#cdbb98'}"></div>`).join('')+'</div>').join('')+'</div>'; }
+function pips(pk,col){ return '<div style="display:flex;flex-direction:column;gap:3px">'+CH.map((_,ci)=>'<div style="display:flex;gap:2px">'+CH[ci].levels.map((_,i)=>`<div style="width:7px;height:7px;background:${doneP(pk,ci,i)?col:'#cdbb98'}"></div>`).join('')+'</div>').join('')+'</div>'; }
 function renderHome(){
   const d0=CH[0].parts.map((_,i)=>doneP(DATA.player,0,i)); const idx=[0,4,1,3,2,6,8,5,7,9].filter(i=>i===0||d0[i]);
   $('homeRocket').innerHTML=ART.sceneLayers(0,idx,3.6,'left:250px;bottom:96px');
-  const nb=5+[1,2].filter(ci=>chDone(ci-1)).length; let hb=''; for(let k=0;k<nb;k++) hb+=`<div class="m">${k<5?botStatic({lv:k===0&&chDone(0)?3:1}):alienStatic({col:['pink','green'][k-5]})}</div>`; $('homeBots').innerHTML=hb;
+  $('homeFair').innerHTML=ART.sceneLayers(3,[7,0,6,2,4,3,1,8],2.2,'left:615px;bottom:118px');
+  $('homeRacer').innerHTML=ART.sceneLayers(4,[2,6,1,8,3,4,7,5],1.3,'left:78px;bottom:0');
+  const nb=5+[1,2,3,4].filter(ci=>chDone(ci-1)).length; let hb=''; for(let k=0;k<nb;k++) hb+=`<div class="m">${k<5?botStatic({lv:k===0&&chDone(0)?3:1}):alienStatic({col:['pink','green','blue','pink'][k-5]})}</div>`; $('homeBots').innerHTML=hb;
   const P=[['caleb','CALEB','#d9541e'],['ezra','EZRA','#1d8b7e']];
   $('profiles').innerHTML=P.map(([k,n,c])=>`<div data-act="player:${k}" style="width:220px;height:160px;background:#f1e7d0;border:5px solid #2b1d14;border-radius:14px;box-shadow:0 7px 0 #2b1d14${DATA.player===k?',0 0 0 6px #ffd23f,0 7px 0 6px #ffd23f':''};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;cursor:pointer">
    <div style="transform:scale(1.5);margin-bottom:8px">${botStatic({c})}</div><div class="pf" style="font-size:18px">${n}</div>${pips(k,c)}</div>`).join('')+
@@ -255,19 +317,21 @@ function renderHome(){
 }
 let MAPCH=0;
 const MAPPOS=[[150,560],[330,480],[220,330],[390,210],[590,300],[720,460],[900,540],[1030,390],[900,230],[1110,150]];
-const mapPos=(ci,i)=>{ const [x,y]=MAPPOS[i]; return ci===1?[1333-x,y]:ci===2?[x,730-y]:[x,y]; };
+const mapPos=(ci,i)=>{ const [x,y]=MAPPOS[i]; return ci===1?[1333-x,y]:ci===2?[x,730-y]:ci===3?[1333-x,730-y]:ci===4?[x,y+10]:[x,y]; };
 function renderMap(){
   const c=CH[MAPCH], m=$('map'); m.className='scr '+c.pattern; m.style.backgroundColor=c.mapBg;
   $('mapDeco').innerHTML=MAPCH===0?'<div class="moon" style="top:24px;right:36px;width:120px;height:120px"></div>'
     :MAPCH===1?'<div class="earthb" style="top:30px;left:200px"></div>'
-    :'<div class="earthb" style="top:40px;right:60px;width:60px;height:60px"></div><div class="ringpl" style="top:470px;left:40px"></div>';
+    :MAPCH===2?'<div class="earthb" style="top:40px;right:60px;width:60px;height:60px"></div><div class="ringpl" style="top:470px;left:40px"></div>'
+    :MAPCH===3?'<i class="lay fl-bunting" style="top:66px;left:-2px;width:1336px;height:64px"></i>'
+    :'<i class="lay fl-stars" style="left:0;top:0;width:1336px;height:692px"></i><div class="ringpl" style="top:70px;right:110px"></div>';
   const pts=CH[MAPCH].levels.map((_,i)=>mapPos(MAPCH,i).join(',')).join(' ');
   $('mapPath').innerHTML=`<polyline points="${pts}" fill="none" stroke="#2b1d14" stroke-width="10" stroke-dasharray="4 14" stroke-linecap="round" opacity=".55"/>`;
   const next=c.levels.findIndex((_,i)=>!isDone(MAPCH,i));
-  $('nodes').innerHTML=c.levels.map((L,i)=>{const [x,y]=mapPos(MAPCH,i); const d=isDone(MAPCH,i); const open=chOpen(MAPCH)&&(i===0||isDone(MAPCH,i-1)); const cls=d?'done':(i===next&&open?'next':(open?'':'lock'));
-    return `<div class="node ${cls}" style="left:${x}px;top:${y}px" ${open?`data-act="lvl:${i}"`:''}>${d?'✓':i+1}</div>
+  $('nodes').innerHTML=c.levels.map((L,i)=>{const [x,y]=mapPos(MAPCH,i); const d=isDone(MAPCH,i); const open=UNLOCK_ALL||(chOpen(MAPCH)&&(i===0||isDone(MAPCH,i-1))); const cls=d?'done':(i===next&&open?'next':(open?'':'lock'));
+    return `<div class="node ${cls}" style="left:${x}px;top:${y}px" ${open?`data-act="lvl:${i}"`:''}>${d?(prof().stars&&prof().stars[dk(MAPCH,i)]?'★':'✓'):i+1}</div>
     <div class="nl" style="left:${x}px;top:${y}px">${L.name}<small>${c.parts[i].n}</small></div>`;}).join('');
-  $('chTabs').innerHTML=CH.map((ch,ci)=>`<div class="tab${ci===MAPCH?' on':''}${chOpen(ci)?'':' lock'}" ${chOpen(ci)?`data-act="ch:${ci}"`:''}><span class="n">${ci+1}</span>${ch.title.toUpperCase()}${chDone(ci)?' ✓':''}</div>`).join('');
+  $('chTabs').innerHTML=CH.map((ch,ci)=>`<div class="tab${ci===MAPCH?' on':''}${chOpen(ci)?'':' lock'}" ${chOpen(ci)?`data-act="ch:${ci}"`:''}><span class="n">${ci+1}</span>${chOpen(ci)?ch.title.toUpperCase():'? ? ?'}${chDone(ci)?' ✓':''}</div>`).join('');
   $('who').innerHTML=`${botStatic({c:DATA.player==='caleb'?'#d9541e':'#1d8b7e'})}<span class="pf" style="font-size:14px">${DATA.player.toUpperCase()}</span>`;
 }
 let pending={ci:0,i:0};
@@ -289,13 +353,14 @@ function take(h,r,n){ n=Math.min(n,h.amt[r]||0); h.amt[r]=(h.amt[r]||0)-n; let h
 const BOT=id=>S.bots.find(b=>b.id===id);
 const isAlien=w=>w&&w.kind==='alien';
 function addWorker(o={}){ const w={id:S.nextBot++,kind:o.alien?'alien':'bot',col:o.alien||null,lv:o.lv||1,up:o.up||null,prog:0,cap:60,charge:60,big:false,food:40,loc:{t:'pad'},upT:null,tour:!!o.tour,temp:o.temp||0}; S.bots.push(w); return w; }
-const NOSLOT=['shed','shield','silo','power','orders','park','signal','nest','trade','charge'];
-const FAC=['shed','upgrade','factory','charger','super','shield','merger','silo','power','orders','park','signal','nest','copier','trade','mixer','charge'];
+const NEWK=['queue','wheel','stage','shelter','crowd','rack','boost','cargo','sling','turbo','gate'];
+const NOSLOT=['shed','shield','silo','power','orders','park','signal','nest','trade','charge',...NEWK];
+const FAC=['shed','upgrade','factory','charger','super','shield','merger','silo','power','orders','park','signal','nest','copier','trade','mixer','charge',...NEWK];
 function famOf(d){ return FAC.includes(d.kind)?'fac':(d.in||d.kind==='planter'?'conv':'ext'); }
 function doorsOf(b){ const d=b.d; if(!d.doors) return null; return b.lv===2?d.doors.concat(d.doors):d.doors; }
-function slotCount(b){ const k=b.d.kind; if(NOSLOT.includes(k)) return 0; const ds=doorsOf(b); if(ds) return ds.length; if(k==='super') return 4; if(k==='charger') return 2; return b.lv===2?4:2; }
+function slotCount(b){ const k=b.d.kind; if(NOSLOT.includes(k)) return 0; const ds=doorsOf(b); if(ds) return ds.length; if(b.d.seats) return b.d.seats; if(k==='super') return 4; if(k==='charger') return 2; return b.lv===2?4:2; }
 function doorAt(b,i){ const ds=doorsOf(b); let x=ds?(ds[i]||'a'):'a'; if(b.d.wobble&&b.wob) x=x[0]==='a'?'r':'a'; return x; }
-function fits(w,door){ if(door==='s') return true; if(door[0]==='a') return w.kind==='bot'; return w.kind==='alien'&&(door.length<3||w.col===door.slice(2)); }
+function fits(w,door){ if(door==='s') return true; if(door==='t') return w.kind==='bot'&&w.lv>=2; if(door[0]==='a') return w.kind==='bot'; return w.kind==='alien'&&(door.length<3||w.col===door.slice(2)); }
 function teamOk(b){ let hb=false,ha=false; b.slots.forEach((id,i)=>{ const w=id!=null&&BOT(id); if(!w||!fits(w,doorAt(b,i))||(isAlien(w)&&S.L.hunger&&w.food<=0)) return; if(isAlien(w)) ha=true; else hb=true; }); return hb&&ha; }
 const BELT_MAX=3;
 const beltsTotal=()=>S.tray+S.belts.length;
@@ -311,6 +376,7 @@ function startLevel(ci,i){
   const L=Object.assign({},CH[ci].levels[i],LV[ci][i]);
   S={ci,i,L,t:0,bots:[],nextBot:1,b:[],pile:holder(),goalStage:0,goalPaid:{},belts:[],tray:L.belts||0,phase:'day',phaseT:40,metT:20,hf:0,lastBeltT:-99,
      drag:null,paused:false,done:false,cache:{},crates:[],crateT:6,spills:[],quakeT:25,busT:12,signals:0,chargeT:0,wobT:20,nextObj:1,toldWob:false};
+  Object.assign(S,{rainT:10,grem:null,gremT:14,comets:[],cometT:3,wind:'L',windT:20,mood:0.6,rival:0,boostUntil:0,shows:0,gates:0,hold:null});
   const bl=typeof L.bots==='number'?Array.from({length:L.bots},()=>({})):L.bots;
   bl.forEach(o=>addWorker(o));
   L.b.forEach((d,k)=>{ if(d.kind==='mixer'&&!d.outs) d.outs=d.recipes.map(x=>x.out);
@@ -339,6 +405,14 @@ function onBuilt(b,live){
   if(d.kind==='trade') newOffer(b);
   if(d.kind==='nest'){ b.temp=0.6; b.egg=0; }
   if(d.kind==='charge') b.ch=0.4;
+  if(d.kind==='queue'){ b.q=2; b.qT=5; }
+  if(d.kind==='wheel'){ b.spin=0.6; b.a1=0; b.spinRes=null; }
+  if(d.kind==='stage') b.combo=0;
+  if(d.kind==='rack') b.load=0;
+  if(d.kind==='cargo'){ b.L=0; b.R=0; }
+  if(d.kind==='sling') b.ammo=0;
+  if(d.kind==='turbo'){ b.cells=0; b.tc=0; }
+  if(d.kind==='gate') newGate(b);
   if(d.kind==='power'&&live) S.b.forEach(x=>{ if(x.built&&x.d.pw&&!x.on&&powerUsed()<powerCap()) x.on=true; });
 }
 function newOrder(b){ const can=canMakeSet(); const pool=b.d.pool.filter(r=>can.has(r)); const r=pick(pool.length?pool:b.d.pool); const n=4+rnd(5); return {r,n,p:0,coins:Math.ceil(n/3)+1}; }
@@ -349,7 +423,7 @@ function newOffer(b){ const can=canMakeSet(); const g=b.d.gives.filter(r=>can.ha
 /* reveal: a blueprint only shows once you can make everything it costs and uses */
 function canMakeSet(){
   const s=new Set();
-  for(const b of S.b){ if(!b.built) continue; const d=b.d; if(d.out&&d.out!=='belt') s.add(d.out); (d.outs||[]).forEach(r=>s.add(r)); if(d.id==='furnace') s.add('slag'); }
+  for(const b of S.b){ if(!b.built) continue; const d=b.d; if(d.out&&d.out!=='belt') s.add(d.out); (d.outs||[]).forEach(r=>s.add(r)); (d.rand||[]).forEach(r=>s.add(r)); if(d.id==='furnace') s.add('slag'); }
   for(const r in S.pile.amt) if(S.pile.amt[r]>0) s.add(r);
   return s;
 }
@@ -365,13 +439,36 @@ function updateReveal(anim){
 
 /* ================= simulation ================= */
 const stageMult=()=>1+0.1*S.goalStage;
-function active(b){ const d=b.d; if(d.pw&&!b.on) return false; if(b.over) return false; const t=d.time; if(!t||!S.L.day) return true; return t===S.phase||(t==='day'&&b.lampUntil>S.t); }
-function speed(w,b){ const base=isAlien(w)?1:[1,2.5,6][w.lv-1]*(w.up&&w.up===b.d.tag?2:1); return base*parkBoost(b); }
+function active(b){ const d=b.d; if(b.worn||b.rainUntil>S.t) return false; if(d.pw&&!b.on) return false; if(b.over) return false; const t=d.time; if(!t||!S.L.day) return true; return t===S.phase||(t==='day'&&b.lampUntil>S.t); }
+function speed(w,b){ const base=isAlien(w)?1:[1,2.5,6][w.lv-1]*(w.up&&w.up===b.d.tag?2:1); return base*parkBoost(b)*gMul(b); }
+const windOn=b=>S.L.wind&&((S.wind==='L'&&b.cell[1]===1)||(S.wind==='R'&&b.cell[1]===4));
+function gMul(b){ let m=1; if(S.boostUntil>S.t) m*=2; if(S.L.mood) m*=S.mood>0.66?1.5:S.mood<0.25?0.5:1; if(windOn(b)) m*=2; return m; }
+const sheltered=b=>S.b.some(t=>t.d.kind==='shelter'&&t.built&&adj(t,b));
+function newGate(b){ const can=canMakeSet(), pool=['scrap','bolt','fuel','alloy','rubber','titanium'].filter(r=>can.has(r)); b.gt={r:pick(pool.length?pool:['scrap']),n:5+rnd(4),p:0,t:40}; }
+function spinWheel(b){ if(b.spin<1||b.spinRes!=null) return; b.spin=0; const k=rnd(3), seg=k+3*rnd(2), th=seg*60+30, a0=b.a1||0;
+  b.a0=a0; b.a1=a0+1440+((((360-th)-(a0%360))%360)+360)%360; b.spinRes=k; b.spinStart=S.t; b.spinEnd=S.t+1.6; sfx('wobble'); render(); }
+function wheelWin(b){ const k=b.spinRes; b.spinRes=null; sfx('stage',0,true);
+  if(k===0){ S.boostUntil=Math.max(S.boostUntil,S.t)+15; fx(S.cellEls[b.id],'ALL ×2!'); }
+  else if(k===1){ const can=[...canMakeSet()].filter(r=>r!=='coin'); const r=pick(can.length?can:['scrap']); put(S.pile,r,8); fx(S.cellEls[b.id],'+8 '+nm(r).toUpperCase(),'g'); updateReveal(true); }
+  else { addWorker(); fx(S.cellEls[b.id],'NEW BOT!','b'); } }
+function drumHit(b){ if(S.t-(b.lastTap||-9)<0.25) return; b.lastTap=S.t;
+  if(S.t%1.2<0.55){ b.combo=(b.combo||0)+1; let n=1; if(b.combo>=4){ n=4; b.combo=0; fx(S.cellEls[b.id],'COMBO +4!'); sfx('coin'); } else { fx(S.cellEls[b.id],'+1','g'); sfx('beep',b.combo); } put(b.out,'coin',n); updateReveal(true); }
+  else { b.combo=0; sfx('snap'); fx(S.cellEls[b.id],'WAIT FOR THE FLASH!','b'); } render(); }
+function slingFire(b){ if(!b.ammo||S.t-(b.lastShot||-9)<0.6) return; b.lastShot=S.t; b.ammo--; const p=(1-Math.cos(Math.PI*(S.t%2)))/2;
+  if(p>=0.68&&p<=0.96){ put(S.pile,'stardust',6); S.boostUntil=Math.max(S.boostUntil,S.t)+5; sfx('upgrade'); fx(S.cellEls[b.id],'BULLSEYE! +6'); }
+  else { put(S.pile,'stardust',1); sfx('snap'); fx(S.cellEls[b.id],'+1 · AIM FOR GREEN','b'); } updateReveal(true); render(); }
+function burstFX(){ if(!S.plotEl) return; const r=sRect(S.plotEl), cc=['#e85a9a','#3a8fd8','#ffd23f','#5cc04a','#ff7a1a'];
+  [[.3,.3,0],[.7,.25,250],[.5,.15,500]].forEach(([px,py,dl],k)=>setTimeout(()=>{ const d=document.createElement('div'); d.className='fwb'; d.style.left=(r.x+r.w*px)+'px'; d.style.top=(r.y+r.h*py)+'px';
+    const sh=[]; for(let j=0;j<14;j++){ const an=j/14*Math.PI*2; sh.push(((Math.cos(an)*70)|0)+'px '+((Math.sin(an)*70)|0)+'px 0 3px '+cc[(j+k)%5]); } d.style.boxShadow=sh.join(','); $('game').appendChild(d); setTimeout(()=>d.remove(),1500); },dl)); }
+function stageProg(){ const G=S.L.goal, st=G[S.goalStage]; if(!st) return 1; let f=0,n=0;
+  for(const [k,v] of Object.entries(st)){ n++; if(k[0]!=='_') f+=Math.min(1,(S.goalPaid[k]||0)/v); else if(k==='_gates') f+=Math.min(1,S.gates/v); else if(k==='_shows') f+=Math.min(1,S.shows/v);
+    else if(k==='_cargo'){ const cb=S.b.find(b=>b.d.kind==='cargo'&&b.built); f+=cb?Math.min(1,(cb.L+cb.R)/v):0; } }
+  return Math.min(1,(S.goalStage+(n?f/n:0))/G.length); }
 const hasIn=(b,inp)=>Object.entries(inp).every(([r,n])=>(b.inb.amt[r]||0)>=n);
 function useIn(b,inp){ for(const r in inp) take(b.inb,r,inp[r]); }
 function toPad(w){ removeLoc(w); w.loc={t:'pad'}; w.prog=0; w.spaid=0; }
 function removeLoc(w){ if(w.loc.t==='slot'){ const b=S.b[w.loc.bid]; if(b.slots[w.loc.i]===w.id) b.slots[w.loc.i]=null; } }
-function produce(b){ const d=b.d; if(d.kind==='factory') addWorker(); else if(d.out==='belt'){ if(beltsTotal()<BELT_MAX) S.tray++; } else put(b.out,d.out,1); }
+function produce(b){ const d=b.d; if(d.kind==='factory') addWorker(); else if(d.out==='belt'){ if(beltsTotal()<BELT_MAX) S.tray++; } else if(d.rand) put(b.out,pick(d.rand),1); else put(b.out,d.out,1); }
 function heatUp(b){ b.heat=Math.min(1,b.heat+0.06); if(b.heat>=1&&!b.over){ b.over=true; sfx('hot'); } }
 const CRATE_SPOTS=[[-250,-50],[250,-50],[-200,55],[200,55],[0,72]];
 function spawnCrate(){ const free=CRATE_SPOTS.filter(p=>!S.crates.some(c=>c.x===p[0]&&c.y===p[1])); if(!free.length) return;
@@ -402,6 +499,14 @@ function tick(dt){
     S.bots.filter(w=>w.tour&&S.t>=w.temp&&!(S.drag&&S.drag.kind==='bot'&&S.drag.id===w.id)).forEach(w=>{ removeLoc(w); S.bots.splice(S.bots.indexOf(w),1); }); }
   if(S.b.some(b=>b.d.wobble&&b.built)){ S.wobT-=dt; if(S.wobT<=0){ S.wobT=20; S.b.forEach(b=>{ if(b.d.wobble) b.wob=!b.wob; }); sfx('wobble');
     if(!S.toldWob){ S.toldWob=true; toast('The wobbly doors swapped! Move workers to matching doors.'); } } }
+  if(L.rain){ S.rainT-=dt; if(S.rainT<=0){ S.rainT=12+rnd(6); const c=S.b.filter(b=>b.built&&!(b.rainUntil>S.t)&&slotCount(b)>0&&!sheltered(b)); if(c.length){ pick(c).rainUntil=S.t+20; sfx('cool'); } } }
+  if(L.grem){ if(!S.grem){ S.gremT-=dt; if(S.gremT<=0){ const c=[]; S.b.forEach(b=>{ if(!b.built) return; for(const r in b.out.amt) if(b.out.amt[r]>=3) c.push([b,r]); });
+      if(c.length){ const [b,r]=pick(c); S.grem={bid:b.id,res:r,acc:0,stolen:0}; sfx('chirp'); } else S.gremT=4; } }
+    else { const gr=S.grem, b=S.b[gr.bid]; gr.acc+=dt; while(gr.acc>=1){ gr.acc-=1; if((b.out.amt[gr.res]||0)>0){ take(b.out,gr.res,1); gr.stolen++; } } } }
+  if(L.comets){ S.cometT-=dt; if(S.cometT<=0){ S.cometT=5+Math.random()*4; S.comets.push({id:S.nextObj++,t0:S.t,y:-80+rnd(150)}); } S.comets=S.comets.filter(c=>S.t-c.t0<5); }
+  if(L.wind){ S.windT-=dt; if(S.windT<=0){ S.windT=20; S.wind=S.wind==='L'?'R':'L'; sfx('wobble'); toast(S.wind==='L'?'The solar wind blows LEFT now!':'The solar wind blows RIGHT now!'); } }
+  if(L.mood) S.mood=Math.max(0,S.mood-dt/70);
+  if(L.race) S.rival=Math.min(1,S.rival+dt*DEBUG/(L.raceT||480));
   const sm=stageMult();
   for(const b of S.b){
     if(!b.built) continue;
@@ -411,6 +516,11 @@ function tick(dt){
     if(k==='nest'){ nestTick(b,dt); continue; }
     if(k==='charge'){ chargeTick(b,dt); continue; }
     if(k==='trade'){ if(b.offer.paid===0){ b.offer.t-=dt; if(b.offer.t<=0) newOffer(b); } continue; }
+    if(k==='queue'){ b.qT-=dt; if(b.qT<=0){ b.qT=5; if(b.q<6) b.q++; } continue; }
+    if(k==='wheel'){ if(b.spinRes!=null){ if(S.t>=b.spinEnd) wheelWin(b); } else b.spin=Math.min(1,b.spin+dt*DEBUG/30); continue; }
+    if(k==='gate'){ b.gt.t-=dt; if(b.gt.t<=0){ newGate(b); toast('Too slow! Here is a new checkpoint.'); } continue; }
+    if(k==='turbo'){ if(S.hold===b.id&&b.cells>0) b.tc=Math.min(1,b.tc+dt/1.8); else if(b.tc<1) b.tc=Math.max(0,b.tc-dt); continue; }
+    if(NEWK.includes(k)) continue;
     if(b.repair){ b.repair.t-=dt*DEBUG; if(b.repair.t<=0){ const w=BOT(b.repair.bot); if(w) w.loc={t:'pad'}; b.repair=null; b.cracked=false; sfx('fix'); fx(S.cellEls[b.id],'FIXED!','g'); } continue; }
     if(b.cracked||!active(b)) continue;
     if(k==='merger'){
@@ -422,6 +532,9 @@ function tick(dt){
       continue;
     }
     if(d.team&&!teamOk(b)) continue;
+    if(d.full&&b.slots.some(id=>id==null||(S.drag&&S.drag.kind==='bot'&&S.drag.id===id))) continue;
+    if(d.bump){ b.bumpT=(b.bumpT==null?6:b.bumpT)-dt; if(b.bumpT<=0){ b.bumpT=5+Math.random()*4; const ids=b.slots.filter(x=>x!=null&&!(S.drag&&S.drag.kind==='bot'&&S.drag.id===x));
+      if(ids.length){ toPad(BOT(pick(ids))); sfx('wobble'); fx(S.cellEls[b.id],'BUMP!'); } } }
     b.slots.forEach((id,i)=>{
       if(id==null) return; const w=BOT(id); if(!w||(S.drag&&S.drag.kind==='bot'&&S.drag.id===id)) return;
       if(!fits(w,doorAt(b,i))) return;
@@ -449,7 +562,9 @@ function tick(dt){
         if(inp) useIn(b,inp);
         if(k==='mixer'||k==='copier') put(b.out,out,n); else produce(b);
         if(d.hot) heatUp(b);
+        if(S.L.wear&&!d.kind){ b.wear=(b.wear||0)+0.04; if(b.wear>=1&&!b.worn){ b.worn=true; b.fixN=0; sfx('crack'); } }
         w.prog-=cyc;
+        if(b.worn) break;
       }
       if(L.battery&&!isAlien(w)) w.charge=Math.max(0,w.charge-dt);
       if(isAlien(w)&&L.hunger){ const was=w.food>0; w.food=Math.max(0,w.food-dt); if(was&&w.food<=0) sfx('hungry'); }
@@ -495,6 +610,9 @@ function goalReady(){
     if(k==='_signals') return S.signals>=v;
     if(k==='_aliens') return crewN().filter(isAlien).length>=v;
     if(k==='_charge') return S.chargeT>=v;
+    if(k==='_shows') return S.shows>=v;
+    if(k==='_gates') return S.gates>=v;
+    if(k==='_cargo'){ const cb=S.b.find(b=>b.d.kind==='cargo'&&b.built); return !!cb&&cb.L+cb.R>=v&&Math.abs(cb.L-cb.R)<=3; }
     if(k==='_beltRes') return true;
     return (S.goalPaid[k]||0)>=v; });
 }
@@ -531,7 +649,7 @@ function botDrop(B,t,a,c,go){
   return false;
 }
 function srcH(dr){ return dr.src.t==='out'?S.b[dr.src.bid].out:S.pile; }
-let lastOrderJ=0;
+let lastOrderJ=0, lastSide='L';
 function needFor(k,b,r,j){
   switch(k){
    case 'cost': return (!b.built&&b.d.cost)?(b.d.cost[r]||0)-(b.paid[r]||0):0;
@@ -542,19 +660,30 @@ function needFor(k,b,r,j){
    case 'order': { if(!b.built||b.d.kind!=='orders') return 0; for(const q of (j!=null?[j]:[0,1])){ const o=b.orders[q]; if(o&&o.r===r&&o.p<o.n){ lastOrderJ=q; return o.n-o.p; } } return 0; }
    case 'sig': return (b.built&&b.d.kind==='signal'&&b.seq[b.pos]===r)?1:0;
    case 'trade': return (b.built&&b.d.kind==='trade'&&b.offer.give===r)?b.offer.gn-b.offer.paid:0;
+   case 'queue': return (b.built&&b.d.kind==='queue'&&r==='ticket')?b.q:0;
+   case 'rack': return (b.built&&b.d.kind==='rack'&&r==='firework')?5-b.load:0;
+   case 'boost': return (b.built&&b.d.kind==='boost'&&r==='fuel')?Math.max(0,Math.ceil((40-Math.max(0,S.boostUntil-S.t))/6)):0;
+   case 'sling': return (b.built&&b.d.kind==='sling'&&r==='fuel')?5-b.ammo:0;
+   case 'turbo': return (b.built&&b.d.kind==='turbo'&&r==='battery')?3-b.cells:0;
+   case 'gate': return (b.built&&b.d.kind==='gate'&&b.gt.r===r)?b.gt.n-b.gt.p:0;
+   case 'crowd': return (b.built&&b.d.kind==='crowd'&&b.d.treats.includes(r))?Math.max(0,Math.ceil((1-S.mood)/0.06)):0;
+   case 'cargo': { if(!(b.built&&b.d.kind==='cargo'&&r==='cargo')) return 0; const sd=j||(b.L<=b.R?'L':'R'); lastSide=sd; return Math.max(0,Math.min(6,b[sd==='L'?'R':'L']+6-b[sd])); }
    default: return goalNeed(r);
   }
 }
 function stackDrop(dr,t,a,c,go){
   const r=dr.res, h=dr.hand, avail=h.amt[r]||0; if(avail<1) return false;
   const opts=[];
-  const cardOpts=b=>opts.push(['cost',b],['in',b],['exp',b],['lamp',b],['ice',b],['order',b],['sig',b],['trade',b]);
+  const cardOpts=b=>opts.push(['cost',b],['in',b],['exp',b],['lamp',b],['ice',b],['order',b],['sig',b],['trade',b],['queue',b],['rack',b],['boost',b],['sling',b],['turbo',b],['gate',b],['crowd',b],['cargo',b]);
   if(t==='cost'&&c===r) opts.push(['cost',S.b[+a]]);
   else if(t==='exp'&&c===r) opts.push(['exp',S.b[+a]]);
   else if(t==='in'&&(c===r||c==='*')) opts.push(['in',S.b[+a]]);
   else if(t==='order') opts.push(['order',S.b[+a],+c]);
   else if(t==='sig') opts.push(['sig',S.b[+a]]);
   else if(t==='trade') opts.push(['trade',S.b[+a]]);
+  else if(['queue','rack','boost','sling','turbo','gate'].includes(t)) opts.push([t,S.b[+a]]);
+  else if(t==='crowd'&&c===r) opts.push(['crowd',S.b[+a]]);
+  else if(t==='cargo') opts.push(['cargo',S.b[+a],c]);
   else if(t==='card'||t==='slot') cardOpts(S.b[+a]);
   else if((t==='gcost'&&a===r)||t==='goal') opts.push(['goal']);
   else if(t==='bot'){ const O=BOT(+a);
@@ -574,6 +703,14 @@ function stackDrop(dr,t,a,c,go){
       else if(k==='order'){ const o=b.orders[J]; o.p+=m.n; if(o.p>=o.n){ put(b.out,'coin',o.coins); b.orders[J]=newOrder(b); sfx('order'); setTimeout(()=>fx(S.cellEls[b.id],'+'+o.coins+' COINS'),30); } }
       else if(k==='sig'){ b.pos++; sfx('beep',b.pos); if(b.pos>=3){ S.signals++; sfx('signal'); newSeq(b); setTimeout(()=>fx(S.cellEls[b.id],'SIGNAL SENT!','b'),30); } }
       else if(k==='trade'){ b.offer.paid+=m.n; if(b.offer.paid>=b.offer.gn){ put(b.out,b.offer.get,b.offer.qn); sfx('trade'); newOffer(b); } }
+      else if(k==='queue'){ b.q-=m.n; put(b.out,'coin',m.n); sfx('coin'); setTimeout(()=>fx(S.cellEls[b.id],'+'+m.n+' COINS'),30); }
+      else if(k==='rack') b.load+=m.n;
+      else if(k==='boost'){ S.boostUntil=Math.max(S.boostUntil,S.t)+6*m.n; sfx('powerOn'); setTimeout(()=>fx(S.cellEls[b.id],'BOOST ×2!','b'),30); }
+      else if(k==='sling') b.ammo+=m.n;
+      else if(k==='turbo') b.cells+=m.n;
+      else if(k==='gate'){ b.gt.p+=m.n; if(b.gt.p>=b.gt.n){ S.gates++; S.rival=Math.max(0,S.rival-0.04); sfx('stage',0,true); newGate(b); setTimeout(()=>fx(S.cellEls[b.id],'CHECKPOINT!','g'),30); } }
+      else if(k==='crowd'){ S.mood=Math.min(1,S.mood+0.06*m.n); sfx('munch'); setTimeout(()=>fx(S.cellEls[b.id],'YUM!','g'),30); }
+      else if(k==='cargo') b[lastSide]+=m.n;
       else S.goalPaid[r]=(S.goalPaid[r]||0)+m.n;
     }
     return true;
@@ -637,7 +774,7 @@ function slotHTML(b,i){
     else { nap=!fits(w,door); const k=b.d.kind, ch=k==='charger'||k==='super';
       const working=!nap&&b.built&&active(b)&&!b.cracked&&(!b.d.team||teamOk(b))&&!(isAlien(w)&&S.L.hunger&&w.food<=0)&&!(S.L.battery&&!isAlien(w)&&w.charge<=0&&!ch)&&(ch||k==='merger'||w.prog<(b.d.cycle||3));
       inner=workerHTML(w,working?'wk':''); } }
-  const shape=door[0]==='r'?' rd'+(door.length>2?' cl':''):door==='s'?' sq':'';
+  const shape=door==='t'?' tall':door[0]==='r'?' rd'+(door.length>2?' cl':''):door==='s'?' sq':'';
   const st=door.length>2?` style="--dc:${ACOL[door.slice(2)]}"`:'';
   const chg=b.d.kind==='charger'||b.d.kind==='super';
   return `<div class="slot${shape}${nap?' nap':''}${chg?' chg':''}"${st} data-drop="slot:${b.id}:${i}" data-pg="${b.id}:${i}">${inner}</div>`;
@@ -683,7 +820,17 @@ function recipe(d){
   if(k==='mixer') return d.recipes.map(x=>ic(x.out,16)).join('');
   if(k==='charge') return ic('spark',16)+'<span class="arr sm"></span><span class="lbl" style="color:#2b1d14">CHARGE UP</span>';
   if(k==='planter') return ins+ic(d.out,18);
-  return ins+ic(d.out,18);
+  if(k==='queue') return ic('ticket',16)+'<span class="arr sm"></span>'+ic('coin',16);
+  if(k==='wheel') return '<span class="lbl" style="color:#2b1d14">SPIN FOR PRIZES</span>';
+  if(k==='stage') return '<span class="lbl" style="color:#2b1d14">TAP THE DRUM</span>';
+  if(k==='shelter') return '<span class="lbl" style="color:#2b1d14">NO RAIN NEXT DOOR</span>';
+  if(k==='rack') return ic('firework',16)+'<span class="lbl" style="color:#2b1d14">×5 = SHOW</span>';
+  if(k==='boost') return ic('fuel',16)+'<span class="arr sm"></span><span class="lbl" style="color:#2b1d14">ALL ×2</span>';
+  if(k==='cargo') return ic('cargo',16)+'<span class="lbl" style="color:#2b1d14">KEEP IT LEVEL</span>';
+  if(k==='sling') return ic('fuel',16)+'<span class="arr sm"></span>'+ic('stardust',16);
+  if(k==='turbo') return ic('battery',16)+'<span class="arr sm"></span><span class="lbl" style="color:#2b1d14">TURBO ×2</span>';
+  if(k==='gate') return '<span class="lbl" style="color:#2b1d14">BEAT THE CLOCK</span>';
+  return ins+(d.rand?d.rand.map(r=>ic(r,16)).join(''):ic(d.out,18));
 }
 function titleHTML(b){
   const d=b.d; let x='';
@@ -691,10 +838,14 @@ function titleHTML(b){
   else if(d.pw&&b.built) x+=`<span class="tpill pw${b.on?' on':''}" data-act="power:${b.id}"><span class="pdot"></span>${b.on?'ON':'OFF'}</span>`;
   else if(d.wobble&&b.built) x+=`<span class="tpill wob">SWAP ${Math.ceil(S.wobT)}</span>`;
   else if(d.team) x+=`<span class="tpill team">TEAM</span>`;
+  else if(d.full) x+='<span class="tpill team">ALL SEATS</span>';
+  else if(d.bump) x+='<span class="tpill wob">BUMPY!</span>';
+  else if(d.doors&&d.doors.includes('t')) x+='<span class="tpill tall">SILVER+</span>';
+  else if(b.built&&windOn(b)) x+='<span class="tpill park">WIND ×2</span>';
   else if(b.built&&parkBoost(b)>1) x+=`<span class="tpill park">PARK ×2</span>`;
   if(b.lampUntil>S.t) x+=`<span class="lampb">${ic('lamp',12)}${Math.ceil(b.lampUntil-S.t)}</span>`;
   const lv=b.built&&slotCount(b)>0?`<span class="lv">LV${b.lv}</span>`:(!b.built?'<span class="lv">PLAN</span>':'');
-  const hb=d.hot&&b.built?`<span class="hbar"><i style="width:${(b.heat*100)|0}%"></i></span>`:'';
+  const hb=(d.hot||(S.L.wear&&!d.kind&&slotCount(b)>0))&&b.built?`<span class="hbar${d.hot?'':' wear'}"><i style="width:${((d.hot?b.heat:(b.wear||0))*100)|0}%"></i></span>`:'';
   return `<div class="tb">${d.name.toUpperCase()}${x}${lv}${hb}</div>`;
 }
 function costBox(key,r,p,n){ return `<div class="cw"><div class="cs${gS(key)}" data-drop="${key}" data-anchor="${key.startsWith('gcost')?'goal:'+r:key}">${ic(r,22,!p)}${p?`<b class="cn">${p}</b>`:''}</div><div class="lab"><b>${p}/${n}</b>${nm(r)}</div></div>`; }
@@ -716,7 +867,7 @@ function sideHTML(b){
       <div class="row" style="gap:4px">${d.recipes.map((x,j)=>`<div class="chip${j===b.recipe?' on':''}" data-act="recipe:${b.id}:${j}" style="width:34px;height:34px">${ic(x.out,18)}</div>`).join('')}</div>
       <div class="row" style="gap:2px">${d.recipes.map(x=>stackHTML(b,x.out,true)).join('')}</div>`; }
   const ins=d.in?Object.entries(d.in):[];
-  let outs=[]; if(k==='factory') outs=['_bot']; else if(d.out==='belt') outs=['_belt']; else { outs=[d.out]; if(d.id==='furnace') outs.push('slag'); }
+  let outs=[]; if(k==='factory') outs=['_bot']; else if(d.rand) outs=d.rand.slice(); else if(d.out==='belt') outs=['_belt']; else { outs=[d.out]; if(d.id==='furnace') outs.push('slag'); }
   const one=ins.length+outs.length<=3;
   const L=(x,l)=>one?`<div class="cw">${x}<div class="lab">${l}</div></div>`:x;
   const inH=ins.map(([r,n])=>L(inHTML(b,r,n),nm(r))).join('');
@@ -750,6 +901,42 @@ function chargeBody(b){
   return `<div class="bd cen" style="flex-direction:column;gap:8px"><div class="row" style="gap:12px"><div class="cw">${inHTML(b,'spark',1)}<div class="lab">sparks</div></div>
    <div class="cw"><div class="hmeter"><i style="width:${(b.ch*100)|0}%"></i><span class="line"></span></div><div class="lab">${b.ch>=0.7?'CHARGED!':'keep it past the line'}</div></div></div><div class="lab"><b>${S.chargeT|0}s</b>charged</div></div>`;
 }
+const QC=['#d9541e','#1d8b7e','#3a8fd8','#c42f4a'];
+function queueBody(b){ let v=''; for(let k=0;k<b.q;k++) v+=`<span class="qv">${k%2?alienStatic({col:RGB[k%3]}):botStatic({c:QC[k%4]})}</span>`;
+  return `<div class="bd cen" style="gap:9px"><div class="cw"><div class="qline">${v}</div><div class="lab"><b>${b.q}/6</b>waiting</div></div>
+   <div class="cw"><div class="cs${gS(`queue:${b.id}`)}" data-drop="queue:${b.id}">${ic('ticket',22)}</div><div class="lab">tickets</div></div><span class="arr"></span><div class="cw">${stackHTML(b,'coin')}<div class="lab">coins</div></div></div>`; }
+function wheelBody(b){ const sp=b.spinRes!=null, ready=b.spin>=1&&!sp;
+  const st=sp?`--a0:${b.a0}deg;--a1:${b.a1}deg;animation:wspin 1.6s cubic-bezier(.2,.7,.2,1) forwards;animation-delay:-${Math.min(1.6,S.t-b.spinStart).toFixed(2)}s`:`transform:rotate(${b.a1||0}deg)`;
+  return `<div class="bd cen" style="gap:14px"><div class="wheelw"><div class="wheel" style="${st}"></div><span class="wpin"></span></div>
+   <div class="cw" style="gap:6px"><div class="bbtn sm${ready?' lit':''}" ${ready?`data-act="spin:${b.id}"`:''}>SPIN</div><div class="dnbar" style="width:80px"><i style="width:${(b.spin*100)|0}%"></i></div>
+   <div class="wleg"><span style="background:#ffd23f">×2</span><span style="background:#4cb050">+8</span><span style="background:#3a8fd8">BOT</span></div></div></div>`; }
+function stageBody(b){ const lit=S.t%1.2<0.42; let c=''; for(let k=0;k<4;k++) c+=`<i style="${k<(b.combo||0)?'':'background:#cdbb98'}"></i>`;
+  return `<div class="bd cen" style="gap:12px"><div class="drum${lit?' lit':''}" data-act="drum:${b.id}"></div><div class="cw"><div class="lab">tap on the flash!</div><div class="combo">${c}</div></div><span class="arr"></span><div class="cw">${stackHTML(b,'coin')}<div class="lab">coins</div></div></div>`; }
+function crowdBody(b){ const m=S.mood, col=m>0.66?'#4cd964':m<0.25?'#ff5a4a':'#ffd23f', t=m>0.66?'HAPPY ×1.5':m<0.25?'GRUMPY ×0.5':'OK ×1';
+  return `<div class="bd cen" style="gap:12px"><div class="cw"><div class="mood"><i style="width:${(m*100)|0}%;background:${col}"></i></div><div class="lab"><b>${t}</b>crowd</div></div>
+   ${b.d.treats.map(r=>`<div class="cw"><div class="cs${gS(`crowd:${b.id}:${r}`)}" data-drop="crowd:${b.id}:${r}">${ic(r,22)}</div><div class="lab">${nm(r)}</div></div>`).join('')}</div>`; }
+function rackBody(b){ const full=b.load>=5;
+  return `<div class="bd cen" style="gap:12px"><div class="cw"><div class="cs${gS(`rack:${b.id}`)}" data-drop="rack:${b.id}">${ic('firework',22,!b.load)}${b.load?`<b class="cn">${b.load}</b>`:''}</div><div class="lab"><b>${b.load}/5</b>fireworks</div></div>
+   <div class="bbtn sm${full?' lit':''}" ${full?`data-act="launch:${b.id}"`:''}>LAUNCH</div><div class="cw"><div class="num">${S.shows}</div><div class="lab">shows</div></div></div>`; }
+function boostBody(b){ const left=Math.max(0,S.boostUntil-S.t);
+  return `<div class="bd cen" style="gap:12px"><div class="cw"><div class="cs${gS(`boost:${b.id}`)}" data-drop="boost:${b.id}">${ic('fuel',22)}</div><div class="lab">drop fuel</div></div><span class="arr"></span>
+   <div class="cw"><div class="num" style="font-size:24px;${left>0?'color:#d9541e':''}">×2</div><div class="lab"><b>${Math.ceil(left)}s</b>${left>0?'BOOSTING!':'all buildings'}</div></div></div>`; }
+function cargoBody(b){ const tilt=Math.max(-16,Math.min(16,(b.R-b.L)*3)), ok=Math.abs(b.L-b.R)<=3;
+  const pod=s=>`<div class="cs${gS(`cargo:${b.id}:${s}`)}" data-drop="cargo:${b.id}:${s}">${ic('cargo',20,!b[s])}<b class="cn">${b[s]}</b></div>`;
+  return `<div class="bd cen" style="flex-direction:column;gap:4px"><div class="seesaw"><div class="beam2" style="transform:rotate(${tilt}deg)">${pod('L')}${pod('R')}</div><span class="fulc"></span></div>
+   <div class="lab"><b class="${ok?'':'bad'}">${ok?'LEVEL!':'TIPPING! fill the other side'}</b>${b.L+b.R} loaded</div></div>`; }
+function slingBody(b){
+  return `<div class="bd cen" style="gap:10px"><div class="cw"><div class="cs${gS(`sling:${b.id}`)}" data-drop="sling:${b.id}">${ic('fuel',22,!b.ammo)}${b.ammo?`<b class="cn">${b.ammo}</b>`:''}</div><div class="lab">fuel</div></div>
+   <div class="cw"><div class="pmeter"><span class="gz"></span><i class="ndl" style="animation-delay:-${(S.t%2).toFixed(2)}s"></i></div><div class="lab">tap in the green!</div></div>
+   <div class="bbtn sm${b.ammo?' lit':''}" ${b.ammo?`data-act="sling:${b.id}"`:''}>GO!</div></div>`; }
+function turboBody(b){
+  return `<div class="bd cen" style="gap:12px"><div class="cw"><div class="cs${gS(`turbo:${b.id}`)}" data-drop="turbo:${b.id}">${ic('battery',22,!b.cells)}${b.cells?`<b class="cn">${b.cells}</b>`:''}</div><div class="lab">batteries</div></div>
+   <div class="cw" style="gap:6px"><div class="tbtn${S.hold===b.id?' down':''}${b.cells?'':' off'}" data-hold="${b.id}">HOLD</div><div class="hmeter" style="width:110px;height:18px"><i style="width:${(b.tc*100)|0}%"></i></div><div class="lab">${b.tc>=1?'LET GO!':b.cells?'hold to charge':'add a battery'}</div></div></div>`; }
+function gateBody(b){ const gt=b.gt;
+  return `<div class="bd cen" style="gap:12px"><div class="cw"><div class="cs${gS(`gate:${b.id}`)}" data-drop="gate:${b.id}">${ic(gt.r,22,!gt.p)}${gt.p?`<b class="cn">${gt.p}</b>`:''}</div><div class="lab"><b>${gt.p}/${gt.n}</b>${nm(gt.r)}</div></div>
+   <div class="cw"><div class="num">${Math.ceil(gt.t)}s</div><div class="dnbar" style="width:60px"><i style="width:${(gt.t/40*100)|0}%"></i></div></div><div class="cw"><div class="num">${S.gates}</div><div class="lab">passed</div></div></div>`; }
+function raceHTML(){ const me=stageProg(), rv=S.rival, ahead=me>=rv;
+  return `<div class="race"><div class="rtrack"><span class="rfin"></span><div class="rrk riv" style="left:${(rv*96+2).toFixed(1)}%"></div><div class="rrk you" style="left:${(me*96+2).toFixed(1)}%"></div></div><div class="rlab ${ahead?'ok':'bad'}">${ahead?'AHEAD!':'BEHIND!'}</div></div>`; }
 function zz(cls,html){ return `<div class="ov zz ${cls}"><span class="zzp">${html}</span></div>`; }
 function cardHTML(b){
   const d=b.d, fam=famOf(d), k=d.kind||'prod';
@@ -772,6 +959,17 @@ function cardHTML(b){
   else if(k==='trade') body=tradeBody(b);
   else if(k==='nest') body=nestBody(b);
   else if(k==='charge') body=chargeBody(b);
+  else if(k==='queue') body=queueBody(b);
+  else if(k==='wheel') body=wheelBody(b);
+  else if(k==='stage') body=stageBody(b);
+  else if(k==='shelter') body='<div class="bd cen"><div class="cloudi" style="filter:grayscale(1) opacity(.5) drop-shadow(0 3px 0 #2b1d14);animation:none"></div><div class="cw"><div class="num" style="font-size:18px">NO RAIN</div><div class="lab">on cards next door</div></div></div>';
+  else if(k==='crowd') body=crowdBody(b);
+  else if(k==='rack') body=rackBody(b);
+  else if(k==='boost') body=boostBody(b);
+  else if(k==='cargo') body=cargoBody(b);
+  else if(k==='sling') body=slingBody(b);
+  else if(k==='turbo') body=turboBody(b);
+  else if(k==='gate') body=gateBody(b);
   else {
     const n=b.slots.length;
     body=`<div class="bd"><div class="slots${n>2?' g4':''}">${b.slots.map((_,i)=>slotHTML(b,i)).join('')}</div><div class="side">${sideHTML(b)}</div></div>`;
@@ -780,10 +978,14 @@ function cardHTML(b){
   }
   let ov='';
   if(sleep){
-    if(d.pw&&!b.on) ov+=zz('red','POWER OFF · TAP THE SWITCH');
+    if(b.rainUntil>S.t) ov+=`<div class="ov rain" data-act="cloud:${b.id}"><span class="cloudi"></span><span class="zzp">RAIN! TAP THE CLOUD</span></div>`;
+    else if(b.worn) ov+=`<div class="ov worn" data-act="wrench:${b.id}"><span class="wrench"></span><span class="zzp">WORN OUT! TAP ${5-b.fixN}×</span></div>`;
+    else if(d.pw&&!b.on) ov+=zz('red','POWER OFF · TAP THE SWITCH');
     else if(b.over) ov+=zz('red',`TOO HOT! <span class="zzl">drop ${ic('ice',12)} ice to cool</span>`);
     else if(d.time) ov+=zz('',`<span class="${d.time==='day'?'sunb':'moonb'}"></span>ASLEEP · WAKES AT ${d.time==='day'?'DAY':'NIGHT'}${d.time==='day'&&S.b.some(x=>x.d.id==='lamps'&&x.built)?` <span class="zzl">or drop a ${ic('lamp',12)}</span>`:''}`);
   } else if(b.built&&d.team&&b.slots.some(x=>x!=null)&&!teamOk(b)) ov+=zz('team','NEEDS A BOT + AN ALIEN');
+  if(!sleep&&b.built&&d.full&&b.slots.some(x=>x==null)) ov+=zz('team','FILL EVERY SEAT TO START!');
+  if(S.grem&&S.grem.bid===b.id) ov+=`<div class="grem" data-act="shoo">${ART.worker({kind:'alien',col:'#8a4ac0',cls:'st'})}<b>SHOO!</b></div>`;
   if(b.shadowUntil) ov+='<div class="ov shadow"></div>';
   if(b.cracked) ov+=`<div class="ov crack">${b.repair?`${botStatic({lv:(BOT(b.repair.bot)||{}).lv})}<span class="fix" style="animation:none">${Math.ceil(b.repair.t)}</span>`:'<span class="fix">FIX</span>'}</div>`;
   return `<div class="${cls}" data-drop="card:${b.id}">${titleHTML(b)}${body}${ov}</div>`;
@@ -798,6 +1000,9 @@ function goalHTML(){
     else if(k==='_allpad') items+=`<div class="cw"><div class="cond">${botStatic()}</div><div class="lab"><b>${crewN().filter(w=>w.loc.t==='pad').length}/${crewN().length}</b>on pad</div></div>`;
     else if(k==='_signals') items+=`<div class="cw"><div class="cond"><span class="dish"></span></div><div class="lab"><b>${S.signals}/${v}</b>signals</div></div>`;
     else if(k==='_aliens') items+=`<div class="cw"><div class="cond">${alienStatic({col:'green'})}</div><div class="lab"><b>${crewN().filter(isAlien).length}/${v}</b>aliens</div></div>`;
+    else if(k==='_shows') items+=`<div class="cw"><div class="cond">${ic('firework',26)}</div><div class="lab"><b>${S.shows}/${v}</b>shows</div></div>`;
+    else if(k==='_gates') items+=`<div class="cw"><div class="cond"><span class="rfin" style="position:static;display:block;width:22px;height:22px;border-radius:4px"></span></div><div class="lab"><b>${S.gates}/${v}</b>checkpoints</div></div>`;
+    else if(k==='_cargo'){ const cb=S.b.find(b=>b.d.kind==='cargo'&&b.built), t=cb?cb.L+cb.R:0, ok=cb&&Math.abs(cb.L-cb.R)<=3; items+=`<div class="cw"><div class="cond">${ic('cargo',26)}</div><div class="lab"><b>${t}/${v}</b>${ok?'level':'not level!'}</div></div>`; }
     else if(k==='_charge') items+=`<div class="cw"><div class="cond">${ic('spark',26)}</div><div class="lab"><b>${S.chargeT|0}/${v}s</b>charged</div></div>`;
     else if(k==='_handsfree') items+=`<div class="cw"><div class="cs${gS('gcost:'+st._beltRes)}" data-drop="gcost:${st._beltRes}" data-anchor="goal:${st._beltRes}">${ic(st._beltRes,22)}<b class="nd">${ic('belt',10)}</b></div><div class="lab"><b>${S.hf|0}/${v}s</b>by belt</div></div>`;
     else if(k[0]!=='_') items+=costBox('gcost:'+k,k,S.goalPaid[k]||0,v);
@@ -825,6 +1030,8 @@ function plotHTML(){
   let h=`<div style="position:absolute;inset:0" data-drop="pad">${ART.plot(S.ci,CH[S.ci].parts.map((_,j)=>j<S.i),S.i,S.goalStage/S.L.goal.length)}`;
   const PP=padPos(S.ci); idle.forEach((w,k)=>{ const p=PP[k%PP.length]; h+=`<div class="pbot" style="left:calc(50% + ${p[0]}px);top:calc(50% + ${p[1]}px);z-index:3;--o:${((w.id*0.37)%1.7).toFixed(2)}">${workerHTML(w)}</div>`; });
   S.crates.forEach(c=>{ h+=`<div class="crate${c.open?' open':''}" data-drop="crate:${c.id}" style="left:calc(50% + ${c.x}px);top:calc(50% + ${c.y}px)">${c.open?`<b class="num" style="position:absolute;left:0;right:0;top:6px;text-align:center;color:#fff;text-shadow:0 2px 0 #2b1d14">${Math.ceil(c.open.t)}</b>`:''}</div>`; });
+  S.comets.forEach(c=>{ h+=`<div class="comet" data-act="comet:${c.id}" style="top:calc(50% + ${c.y}px);animation-delay:-${(S.t-c.t0).toFixed(2)}s"><i></i></div>`; });
+  if(S.L.race) h+=raceHTML();
   S.spills.forEach(s=>{ h+=`<div class="spill" data-act="pick:${s.id}" style="left:calc(50% + ${s.x}px);top:calc(50% + ${s.y}px)">${ic(s.r,20)}<b class="cn">${s.n}</b></div>`; });
   let y=4; for(const r in S.pile.amt){ const n=S.pile.amt[r]; const dragging=dragKind()==='stack'&&S.drag.src.t==='pile'&&S.drag.res===r; if(n<1||dragging) continue;
     h+=`<div class="pile" style="top:${y}px"><div class="stk sm" data-drag="pile:${r}"><span class="dia"></span>${ic(r,18)}<b class="cn">${n}</b>${r==='molten'?heatBar(S.pile):''}</div></div>`; y+=50; }
@@ -844,6 +1051,9 @@ function hudHTML(){
   if(L.power) h+=`<div class="hbox" style="left:200px"><span class="pdot big"></span><span>POWER ${powerUsed()}/${powerCap()}</span></div>`;
   if(L.cap) h+=`<div class="hbox" style="left:200px"><span>STACK MAX ${capOf()}</span></div>`;
   if(L.tourists){ const n=S.bots.filter(w=>w.tour).length; h+=`<div class="hbox" style="left:200px"><span>${n?n+' visitors here':'bus in '+Math.ceil(S.busT)+'s'}</span></div>`; }
+  if(S.boostUntil>S.t) h+=`<div class="hbox" style="left:200px;background:#ffd23f">BOOST ×2 · ${Math.ceil(S.boostUntil-S.t)}s</div>`;
+  else if(L.mood){ const m=S.mood; h+=`<div class="hbox" style="left:200px"><span>CROWD</span><span class="mbar"><i style="width:${(m*100)|0}%;background:${m>0.66?'#4cd964':m<0.25?'#ff5a4a':'#ffd23f'}"></i></span><span>${m>0.66?'×1.5':m<0.25?'×0.5':'×1'}</span></div>`; }
+  else if(L.wind) h+=`<div class="hbox" style="left:200px"><span>SOLAR WIND</span><span>${S.wind==='L'?'◀ LEFT ×2':'RIGHT ×2 ▶'}</span></div>`;
   if(DEBUG>BASE_SPEED) h+=`<div class="hbox dbg" style="right:172px">×${DEBUG}</div>`;
   return h;
 }
@@ -900,7 +1110,7 @@ function subKey(k){
   const b=S.b[bid];
   if(dr.kind==='bot'){ if(b.cracked) return 'card:'+bid; for(let i=0;i<b.slots.length;i++){ const s='slot:'+bid+':'+i; if(act(s,false)) return s; } return 'card:'+bid; }
   for(const c of ['cost','in','exp']){ const s=c+':'+bid+':'+dr.res; if(act(s,false)&&q(s)) return s; }
-  for(const s of ['in:'+bid+':*','order:'+bid+':0','order:'+bid+':1','sig:'+bid,'trade:'+bid]) if(act(s,false)&&q(s)) return s;
+  for(const s of ['in:'+bid+':*','order:'+bid+':0','order:'+bid+':1','sig:'+bid,'trade:'+bid,'queue:'+bid,'rack:'+bid,'boost:'+bid,'sling:'+bid,'turbo:'+bid,'gate:'+bid,'crowd:'+bid+':'+dr.res,...(S.b[bid].L<=S.b[bid].R?['cargo:'+bid+':L','cargo:'+bid+':R']:['cargo:'+bid+':R','cargo:'+bid+':L'])]) if(act(s,false)&&q(s)) return s;
   return 'card:'+bid;
 }
 function applyGlow(){
@@ -972,6 +1182,9 @@ function endDrag(ev){
 }
 $('game').addEventListener('pointerdown',e=>{ if(S&&e.target.closest('[data-drag]')) S.pressing=true; },true);
 const unpress=()=>{ if(S) S.pressing=false; };
+$('game').addEventListener('pointerdown',e=>{ const el=e.target.closest('[data-hold]'); if(!el||!S) return; const b=S.b[+el.dataset.hold]; if(b&&b.cells>0){ S.hold=b.id; e.preventDefault(); sfx('powerOn'); render(); } });
+addEventListener('pointerup',()=>{ if(!S||S.hold==null) return; const b=S.b[S.hold]; S.hold=null;
+  if(b.tc>=1&&b.cells>0){ b.cells--; b.tc=0; S.boostUntil=Math.max(S.boostUntil,S.t)+15; sfx('warp'); fx(S.cellEls[b.id],'TURBO! ×2','b'); } else sfx('powerOff'); render(); });
 addEventListener('pointerup',unpress); addEventListener('pointercancel',unpress);
 interact.dynamicDrop(true);
 interact('#game [data-drag]').styleCursor(false).draggable({ listeners:{ start:beginDrag, move:moveDrag, end:endDrag } });
@@ -984,7 +1197,11 @@ interact('#game [data-drop]').dropzone({
     dragleave(ev){ if(!S||!S.drag) return; const d=S.drag; if(d.hover===ev.target){ d.hover=null; if(d.hovEl) d.hovEl.classList.remove('hov'); d.hovEl=null; } }
   }
 });
-addEventListener('keydown',e=>{ if((e.key==='p'||e.key==='P')&&!e.repeat){ DEBUG=DEBUG===BASE_SPEED?100:BASE_SPEED; if(S) render(); } });
+addEventListener('keydown',e=>{ if((e.key==='p'||e.key==='P')&&!e.repeat){
+  if(SCREEN==='home'||SCREEN==='map'){ UNLOCK_ALL=!UNLOCK_ALL; debugBadge(UNLOCK_ALL?'ALL UNLOCKED':'UNLOCK OFF'); if(SCREEN==='map') renderMap(); return; }
+  DEBUG=DEBUG===BASE_SPEED?100:BASE_SPEED; if(S) render(); } });
+function debugBadge(t){ let el=$('dbgBadge'); if(!el){ el=document.createElement('div'); el.id='dbgBadge'; el.style.cssText="position:absolute;left:50%;bottom:16px;transform:translateX(-50%);z-index:60;background:#ffd23f;border:4px solid #2b1d14;border-radius:10px;padding:10px 16px;font:12px 'Press Start 2P',monospace;color:#2b1d14;pointer-events:none;transition:opacity .4s"; $('stage').appendChild(el); }
+  el.textContent=t; el.style.opacity=1; clearTimeout(el._t); el._t=setTimeout(()=>el.style.opacity=0,1400); }
 
 
 /* ================= first-level tutorial (1-1 only) ================= */
@@ -1047,9 +1264,9 @@ $('slSfx').oninput=e=>{ DATA.settings.sfx=+e.target.value; ensureAudio(); sounds
 $('slMus').oninput=e=>{ DATA.settings.mus=+e.target.value; ensureAudio(); music.gain.value=level(DATA.settings.mus); slLabels(); };
 $('slSfx').onchange=$('slMus').onchange=()=>save();
 function levelComplete(){
-  S.done=true; prof().done[dk(S.ci,S.i)]=true; save(); sfx('fanfare'); hushUntil=performance.now()+1500;
+  S.done=true; prof().done[dk(S.ci,S.i)]=true; const won=S.L.race&&S.rival<1; if(won){ prof().stars=prof().stars||{}; prof().stars[dk(S.ci,S.i)]=true; } save(); sfx('fanfare'); hushUntil=performance.now()+1500;
   if(S.i===9){ setTimeout(()=>runFinale(S.ci),700); return; }
-  $('dnTitle').textContent=CH[S.ci].parts[S.i].n.toUpperCase()+' BUILT!';
+  $('dnTitle').textContent=CH[S.ci].parts[S.i].n.toUpperCase()+' BUILT!'+(S.L.race?(won?' ★ YOU WON!':' · RIVAL WON'):'');
   $('dnRk').innerHTML=ART.plot(S.ci,CH[S.ci].parts.map((_,j)=>j<=S.i),-1,0,S.i);
   setTimeout(()=>sfx('clamp',0,true),1550);
   $('dnNext').classList.toggle('hidden',S.i>=9);
@@ -1058,16 +1275,16 @@ function levelComplete(){
 let finTimers=[];
 function runFinale(ci){
   show('finale'); finTimers.forEach(clearTimeout); finTimers=[];
-  const counts={bots:Math.max(4,Math.min(8,crewN().filter(w=>!isAlien(w)).length)),aliens:ci===2?Math.max(3,Math.min(6,crewN().filter(isAlien).length)):0};
+  const counts={bots:Math.max(4,Math.min(8,crewN().filter(w=>!isAlien(w)).length)),aliens:ci>=2?Math.max(3,Math.min(6,crewN().filter(isAlien).length)):0};
   $('finScene').innerHTML=ART.finale(ci,counts); $('finEnd').classList.add('hidden');
   const root=$('finScene').firstElementChild; const set=f=>{ root.classList.remove('f1','f2','f3'); root.classList.add('f'+f); };
-  const T=[[[500,1,'launch'],[3800,2,'landing'],[6400,3,'fanfare']],[[800,1,'saucer'],[3400,2,'warp'],[6200,3,'saucer']],[[1200,1,'warp'],[2400,2,'party'],[3600,3,'party']]][ci];
+  const T=[[[500,1,'launch'],[3800,2,'landing'],[6400,3,'fanfare']],[[800,1,'saucer'],[3400,2,'warp'],[6200,3,'saucer']],[[1200,1,'warp'],[2400,2,'party'],[3600,3,'party']],[[900,1,'powerOn'],[2600,2,'party'],[5000,3,'fanfare']],[[600,1,'launch'],[3900,2,'landing'],[6300,3,'party']]][ci];
   T.forEach(([ms,f,s])=>finTimers.push(setTimeout(()=>{ set(f); sfx(s); },ms)));
   finTimers.push(setTimeout(()=>$('finEnd').classList.remove('hidden'),T[T.length-1][0]+1400));
 }
 const ACT={
   player:k=>{ DATA.player=k; save(); renderHome(); },
-  play:()=>{ ensureAudio(); MAPCH=[2,1,0].find(ci=>chOpen(ci)); renderMap(); show('map'); },
+  play:()=>{ ensureAudio(); MAPCH=[...CH.keys()].reverse().find(ci=>chOpen(ci)); renderMap(); show('map'); },
   home:()=>{ renderHome(); show('home'); },
   ch:ci=>{ MAPCH=+ci; renderMap(); musicFor(); },
   lvl:i=>renderIntro(MAPCH,+i),
@@ -1082,7 +1299,7 @@ const ACT={
   closeinfo:()=>{ $('info').classList.add('hidden'); if(S) S.paused=false; },
   resume:()=>{ S.paused=false; $('pause').classList.add('hidden'); },
   tomap:()=>{ if(S){ S.paused=true; S.done=true; MAPCH=S.ci; } $('pause').classList.add('hidden'); $('info').classList.add('hidden'); $('done').classList.add('hidden'); renderMap(); show('map'); },
-  finmap:()=>{ finTimers.forEach(clearTimeout); MAPCH=Math.min(2,(S?S.ci:0)+1); if(!chOpen(MAPCH)) MAPCH=S.ci; renderMap(); show('map'); },
+  finmap:()=>{ finTimers.forEach(clearTimeout); MAPCH=Math.min(CH.length-1,(S?S.ci:0)+1); if(!chOpen(MAPCH)) MAPCH=S.ci; renderMap(); show('map'); },
   next:()=>{ $('done').classList.add('hidden'); renderIntro(S.ci,S.i+1); },
   build:id=>{ const b=S.b[+id]; if(b.built) return; if(!Object.entries(b.d.cost).every(([r,n])=>(b.paid[r]||0)>=n)) return;
     b.built=true; onBuilt(b,true); sfx('build'); fx(S.cellEls[b.id],'BUILT!','g'); pruneBelts(); updateReveal(true); render(); },
@@ -1093,9 +1310,17 @@ const ACT={
   pick:id=>{ const k=S.spills.findIndex(s=>s.id===+id); if(k<0) return; const s=S.spills[k]; put(S.pile,s.r,s.n); S.spills.splice(k,1); sfx('coin'); render(); },
   goal:()=>{ if(!goalReady()) return; S.goalStage++; S.goalPaid={}; S.hf=0; pruneBelts(); if(S.goalStage<S.L.goal.length) sfx('stage'); fx(S.goalEl,S.goalStage>=S.L.goal.length?'COMPLETE!':'+10% FASTER!');
     S.b.forEach(b=>{ if(b.d.unlock!=null&&!b.built&&S.goalStage>=b.d.unlock){ b.built=true; onBuilt(b,true); b.newUntil=S.t+1.2; } }); render(); if(S.goalStage>=S.L.goal.length) levelComplete(); },
+  cloud:id=>{ const b=S.b[+id]; if(!(b.rainUntil>S.t)) return; b.rainUntil=0; sfx('cool'); fx(S.cellEls[b.id],'SUNNY!','g'); render(); },
+  spin:id=>spinWheel(S.b[+id]),
+  drum:id=>drumHit(S.b[+id]),
+  launch:id=>{ const b=S.b[+id]; if(b.load<5) return; b.load=0; S.shows++; sfx('party'); fx(S.plotEl,'SHOW '+S.shows+'! WOW!'); burstFX(); render(); },
+  wrench:id=>{ const b=S.b[+id]; if(!b.worn) return; b.fixN++; sfx('tap'); if(b.fixN>=5){ b.worn=false; b.wear=0; sfx('fix'); fx(S.cellEls[b.id],'FIXED!','g'); } S.cache={}; render(); },
+  shoo:()=>{ const gr=S.grem; if(!gr) return; const b=S.b[gr.bid]; put(b.out,gr.res,gr.stolen); S.grem=null; S.gremT=14+rnd(8); sfx('snap'); fx(S.cellEls[b.id],gr.stolen?'SHOO! +'+gr.stolen+' BACK':'SHOO!','g'); render(); },
+  comet:id=>{ const k=S.comets.findIndex(c=>c.id===+id); if(k<0) return; S.comets.splice(k,1); put(S.pile,'stardust',3); sfx('coin'); fx(S.plotEl,'+3 STARDUST','b'); updateReveal(true); render(); },
+  sling:id=>slingFire(S.b[+id]),
   unbelt:k=>{ S.belts.splice(+k,1); S.tray++; sfx('retract'); render(); }
 };
-const QUIET=['tutok','build','expand','goal','recipe','power','harvest','pick','unbelt'];
+const QUIET=['cloud','spin','drum','launch','wrench','shoo','comet','sling','tutok','build','expand','goal','recipe','power','harvest','pick','unbelt'];
 function runAct(el){ const [t,a,c]=el.dataset.act.split(':'); if(!QUIET.includes(t)) sfx('tap'); if(ACT[t]) ACT[t](a,c); }
 $('game').addEventListener('pointerdown',e=>{ const el=e.target.closest('[data-act]'); if(!el||(S&&S.drag)) return; e.preventDefault(); ensureAudio(); runAct(el); });
 STAGE.addEventListener('click',e=>{ const el=e.target.closest('[data-act]'); if(!el||$('game').contains(el)) return; ensureAudio(); runAct(el); });

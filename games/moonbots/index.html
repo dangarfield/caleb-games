@@ -389,6 +389,69 @@ a{color:#1d8b7e}a:hover{color:#d9541e}
 .tbub.pop{animation:tpop .35s cubic-bezier(.3,1.6,.5,1)}
 @keyframes tpop{from{scale:.6;opacity:0}to{scale:1;opacity:1}}
 .tbub .tstep{position:absolute;top:-14px;left:16px;font:9px 'Press Start 2P';background:#2b1d14;color:#ffd23f;padding:4px 7px;border-radius:6px}
+
+/* chapters 4-5 */
+.slot.tall{--sb:#b9c6cf;border-radius:10px 10px 6px 6px;background-image:linear-gradient(to top,var(--pc) var(--p,0%),var(--sb) var(--p,0%)),repeating-linear-gradient(0deg,transparent 0 6px,rgba(43,29,20,.12) 6px 8px)}
+.tb .tpill.tall{background:#8a8f9a;color:#fff}
+.hbar.wear i{background:linear-gradient(90deg,#4cd964,#ffd23f,#ff5a4a)}
+.ov.rain,.ov.worn{pointer-events:auto;cursor:pointer;flex-direction:column;gap:6px;align-items:center;justify-content:center;background:rgba(43,29,20,.18)}
+.cloudi{display:block;width:84px;height:34px;border-radius:20px;background:#8a98a5;position:relative;filter:drop-shadow(0 3px 0 #2b1d14);animation:bob .9s infinite alternate}
+.cloudi::before{content:'';position:absolute;left:14px;top:-18px;width:34px;height:34px;border-radius:50%;background:#8a98a5}
+.cloudi::after{content:'';position:absolute;left:40px;top:-12px;width:28px;height:28px;border-radius:50%;background:#9aa8b5}
+.ov.rain{background:repeating-linear-gradient(100deg,transparent 0 10px,rgba(120,170,230,.45) 10px 12px),rgba(43,29,20,.2)}
+.wrench{display:block;width:16px;height:48px;background:#8a8f9a;border:3px solid #2b1d14;border-radius:6px;transform:rotate(35deg);position:relative;animation:wig .5s infinite alternate}
+.wrench::before{content:'';position:absolute;left:-10px;top:-14px;width:30px;height:18px;border:3px solid #2b1d14;border-radius:50% 50% 4px 4px;background:#8a8f9a;box-sizing:border-box}
+@keyframes wig{from{transform:rotate(25deg)}to{transform:rotate(45deg)}}
+.grem{position:absolute;right:-6px;top:-18px;z-index:6;cursor:pointer;display:flex;flex-direction:column;align-items:center;animation:bob .35s infinite alternate}
+.grem b{font:9px 'Press Start 2P';background:#c42f4a;color:#fff;border:2px solid #2b1d14;border-radius:5px;padding:3px 5px;margin-top:4px}
+.qline{display:flex;gap:2px;align-items:flex-end;height:44px}
+.qv{transform:scale(.8);transform-origin:50% 100%}
+.wheelw{position:relative;width:84px;height:84px}
+.wheel{width:84px;height:84px;border-radius:50%;border:4px solid #2b1d14;background:conic-gradient(#ffd23f 0 60deg,#4cb050 60deg 120deg,#3a8fd8 120deg 180deg,#ffd23f 180deg 240deg,#4cb050 240deg 300deg,#3a8fd8 300deg 360deg);box-shadow:inset 0 0 0 3px rgba(255,255,255,.5)}
+@keyframes wspin{from{transform:rotate(var(--a0))}to{transform:rotate(var(--a1))}}
+.wpin{position:absolute;left:50%;top:-8px;width:0;height:0;margin-left:-9px;border-left:9px solid transparent;border-right:9px solid transparent;border-top:18px solid #c42f4a;filter:drop-shadow(0 2px 0 #2b1d14)}
+.wleg{display:flex;gap:4px}.wleg span{font:8px 'Press Start 2P';padding:4px 5px;border:2px solid #2b1d14;border-radius:5px;color:#2b1d14}
+.drum{width:74px;height:60px;border-radius:50% 50% 12px 12px/40% 40% 12px 12px;background:#c42f4a;border:4px solid #2b1d14;position:relative;cursor:pointer;box-shadow:inset 0 -10px 0 #8a2030}
+.drum::before{content:'';position:absolute;left:4px;right:4px;top:4px;height:18px;border-radius:50%;background:#f1e7d0;border:3px solid #2b1d14}
+.drum.lit{box-shadow:0 0 0 5px #ffd23f,0 0 24px 8px #ffd23f,inset 0 -10px 0 #8a2030}
+.combo{display:flex;gap:4px}.combo i{width:14px;height:14px;border-radius:50%;background:#ffd23f;border:2px solid #2b1d14}
+.mood,.mbar{position:relative;width:110px;height:20px;border:3px solid #2b1d14;border-radius:8px;background:#cdbb98;overflow:hidden;display:inline-block}
+.mbar{width:70px;height:16px}
+.mood i,.mbar i{position:absolute;left:0;top:0;bottom:0}
+.seesaw{position:relative;width:200px;height:84px;margin-top:22px}
+.beam2{position:absolute;left:0;right:0;top:44px;height:12px;background:#8a5a2b;border:3px solid #2b1d14;border-radius:6px;display:flex;justify-content:space-between;transition:transform .4s;transform-origin:50% 50%}
+.beam2 .cs{position:absolute;top:-50px;transform:scale(.88)}.beam2 .cs:first-child{left:4px}.beam2 .cs:last-child{right:4px}
+.fulc{position:absolute;left:50%;bottom:0;width:0;height:0;margin-left:-22px;border-left:22px solid transparent;border-right:22px solid transparent;border-bottom:44px solid #6a7078;filter:drop-shadow(0 0 2px #2b1d14)}
+.lab b.bad{color:#c42f4a}
+.pmeter{position:relative;width:150px;height:22px;border:3px solid #2b1d14;border-radius:8px;background:#cdbb98;overflow:hidden}
+.pmeter .gz{position:absolute;left:68%;width:28%;top:0;bottom:0;background:#4cb050}
+.pmeter .ndl{position:absolute;top:0;bottom:0;width:5px;margin-left:-2px;background:#2b1d14;animation:ndl 2s ease-in-out infinite}
+@keyframes ndl{0%{left:0}50%{left:100%}100%{left:0}}
+.tbtn{font:12px 'Press Start 2P';color:#fff;background:#c42f4a;border:4px solid #2b1d14;border-radius:50%;width:76px;height:76px;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 0 #2b1d14;cursor:pointer;user-select:none;touch-action:none}
+.tbtn.down{transform:translateY(5px);box-shadow:0 1px 0 #2b1d14;background:#ff7a1a}.tbtn.off{opacity:.45}
+.race{position:absolute;left:50%;top:6px;width:520px;margin-left:-260px;display:flex;align-items:center;gap:10px;z-index:7}
+.rtrack{position:relative;flex:1;height:30px;background:#2b1d14;border-radius:15px;border:3px solid #2b1d14;background-image:repeating-linear-gradient(90deg,#3b3b46 0 20px,#4a4a58 20px 40px)}
+.rfin{position:absolute;right:2px;top:2px;bottom:2px;width:14px;background:repeating-conic-gradient(#fff 0 25%,#2b1d14 0 50%) 0 0/8px 8px;border-radius:0 10px 10px 0}
+.rrk{position:absolute;top:50%;width:34px;height:16px;margin:-8px 0 0 -17px;border-radius:3px 10px 10px 3px;border:3px solid #2b1d14;box-sizing:border-box;transition:left .5s linear}
+.rrk::after{content:'';position:absolute;right:-9px;top:1px;width:0;height:0;border-top:4px solid transparent;border-bottom:4px solid transparent;border-left:7px solid #ff7a1a}
+.rrk.you{background:#e8463a;z-index:2}.rrk.riv{background:#8a4ac0;top:30%}
+.rlab{font:9px 'Press Start 2P';padding:6px 8px;border:3px solid #2b1d14;border-radius:8px;color:#fff}
+.rlab.ok{background:#3f9b4a}.rlab.bad{background:#c42f4a}
+.comet{position:absolute;left:-60px;width:28px;height:28px;border-radius:50%;background:#9fe8ff;border:3px solid #2b1d14;box-shadow:0 0 14px 4px rgba(159,232,255,.8);cursor:pointer;z-index:8;animation:cometfly 5s linear forwards}
+.comet i{position:absolute;right:100%;top:6px;width:90px;height:12px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.85));border-radius:6px}
+@keyframes cometfly{from{left:-60px}to{left:720px}}
+.fwb{position:absolute;width:8px;height:8px;margin:-4px;border-radius:50%;z-index:46;pointer-events:none;animation:burst 1.4s ease-out forwards}
+@keyframes burst{0%{transform:scale(.08);opacity:1}70%{opacity:1}100%{transform:scale(1);opacity:0}}
+
+/* homepage: carnival + race */
+#homeFair{position:absolute;inset:0;pointer-events:none}
+#homeFair .scn{top:auto}
+
+.hsat{position:absolute;left:60px;top:90px;width:64px;height:64px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#ffe2a0,#e8a040 60%,#b8702a);border:4px solid #2b1d14}
+.hsat i{position:absolute;left:-26px;top:20px;width:108px;height:20px;border-radius:50%;border:6px solid #d8c08a;box-shadow:0 0 0 3px #2b1d14,inset 0 0 0 3px #2b1d14;transform:rotate(-14deg)}
+.hracer{position:absolute;left:0;top:150px;width:156px;height:91px;pointer-events:none;animation:hrace 14s linear infinite}
+.hracer .scn{top:auto}
+@keyframes hrace{0%{transform:translate(-220px,30px)}38%{transform:translate(1500px,-60px)}100%{transform:translate(1500px,-60px)}}
 </style>
 <script data-arcade-back>
 /* arcade-back v1 (knowledge/arcade-back.md). "← Games" = the browser's back button.
@@ -422,6 +485,9 @@ a{color:#1d8b7e}a:hover{color:#d9541e}
   <div id="home" class="scr">
     <i class="lay stars2 fl-stars"></i><span class="shoot" style="left:900px;top:60px"></span><span class="shoot" style="left:420px;top:30px;animation-delay:3.2s"></span>
     <div class="moon" style="top:44px;right:80px;width:96px;height:96px"></div>
+    <div class="hsat"><i></i></div>
+    <div id="homeRacer" class="hracer"></div>
+    <div id="homeFair"></div>
     <i class="lay yl fl-yard"></i>
     <div id="homeRocket"></div>
     <div class="hbots" id="homeBots"></div>

@@ -79,7 +79,9 @@ const A=ART, $=id=>document.getElementById(id);
 const CHRES=[
  ['Chapter 1 · To the Moon',['scrap','bolt','plate','copper','wire','hull','oil','fuel','lithium','battery','titanium','alloy','nozzle','ore','molten','slag','sand','glass','beam','silicon','cell','lamp','chip','board','belt','clay','tile']],
  ['Chapter 2 · Moon City',['rock','ice','water','brick','pipe','seed','veg','meal','gear','sapling','toy','coin']],
- ['Chapter 3 · Home Again',['goo','crystal','padtile','spark','core','fruit','moss','bubble','ring','snack','lens','button','panel','rod','coil','stardust','starmap','pred','pblue','pyellow','ppurple','porange','pgreen','balloon','cake']]];
+ ['Chapter 3 · Home Again',['goo','crystal','padtile','spark','core','fruit','moss','bubble','ring','snack','lens','button','panel','rod','coil','stardust','starmap','pred','pblue','pyellow','ppurple','porange','pgreen','balloon','cake'],
+ ['Chapter 4 · Robo Carnival',['ticket','corn','popcorn','sugar','candy','teddy','firework']],
+ ['Chapter 5 · Star Race',['rubber','tyre','cargo']]]];
 $('resG').innerHTML=CHRES.map(([t,list])=>`<h3>${t}</h3><div class="grid">${list.map(r=>`<div class="tile">${A.ic(r,36)}<div class="lab">${A.nm(r)}</div><code>${r}</code></div>`).join('')}</div>`).join('');
 const W=[['Scrap Bot',{kind:'bot'}],['Drill arm',{kind:'bot',up:'drill'}],['Magnet hand',{kind:'bot',up:'magnet'}],['Wheels',{kind:'bot',up:'wheels'}],['Jet Boots',{kind:'bot',up:'jet'}],
  ['Silver (Lv2)',{kind:'bot',lv:2}],['Gold (Lv3)',{kind:'bot',lv:3}],['Battery',{kind:'bot',bar:70}],['Flat battery',{kind:'bot',flat:true,bar:0}],['Tourist',{kind:'bot',tour:true,bar:60,barCol:'#3a8fd8'}],
@@ -95,7 +97,7 @@ $('plotG').innerHTML=A.CHAPTERS.map((ch,ci)=>{
     t+=`<div class="tile" style="padding:8px"><div class="plotw" style="background:${ch.levels[Math.min(k,9)].bg}"><div class="in">${A.plot(ci,done,cur,.5)}</div></div><div class="lab">${k<10?`Level ${k+1}: building ${ch.parts[k].n}`:'Complete'}</div></div>`; }
   return `<h3>${ch.title}</h3><div class="grid">${t}</div>`; }).join('');
 $('finG').innerHTML=A.CHAPTERS.map((ch,ci)=>`<h3>${ch.title}</h3><div class="grid">${[0,1,2,3].map(f=>{
-  const html=A.finale(ci,{bots:6,aliens:ci===2?4:0}).replace('class="fin fin'+ci+'"','class="fin fin'+ci+' static'+(f?' f'+f:'')+'"');
+  const html=A.finale(ci,{bots:6,aliens:ci>=2?4:0}).replace('class="fin fin'+ci+'"','class="fin fin'+ci+' static'+(f?' f'+f:'')+'"');
   return `<div class="tile" style="padding:8px"><div class="finw"><div class="in">${html}</div></div><div class="lab">Frame ${f}</div></div>`; }).join('')}</div>`).join('');
 </script>
 </body>
