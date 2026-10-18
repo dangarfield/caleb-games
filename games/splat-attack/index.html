@@ -998,6 +998,8 @@ function fire(a) {
   const n = 6 + ((rnd() * 5) | 0), soak = a.eff.soaker > 0, rm = (soak ? 2 : 1) * (M.W.key === 'moon' ? 1.15 : 1);
   const gx = a.x + Math.sin(a.face) * 0.6 + Math.cos(a.face) * 0.5, gz = a.z + Math.cos(a.face) * 0.6 - Math.sin(a.face) * 0.5;
   for (let i = 0; i < n; i++) { const an = a.aim + (rnd() - 0.5) * 0.46, d = (4.4 + rnd() * 2.2) * rm, x1 = gx + Math.cos(an) * d, z1 = gz + Math.sin(an) * d; M.blobs.push({ x0: gx, z0: gz, y0: a.y + 0.62, x1, z1, y1: Math.min(hAt(M.W.Tr, x1, z1), a.y + 4), t: 0, T: d / 13 + 0.06 + rnd() * 0.05, arc: (0.8 + d * 0.13) * (M.W.key === 'moon' ? 1.3 : 1), team: a.team, a, ang: an, dr: 0, x: gx, y: a.y + 0.62, z: gz, out: Math.hypot(gx, gz) }); }
+  // Point-blank: goo touching the painter, roughly where they're aiming (or right on top of them), takes the volley now.
+  if (M.goo && a.team >= 0) for (const q of M.goo) { if (q.dead) continue; const dx = q.x - a.x, dz = q.z - a.z, d = Math.hypot(dx, dz); if (d > 0.75 * q.sz + GA.pbReach || Math.abs(q.y - a.y) > 1.4) continue; let da = Math.atan2(dz, dx) - a.aim; da = Math.atan2(Math.sin(da), Math.cos(da)); if (Math.abs(da) > GA.pbCone && d > 0.5 * q.sz) continue; gooHit(q, 7 * n * GA.pbDmg, a); }
 }
 const RAINBOW = ['#FF3FA4', '#FF9A1F', '#FFE03A', '#7CFF3A', '#2FD8FF', '#A65BFF'].map(c => new T.Color(c));
 function mkCloud() {
@@ -1015,19 +1017,21 @@ function burst(x, y, z, hex, sz) {
   const fl = new T.Mesh(M.flashG || (M.flashG = new T.IcosahedronGeometry(0.8, 1)), new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthWrite: false })); fl.position.set(x, y + 0.75 * sz, z); M.s.add(fl); M.fx.push({ m: fl, t: 0, sz, flash: 1 });
 }
 function updFx(dt) { for (let i = M.fx.length - 1; i >= 0; i--) { const f = M.fx[i]; f.t += dt; const k = f.t / (f.flash ? 0.18 : 0.45); if (k >= 1) { M.s.remove(f.m); f.m.material.dispose(); M.fx.splice(i, 1); continue; } const s = f.sz * (f.flash ? 0.6 + k * 1.2 : 0.5 + k * 2.6); f.m.scale.set(s, s, s); f.m.material.opacity = (f.flash ? 0.9 : 0.85) * (1 - k); } }
+// Distance from point (px,pz) to the segment a->b: blobs are tested along the path they moved this frame, so they can't skip past.
+function segD(ax, az, bx, bz, px, pz) { const dx = bx - ax, dz = bz - az, L = dx * dx + dz * dz; let t = L ? ((px - ax) * dx + (pz - az) * dz) / L : 0; t = t < 0 ? 0 : t > 1 ? 1 : t; return Math.hypot(ax + dx * t - px, az + dz * t - pz); }
 function updBlobs(dt) {
   updFx(dt);
   const P = M.W.P, Tr = M.W.Tr, B = M.blobs, mesh = M.bmesh, m4 = new T.Matrix4(), cl = new T.Color(); let n = 0;
   for (let i = B.length - 1; i >= 0; i--) {
-    const b = B[i]; b.t += dt; const f = Math.min(1, b.t / b.T); b.x = lerp(b.x0, b.x1, f); b.z = lerp(b.z0, b.z1, f); b.y = lerp(b.y0, b.y1, f) + Math.sin(f * Math.PI) * b.arc;
+    const b = B[i], px = b.x, pz = b.z, py = b.y; b.t += dt; const f = Math.min(1, b.t / b.T); b.x = lerp(b.x0, b.x1, f); b.z = lerp(b.z0, b.z1, f); b.y = lerp(b.y0, b.y1, f) + Math.sin(f * Math.PI) * b.arc;
     if (b.fx) { if (f >= 1) { B.splice(i, 1); continue; } if (n < 600) { m4.makeTranslation(b.x, b.y, b.z); if (b.s) { const k = b.s * (1 - f * 0.6); m4.scale(new T.Vector3(k, k, k)); } mesh.setMatrixAt(n, m4); if (b.col) cl.copy(b.col); else cl.setRGB(0.92, 0.93, 0.95); mesh.setColorAt(n, cl); n++; } continue; }
     let hit = f >= 1 ? 1 : false;
     if (!hit && f > 0.08 && b.y < hNear(Tr, b.x, b.z) - 0.05) hit = 2;
     if (!hit && M.W.key === 'moon' && b.out > 5.6 && Math.hypot(b.x, b.z) < 5.4 && b.y < 6.5) { B.splice(i, 1); continue; }
-    if (!hit && M.goo && b.team >= 0) for (const q of M.goo) { if (q.dead || Math.hypot(q.x - b.x, q.z - b.z) > 0.7 * q.sz || b.y > q.y + 1.3 * q.sz) continue; gooHit(q, 7, b.a); hit = true; break; }
+    if (!hit && M.goo && b.team >= 0) for (const q of M.goo) { if (q.dead || segD(px, pz, b.x, b.z, q.x, q.z) > 0.7 * q.sz + GA.hitPad || Math.min(py, b.y) > q.y + Math.max(1.3 * q.sz, GA.hitH)) continue; gooHit(q, 7, b.a); hit = true; break; }
     if (!hit && M.pil) for (const p of M.pil) { if (p.hp <= 0 || Math.hypot(p.x - b.x, p.z - b.z) > 1.5 || b.y > 8.5) continue; pillarHit(p, b.team); hit = true; break; }
     if (!hit && b.team < 0) for (const a of M.actors) { if (!a.alive || Math.hypot(a.x - b.x, a.z - b.z) > 0.8 || b.y > a.y + 1.7) continue; damage(a, 10, null); a.eff.slow = 2; hit = true; break; }
-    if (!hit && b.team >= 0) for (const a of M.actors) { if (!a.alive || a.team === b.team || Math.abs(a.x - b.x) > 0.62 || Math.abs(a.z - b.z) > 0.62 || b.y < a.y - 0.1 || b.y > a.y + 1.7) continue; damage(a, 7, b.a); hit = true; break; }
+    if (!hit && b.team >= 0) for (const a of M.actors) { if (!a.alive || a.team === b.team || segD(px, pz, b.x, b.z, a.x, a.z) > 0.66 || Math.max(py, b.y) < a.y - 0.1 || Math.min(py, b.y) > a.y + 1.7) continue; damage(a, 7, b.a); hit = true; break; }
     if (!hit && b.team >= 0 && b.dr < 3 && f > 0.3 + b.dr * 0.22) { b.dr++; if (inRing(b.x, b.z)) stamp(P, b.x, b.z, 0.06 + rnd() * 0.06, M.teams[b.team].id, 0, 9); }
     if (hit && b.team < 0) { stamp(P, b.x, b.z, 1.1, 0, 0, 8); B.splice(i, 1); continue; }
     if (hit) { if (hit !== 1 && !b.boom) SND.at('splat', b.x, b.z); if (b.team >= 0 && inRing(b.x, b.z)) stamp(P, b.x, b.z, b.big || (0.32 + rnd() * 0.24), M.teams[b.team].id, b.ang, b.big ? 8 : (rnd() * 8) | 0); if (b.boom) boom(b); B.splice(i, 1); continue; }
@@ -1258,6 +1262,26 @@ function bbGoal(a) {
 }
 
 // ---------- Grey Goo Attack ----------
+// Grey Goo behaviour tunables (Oct 2026): goo goes for the pumps, only a couple chase any one painter, chases run out,
+// a bite bounces the goo back, goo spread out, and painters can hit goo that's touching them.
+const GA = {
+  pumpFocus: 5,     // within this of its pump, a goo ignores painters and keeps eating the pump
+  aggro: 4,         // how close a painter has to be to start a chase
+  maxChasers: 2,    // most goo that can chase one painter at once; the rest carry on to the pumps
+  chaseFor: 2,      // seconds a chase lasts before the goo gives up and rejoins its route
+  cooldown: 3,      // seconds after a chase before that goo can be distracted again
+  bite: 0.7,        // one bite = this many seconds' worth of the old touch damage (18 x level gooHurt per second)
+  hop: 1,           // how far a goo bounces back after a bite
+  hopT: 0.18,       // how long the bounce takes
+  pause: 0.5,       // how long it waits after the bounce before moving or biting again
+  sep: 0.55,        // goo push apart when closer than (size A + size B) x this
+  sepPush: 2.5,     // how hard they push apart (units/s)
+  pbReach: 1.0,     // point-blank: a goo whose edge is within this of the painter takes the volley straight away...
+  pbCone: 70 * Math.PI / 180, // ...if it's within this angle of where they're aiming (or right on top of them)
+  pbDmg: 1,         // fraction of the volley's damage (7 per blob) a point-blank goo takes
+  hitH: 2.4,        // paint flying over a goo lower than this (above its feet) hits it: the volley's arc peaks ~2.3 up, so goo in mid-range can be hit
+  hitPad: 0.3       // extra hit radius on top of 0.7 x size (the gun sits half a unit to the side of the painter)
+};
 const GOO = { blob: { hp: 30, sp: 2.6, sz: 1, dps: 10 }, sprint: { hp: 10, sp: 5.2, sz: 0.7, dps: 6 }, sludge: { hp: 55, sp: 1.8, sz: 1.35, dps: 14 }, spit: { hp: 25, sp: 2.2, sz: 1, dps: 8 }, king: { hp: 320, sp: 1.6, sz: 2.4, dps: 30 } };
 function ggaInit() {
   M.goo = []; M.wave = 0; M.waveT = 4; M.queue = []; M.spawnT = 0; M.gooWon = null; const c = M.cfg.color;
@@ -1274,19 +1298,24 @@ function ggaTick(dt) {
   M.goo = M.goo.filter(q => !q.dead);
   if (!M.goo.length && !M.queue.length) { if (M.wave >= 5) { M.gooWon = false; return endMatch(); } if ((M.waveT -= dt) <= 0) { M.wave++; M.waveT = 6; const n = Math.max(3, Math.round([0, 6, 9, 12, 15, 8][M.wave] * DF().wave)); for (let i = 0; i < n; i++) M.queue.push(M.wave >= 4 && i % 4 === 0 ? 'spit' : M.wave >= 3 && i % 3 === 0 ? 'sludge' : M.wave >= 2 && i % 2 === 0 ? 'sprint' : 'blob'); if (M.wave === 5) M.queue.unshift('king'); SND.play('horn'); toast(M.wave === 5 ? 'Wave 5: the Goo King!' : 'Wave ' + M.wave + '!'); } }
   if (M.queue.length && (M.spawnT -= dt) <= 0) { M.spawnT = 0.8; spawnGoo(M.queue.shift()); }
+  const chasers = new Map(); for (const q of M.goo) if (q.chaseT > 0 && q.chaseTgt) chasers.set(q.chaseTgt, (chasers.get(q.chaseTgt) || 0) + 1);
+  if ((M.sepT = (M.sepT || 0) - dt) <= 0) { M.sepT = 0.1; for (const q of M.goo) q.sepx = q.sepz = 0; for (let i = 0; i < M.goo.length; i++) for (let j = i + 1; j < M.goo.length; j++) { const a = M.goo[i], b = M.goo[j], dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz), r = (a.sz + b.sz) * GA.sep; if (d >= r) continue; const k = (r - d) / r * GA.sepPush, ux = d > 0.001 ? dx / d : rnd() - 0.5, uz = d > 0.001 ? dz / d : rnd() - 0.5; a.sepx -= ux * k; a.sepz -= uz * k; b.sepx += ux * k; b.sepz += uz * k; } }
   for (const q of M.goo) {
     const tgtP = alivePumps.reduce((b, p) => !b || Math.hypot(p.x - q.x, p.z - q.z) < Math.hypot(b.x - q.x, b.z - q.z) ? p : b, null); let tgt = tgtP ? [tgtP.x, tgtP.z] : [0, 0];
-    let pl = null, pd = 1e9; for (const a of M.actors) if (a.alive) { const d = Math.hypot(a.x - q.x, a.z - q.z); if (d < pd) { pd = d; pl = a; } } if (pl && pd < 4) tgt = [pl.x, pl.z];
-    let mx = 0, mz = 0; const tpi = tgtP ? M.pumps.indexOf(tgtP) : -1, chase = pl && pd < 4 && Math.abs(pl.y - q.y) < 0.8;
-    if (chase) { const dx = pl.x - q.x, dz = pl.z - q.z, d = Math.hypot(dx, dz) || 1; mx = dx / d; mz = dz / d; q.detour = true; }
-    else { if (tpi >= 0 && (q.tp !== tpi || q.detour || q.stuck > 1.5 || !q.path.length)) { if (q.fresh && q.si >= 0 && M.gooRoutes[q.si]) { q.path = M.gooRoutes[q.si][tpi][rnd() < 0.5 ? 0 : 1].slice(); q.fresh = false; q.tp = tpi; } else if (NAV.budget > 0 && (q.tp !== tpi || q.detour || q.stuck > 1.5 || Math.hypot(tgtP.x - q.x, tgtP.z - q.z) > 2)) { NAV.budget--; q.path = astar(Tr, q.x, q.z, tgtP.x, tgtP.z); q.tp = tpi; q.detour = false; q.stuck = 0; } }
+    let pl = null, pd = 1e9; for (const a of M.actors) if (a.alive) { const d = Math.hypot(a.x - q.x, a.z - q.z); if (d < pd) { pd = d; pl = a; } }
+    const dP = tgtP ? Math.hypot(tgtP.x - q.x, tgtP.z - q.z) : 1e9; q.cd = Math.max(0, (q.cd || 0) - dt);
+    if (q.chaseT > 0) { const c = q.chaseTgt; q.chaseT -= dt; if (!c || !c.alive || dP < GA.pumpFocus || Math.hypot(c.x - q.x, c.z - q.z) > GA.aggro * 1.5 || Math.abs(c.y - q.y) > 0.8 || q.chaseT <= 0) { q.chaseT = 0; q.chaseTgt = null; q.cd = GA.cooldown; } }
+    else if (!q.cd && pl && pd < GA.aggro && dP >= GA.pumpFocus && Math.abs(pl.y - q.y) < 0.8 && (chasers.get(pl) || 0) < GA.maxChasers) { q.chaseTgt = pl; q.chaseT = GA.chaseFor; chasers.set(pl, (chasers.get(pl) || 0) + 1); }
+    let mx = 0, mz = 0; const tpi = tgtP ? M.pumps.indexOf(tgtP) : -1, chase = q.chaseT > 0;
+    if (chase) { const dx = q.chaseTgt.x - q.x, dz = q.chaseTgt.z - q.z, d = Math.hypot(dx, dz) || 1; mx = dx / d; mz = dz / d; q.detour = true; }
+    else { if (q.detour && q.route && q.route.length && q.tp === tpi && tpi >= 0) { let bi = 0, bd = 1e9; q.route.forEach((w, i) => { const d = Math.hypot(w[0] - q.x, w[1] - q.z); if (d < bd) { bd = d; bi = i; } }); q.path = q.route.slice(bi); q.detour = false; q.stuck = 0; } if (tpi >= 0 && (q.tp !== tpi || q.detour || q.stuck > 1.5 || !q.path.length)) { if (q.fresh && q.si >= 0 && M.gooRoutes[q.si]) { q.route = M.gooRoutes[q.si][tpi][rnd() < 0.5 ? 0 : 1]; q.path = q.route.slice(); q.fresh = false; q.tp = tpi; } else if (NAV.budget > 0 && (q.tp !== tpi || q.detour || q.stuck > 1.5 || Math.hypot(tgtP.x - q.x, tgtP.z - q.z) > 2)) { NAV.budget--; q.path = astar(Tr, q.x, q.z, tgtP.x, tgtP.z); q.route = q.path.slice(); q.tp = tpi; q.detour = false; q.stuck = 0; } }
       const p = q.path[0]; if (p) { const dx = p[0] - q.x, dz = p[1] - q.z, d = Math.hypot(dx, dz); if (d < 0.5) q.path.shift(); else { mx = dx / d; mz = dz / d; } } }
-    if (mx || mz) { const mv = Math.hypot(q.x - q.lx, q.z - q.lz); q.stuck = mv < q.sp * dt * 0.25 ? q.stuck + dt : Math.max(0, q.stuck - dt); } q.lx = q.x; q.lz = q.z;
-    q.vx = mx * q.sp; q.vz = mz * q.sp; const nx = q.x + q.vx * dt, nz = q.z + q.vz * dt; if (hNear(Tr, nx, nz) <= q.y + 0.45 && !blocked(nx, nz, q.y)) { q.x = nx; q.z = nz; } q.y = hAt(Tr, q.x, q.z);
+    if (q.pause > 0) { q.pause -= dt; mx = mz = 0; } if (mx || mz) { const mv = Math.hypot(q.x - q.lx, q.z - q.lz); q.stuck = mv < q.sp * dt * 0.25 ? q.stuck + dt : Math.max(0, q.stuck - dt); } q.lx = q.x; q.lz = q.z;
+    q.vx = mx * q.sp + (q.sepx || 0); q.vz = mz * q.sp + (q.sepz || 0); if (q.hopT > 0) { q.hopT -= dt; q.vx = q.hx; q.vz = q.hz; } const nx = q.x + q.vx * dt, nz = q.z + q.vz * dt; if (hNear(Tr, nx, nz) <= q.y + 0.45 && !blocked(nx, nz, q.y)) { q.x = nx; q.z = nz; } q.y = hAt(Tr, q.x, q.z);
     if (M.W.key === 'skate') { const r = Math.hypot(q.x, q.z); if (r > M.W.G.R0 && r < M.W.G.R1) q.y = 0; }
     if ((q.eT -= dt) <= 0) { q.eT = 0.2; stamp(P, q.x, q.z, q.type === 'sludge' ? 1.2 : 0.65 * q.sz, 0, 0, 9); }
     for (const pm of alivePumps) if (Math.hypot(pm.x - q.x, pm.z - q.z) < 1.6 + q.sz * 0.6 && Math.abs(q.y - (pm.y || 0)) < 1.2) pm.hp -= q.dps * dt * ({ easy: 0.35, normal: 0.55, hard: 0.8 }[M.cfg.level] || 0.5);
-    if (pl && pd < 0.75 * q.sz + 0.35 && Math.abs(pl.y - q.y) < 1.4) damage(pl, 18 * DF().gooHurt * dt, null);
+    if (pl && !(q.pause > 0) && pd < 0.75 * q.sz + 0.35 && Math.abs(pl.y - q.y) < 1.4) { damage(pl, 18 * DF().gooHurt * GA.bite, null); const d = pd || 1; q.hx = (q.x - pl.x) / d * GA.hop / GA.hopT; q.hz = (q.z - pl.z) / d * GA.hop / GA.hopT; q.hopT = GA.hopT; q.pause = GA.hopT + GA.pause; }
     if (q.type === 'spit' && (q.spitT -= dt) <= 0 && pl && pd < 9) { q.spitT = 3; M.blobs.push({ x0: q.x, z0: q.z, y0: q.y + 0.8, x1: pl.x, z1: pl.z, y1: pl.y, t: 0, T: 0.7, arc: 2.5, team: -1, a: null, ang: 0, dr: 9, x: q.x, y: q.y, z: q.z, out: 99 }); }
     q.g.position.set(q.x, q.y + Math.abs(Math.sin(M.t * 6 + q.x)) * 0.1, q.z); if (mx || mz) q.g.rotation.y = Math.atan2(mx, mz);
   }
@@ -1497,6 +1526,6 @@ UI.results = function (res) { if (res.best) setTimeout(() => SND.play('cheer'), 
 };
 const games = document.getElementById('games-back'); stage.appendChild(games);
 UI.title();
-window.SA = { get M() { return M; }, UI, startMatch, Inp, buildWorld, TERRAIN, maps: Object.keys(MAPS), damage: (a, d, by) => damage(a, d, by) };
+window.SA = { get M() { return M; }, UI, startMatch, Inp, fire, GA, buildWorld, TERRAIN, maps: Object.keys(MAPS), damage: (a, d, by) => damage(a, d, by) };
 
 </script></body></html>
