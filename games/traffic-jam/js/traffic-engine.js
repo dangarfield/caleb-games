@@ -1,5 +1,7 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/+esm';
 import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js/+esm';
+import { mergeGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/utils/BufferGeometryUtils.js/+esm';
+import Stats from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/stats.module.js/+esm';
 import { colourRules } from './colour-solver.js';
 import { starsFor } from './traffic-levels.js';
 const MATCH_COLOURS = ['#ff4d6d', '#3b82f6', '#ffc72c'];
@@ -15,6 +17,42 @@ const BUILD_TALL = ['building-skyscraper-a', 'building-skyscraper-b', 'building-
 const BUILD_LOW = ['low-detail-building-a', 'low-detail-building-b', 'low-detail-building-c', 'low-detail-building-d', 'low-detail-building-wide-a'];
 const ROADS = ['road-straight', 'road-crossroad', 'road-end-round', 'tile-low', 'light-square', 'traffic-light', 'construction-barrier', 'construction-cone', 'dumpster'];
 const S = 2;
+// Performance: matte Lambert shading instead of PBR (the toy-town look is matte anyway; far cheaper per pixel).
+const LitMat = (p = {}) => { const q = { ...p }; delete q.roughness; delete q.metalness; return new THREE.MeshLambertMaterial(q); };
+const _lam = new Map();
+function toLambert(m, kit = '') {
+  if (!m || m.isMeshLambertMaterial || m.isMeshBasicMaterial) return m;
+  // every GLB in a Kenney kit uses the same colormap, so share one material per kit -> merges collapse further
+  const id = kit ? [kit, m.map ? 'tex' : 'notex', m.color ? m.color.getHexString() : '', +!!m.vertexColors, +!!m.transparent, m.opacity, m.side, m.emissive ? m.emissive.getHexString() : ''].join('|') : m.uuid;
+  let l = _lam.get(id);
+  if (!l) {
+    l = new THREE.MeshLambertMaterial({ map: m.map || null, color: m.color ? m.color.clone() : 0xffffff, vertexColors: !!m.vertexColors, transparent: !!m.transparent, opacity: m.opacity ?? 1, side: m.side, alphaTest: m.alphaTest || 0, emissive: m.emissive ? m.emissive.clone() : 0x000000, emissiveMap: m.emissiveMap || null, emissiveIntensity: m.emissiveIntensity ?? 1 });
+    l.name = m.name; _lam.set(id, l);
+  }
+  return l;
+}
+// Performance: bake static decoration into one mesh per material (hundreds of draw calls -> a handful).
+function mergeStatic(parent, objs, chunk = 0) {   // chunk: split into chunk×chunk cells so off-screen parts still get culled
+  parent.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(parent.matrixWorld).invert(), buckets = new Map(), keep = [];
+  for (const o of objs) o.traverse(m => {
+    if (!m.isMesh || !m.visible) return;
+    if (Array.isArray(m.material) || m.isInstancedMesh || m.isSkinnedMesh) { keep.push(m); return; }
+    const g = m.geometry, sig = Object.keys(g.attributes).sort().map(k => { const a = g.attributes[k]; return k + a.itemSize + a.array.constructor.name + (a.normalized ? 'n' : ''); }).join(',');
+    const wp = new THREE.Vector3().setFromMatrixPosition(m.matrixWorld), cell = chunk ? Math.floor(wp.x / chunk) + "," + Math.floor(wp.z / chunk) : "";
+    const key = cell + '|' + m.material.uuid + '|' + (+m.castShadow) + (+m.receiveShadow) + '|' + sig + '|' + (g.index ? 'i' : 'n');
+    let b = buckets.get(key); if (!b) buckets.set(key, b = { mat: m.material, cs: m.castShadow, rs: m.receiveShadow, geos: [] });
+    const gg = g.clone(); gg.morphAttributes = {}; gg.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld)); b.geos.push(gg);
+  });
+  keep.forEach(m => parent.attach(m));
+  objs.forEach(o => parent.remove(o));
+  for (const b of buckets.values()) {
+    const merged = b.geos.length === 1 ? b.geos[0] : mergeGeometries(b.geos, false);
+    if (b.geos.length > 1) b.geos.forEach(g => g.dispose());
+    if (!merged) continue;
+    const mesh = new THREE.Mesh(merged, b.mat); mesh.castShadow = b.cs; mesh.receiveShadow = b.rs; parent.add(mesh);
+  }
+}
 const DISTRICT_X = [20, 40, 60, 80, 100, 120, 140, 160, 180], ROAD_Z = 3;
 
 function mulberry(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -134,9 +172,20 @@ const VARIANT_LIGHT = { carpark: 'day', night: 'night', box: 'golden', oneway: '
 
 export async function createEngine(host, cb = {}) {
   const audio = makeAudio();
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  // Performance: MSAA only on low-density screens (at >=1.5x the pixels themselves smooth the edges).
+  const DPR = devicePixelRatio || 1;
+  const renderer = new THREE.WebGLRenderer({ antialias: DPR < 1.5, powerPreference: 'high-performance' });
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap; renderer.shadowMap.autoUpdate = false;
+  // Adaptive quality ladder: if frames run slow, step down; remembered so a slow tablet starts where it ended up.
+  const QUALITY = [{ pr: 1.5, sh: true }, { pr: 1.25, sh: true }, { pr: 1, sh: true }, { pr: 1, sh: false }, { pr: .8, sh: false }, { pr: .65, sh: false }];
+  let qLevel = 0; try { qLevel = Math.max(0, Math.min(QUALITY.length - 1, +localStorage.getItem('trafficJamQuality') || 0)); } catch (e) { }
+  let shadowDirty = 2;
+  function applyQuality() {
+    const Q = QUALITY[qLevel];
+    renderer.setPixelRatio(Math.min(DPR, Q.pr));
+    if (renderer.shadowMap.enabled !== Q.sh) { renderer.shadowMap.enabled = Q.sh; [G, M].forEach(S0 => S0 && S0.sc.traverse(o => o.material && [].concat(o.material).forEach(m => m.needsUpdate = true))); }
+    shadowDirty = 2;
+  }
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.domElement.style.cssText = 'display:block;width:100%;height:100%;touch-action:none;';
   host.appendChild(renderer.domElement);
@@ -148,10 +197,10 @@ export async function createEngine(host, cb = {}) {
     sc.background = new THREE.Color(L.sky); sc.fog = new THREE.Fog(L.sky, L.fog[0], L.fog[1]);
     const hemi = new THREE.HemisphereLight(L.hemi[0], L.hemi[1], L.hemi[2]);
     const sun = new THREE.DirectionalLight(L.sun[0], L.sun[1]); sun.position.set(...L.sun[2]);
-    sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+    sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
     Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20, near: 1, far: 70 });
     sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.02;
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(500, 500), new THREE.MeshStandardMaterial({ color: L.ground, roughness: 1 }));
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(500, 500), LitMat({ color: L.ground, roughness: 1 }));
     ground.rotation.x = -Math.PI / 2; ground.position.y = -0.02; ground.receiveShadow = true;
     sc.add(hemi, sun, sun.target, ground);
     return { sc, hemi, sun, ground };
@@ -162,7 +211,7 @@ export async function createEngine(host, cb = {}) {
     const L = LIGHTS[preset];
     S0.sc.background.set(L.sky); S0.sc.fog.color.set(L.sky); S0.sc.fog.near = L.fog[0]; S0.sc.fog.far = L.fog[1];
     S0.hemi.color.set(L.hemi[0]); S0.hemi.groundColor.set(L.hemi[1]); S0.hemi.intensity = L.hemi[2];
-    S0.sun.color.set(L.sun[0]); S0.sun.intensity = L.sun[1]; S0.sun.position.set(...L.sun[2]); S0.ground.material.color.set(L.ground);
+    shadowDirty = 2; S0.sun.color.set(L.sun[0]); S0.sun.intensity = L.sun[1]; S0.sun.position.set(...L.sun[2]); S0.ground.material.color.set(L.ground);
   }
 
   // ---------- load ----------
@@ -174,11 +223,12 @@ export async function createEngine(host, cb = {}) {
   await Promise.all(list.map(([dir, name]) => new Promise(res => {
     const done = () => { loaded++; cb.onProgress && cb.onProgress(loaded / list.length); res(); };
     loader.load(`${BASE}${dir}/${name}.glb`, g => {
-      g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; if (o.material.map) o.material.map.anisotropy = 4; } });
+      g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.material = toLambert(o.material, dir); if (o.material.map) o.material.map.anisotropy = 2; } });
       lib[name] = g.scene; done();
     }, undefined, done);
   })));
   const clone = n => lib[n] ? lib[n].clone() : new THREE.Group();
+  const libGeos = new Set(); Object.values(lib).forEach(g => g.traverse(o => o.isMesh && libGeos.add(o.geometry)));
   const noShadow = o => { o.traverse(m => { if (m.isMesh) m.castShadow = false; }); return o; };
 
   // ---------- shared helpers ----------
@@ -190,7 +240,8 @@ export async function createEngine(host, cb = {}) {
   function fitModel(name, len, width = .6) {
     const body = clone(name); const size = new THREE.Box3().setFromObject(lib[name] || body).getSize(new THREE.Vector3());
     const sx = width / Math.max(size.x, .01) * 1.0, sz = Math.min((len - .2) / size.z, sx * 1.32);
-    body.scale.set(sx, sx, sz); return body;
+    body.scale.set(sx, sx, sz);
+    const holder = new THREE.Group(); holder.add(body); mergeStatic(holder, [body]); return holder;   // one draw per car
   }
   function placer(parent) {
     return (name, x, z, rot = 0, s = S, shadows = true) => { const o = clone(name); o.scale.setScalar(s); o.position.set(x, 0, z); o.rotation.y = rot; if (!shadows) noShadow(o); parent.add(o); return o; };
@@ -228,7 +279,7 @@ export async function createEngine(host, cb = {}) {
     const top = new THREE.Box3().setFromObject(body).max.y;
     const halo = new THREE.Mesh(new THREE.PlaneGeometry(1, len), new THREE.MeshBasicMaterial({ map: haloFor(len), transparent: true, depthWrite: false, opacity: 0 }));
     halo.rotation.x = -Math.PI / 2; halo.position.y = .045; halo.renderOrder = 2; g.add(halo);
-    const hit = new THREE.Mesh(new THREE.BoxGeometry(1, 1.2, len), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false })); hit.position.y = .55; g.add(hit);
+    const hit = new THREE.Mesh(new THREE.BoxGeometry(1, 1.2, len), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false })); hit.position.y = .55; hit.visible = false; g.add(hit);
     let arrows = null;
     if (tint) {
       // control pad on the FRONT cell: colour dot + forward / back / left / right arrows
@@ -290,27 +341,27 @@ export async function createEngine(host, cb = {}) {
   }
 
   function buildWorld(lv, seed) {
-    if (world) G.sc.remove(world);
+    if (world) { G.sc.remove(world); world.traverse(o => { if (o.geometry && !libGeos.has(o.geometry)) o.geometry.dispose(); if (o.isMesh && o.material && o.material.map && o.material.map.isCanvasTexture && o.material.userData.own) o.material.map.dispose(); }); }
     world = new THREE.Group(); G.sc.add(world); glows = []; gate = null;
     const R = mulberry(seed * 977 + 13), night = lv.variant === 'night';
     setLighting(G, VARIANT_LIGHT[lv.variant] || 'day');
     W = lv.w; H = lv.h;
     const Lw = W % 2 ? W + 1 : W, Lh = H % 2 ? H + 1 : H; LX = Lw / 2; LZ = Lh / 2;
-    const lot = new THREE.Mesh(new THREE.PlaneGeometry(Lw, Lh), new THREE.MeshStandardMaterial({ map: lotTexture(Lw, Lh, lv), roughness: .95 }));
-    lot.rotation.x = -Math.PI / 2; lot.position.y = .03; lot.receiveShadow = true; world.add(lot);
-    const curbMat = new THREE.MeshStandardMaterial({ color: '#f1edf8', roughness: .8 });
+    const lot = new THREE.Mesh(new THREE.PlaneGeometry(Lw, Lh), LitMat({ map: lotTexture(Lw, Lh, lv), roughness: .95 }));
+    lot.material.userData.own = true; lot.rotation.x = -Math.PI / 2; lot.position.y = .03; lot.receiveShadow = true; world.add(lot);
+    const curbMat = LitMat({ color: '#f1edf8', roughness: .8 });
     const box = (x, z, sx, sz, hgt, mat, y0 = 0) => { const m = new THREE.Mesh(new THREE.BoxGeometry(sx, hgt, sz), mat); m.position.set(x, y0 + hgt / 2, z); m.castShadow = true; m.receiveShadow = true; world.add(m); return m; };
     box(0, -LZ - .04, Lw + .16, .08, .09, curbMat); box(0, LZ + .04, Lw + .16, .08, .09, curbMat); box(-LX - .04, 0, .08, Lh, .09, curbMat); box(LX + .04, 0, .08, Lh, .09, curbMat);
     if (lv.type === 'rush') {
-      const wm = new THREE.MeshStandardMaterial({ color: night ? '#d9772f' : '#ff8a3d', roughness: .7 }), wallH = .34, t = .14, bx = W / 2, bz = H / 2;
+      const wm = LitMat({ color: night ? '#d9772f' : '#ff8a3d', roughness: .7 }), wallH = .34, t = .14, bx = W / 2, bz = H / 2;
       box(0, -bz - t / 2, W + 2 * t, t, wallH, wm, .03); box(0, bz + t / 2, W + 2 * t, t, wallH, wm, .03); box(-bx - t / 2, 0, t, H, wallH, wm, .03);
       const gz0 = cz(lv.exitRow) - .5, gz1 = cz(lv.exitRow) + .5;
       if (gz0 + bz > .01) box(bx + t / 2, (-bz + gz0) / 2, t, gz0 + bz, wallH, wm, .03);
       if (bz - gz1 > .01) box(bx + t / 2, (gz1 + bz) / 2, t, bz - gz1, wallH, wm, .03);
       // boom gate
-      const post = box(bx + t / 2, gz0 - .02, .2, .2, .62, new THREE.MeshStandardMaterial({ color: '#2a2740' }), .03);
+      const post = box(bx + t / 2, gz0 - .02, .2, .2, .62, LitMat({ color: '#2a2740' }), .03);
       const pivot = new THREE.Group(); pivot.position.set(bx + t / 2, .55, gz0 - .02); world.add(pivot);
-      const arm = new THREE.Mesh(new THREE.BoxGeometry(.08, .08, 1.02), new THREE.MeshStandardMaterial({ map: stripeTex, roughness: .6 }));
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(.08, .08, 1.02), LitMat({ map: stripeTex, roughness: .6 }));
       arm.geometry.attributes.uv && (() => { })(); arm.position.z = .53; arm.castShadow = true; pivot.add(arm);
       gate = { pivot, open: false, a: 0 };
       const chev = new THREE.Mesh(new THREE.PlaneGeometry(1.6, .8), new THREE.MeshBasicMaterial({ map: chevronTex, transparent: true, depthWrite: false }));
@@ -318,13 +369,13 @@ export async function createEngine(host, cb = {}) {
       if (night) { glow(world, bx + .2, .9, gz0 - .02, 1.2, '#ff7070'); }
     }
     if (lv.type === 'colour') {
-      const wm = new THREE.MeshStandardMaterial({ color: '#7d7898', roughness: .7 }), wallH = .3, t = .14, bx = W / 2, bz = H / 2;
+      const wm = LitMat({ color: '#7d7898', roughness: .7 }), wallH = .3, t = .14, bx = W / 2, bz = H / 2;
       const gset = new Map((lv.gates || []).map(([sd, i, c]) => [sd * 16 + i, c]));
       const seg = (side, i) => { const hor = side % 2 === 0; const x = hor ? cx(i) : (side === 1 ? bx + t / 2 : -bx - t / 2), z = hor ? (side === 0 ? -bz - t / 2 : bz + t / 2) : cz(i); return { x, z, hor }; };
       for (let side = 0; side < 4; side++) { const n = side % 2 ? H : W; for (let i = 0; i < n; i++) {
         const p = seg(side, i), col = gset.get(side * 16 + i);
         if (col === undefined) { box(p.x, p.z, p.hor ? 1.001 + (i === 0 || i === n - 1 ? t : 0) : t, p.hor ? t : 1.001, wallH, wm, .03); continue; }
-        const gm = new THREE.MeshStandardMaterial({ color: MATCH_COLOURS[col], roughness: .5, emissive: MATCH_COLOURS[col], emissiveIntensity: .15 });
+        const gm = LitMat({ color: MATCH_COLOURS[col], roughness: .5, emissive: MATCH_COLOURS[col], emissiveIntensity: .15 });
         const off = .5 - .06;
         [-off, off].forEach(o => box(p.x + (p.hor ? o : 0), p.z + (p.hor ? 0 : o), .14, .14, 1.05, gm, .03));
         box(p.x, p.z, p.hor ? 1.02 : .16, p.hor ? .16 : 1.02, .16, gm, 1.0);
@@ -335,7 +386,8 @@ export async function createEngine(host, cb = {}) {
     }
     // city grid around the lot
     const sx = LX + 1, sz = LZ + 1, RX = sx + 2 * 5, RZn = sz + 2 * 6, RZs = sz + 2 * 3;
-    const place = placer(world);
+    const city = new THREE.Group(); world.add(city);
+    const place = placer(city);
     for (let x = -RX; x <= RX; x += 2) for (let z = -RZn; z <= RZs; z += 2) {
       const ax = Math.abs(x), az = Math.abs(z);
       if (ax < sx && az < sz) continue;
@@ -364,6 +416,7 @@ export async function createEngine(host, cb = {}) {
       [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, b]) => { glow(world, a * (LX + .3), 1.6, b * (LZ + .3), 2.4); });
       const pl = new THREE.PointLight('#ffd9a0', 22, 16, 1.4); pl.position.set(0, 5, 0); world.add(pl);
     }
+    mergeStatic(city, [...city.children], 12); shadowDirty = 2;
     return { Lw, Lh };
   }
 
@@ -726,21 +779,21 @@ export async function createEngine(host, cb = {}) {
   (function buildMenu() {
     const place = placer(menu.root), root = menu.root;
     // garage floor + backdrop
-    const floor = new THREE.Mesh(new THREE.BoxGeometry(15, .12, 7), new THREE.MeshStandardMaterial({ color: '#f3eee4', roughness: .9 }));
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(15, .12, 7), LitMat({ color: '#f3eee4', roughness: .9 }));
     floor.position.set(0, .06, -1.2); floor.receiveShadow = true; root.add(floor);
-    const stripe = new THREE.Mesh(new THREE.BoxGeometry(15, .125, .3), new THREE.MeshStandardMaterial({ color: '#ffd23f' })); stripe.position.set(0, .065, 2.2); root.add(stripe);
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(15, .125, .3), LitMat({ color: '#ffd23f' })); stripe.position.set(0, .065, 2.2); root.add(stripe);
     [-6, -3.2, 3.2, 6].forEach((x, i) => place(['building-e', 'building-g', 'building-f', 'building-e'][i], x, -5.6, 0, S * 1.2));
     place('building-skyscraper-b', 0, -8, 0, S * 1.1);
     [-7.3, 7.3].forEach(x => place('light-square', x, 1.6, x < 0 ? Math.PI / 2 : -Math.PI / 2, S * 1.2));
     const cols = ['#ff4d6d', '#3ec1d3'];
     [-2.4, 2.4].forEach((x, k) => {
       const tt = new THREE.Group(); tt.position.set(x, .12, 0); root.add(tt);
-      const disc = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.8, .22, 48), new THREE.MeshStandardMaterial({ color: '#2a2740', roughness: .6 })); disc.position.y = .11; disc.receiveShadow = true; disc.castShadow = true; tt.add(disc);
-      const ring = new THREE.Mesh(new THREE.CylinderGeometry(1.58, 1.58, .225, 48), new THREE.MeshStandardMaterial({ color: cols[k], roughness: .5 })); ring.position.y = .115; tt.add(ring);
-      const top = new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.45, .23, 48), new THREE.MeshStandardMaterial({ color: '#fffaf0', roughness: .7 })); top.position.y = .115; top.receiveShadow = true; tt.add(top);
+      const disc = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.8, .22, 48), LitMat({ color: '#2a2740', roughness: .6 })); disc.position.y = .11; disc.receiveShadow = true; disc.castShadow = true; tt.add(disc);
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(1.58, 1.58, .225, 48), LitMat({ color: cols[k], roughness: .5 })); ring.position.y = .115; tt.add(ring);
+      const top = new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.45, .23, 48), LitMat({ color: '#fffaf0', roughness: .7 })); top.position.y = .115; top.receiveShadow = true; tt.add(top);
       const spin = new THREE.Group(); spin.position.y = .23; tt.add(spin);
       const car = new THREE.Group(); const body = fitModel(PLAYER_CARS[k], 2.3, .95); car.add(body); spin.add(car);
-      const hit = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 1.8, 1.6, 16), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false })); hit.position.y = .8; tt.add(hit);
+      const hit = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 1.8, 1.6, 16), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false })); hit.position.y = .8; hit.visible = false; tt.add(hit);
       menu.players.push({ tt, spin, car, hit, x, home: new THREE.Vector3(x, .35, 0) });
     });
     // long road
@@ -763,7 +816,7 @@ export async function createEngine(host, cb = {}) {
     DISTRICT_X.forEach((X, k) => {
       const R = mulberry(k * 71 + 5), th = themes[k], g = new THREE.Group(); root.add(g);
       const pl = placer(g);
-      const patch = new THREE.Mesh(new THREE.BoxGeometry(11.2, .1, 11.2), new THREE.MeshStandardMaterial({ color: th.patch, roughness: 1 })); patch.position.set(X, -.056, ROAD_Z); patch.receiveShadow = true; g.add(patch);
+      const patch = new THREE.Mesh(new THREE.BoxGeometry(11.2, .1, 11.2), LitMat({ color: th.patch, roughness: 1 })); patch.position.set(X, -.056, ROAD_Z); patch.receiveShadow = true; g.add(patch);
       for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) {
         const x = X + i * 2, z = ROAD_Z + j * 2;
         if (i === 0 && j === 0) { pl('road-crossroad', x, z, 0, S, false); continue; }
@@ -785,11 +838,13 @@ export async function createEngine(host, cb = {}) {
       const tr2 = new THREE.Group(); tr2.add(fitModel(pick(R, CARS3), 2.6)); g.add(tr2);
       menu.traffic.push({ obj: tr1, from: new THREE.Vector3(X + .5, 0, ROAD_Z - 4.6), to: new THREE.Vector3(X + .5, 0, ROAD_Z + 4.6), t: R() });
       menu.traffic.push({ obj: tr2, from: new THREE.Vector3(X + 4.8, 0, ROAD_Z + .5), to: new THREE.Vector3(X - 4.6, 0, ROAD_Z + .5), t: R() });
+      mergeStatic(g, g.children.filter(c => c !== bar && c !== tr1 && c !== tr2));
       menu.districts.push({ X, g, bar });
     });
     // skyline
     const R = mulberry(3);
     for (let x = -14; x <= DISTRICT_X[DISTRICT_X.length - 1] + 14; x += 2.2) place(pick(R, BUILD_LOW), x, -14 - R() * 3, 0, S * (1.4 + R() * .6));
+    mergeStatic(root, root.children.filter(c => !menu.players.some(p => p.tt === c) && !menu.districts.some(d => d.g === c)), 24);
   })();
 
   function menuDesired() {
@@ -900,16 +955,54 @@ export async function createEngine(host, cb = {}) {
     _pick: (x, y) => { const c = pickCar({ clientX: x, clientY: y }); return c ? c.i : -1; },
     _screenAt: (i, h) => { const r = el.getBoundingClientRect(); const p = cars[i].group.position.clone().setY(h).project(camera); return [r.left + (p.x + 1) / 2 * r.width, r.top + (1 - p.y) / 2 * r.height]; },
     _screen: i => { const r = el.getBoundingClientRect(); const p = cars[i].group.position.clone().setY(.4).project(camera); return [r.left + (p.x + 1) / 2 * r.width, r.top + (1 - p.y) / 2 * r.height]; },
+    toggleMonitor: () => toggleMon(),
+    _quality: (n, lock = true) => { qLock = lock; if (n != null) { qLevel = n; applyQuality(); } return qLevel; },
+    _info: () => ({ q: qLevel,  calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geos: renderer.info.memory.geometries, pr: renderer.getPixelRatio(), size: [renderer.domElement.width, renderer.domElement.height] }),
     debug: () => ({ view: camera.view, insets, aspect: camera.aspect, fit: playFit && { D: playFit.D, tz: playFit.tgt.z }, W, H, mode, cars: cars.map(c => ({ i: c.i, pos: c.pos, alive: c.alive })), moves, bumps }),
-    dispose() { renderer.setAnimationLoop(null); ro.disconnect(); renderer.dispose(); host.removeChild(el); },
+    dispose() { removeEventListener('keydown', onMonKey); stats.dom.remove(); monInfo.remove(); renderer.setAnimationLoop(null); ro.disconnect(); renderer.dispose(); host.removeChild(el); },
   };
 
   // ---------- resize + loop ----------
   function resize() { const w = host.clientWidth, h = host.clientHeight; if (!w || !h) return; renderer.setSize(w, h, false); applyView(); if (mode === 'play' && level) { const f = fitPlay(); placeCam(f.tgt, f.D, f.elev); } }
   const ro = new ResizeObserver(resize); ro.observe(host);
-  let last = performance.now(), tNow = 0;
+  // ---------- performance monitor (P, or hold the level card) ----------
+  const stats = new Stats();
+  stats.dom.style.cssText = 'position:fixed;top:64px;left:12px;z-index:9998;cursor:pointer;opacity:.9;display:none';
+  const monInfo = document.createElement('div');
+  monInfo.style.cssText = 'position:fixed;top:118px;left:12px;z-index:9998;padding:3px 6px;background:rgba(0,0,16,.75);color:#0ff;font:600 11px/1.35 monospace;white-space:pre;pointer-events:none;display:none';
+  document.body.append(stats.dom, monInfo);
+  let monOn = false, monT = 0, monDraws = 0;
+  const showMon = v => { monOn = !!v; stats.dom.style.display = monInfo.style.display = monOn ? 'block' : 'none'; };
+  const toggleMon = () => { showMon(!monOn); try { localStorage.setItem('trafficJamMon', monOn ? '1' : '0'); } catch (e) { } };
+  try { showMon(localStorage.getItem('trafficJamMon') === '1'); } catch (e) { }
+  const onMonKey = e => { if ((e.key === 'p' || e.key === 'P') && !e.repeat) toggleMon(); };
+  addEventListener('keydown', onMonKey);
+  function monTick(now) {
+    stats.update(); monDraws++;
+    if (now - monT >= 1000) {
+      const r = renderer.info.render, c = renderer.domElement, Q = QUALITY[qLevel];
+      monInfo.textContent = `redraws ${monDraws}/s\n${r.calls} calls · ${Math.round(r.triangles / 1000)}k tris\n${c.width}×${c.height} · quality ${QUALITY.length - qLevel}/${QUALITY.length}${Q.sh ? ' · shadows' : ''}\nframe ${fAvg.toFixed(1)}ms`;
+      monDraws = 0; monT = now;
+    }
+  }
+  let last = performance.now(), tNow = 0, fAvg = 16, fN = 0, fWarm = 0, lastActive = null, gateA = 0;
+  let qLock = false, qFloor = 0;
+  function adapt(rawMs) {
+    if (qLock) return;
+    // ignore hitches from tab switches / loading; judge on a steady run of frames
+    if (rawMs > 250) { fWarm = 0; return; }
+    if (++fWarm < 20) { fAvg = rawMs; return; }
+    fAvg += (rawMs - fAvg) * .08;
+    if (++fN < 45) return; fN = 0;
+    let q = qLevel;
+    if (fAvg > 24 && q < QUALITY.length - 1) { q++; qFloor = Math.max(qFloor, q); }   // under ~40fps: cheaper, and don't climb back this session
+    else if (fAvg < 18 && q > qFloor) q--;                 // holding 60fps: try nicer
+    if (q !== qLevel) { qLevel = q; applyQuality(); fWarm = 0; try { localStorage.setItem('trafficJamQuality', String(q)); } catch (e) { } }
+  }
+  applyQuality();
   renderer.setAnimationLoop(() => {
-    const now = performance.now(), dt = Math.min(.05, (now - last) / 1000); last = now; tNow += dt;
+    const now = performance.now(), rawMs = now - last, dt = Math.min(.05, rawMs / 1000); last = now; tNow += dt;
+    adapt(rawMs);
     { const cur = tasks; tasks = []; const keep = cur.filter(fn => !fn(dt)); tasks = keep.concat(tasks); }
     if (mode === 'menu') {
       const d = menuDesired(), k = 1 - Math.exp(-dt * 2.6);
@@ -929,7 +1022,13 @@ export async function createEngine(host, cb = {}) {
       glows.forEach((g, i) => { g.material.opacity = .85 + Math.sin(tNow * 3 + i) * .08; });
       confetti = confetti.filter(m => { m.userData.v.y -= 14 * dt; m.position.addScaledVector(m.userData.v, dt); m.userData.v.multiplyScalar(.985); m.rotation.x += m.userData.s.x * dt; m.rotation.y += m.userData.s.y * dt; m.userData.life -= dt; if (m.userData.life <= 0 || m.position.y < -1) { m.parent && m.parent.remove(m); return false; } return true; });
     }
+    // Shadows are only re-drawn when something that casts one moves (menu always moves: sun follows the camera).
+    if (active !== lastActive) { lastActive = active; shadowDirty = 2; }
+    const gateMoving = gate && Math.abs(gate.a - gateA) > 1e-4; gateA = gate ? gate.a : 0;
+    if (mode === 'menu' || tasks.length || drag || gateMoving) shadowDirty = 2;
+    if (renderer.shadowMap.enabled && shadowDirty > 0) { renderer.shadowMap.needsUpdate = true; shadowDirty--; }
     renderer.render(active.sc, camera);
+    if (monOn) monTick(now);
   });
   resize(); snapMenuCam();
   return api;

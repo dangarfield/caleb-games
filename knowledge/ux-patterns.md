@@ -116,3 +116,16 @@ function monTick(now, drew) {
 ```
 
 Worked example: `games/pocket-pros/index.html` (search `performance monitor`).
+
+### Keeping a Three.js frame cheap on the tablet (checklist)
+
+Learnt on Traffic Jam (Oct 2026), where a Kenney-kit town ran badly on the low-end tablet:
+
+- **Count draw calls first** (monitor above). Every cloned GLB is several meshes; a town of clones is hundreds of calls. Bake static scenery into one mesh per material with `mergeGeometries` (BufferGeometryUtils), split into ~12-unit chunks so off-screen parts still cull. Merge each vehicle's meshes into one too. See `mergeStatic()` in `games/traffic-jam/js/traffic-engine.js`.
+- **Share materials.** Every GLB load makes its own material even when the kit shares one colormap — map them to one material per kit so the merges collapse.
+- **`MeshLambertMaterial` over `MeshStandardMaterial`** for flat-shaded low-poly kits — same look, much cheaper per pixel.
+- **Invisible pick volumes:** `visible = false` (raycasts still hit them); `colorWrite:false` meshes still cost a draw call.
+- **Shadows:** 1024 `PCFShadowMap`, not 2048 PCFSoft; `shadowMap.autoUpdate = false` and set `needsUpdate` only while something that casts one is moving.
+- **Pixels:** cap pixel ratio at 1.5, MSAA only when `devicePixelRatio < 1.5`, and step resolution (then shadows) down from measured frame time; remember the level so the tablet starts where it settled.
+- **Dispose** per-level geometry and canvas textures when a level is torn down (shared GLB geometry excepted).
+

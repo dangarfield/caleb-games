@@ -430,7 +430,7 @@ function view(v) {
       <button data-click="toLevels" class="a1" style="height:44px;background:#fffaf0;border:3px solid #2a2740;box-shadow:0 4px 0 #2a2740;border-radius:14px;font-size:15px;font-weight:600;cursor:pointer;color:#2a2740;">‹ Levels</button>
       <div style="background:#fffaf0;border:3px solid #2a2740;box-shadow:0 4px 0 #2a2740;border-radius:16px;padding:10px 10px 9px;display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center;">
         <div style="font-size:11px;font-weight:600;color:#6a6488;letter-spacing:.04em;">${e(v.districtName)}</div>
-        <div style="font-size:22px;font-weight:700;line-height:1;">Level ${v.levelNum}</div>
+        <div data-hold-mon style="font-size:22px;font-weight:700;line-height:1;">Level ${v.levelNum}</div>
         <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#fffaf0;background:${v.vInk};border-radius:99px;padding:3px 9px;">${e(v.modeLabel)}</div><div style="font-size:12px;font-weight:600;color:${v.vInk};">${e(v.variantName)}</div></div>
         <div style="font-size:12px;font-weight:500;color:#5b5577;line-height:1.25;text-wrap:pretty;">${e(v.goal)}</div>
       </div>
@@ -451,7 +451,7 @@ function view(v) {
       <div style="display:flex;align-items:flex-start;gap:10px;padding-left:124px;">
         <div style="flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:6px;">
           <div style="display:flex;align-items:center;gap:8px;background:#fffaf0;border:3px solid #2a2740;box-shadow:0 4px 0 #2a2740;border-radius:16px;padding:6px 12px;">
-            <div style="font-size:19px;font-weight:700;white-space:nowrap;">Level ${v.levelNum}</div>
+            <div data-hold-mon style="font-size:19px;font-weight:700;white-space:nowrap;">Level ${v.levelNum}</div>
             <div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#fffaf0;background:${v.vInk};border-radius:99px;padding:3px 8px;white-space:nowrap;">${e(v.variantName)}</div>
           </div>
           <div style="font-size:14px;font-weight:600;background:rgba(255,250,240,.9);border-radius:99px;padding:3px 12px;text-align:center;">${e(v.goal)}</div>
@@ -504,6 +504,10 @@ function view(v) {
 }
 
 document.addEventListener('contextmenu', e => e.preventDefault());
+// Performance monitor: P on a keyboard, or hold the "Level N" title for ~0.6s on the tablet.
+{ let t = 0; const cancel = () => clearTimeout(t);
+  document.addEventListener('pointerdown', e => { cancel(); if (e.target.closest && e.target.closest('[data-hold-mon]')) t = setTimeout(() => window.__tj && window.__tj.toggleMonitor(), 600); }, true);
+  ['pointerup', 'pointercancel'].forEach(ev => document.addEventListener(ev, cancel, true)); }
 new Component();
 </script>
 </body>
