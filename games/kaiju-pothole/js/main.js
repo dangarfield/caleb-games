@@ -1,5 +1,5 @@
 import { loadStatic, loadHazards, loadRoom, loadSkinned } from './assets.js';
-import { Game, LIST_LEVELS, TIER_LABEL, KIND_LABEL } from './game.js';
+import { Game, LIST_LEVELS, TIER_LABEL, KIND_LABEL, RIVAL_MAX, rivalTitle } from './game.js';
 import { SKINS, skinPreview } from './hole.js';
 import { sfx } from './sfx.js';
 import { initPhysics } from './physics.js';
@@ -11,7 +11,7 @@ const Store = ArcadeStore('kaiju-pothole');
 
 // Two players, each with their own scores, wins, shapes and settings. Performance mode is shared.
 const USERS = [{ id: 'ezra', name: 'Ezra' }, { id: 'caleb', name: 'Caleb' }];
-const fresh = () => ({ stars: { list: {}, zen: 0 }, wins: { easy: 0, normal: 0, hard: 0 }, best: {}, zenBest: 0, zenRun: null, skin: 'black', shake: true, difficulty: 'easy', vol: { fx: 80, music: 80 }, eaten: {}, rims: ['black'] });
+const fresh = () => ({ stars: { list: {}, zen: 0 }, wins: { easy: 0, normal: 0, hard: 0, challenge: 0 }, rivalLvl: 4, best: {}, zenBest: 0, zenRun: null, skin: 'black', shake: true, difficulty: 'easy', vol: { fx: 80, music: 80 }, eaten: {}, rims: ['black'] });
 let root = { v: 3, user: 'ezra', users: {}, perf: false }, save = fresh();
 // Hole shapes are won by eating things across every game (a long-running shopping list),
 // or by finishing a Shopping level (one placeholder shape per level for now).
@@ -91,7 +91,8 @@ function refreshMenus() {
   const run = save.zenRun;
   $('zen-desc').textContent = run ? `Carry on! ${Math.round(run.pct * 100)}% of your town is gone.` : 'No clock. Eat the whole town!';
   $('st-zen').innerHTML = starStr(save.stars.zen) + '&nbsp;&nbsp;Best: ' + (save.zenBest || 0) + '%' + (run ? `<span class="clr" data-clear="zen" role="button">${icon('arrow-counter-clockwise')}New town</span>` : '');
-  for (const d of ['easy', 'normal', 'hard']) $('w-' + d).textContent = save.wins[d] || 0;
+  for (const d of ['easy', 'challenge']) $('w-' + d).textContent = save.wins[d] || 0;
+  $('rv-lvl').textContent = 'Level ' + save.rivalLvl + ' · ' + rivalTitle(save.rivalLvl);
   $('st-list').innerHTML = icon('star') + '&nbsp;' + LIST_LEVELS.reduce((a, _, i) => a + listStars(i), 0) + ' / ' + LIST_LEVELS.reduce((a, _, i) => a + listMax(i), 0);
   for (const b of $('diff').children) b.classList.toggle('on', b.dataset.d === save.difficulty);
   $('levelGrid').innerHTML = LIST_LEVELS.map((l, i) => {
@@ -128,7 +129,7 @@ async function play(cfg) {
   if (cfg.mode === 'zen' && save.zenRun) cfg = { ...cfg, resume: save.zenRun }; // pick up the saved town sfx.unlock(); sfx.enter(); sfx.music({ rush: 'gobble', rivals: 'battle', list: 'shopping', zen: 'zen' }[cfg.mode] || 'gobble');
   show('loading'); $('loadMsg').textContent = cfg.mode === 'list' && LIST_LEVELS[cfg.level].room != null ? 'Knocking on the door…' : 'Digging in…'; $('bar').firstElementChild.style.width = '100%';
   await new Promise(r => setTimeout(r, 90)); // let the click sound and loading screen start before the heavy town build
-  await game.start({ ...cfg, skin: devSkin || save.skin, difficulty: save.difficulty });
+  await game.start({ ...cfg, skin: devSkin || save.skin, difficulty: save.difficulty, rivalLevel: save.rivalLvl });
   show(null);
 }
 function resume() { game.paused = false; show(null); }
@@ -139,6 +140,14 @@ function results(res) {
   if (m === 'zen') save.zenRun = null; // a finished Zen run starts a fresh town next time
   if (m === 'zen') { save.stars.zen = Math.max(save.stars.zen || 0, res.stars); save.zenBest = Math.max(zenWas, zenPct); } // Zen card: best % of the town eaten
   if (m === 'rivals' && res.place === 1) save.wins[save.difficulty] = (save.wins[save.difficulty] || 0) + 1;
+  // Challenge: win → up a level, 2nd → stay, 3rd/4th → down a level (each player has their own)
+  let rivalMsg = '';
+  if (m === 'rivals' && save.difficulty === 'challenge') {
+    const was = save.rivalLvl, step = res.place === 1 ? 1 : res.place === 2 ? 0 : -1;
+    save.rivalLvl = Math.max(1, Math.min(RIVAL_MAX, was + step));
+    const L = 'Level ' + save.rivalLvl + ' · ' + rivalTitle(save.rivalLvl);
+    rivalMsg = save.rivalLvl > was ? 'Level up! Next: ' + L : save.rivalLvl < was ? 'Down to ' + L : (was === RIVAL_MAX && step > 0 ? 'Top level! Still ' : 'Staying on ') + L;
+  }
   if (m === 'list') {
     save.stars.list[res.level] = Math.max(save.stars.list[res.level] || 0, res.stars);
     const rim = SKINS.find(s => s.level === res.level);
@@ -150,6 +159,7 @@ function results(res) {
   $('resStars').style.display = showStars ? '' : 'none'; $('resStars').innerHTML = showStars ? starStr(res.stars, res.of || 3) : '';
   const lines = m === 'list' ? [res.stars + ' of ' + res.of + ' done'] : [`Score ${res.score.toLocaleString()}${res.score > best ? ' · new best!' : ''}`];
   if (m === 'rush' || m === 'rivals') lines.push('You got to size ' + res.tier + ': ' + TIER_LABEL[res.tier]);
+  if (rivalMsg) lines.push(rivalMsg);
   if (m === 'zen') lines.push(zenPct + '% of the town eaten' + (zenPct > zenWas ? ' · new best!' : ''));
   $('resText').innerHTML = lines.join('<br>');
   // what went down the hole, by kind
@@ -242,6 +252,8 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && gam
   for (const u of USERS) {
     const f = fresh(), s = root.users[u.id] || {};
     if ((root.v || 2) < 3) { s.difficulty = 'easy'; s.vol = { fx: 80, music: 80 }; } // new defaults
+    // Normal / Hard became the adaptive Challenge: start it about where they were
+    if (s.difficulty === 'normal' || s.difficulty === 'hard') { if (s.rivalLvl == null) s.rivalLvl = s.difficulty === 'hard' ? 11 : 6; s.difficulty = 'challenge'; }
     root.users[u.id] = { ...f, ...s, stars: { ...f.stars, ...(s.stars || {}) }, wins: { ...f.wins, ...(s.wins || {}) }, vol: { ...f.vol, ...(s.vol || {}) } };
   }
   // hole shapes v2: Black is the free default; the old Shop rim placeholders become that level's new shape

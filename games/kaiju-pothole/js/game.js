@@ -20,6 +20,24 @@ export const DIFF = {
   normal: { speed: 0.85, sight: 20, grow: 0.6, think: [0.7, 1.1], wander: 0.2, chase: 1.4, bite: 0.2 },
   hard: { speed: 0.95, sight: 28, grow: 0.75, think: [0.5, 0.8], wander: 0.1, chase: 1.25, bite: 0.3 },
 };
+// Challenge: one level per player that goes up when you win and down when you come 3rd or 4th (main.js).
+// The bots blend between these anchors: level 1 is a touch above Easy, 6 ≈ old Normal, 11 ≈ old Hard, 20 is nasty.
+export const RIVAL_MAX = 20;
+const ANCHORS = [
+  [1, { speed: 0.78, sight: 16, grow: 0.52, think: [0.95, 1.5], wander: 0.32, chase: 1.55, bite: 0.16 }],
+  [6, DIFF.normal],
+  [11, DIFF.hard],
+  [20, { speed: 1.08, sight: 40, grow: 1.0, think: [0.3, 0.45], wander: 0.02, chase: 1.12, bite: 0.38 }],
+];
+// a name for each band of levels, shown with the number ("Level 7 · Sinkhole")
+const TITLES = ['Puddle', 'Pothole', 'Sinkhole', 'Crater', 'Quarry', 'Canyon', 'Black Hole'];
+export const rivalTitle = lvl => TITLES[Math.min(TITLES.length - 1, Math.floor((lvl - 1) / 3))];
+export function rivalDiff(lvl) {
+  lvl = Math.max(1, Math.min(RIVAL_MAX, lvl | 0));
+  let i = 0; while (i < ANCHORS.length - 2 && lvl > ANCHORS[i + 1][0]) i++;
+  const [l0, a] = ANCHORS[i], [l1, b] = ANCHORS[i + 1], t = Math.min(1, Math.max(0, (lvl - l0) / (l1 - l0))), m = (x, y) => x + (y - x) * t;
+  return { speed: m(a.speed, b.speed), sight: m(a.sight, b.sight), grow: m(a.grow, b.grow), think: [m(a.think[0], b.think[0]), m(a.think[1], b.think[1])], wander: m(a.wander, b.wander), chase: m(a.chase, b.chase), bite: m(a.bite, b.bite) };
+}
 const ROOMS = ['room_kitchen', 'room_yellow_lounge', 'room_yellow_bedroom', 'room_office', 'room_pink_sitting', 'room_dining', 'room_blue_bedroom', 'room_brown_lounge', 'room_kitchen_diner'];
 let visits = 0; // each House Call visit moves on to another room, so all nine get used
 export const LIST_LEVELS = [
@@ -80,6 +98,7 @@ export class Game {
 
   async start(cfg) {
     this.cfg = cfg; this.running = false; this.paused = false;
+    this.botD = cfg.difficulty === 'challenge' ? rivalDiff(cfg.rivalLevel || 1) : DIFF.easy; // how the Rivals bots play
     this.holes.forEach(h => h.remove(this.scene)); this.holes = []; this.critters.clear();
     const lvl = cfg.mode === 'list' ? LIST_LEVELS[cfg.level] : null; this.lvl = lvl;
     this.indoor = !!(lvl && lvl.room != null);
@@ -155,7 +174,7 @@ export class Game {
   // size N = every band up to N now fits whole (the fit test goes by the diagonal, ~1.1× the longest side)
   capTier(h) { const cap = h.r * 1.9 / 1.1 / (this.indoor ? 0.14 : 1); return Math.max(1, [1.2, 2.5, 5, 9, 16, 28].filter(t => t <= cap).length); }
   ate(h, o) {
-    h.eaten += o.area * (h.isPlayer || !this.cfg.difficulty ? 1 : (DIFF[this.cfg.difficulty] || DIFF.easy).grow);
+    h.eaten += o.area * (h.isPlayer || !this.cfg.difficulty ? 1 : this.botD.grow);
     if (!h.isPlayer) return;
     const t = tierOf(Math.max(o.m.w, o.m.d) * o.s / (this.indoor ? 0.14 : 1));
     sfx.gulp(t, o.id); this.score += Math.round(o.area * (this.indoor ? 400 : 10)) + 1;
@@ -168,7 +187,7 @@ export class Game {
     for (const a of this.holes) for (const b of this.holes) {
       if (a === b || !a.active || !b.active || b.inv > 0 || a.r < b.r * 1.2) continue;
       if (Math.hypot(a.x - b.x, a.z - b.z) < a.r - b.r * 0.3) {
-        const D = DIFF[this.cfg.difficulty] || DIFF.easy, lost = b.eaten * (b.isPlayer ? D.bite : 0.3); b.eaten -= lost; a.eaten += (lost + b.r * b.r) * (a.isPlayer ? 1 : D.grow); b.active = false; b.dead = 3;
+        const D = this.botD, lost = b.eaten * (b.isPlayer ? D.bite : 0.3); b.eaten -= lost; a.eaten += (lost + b.r * b.r) * (a.isPlayer ? 1 : D.grow); b.active = false; b.dead = 3;
         if (b.isPlayer) { sfx.eaten(); this.hooks.toast(a.name + ' gobbled you! Back in 3…'); } else if (a.isPlayer) { sfx.gotRival(); this.hooks.toast('You gobbled ' + b.name + '!'); }
       }
     }
@@ -179,7 +198,7 @@ export class Game {
     h.x = best[0]; h.z = best[1]; h.active = true; h.inv = 2;
   }
   botThink(h, dt) {
-    const B = h.bot, D = DIFF[this.cfg.difficulty] || DIFF.easy; B.t -= dt;
+    const B = h.bot, D = this.botD; B.t -= dt;
     if (B.t <= 0) {
       B.t = D.think[0] + Math.random() * (D.think[1] - D.think[0]); let best = null, score = 0;
       if (Math.random() < D.wander) { const bd = this.world.bounds; B.tx = h.x + (Math.random() - 0.5) * 40; B.tz = h.z + (Math.random() - 0.5) * 40; B.tx = Math.max(bd.minX, Math.min(bd.maxX, B.tx)); B.tz = Math.max(bd.minZ, Math.min(bd.maxZ, B.tz)); best = 'wander'; }

@@ -4,7 +4,7 @@ Steer a hungry pothole round town and swallow the lot. Ages 8–10, touch-first 
 
 ## Modes
 - **Gobble Rush:** 2:00 to grow. Stars for reaching size 3, 5 and 6.
-- **Rival Holes:** 3 bots (Rusty, Gloopy, Big Nibbles). A hole at least 1.2× bigger can gobble a smaller one, which loses 30% and respawns 3s later. Easy/Normal/Hard sets bot speed and sight. Stars by finishing place.
+- **Rival Holes:** 3 bots (Rusty, Gloopy, Big Nibbles). A hole at least 1.2× bigger can gobble a smaller one, which loses 30% and respawns 3s later. **Easy** (fixed, gentle bots) or **Challenge**: each player has a level 1–20 (shown as "Level 7 · Sinkhole": Puddle, Pothole, Sinkhole, Crater, Quarry, Canyon, Black Hole every 3 levels). Win → up one, 2nd → stay, 3rd/4th → down one. The bots' speed, sight, growth, thinking time, wandering, chase threshold and bite blend between anchors (1 ≈ just above Easy, 6 ≈ old Normal, 11 ≈ old Hard, 20 = very hard; `rivalDiff` in game.js). Old Normal/Hard saves start Challenge at 6/11; new players at 4. Stars by finishing place.
 - **Shopping List:** 12 levels.
   - 1–6: town lists.
   - 7–9: **Hazard Sweep**, find Ember Bay's fire hazards spread around town.
@@ -81,3 +81,4 @@ Real rigid-body physics ([Rapier](https://rapier.rs) 0.14, `@dimforge/rapier3d-c
 - 2026-10-06: Picking a hole shape while scrolled down made the list jump (the whole grid was rebuilt on every pick). It now restyles the cards in place (`markSkin`).
 - 2026-10-10: Zen progress survives a reload (`zenRun` in the save; `Game.snapshot()` / `restore()`, same seed → same `world.objs` order). New town chip on the Zen card.
 - 2026-10-10: Towns weren't reproducible from a seed: the model queues were built in pack-load order and shuffled with a random sort comparator. Now id-ordered and shuffled with a seeded Fisher–Yates (needed for the Zen save).
+- 2026-10-19: Rivals Normal/Hard replaced by adaptive Challenge levels (too easy for Caleb/Ezra). Easy kept.
